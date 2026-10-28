@@ -168,13 +168,8 @@ library
       Unison.LSP.VFS.CompletionPrefix
       Unison.Main
       Unison.MCP
-      Unison.MCP.Cli
-      Unison.MCP.Prompts
-      Unison.MCP.Server
-      Unison.MCP.Share.API
-      Unison.MCP.StaticResources
-      Unison.MCP.Tools
-      Unison.MCP.Types
+      Unison.MCP.Allowlist
+      Unison.MCP.Output
       Unison.MCP.Wrapper
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
@@ -312,7 +307,6 @@ library
     , unison-syntax
     , unison-util-base32hex
     , unison-util-diff3
-    , unison-util-file-embed
     , unison-util-recursion
     , unison-util-relation
     , unliftio
@@ -393,6 +387,7 @@ test-suite cli-tests
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
       Unison.Test.LSP
+      Unison.Test.MCP
       Unison.Test.TestProgress
       Unison.Test.Ucm
       Unison.Test.UriParser

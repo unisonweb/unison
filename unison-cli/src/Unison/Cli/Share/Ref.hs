@@ -44,7 +44,7 @@ parseShareRef input = do
             case rest of
               [] -> Right ShareLatest
               ["releases", version] | not (Text.null version) -> Right (ShareRelease version)
-              [name] | not (Text.null name) -> Right (ShareBranchNamed name)
+              [name] | not (Text.null name) && name /= "releases" -> Right (ShareBranchNamed name)
               _ -> Left ("I don't understand the branch in " <> input <> ". Use @user/project/branch or @user/project/releases/1.2.3")
           Right ShareRef {handle, slug, branch, path}
     _ -> Left ("Expected a reference like @user/project, @user/project/releases/1.2.3 or @user/project:some.name, but got " <> input)

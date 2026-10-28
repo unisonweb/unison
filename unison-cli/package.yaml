@@ -99,7 +99,6 @@ library:
     - unison-syntax
     - unison-util-base32hex
     - unison-util-diff3
-    - unison-util-file-embed
     - unison-util-recursion
     - unison-util-relation
     - unliftio

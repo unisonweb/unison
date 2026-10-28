@@ -58,8 +58,6 @@ import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import Unison.MCP qualified as MCP
-import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -139,23 +137,11 @@ withRunner jit config verbosity ucmVersion action = do
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
   maybe (pure ()) (liftIO . setEnv Fuzzy.fzfPathEnvVar) $ fzfPath config
   withRuntimes \runtime sbRuntime ->
-    action \transcriptName transcriptSrc codebase -> do
-      let workDir = Nothing
-      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
-      Server.startServer
-        (isTest config)
-        Backend.BackendEnv
-        Server.defaultCodebaseServerOpts
-        runtime
-        codebase
-        (MCP.mcpServer mcpServerConfig)
-        \case
-          Nothing -> pure $ Left PortBindingFailure
-          Just baseUrl -> do
-            let baseUrlText = tShow @Server.BaseUrl baseUrl
-            case (Transcript.parse transcriptName transcriptSrc) of
-              Left parseError -> pure $ Left (ParseError parseError)
-              Right stanzas ->
+    action \transcriptName transcriptSrc codebase ->
+      case Transcript.parse transcriptName transcriptSrc of
+        Left parseError -> pure $ Left (ParseError parseError)
+        Right transcript' -> do
+          let runWith baseUrlText =
                 run
                   config
                   verbosity
@@ -166,8 +152,21 @@ withRunner jit config verbosity ucmVersion action = do
                   baseUrlText
                   authenticatedHTTPClient
                   credMan
-                  stanzas
+                  transcript'
                   & catchExceptions
+          -- The codebase server is only for `api` blocks, so don't start one (and take a port) for transcripts without them.
+          if any (either (const False) isApiBlock) (stanzas transcript')
+            then
+              Server.startServer
+                (isTest config)
+                Backend.BackendEnv
+                Server.defaultCodebaseServerOpts
+                runtime
+                codebase
+                \case
+                  Nothing -> pure $ Left PortBindingFailure
+                  Just baseUrl -> runWith (tShow @Server.BaseUrl baseUrl)
+            else runWith ""
   where
     catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
     catchExceptions io =
@@ -184,6 +183,11 @@ withRunner jit config verbosity ucmVersion action = do
       let tokenProvider :: AuthN.TokenProvider
           tokenProvider = AuthN.newTokenProvider credMan
       AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+
+isApiBlock :: ProcessedBlock -> Bool
+isApiBlock = \case
+  API {} -> True
+  _ -> False
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
@@ -440,7 +444,7 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         IO.hFlush IO.stdout
 
       finishTranscript = do
-        showStatus True "✔️" "Completed transcript.\n"
+        showStatus False "✔️" "Completed transcript.\n"
         pure $ Right QuitI
 
       processStanza stanza midx = do

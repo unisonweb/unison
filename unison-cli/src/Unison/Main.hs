@@ -82,7 +82,6 @@ import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
-import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -174,11 +173,9 @@ main version = do
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
         MCPServer -> do
           let ucmVersion = Version.gitDescribeWithDate version
-          let credMan = AuthN.globalCredentialManager
-          authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
-            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
-              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
+          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) ->
+            Transcript.withRunner jit Transcript.defaultConfig Verbosity.Silent ucmVersion \runner ->
+              MCP.runOnStdIO runner theCodebase
         Init -> do
           exitError
             ( P.lines
@@ -359,14 +356,12 @@ main version = do
               let ucmVersion = Version.gitDescribeWithDate version
               let credMan = AuthN.globalCredentialManager
               authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
               Server.startServer
                 isTest
                 Backend.BackendEnv
                 codebaseServerOpts
                 sbRuntime
                 theCodebase
-                (MCP.mcpServer mcpServerConfig)
                 \mayBaseUrl -> case exitOption of
                   DoNotExit -> case isHeadless of
                     Headless -> whenJust mayBaseUrl \baseUrl -> do

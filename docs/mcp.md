@@ -1,16 +1,15 @@
 # MCP Setup
 
 UCM comes packaged with a built-in MCP server for use with AI agents.
-It includes tools for allowing an AI agent to inspect and search your code, write and typecheck new code, search Share
-for projects and definitions, and more!
+It has one idea: you give it a Unison [transcript](https://www.unison-lang.org/docs/tooling/transcripts/) (Markdown with `ucm` blocks of UCM commands and `unison` blocks of code), and it gives you back the transcript with UCM's output filled in after each command. Anything you can do at the UCM command line, an agent can do this way: search and read code, write and typecheck new code, add it to the codebase, install libraries, run tests, and read from Unison Share.
 
 ## Setup
 
-### MCP as an independent process (Recommended)
+### Configuring your agent
 
 This approach allows agents to connect to UCM's MCP server directly via stdin/stdout.
 
-Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
+Note that this causes an additional UCM to run as an entirely independent process for each agent you're using. Each one runs its transcripts in place, on the codebase it was started with (the default codebase, or the one given by `--codebase`), so changes an agent makes are really made there.
 
 #### Claude Code, IBM Bob, Gemini CLI, and Antigravity CLI
 
@@ -85,8 +84,7 @@ Restart `codex`; you should now be able to see the Unison MCP server by entering
 
   • Server: unison
     • Command: /home/bbarker/.nix-profile/bin/ucm mcp
-    • Tools: docs, get-current-project-context, lib-install, list-definition-dependencies, list-definition-dependents, list-library-definitions, list-local-projects, list-project-branches,
-list-project-definitions, list-project-libraries, search-by-type, search-definitions-by-name, share-project-readme, share-project-search, typecheck-code, view-definitions
+    • Tools: transcript-read-only, transcript, transcript-io, transcript-all
 ```
 
 #### Kiro CLI
@@ -118,34 +116,37 @@ If you're using a custom agent (e.g. defined in `~/.kiro/agents/my-agent.json`),
 
 After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` in chat.
 
-### Connecting to a running UCM executable (not recommended)
+## Tools
 
-If instead you wish to connect an agent to a running UCM executable you can use an HTTP MCP connection.
-This is less consistent than the stdio approach, since some agents have rather poor handling of error states if you close your running UCM, or start
-up an agent without UCM already running.
+There are four tools. They all take a `transcript` (the Markdown text) and differ only in which UCM commands they allow, so an agent can be given just as much power as you're comfortable with. A transcript that uses a command its tool doesn't allow is rejected before anything runs, with a list of what to change.
 
-The following defaults should work if you haven't tweaked things, but ensure you use the correct port and token if you've changed them:
+| Tool | Allows |
+| --- | --- |
+| `transcript-read-only` | Commands that don't change the codebase: searching, viewing, docs, diffs, history, running tests, and reading from Share. Every project and branch the transcript mentions must already exist. |
+| `transcript` | The above, plus changes that are easy to undo (with `undo`, the reflog, or by deleting a branch): `update`, `merge`, creating and renaming branches and projects, `lib.install`, `pull`, deleting definitions, and so on. |
+| `transcript-io` | The above, plus running code (`run`, `io.test`), which can do anything IO can. |
+| `transcript-all` | Everything, including deleting projects and branches and `push`ing to Share. |
 
+The last two are marked destructive, so agents that ask for approval before using destructive tools will ask before using them.
+
+A call that takes more than five minutes is cancelled; set `UNISON_MCP_TIMEOUT` (in seconds) in the server's environment to change that.
+
+If the result is more than 25 lines, it is written to a temporary file and the tool returns the path, so the agent can search the file instead of reading all of it. The files are removed when the MCP server exits.
+
+### Reading from Share
+
+Three commands read from [Unison Share](https://share.unison-lang.org) without touching your codebase. They work at the UCM command line too.
+
+``` ucm
+myproject/main> share.project-search http
+myproject/main> share.source @unison/base:List.map
+myproject/main> share.render @unison/base:List.map
+myproject/main> share.render @unison/base
 ```
-{
-  "mcpServers": {
-    "unison": {
-      "type": "streamable-http",
-      "url": "http://localhost:5858/codebase/mcp",
-      "note": "Replace 5858 and 'codebase' with your UCM_PORT and UCM_TOKEN respectively if you've changed the defaults."
-    }
-  }
-}
-```
 
-After saving the file, restart the Claude Desktop app. You should now see a new "unison" option in the MCP server list.
-
+`share.project-search` finds projects. `share.source` prints the source of a definition, and `share.render` prints its documentation, or a project's README if you give it no name. By default they look at the project's latest release; `@unison/base/releases/7.20.0:List.map` picks a release and `@unison/base/main:List.map` a branch.
 
 ## Usage
 
-By default, your coding assistant will automatically use the Unison MCP server when it deems it appropriate, however 
+By default, your coding assistant will automatically use the Unison MCP server when it deems it appropriate, however
 you'll get much better results with additional prompting. You may wish to start with the prompts [in this repository](https://github.com/unisoncomputing/unison-llm-support/tree/main), in particular this [main prompt](https://github.com/unisoncomputing/unison-llm-support/blob/main/instructions.md) which delegates to one of several "modes" depending on the situation, with clear instructions for each.
-
-There are also some prompts available in the MCP server itself (for instance, there is a Unison language guide). 
-If you're using Claude Desktop, you can find these prompts by clicking the "plus" icon next to the prompt input box, and then
-choosing `Add from unison` and selecting the appropriate prompt.
