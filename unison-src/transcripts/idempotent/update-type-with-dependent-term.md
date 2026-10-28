@@ -59,13 +59,14 @@ unique type Foo = Bar Nat Nat
   To finish the update:
 
     1. Edit update-c865a093.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load update-c865a093.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges update-main into main
-    and deletes the temporary branch.
+       saves the file's definitions, merges update-main into
+       main and deletes the temporary branch.
 
   Or, to abandon the update instead, run `cancel` to delete the
   temporary branch and switch back to main.

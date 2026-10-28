@@ -839,13 +839,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-a0458b71.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-a0458b71.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -930,13 +931,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-f22bd26f.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-f22bd26f.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1032,13 +1034,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-693890d8.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-693890d8.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1139,13 +1142,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-2948b710.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-2948b710.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1224,13 +1228,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-f6a4c8d6.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-f6a4c8d6.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1309,13 +1314,14 @@ scratch/alice> merge bob
   To finish the merge:
 
     1. Edit merge-65705e1a.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-65705e1a.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1390,13 +1396,14 @@ scratch/alice> merge bob
   To finish the merge:
 
     1. Edit merge-06163e94.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-06163e94.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1493,13 +1500,14 @@ scratch/alice> merge bob
   To finish the merge:
 
     1. Edit merge-d0ef5973.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-d0ef5973.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1621,13 +1629,14 @@ scratch/alice> merge bob
   To finish the merge:
 
     1. Edit merge-25478420.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-25478420.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1715,13 +1724,14 @@ scratch/alice> merge bob
   To finish the merge:
 
     1. Edit merge-baed993d.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-baed993d.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -1818,13 +1828,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-39ad6568.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-39ad6568.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -2867,13 +2878,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-43ea3b35.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-43ea3b35.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -3256,13 +3268,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-dec4b766.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-dec4b766.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
@@ -3407,13 +3420,15 @@ scratch/main> merge /topic
   To finish the merge:
 
     1. Edit merge-afae6391.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-afae6391.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-topic-into-main
-    into main and deletes the temporary branch.
+       saves the file's definitions, merges
+       merge-topic-into-main into main and deletes the temporary
+       branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to main.
@@ -3549,13 +3564,15 @@ scratch/topic> merge /main
   To finish the merge:
 
     1. Edit merge-d67cc149.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-d67cc149.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-main-into-topic
-    into topic and deletes the temporary branch.
+       saves the file's definitions, merges
+       merge-main-into-topic into topic and deletes the
+       temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to topic.
@@ -3704,13 +3721,15 @@ scratch/topic> merge /topic2
   To finish the merge:
 
     1. Edit merge-53e0321e.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-53e0321e.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-topic2-into-topic
-    into topic and deletes the temporary branch.
+       saves the file's definitions, merges
+       merge-topic2-into-topic into topic and deletes the
+       temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to topic.
@@ -3885,13 +3904,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-09aff14e.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-09aff14e.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.

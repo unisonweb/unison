@@ -2960,16 +2960,16 @@ notifyUser dir issueFn = \case
           "To finish the " <> P.text handoff.action <> ":",
           "",
           P.indentN 2 . P.lines $
-            [ P.wrap $
+            [ P.indentNAfterNewline 3 . P.wrap $
                 "1. Edit"
                   <> file
                   <> "until it compiles. Fix each definition, or delete the ones you no longer want:"
                   <> "deleting a definition from the file deletes it from the branch.",
-              P.wrap $
+              P.indentNAfterNewline 3 . P.wrap $
                 "2. Run"
                   <> IP.makeExample IP.load [file]
                   <> "to check the file. Repeat steps 1 and 2 until it loads with no errors.",
-              P.wrap $
+              P.indentNAfterNewline 3 . P.wrap $
                 "3. Run"
                   <> makeExample' IP.update
                   <> "(without arguments, from this branch). It saves the file's definitions, merges"

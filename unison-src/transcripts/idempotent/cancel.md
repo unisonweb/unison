@@ -60,13 +60,14 @@ scratch/main> update
   To finish the update:
 
     1. Edit update-00b86312.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load update-00b86312.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges update-main into main
-    and deletes the temporary branch.
+       saves the file's definitions, merges update-main into
+       main and deletes the temporary branch.
 
   Or, to abandon the update instead, run `cancel` to delete the
   temporary branch and switch back to main.
@@ -149,13 +150,14 @@ scratch/main> upgrade old new
   To finish the upgrade:
 
     1. Edit upgrade-e3493e45.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load upgrade-e3493e45.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges upgrade-old-to-new into
-    main and deletes the temporary branch.
+       saves the file's definitions, merges upgrade-old-to-new
+       into main and deletes the temporary branch.
 
   Or, to abandon the upgrade instead, run `cancel` to delete the
   temporary branch and switch back to main.
@@ -273,13 +275,14 @@ scratch/alice> merge /bob
   To finish the merge:
 
     1. Edit merge-871a0464.u until it compiles. Fix each
-    definition, or delete the ones you no longer want: deleting
-    a definition from the file deletes it from the branch.
+       definition, or delete the ones you no longer want:
+       deleting a definition from the file deletes it from the
+       branch.
     2. Run `load merge-871a0464.u` to check the file. Repeat
-    steps 1 and 2 until it loads with no errors.
+       steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
-    saves the file's definitions, merges merge-bob-into-alice
-    into alice and deletes the temporary branch.
+       saves the file's definitions, merges merge-bob-into-alice
+       into alice and deletes the temporary branch.
 
   Or, to abandon the merge instead, run `cancel` to delete the
   temporary branch and switch back to alice.
