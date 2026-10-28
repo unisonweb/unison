@@ -37,8 +37,10 @@ library
       Unison.Cli.Pretty
       Unison.Cli.ProjectUtils
       Unison.Cli.ServantClientUtils
+      Unison.Cli.Share.Definitions
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
+      Unison.Cli.Share.Ref
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
       Unison.Cli.UpdateUtils
@@ -96,6 +98,7 @@ library
       Unison.Codebase.Editor.HandleInput.Rename
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
+      Unison.Codebase.Editor.HandleInput.Share
       Unison.Codebase.Editor.HandleInput.ShowDefinition
       Unison.Codebase.Editor.HandleInput.Signature
       Unison.Codebase.Editor.HandleInput.SyncV2

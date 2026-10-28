@@ -39,6 +39,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Cli.Share.Ref (ShareRef)
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime.Profile (ProfileSpec)
@@ -201,6 +202,9 @@ data Input
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
+  | ShareProjectSearchI Text
+  | ShareSourceI ShareRef
+  | ShareRenderI ShareRef
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | QuitI

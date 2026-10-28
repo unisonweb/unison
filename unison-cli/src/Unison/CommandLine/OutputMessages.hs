@@ -1968,6 +1968,8 @@ notifyUser dir issueFn = \case
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
+  ShareText text -> pure (P.lines (P.text <$> Text.lines text))
+  ShareFailed err -> pure (P.fatalCallout (P.wrap (P.text err)))
   ServantClientError err ->
     pure case err of
       Servant.ConnectionError exception ->

@@ -412,6 +412,9 @@ data Output
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
   | ServantClientError Servant.ClientError
+  | -- | Plain text from a @share.*@ command.
+    ShareText Text
+  | ShareFailed Text
   | MarkdownOut Text
   | DownloadedEntities Int
   | UploadedEntities Int
@@ -725,6 +728,8 @@ isFailure o = case o of
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
   ServantClientError {} -> True
+  ShareText {} -> False
+  ShareFailed {} -> True
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
   RemoteProjectBranchIsUpToDate {} -> False

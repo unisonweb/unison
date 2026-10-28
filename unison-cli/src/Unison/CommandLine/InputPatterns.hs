@@ -181,6 +181,7 @@ import Unison.Cli.Pretty
     prettySlashProjectBranchName,
     prettyURI,
   )
+import Unison.Cli.Share.Ref (ShareRef (..), parseShareRef)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
@@ -3608,6 +3609,74 @@ projectsInputPattern =
       parse = const $ pure Input.ProjectsI
     }
 
+shareProjectSearch :: InputPattern
+shareProjectSearch =
+  InputPattern
+    { patternName = "share.project-search",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [] $ OnePlus ("query", noCompletionsArg),
+      help =
+        P.wrapColumn2
+          [ ( makeExample shareProjectSearch ["<query>"],
+              "searches Unison Share for projects and libraries matching the query."
+            )
+          ],
+      parse = \args ->
+        Input.ShareProjectSearchI . Text.pack . unwords
+          <$> traverse (unsupportedStructuredArgument shareProjectSearch "a search query") args
+    }
+
+-- | Shared by the @share.source@ and @share.render@ parsers.
+parseShareRefArg :: InputPattern -> Bool -> I.Arguments -> Either (P.Pretty CT.ColorText) ShareRef
+parseShareRefArg pat pathRequired = \case
+  [arg] -> do
+    raw <- unsupportedStructuredArgument pat "a reference to a project or definition on Share" arg
+    ref <- first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+    when (pathRequired && isNothing ref.path) do
+      Left . P.wrap $ "I expected a definition name after the `:`, like @user/project:some.name"
+    pure ref
+  args -> wrongArgsLength "exactly one argument" args
+
+shareSource :: InputPattern
+shareSource =
+  InputPattern
+    { patternName = "share.source",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("definition on Share", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ( makeExample shareSource ["@user/project:path.to.definition"],
+              "prints the source of a definition from the latest release of a project on Share."
+            ),
+            ( makeExample shareSource ["@user/project/releases/1.2.3:path.to.definition"],
+              "prints it from a specific release, and `@user/project/branch:...` from a branch."
+            )
+          ],
+      parse = fmap Input.ShareSourceI . parseShareRefArg shareSource True
+    }
+
+shareRender :: InputPattern
+shareRender =
+  InputPattern
+    { patternName = "share.render",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("project or definition on Share", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ( makeExample shareRender ["@user/project"],
+              "prints the README of a project on Share."
+            ),
+            ( makeExample shareRender ["@user/project:path.to.definition"],
+              "prints the rendered documentation of a definition, or of a doc if it names one. \
+              \Releases and branches are selected as for `share.source`."
+            )
+          ],
+      parse = fmap Input.ShareRenderI . parseShareRefArg shareRender False
+    }
+
 branchesInputPattern :: InputPattern
 branchesInputPattern =
   InputPattern
@@ -4001,6 +4070,9 @@ validInputs =
       projectRenameInputPattern,
       projectSwitch,
       projectsInputPattern,
+      shareProjectSearch,
+      shareRender,
+      shareSource,
       pull,
       pullWithoutHistory,
       push,

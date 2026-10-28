@@ -89,6 +89,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
+import Unison.Codebase.Editor.HandleInput.Share (handleShareProjectSearch, handleShareRender, handleShareSource)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
@@ -613,6 +614,9 @@ loop e = do
         ProjectRenameI name -> handleProjectRename name
         ProjectSwitchI name -> projectSwitch name
         ProjectsI -> handleProjects
+        ShareProjectSearchI query -> handleShareProjectSearch query
+        ShareSourceI ref -> handleShareSource ref
+        ShareRenderI ref -> handleShareRender ref
         PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
         PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
         QuitI -> Cli.haltRepl
@@ -850,6 +854,9 @@ inputDescription input =
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat
+    ShareProjectSearchI {} -> wat
+    ShareSourceI {} -> wat
+    ShareRenderI {} -> wat
     PullI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
