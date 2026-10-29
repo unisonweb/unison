@@ -108,6 +108,14 @@ recLoop n =
           else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
   go { i: 0, line: 0, col: 0 }
 
+-- a sum state: the worker per constructor, no tag or allocation per round
+sumLoop : Nat -> Nat
+sumLoop n =
+  go st = match st with
+    Left acc -> if acc == n then acc else go (Right (acc + 1))
+    Right acc -> go (Left (acc + 1))
+  go (Left 0)
+
 structural type Tree = Leaf | Node Tree Nat Nat Tree
 
 Tree.insert : Nat -> Nat -> Tree -> Tree
@@ -455,6 +463,7 @@ jitSuite = do
   printTime "Loop state: a tuple rebuilt each round, 100000 rounds" 1 (n -> repeat n do tupleLoop 100000)
   printTime "Loop state: a three-field constructor rebuilt each round, 100000 rounds" 1 (n -> repeat n do posLoop 100000)
   printTime "Loop state: a record updated each round, 100000 rounds" 1 (n -> repeat n do recLoop 100000)
+  printTime "Loop state: an Either alternating each round, 100000 rounds" 1 (n -> repeat n do sumLoop 100000)
   printTime "Apply a function argument 10000 times" 1 (n -> repeat n do applyN 10000 (x -> x + 3) 0)
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)

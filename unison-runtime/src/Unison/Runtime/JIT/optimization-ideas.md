@@ -30,6 +30,21 @@ natively (the type table holds one enum per type, for the reference), which a
 table by constructor would avoid; rare, since a nullary value that escapes is
 usually built boxed in the first place.
 
+### A private convention for specialised workers
+
+A specialisation of a loop (`Unison.Runtime.MCode.Explode`) is called only
+from sites the batch knows: its own body, its siblings, and the callers in
+the batch. Inside one LLVM module those calls already go straight to the
+`tailcc` workers with the arguments in registers; what stays uniform is
+the wrapper that takes the arguments from the Unison stack, the entry poll,
+the C-stack check and the exit write-back of a frame sized for the whole
+function, all there for callers in other modules and for the interpreter.
+With every caller known, the wrapper could be generated only when some
+caller is in another module or interpreted, and a worker whose callers are
+all in its module could skip reserving Unison-stack slots for its
+arguments (Paul, 2026-10-29). The loops that matter compile into one
+module, so the gain is in the entry and exit paths, to be measured.
+
 ### A typed Box
 
 A `Box` of a call's result boxes a witness through the module's helper,

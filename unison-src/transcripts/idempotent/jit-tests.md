@@ -893,6 +893,32 @@ cursor n =
           else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
   go { i: 0, line: 0, col: 0 }
 
+-- a sum state: one worker per constructor, mutually recursive
+sumState : Nat -> Nat
+sumState n =
+  go st = match st with
+    Left acc -> if acc == n then acc else go (Right (acc + 1))
+    Right acc -> go (Left (acc + 1))
+  go (Left 0)
+
+-- the sum is built in the branches of a match and passed at once
+branchy : Nat -> Nat
+branchy n =
+  go st = match st with
+    None -> 0
+    Some i -> i + go (if i == n then None else Some (i + 1))
+  go (Some 0)
+
+-- a state machine with a nullary stop state and a two-field running state
+structural type Machine = Running Nat Nat | Stopped
+
+machine : Nat -> Nat
+machine n =
+  step st = match st with
+    Machine.Stopped -> 0
+    Machine.Running i acc -> if i == n then acc else step (if Nat.mod i 7 == 6 then Machine.Stopped else Machine.Running (i + 1) (acc + i))
+  step (Machine.Running 0 0)
+
 -- the record is returned on one path: plain
 cursorEnd : Nat -> { i: Nat, acc: Nat }
 cursorEnd n =
@@ -900,7 +926,7 @@ cursorEnd n =
   go st = match st with { i: i, acc: acc } -> if i == n then st else go { i: i + 1, acc: acc + i }
   go { i: 0, acc: 0 }
 
-exploded : (Nat, Pos, (Nat, Nat), Nat, Nat, Nat, Nat, ((Nat, Nat), Nat), Nat, Nat, { i: Nat, acc: Nat })
+exploded : (Nat, Pos, (Nat, Nat), Nat, Nat, Nat, Nat, ((Nat, Nat), Nat), Nat, Nat, { i: Nat, acc: Nat }, Nat, Nat, Nat, Nat)
 exploded =
   (sumTo 100,
    walk 25,
@@ -912,7 +938,11 @@ exploded =
    keepState 9,
    withTwo '(askLoop 5),
    cursor 25,
-   cursorEnd 5)
+   cursorEnd 5,
+   sumState 10,
+   branchy 10,
+   machine 5,
+   machine 100)
 
 > exploded
 ```
@@ -921,10 +951,12 @@ exploded =
   Loading changes detected in scratch.u.
 
   + structural ability Ask
+  + structural type Machine
   + structural type Pos
 
   + applyTo   : ((Nat, Nat) ->{g} r) -> (Nat, Nat) ->{g} r
   + askLoop   : Nat ->{Ask} Nat
+  + branchy   : Nat -> Nat
   + cursor    : Nat -> Nat
   + cursorEnd : Nat -> {acc: Nat, i: Nat}
   + exploded  : ( Nat,
@@ -937,11 +969,17 @@ exploded =
                   ((Nat, Nat), Nat),
                   Nat,
                   Nat,
-                  {acc: Nat, i: Nat})
+                  {acc: Nat, i: Nat},
+                  Nat,
+                  Nat,
+                  Nat,
+                  Nat)
   + keepState : Nat -> ((Nat, Nat), Nat)
   + lastPair  : Nat -> (Nat, Nat)
+  + machine   : Nat -> Nat
   + ping      : (Nat, Nat) -> Nat
   + pong      : (Nat, Nat) -> Nat
+  + sumState  : Nat -> Nat
   + sumTo     : Nat -> Nat
   + through   : (Nat, Nat) -> Nat
   + walk      : Nat -> Pos
@@ -949,20 +987,24 @@ exploded =
 
   Run `update` to apply these changes to your codebase.
 
-    99 | > exploded
-           ⧩
-           ( 4950
-           , Pos 25 3 4
-           , (5, 32)
-           , 110
-           , 109
-           , 7
-           , 107
-           , ((9, 10), 123)
-           , 10
-           , 3004
-           , {acc: 10, i: 5}
-           )
+    129 | > exploded
+            ⧩
+            ( 4950
+            , Pos 25 3 4
+            , (5, 32)
+            , 110
+            , 109
+            , 7
+            , 107
+            , ((9, 10), 123)
+            , 10
+            , 3004
+            , {acc: 10, i: 5}
+            , 10
+            , 55
+            , 10
+            , 0
+            )
 ```
 
 ## Calls to function values

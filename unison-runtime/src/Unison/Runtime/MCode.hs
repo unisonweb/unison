@@ -914,9 +914,9 @@ data RefNums = RN
     cnum :: Reference -> Word64,
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
-    -- | the exploded arguments of a combinator of this batch
-    -- (Unison.Runtime.MCode.Explode): the shapes, for one with a worker
-    explode :: Reference -> Maybe [Shape],
+    -- | the specialisations of a combinator of this batch
+    -- (Unison.Runtime.MCode.Explode): its call patterns, in worker order
+    explode :: Reference -> Maybe [Pattern],
     -- Map record schemas into their runtime reference
     recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
@@ -1329,7 +1329,7 @@ data RCtx v = RCtx
   }
 
 emptyRCtx :: RCtx v
-emptyRCtx = RCtx M.empty (ConLets M.empty M.empty M.empty) Set.empty
+emptyRCtx = RCtx M.empty (ConLets M.empty M.empty) Set.empty
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1511,17 +1511,15 @@ emitCombs ::
   SuperGroup Reference v ->
   State RecordFieldMappings (EnumMap Word64 Comb)
 emitCombs rns grpr grpn (Rec grp ent) = do
-  es <- case explode rns grpr of
-    -- the entry point with exploded arguments is two combinators: the
-    -- worker at the exploded index, and the entry, which unpacks and
-    -- calls it as a local function
-    Just shapes ->
-      let Split w entry worker = split shapes ent
-          recW = rec {rctxCombs = M.insert w explodedBit (rctxCombs rec)}
-       in (<>) <$> emitComb rns grpr grpn recW (0, entry) <*> emitComb rns grpr grpn rec (explodedBit, worker)
-    Nothing -> emitComb rns grpr grpn rec (0, ent)
+  es <- emitComb rns grpr grpn rec (0, ent)
+  -- a specialisation of the entry point per call pattern its callers in
+  -- the batch build (Unison.Runtime.MCode.Explode), each a combinator of
+  -- its own
+  specs <- case explode rns grpr of
+    Just pats -> foldMapM (\(k, pat) -> emitComb rns grpr grpn rec (specIndex k, specialise pat ent)) (zip [1 ..] pats)
+    Nothing -> pure mempty
   auxEs <- aux
-  pure $ es <> auxEs
+  pure $ es <> specs <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
@@ -1673,9 +1671,10 @@ emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
   where
-    -- the explosion maps variables by name, which shadowing defeats
-    bd = if explodeOn then uniqueBinders bd0 else bd0
-    cons = conLets vs bd
+    -- the explosion maps variables by name, which shadowing defeats, and
+    -- sinks calls into the branches that build their argument
+    bd = if explodeOn then prepare bd0 else bd0
+    cons = conLets bd
     rec = rec0 {rctxCons = cons, rctxDead = deadCons (explode rns) cons bd}
 
 -- | How many values a term yields when it is in tail position, or Nothing
@@ -1861,13 +1860,14 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
       . VArgV
       $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp (FComb r) args)
-  -- a call of a function of this batch with exploded arguments goes to
-  -- its worker with the fields of the constructors built for it
+  -- a call of a function of this batch that builds one of its call
+  -- patterns goes to that specialisation with the fields of what it built
   -- (Unison.Runtime.MCode.Explode)
-  | Just shapes <- explode rns r,
-    Just fields <- explodedArgs (rctxCons rec) shapes args =
+  | Just pats <- explode rns r,
+    Just (k, pat) <- siteSpec (rctxCons rec) pats args,
+    Just fields <- explodedArgs (rctxCons rec) pat args =
       emitClosures grpr grpn rec ctx fields $ \ctx as ->
-        let cix = CIx r (cnum rns r) explodedBit
+        let cix = CIx r (cnum rns r) (specIndex k)
          in countCtx ctx $ Call False cix cix as
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
