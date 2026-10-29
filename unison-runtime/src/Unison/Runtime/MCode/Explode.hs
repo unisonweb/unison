@@ -374,12 +374,12 @@ freshVar avoid = (u, Set.insert u avoid)
     u = Var.freshIn avoid (Var.typed Var.Eta)
 
 -- | A body as the analysis and the emitter see it: every binder with a
--- name of its own ('uniqueBinders'), and calls sunk into the branches
+-- name of its own ('uniqueBinders'), then calls sunk into the branches
 -- that build their argument ('sinkCalls'). Applied to every lambda while
 -- the explosion is on, so that the sites the analysis saw are the sites
 -- emitted.
 prepare :: (Var v) => ANormal Reference v -> ANormal Reference v
-prepare bd = evalState (uniqueBinders M.empty bd >>= sinkCalls) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)))
+prepare bd = sinkCalls (evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd))))
 
 -- | The body with a name of its own for every binder. Normalization reuses
 -- a name under shadowing (the blank variables), and 'ABTN.freshen' gives
@@ -402,26 +402,27 @@ fresh u = do
 -- | A call whose argument is the value of a match, @let s = match c with
 -- arms in f .. s ..@ with @s@ used nowhere else, moved into the arms, so
 -- that the branch that builds a constructor calls with it: the let's body
--- is the call, so each arm's tail becomes the call with its tail value
--- for @s@ (a tail that is not a variable is bound to a fresh one first).
-sinkCalls :: (Var v) => ANormal Reference v -> State (Set.Set v) (ANormal Reference v)
+-- is the call, so each arm's tail becomes the call with its tail variable
+-- for @s@. Only when every tail is a variable (a built constructor's let
+-- ends that way): a tail that is an expression would need a let of its
+-- own, with an index, to name it.
+sinkCalls :: (Var v) => ANormal Reference v -> ANormal Reference v
 sinkCalls tm = case tm of
   TLets _ [s] _ bn@(TMatch _ _) call@(TApp f args)
     | s `elem` args,
-      occurrences s call == 1 ->
-        sinkCalls =<< sink bn (\u -> TApp f (map (\a -> if a == s then u else a) args))
-  ABTN.Term _ (ABTN.Abs u b) -> ABTN.TAbs u <$> sinkCalls b
-  ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse sinkCalls f
+      occurrences s call == 1,
+      Just sunk <- sink bn (\u -> TApp f (map (\a -> if a == s then u else a) args)) ->
+        sinkCalls sunk
+  ABTN.Term _ (ABTN.Abs u b) -> ABTN.TAbs u (sinkCalls b)
+  ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm (fmap sinkCalls f)
   where
     sink e k = case e of
       TMatch v bs -> TMatch v <$> traverse (`sink` k) bs
       TLets d us ms bn bo -> TLets d us ms bn <$> sink bo k
       TName v fn as bo -> TName v fn as <$> sink bo k
-      TVar u -> pure (k u)
+      TVar u -> Just (k u)
       ABTN.Term _ (ABTN.Abs u b) -> ABTN.TAbs u <$> sink b k
-      other -> do
-        u <- fresh (Var.typed Var.Eta)
-        pure (TLets Direct [u] [BX] other (k u))
+      _ -> Nothing
 
 -- | The product lets of a lambda that nothing uses but the exploded calls
 -- they feed, as the argument itself, or as a field of one that is dead in
