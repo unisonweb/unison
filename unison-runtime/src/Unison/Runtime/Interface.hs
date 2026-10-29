@@ -933,7 +933,7 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide _) init = do
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide) init = do
   -- The file's replacement mode and calling convention, before anything
   -- decodes a value, consults the foreign function table or lays out a frame
   JIT.setReplacements repl
@@ -980,14 +980,10 @@ data StoredCache
       -- whether the code was compiled under the wide calling convention
       -- (Unison.Runtime.Wide), for the same reason
       Bool
-      -- the argument widths of each group's entry point (MCode's
-      -- 'argWidths'), as they were when its MCode was emitted: code the
-      -- program loads later calls the stored workers by them
-      (Map Reference [Bool])
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide widths) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -1004,7 +1000,6 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putRecordFieldMappings rfm
     <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
     <> BU.word8 (if wide then 1 else 0)
-    <> putMap putReference (putFoldable putBool) widths
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -1038,7 +1033,6 @@ getStoredCache =
     <*> getRecordFieldMappings
     <*> getReplacements
     <*> getWide
-    <*> getMap getReference (getList getBool)
   where
     getWide =
       getWord8 >>= \case
@@ -1059,7 +1053,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _ widths) = do
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1094,7 +1088,6 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
       <*> newTVarIO pool
-      <*> newTVarIO widths
       <*> pure jit
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         unresolvedCombs
@@ -1132,7 +1125,7 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
-                  emitComb @Symbol rns (rf k) k mempty (False <$ lambdaArgs v) (0, v)
+                  emitComb @Symbol rns (rf k) k mempty (0, v)
               )
         )
     srcCombs :: EnumMap Word64 Combs
@@ -1169,9 +1162,8 @@ buildSCache ::
   RecordFieldMappings ->
   JIT.Replacements ->
   Bool ->
-  Map Reference [Bool] ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide widths =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide =
   SCache
     cs
     crs
@@ -1189,7 +1181,6 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     rfm
     repl
     wide
-    (restrictTmR widths)
   where
     termRefs = Map.keysSet int
 
@@ -1242,7 +1233,6 @@ standalone cc init =
           <*> readTVarIO (recordFieldMappings cc)
           <*> pure JIT.replacements
           <*> pure wideOn
-          <*> readTVarIO (argWidths cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 
@@ -1427,6 +1417,3 @@ prettyError issueFn = \case
     where
       panicIcon = "💥🤯💥"
       render (errs, tm) = ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
-
-lambdaArgs :: ANF.SuperNormal Reference Symbol -> [ANF.Mem]
-lambdaArgs (ANF.Lambda ccs _) = ccs

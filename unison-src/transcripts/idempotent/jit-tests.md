@@ -661,13 +661,16 @@ askPair n =
             true
 ```
 
-## Wide arguments
+## Small constructors passed to calls
 
-A function that matches on an argument and never lets it escape takes it
-unboxed: a caller holding the result of a call passes the slots. One that
-lets it escape on some path takes it boxed, so two callees given the same
-value share one object. Unknown callers (function values, partial
-applications) go through the boxed entry.
+A small constructor the caller holds unboxed (the result of a call, or a
+let) is boxed at the call that takes it, once, so two callees given the
+same value share one object; the callee matches on the object as usual.
+The same through a function value, a partial application, a local loop
+whose state is a tuple, and a request raised inside the callee. (The
+section was written for workers that took such an argument as its slots,
+built and reverted on 2026-10-28, `JIT/benchmarks/2026-10-28-wide-arguments.md`;
+the cases stand on their own.)
 
 ``` unison
 use Nat + - * / == < > <= >=
