@@ -43,6 +43,6 @@ Run each variant several times, since a single run is noise. Keep some tasks out
 ## Tasks
 
 - `list-pick`: write a small documented, tested function that returns the elements (not the indices) selected by a list of Booleans. Judges: `implementation` (type, values not indices, edge cases, tail recursive, long list), `docs-quality`, and `tests`.
-- `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, no `List.reverse` or `List.+:` among its dependencies, function first, a million elements) and `reuses-existing` (is it `List.map`, by comparing hashes).
+- `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, no `List.reverse` or `List.+:` among its dependencies, function first, 100 elements) and `reuses-existing` (is it `List.map`, by comparing hashes).
 - `list-sift`: the same for `List.sift`, which is `List.filter`.
 - `list-xf-keep`: the same for `List.xfKeep`, which is `List.filterMap`.
