@@ -2161,7 +2161,7 @@ notifyUser dir issueFn = \case
       P.wrap "I couldn't complete the delete, because some definitions are still in use."
         <> P.newline
         <> P.newline
-        <> scratchFileNextSteps handoff
+        <> scratchFileNextSteps handoff []
   UpdateTypecheckingFailure handoff ->
     pure $
       P.wrap
@@ -2186,7 +2186,7 @@ notifyUser dir issueFn = \case
       P.wrap "I couldn't complete the update, because some existing definitions would no longer typecheck."
         <> P.newline
         <> P.newline
-        <> scratchFileNextSteps handoff
+        <> scratchFileNextSteps handoff []
   UpgradeFailure handoff names ->
     pure $
       P.wrap
@@ -2204,7 +2204,7 @@ notifyUser dir issueFn = \case
         )
         <> P.newline
         <> P.newline
-        <> scratchFileNextSteps handoff
+        <> scratchFileNextSteps handoff []
   UpgradeSuccess names unmanglings ->
     pure $
       P.wrap $
@@ -2222,7 +2222,7 @@ notifyUser dir issueFn = \case
                    )
                  & P.oxfordCommasWith "."
              )
-  MergeFailure handoff aliceAndBob ->
+  MergeFailure handoff aliceAndBob conflictMarkers ->
     pure $
       P.wrap
         ( "I couldn't automatically"
@@ -2233,7 +2233,16 @@ notifyUser dir issueFn = \case
         )
         <> P.newline
         <> P.newline
-        <> scratchFileNextSteps handoff
+        <> scratchFileNextSteps
+          handoff
+          [ P.wrap $
+              "The file has conflict markers where the branches disagree. In each, the first part is"
+                <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
+                <> "version, the second is the original, and the third is"
+                <> P.group (prettyMergeSource aliceAndBob.bob <> "'s.")
+                <> "Keep what you want and delete the marker lines."
+            | conflictMarkers
+          ]
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
@@ -2951,8 +2960,8 @@ notifyUser dir issueFn = \case
     pure (P.fatalCallout (modifyingLibNotAllowed names))
   where
     -- What an agent (or person) needs to do next after an action left them on a temporary branch with a scratch file.
-    scratchFileNextSteps :: ScratchFileHandoff -> Pretty
-    scratchFileNextSteps handoff =
+    scratchFileNextSteps :: ScratchFileHandoff -> [Pretty] -> Pretty
+    scratchFileNextSteps handoff extra =
       P.lines $
         [ P.wrap $
             "You're now on a temporary branch,"
@@ -2961,6 +2970,7 @@ notifyUser dir issueFn = \case
               <> P.group (prettyFilePath handoff.scratchFile <> "."),
           ""
         ]
+          ++ foldMap (\paragraph -> [paragraph, ""]) extra
           ++ scratchFileCommands handoff
           ++ [ "",
                P.wrap $

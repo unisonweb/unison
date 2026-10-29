@@ -383,9 +383,13 @@ doMerge info = do
             --                Yes                    Yes                                              Run that cool tool
 
             maybeMergetool <-
-              if not env.isTranscriptTest && not (defnsAreEmpty mergeblob.conflicts.alice)
+              if not env.isTranscriptTest && not env.unattended && not (defnsAreEmpty mergeblob.conflicts.alice)
                 then liftIO (lookupEnv "UCM_MERGETOOL")
                 else pure Nothing
+
+            -- Nobody is there to run a merge tool, so give them what one would start from: the three-way merge, with
+            -- conflict markers where the branches disagree.
+            let conflictMarkers = env.unattended && not (defnsAreEmpty mergeblob.conflicts.alice)
 
             case maybeMergetool of
               Nothing -> do
@@ -402,7 +406,10 @@ doMerge info = do
                       into @Text info.bob.causalHash,
                       maybe "" (into @Text) info.lca.causalHash
                     ]
-                    (Pretty.toPlain 80 mergeblob.unparsedFile)
+                    ( if conflictMarkers
+                        then makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
+                        else Pretty.toPlain 80 mergeblob.unparsedFile
+                    )
                 done
                   ( Output.MergeFailure
                       Output.ScratchFileHandoff
@@ -414,6 +421,7 @@ doMerge info = do
                           loadFirst = isNothing env.watchState
                         }
                       mergeSourceAndTarget
+                      conflictMarkers
                   )
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch

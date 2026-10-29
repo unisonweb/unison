@@ -84,7 +84,9 @@ data Config = Config
     -- | Control additional test-related values.
     --
     --  __TODO__: This should be broken down with the individual pieces included here.
-    isTest :: Bool
+    isTest :: Bool,
+    -- | Whether a program, not a person, is driving UCM: see 'Cli.unattended'.
+    unattended :: Bool
   }
 
 -- | A reasonable set of defaults to use.
@@ -98,7 +100,8 @@ defaultConfig =
     { terminalWidth = 65,
       fzfPath = Nothing,
       credentialsFile = Nothing,
-      isTest = False
+      isTest = False,
+      unattended = False
     }
 
 testConfig :: FilePath -> Config
@@ -576,6 +579,7 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = isTest config,
+            unattended = unattended config,
             -- Transcripts don't support file watching
             watchState = Nothing
           }

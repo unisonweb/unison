@@ -50,7 +50,10 @@ writeActionScratchFile action words_ parts contents = do
       Nothing -> Text.unpack name
       Just (latestFile, _) -> replaceFileName latestFile (Text.unpack name)
   #latestFile ?= (path, True)
-  liftIO (env.writeSource (Text.pack path) contents True)
+  liftIO
+    if env.unattended
+      then writeUtf8 path contents
+      else env.writeSource (Text.pack path) contents True
   pure path
   where
     name = scratchFileName action words_ parts

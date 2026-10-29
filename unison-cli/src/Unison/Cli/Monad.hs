@@ -180,6 +180,11 @@ data Env = Env
     -- | Whether we're running in a transcript test or not.
     -- Avoid using this except when absolutely necessary.
     isTranscriptTest :: Bool,
+    -- | Whether UCM is being driven by a program (@ucm mcp@) rather than a person at a keyboard. Then it never runs
+    -- an external tool for the person to use (like @UCM_MERGETOOL@), and the scratch file of an action that can't finish
+    -- (see "Unison.Cli.ScratchFile") is written to disk, and left out of the output, so that the program edits it with
+    -- its own tools. Otherwise that file is given to 'writeSource' like any other scratch file.
+    unattended :: Bool,
     -- | The file watch state, if file watching is enabled.
     -- `Nothing` in contexts like transcripts or MCP where file watching is not supported.
     watchState :: Maybe Watch.WatchState

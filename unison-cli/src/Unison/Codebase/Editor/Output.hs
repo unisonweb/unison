@@ -463,7 +463,8 @@ data Output
   | UpdateTypecheckingFailure2 !ScratchFileHandoff
   | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
-  | MergeFailure !ScratchFileHandoff !MergeSourceAndTarget
+  | -- | Whether the scratch file has conflict markers.
+    MergeFailure !ScratchFileHandoff !MergeSourceAndTarget !Bool
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
