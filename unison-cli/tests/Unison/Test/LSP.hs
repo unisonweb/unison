@@ -31,6 +31,7 @@ import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Hover qualified as Hover
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types qualified as ULSP
+import Unison.LSP.VFS qualified as UVFS
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
@@ -65,6 +66,10 @@ test = do
   scope "hover" $
     tests
       [ localBindingHoverTest
+      ]
+  scope "completion" $
+    tests
+      [ completionPrefixTests
       ]
 
 newtype TestLsp a = TestLsp {unTestLsp :: ReaderT ULSP.Env IO a}
@@ -335,6 +340,32 @@ extractDelimitedBlocks (startDelim, endDelim) txt =
       case extractDelimitedBlocksHelper endPos afterEnd of
         Nothing -> pure (beforeEnd <> afterEnd, [(ann, Text.takeWhile (/= endDelim) afterStart)])
         Just (cleanSrc, splits) -> pure $ (beforeEnd <> cleanSrc, (ann, Text.takeWhile (/= endDelim) afterStart) : splits)
+
+-- | The completion prefix is the identifier (possibly dotted) immediately before the cursor.
+-- A trailing '.' must be kept here: it's what distinguishes `List.` (wanting members of `List`)
+-- from `List`, and it's the reason '.' is registered as a completion trigger character in
+-- 'Unison.LSP.lspOptions' — without the trigger, editors never send a completion request after a
+-- dot, since '.' isn't an identifier character. (The completion handler then strips the trailing
+-- dot before querying; see 'Unison.LSP.Completion.completionHandler'.)
+--
+-- The cursor is marked with '^' and the whole line up to it is the prefix we assert on.
+completionPrefixTests :: Test ()
+completionPrefixTests =
+  scope "completionPrefix" . tests . fmap makeCompletionPrefixTest $
+    [ -- the case this guards: a dot right after an already-complete name
+      ("trailing dot", "  List.^", "List."),
+      -- a partial name, which editors already complete because each keystroke is an identifier char
+      ("partial name", "  Lis^", "Lis"),
+      -- a qualified name with a trailing dot keeps the whole dotted prefix
+      ("qualified trailing dot", "  base.List.^", "base.List."),
+      -- surrounding tokens don't bleed into the prefix
+      ("prefix stops at whitespace", "x = List.^", "List.")
+    ]
+
+makeCompletionPrefixTest :: (String, Text, Text) -> Test ()
+makeCompletionPrefixTest (name, lineWithCursor, expected) = scope name $ do
+  (Lexer.Pos _line col, line) <- extractCursor lineWithCursor
+  expectEqual expected (fst (UVFS.splitIdentifierAtChar col line))
 
 makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
