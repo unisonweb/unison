@@ -1,10 +1,11 @@
 Documentation in Unison is a value of type `Doc`, written in `{{ ... }}` and attached to a definition by naming it `<name>.doc`. `docs <name>` renders it, with its examples evaluated.
 
 - To document `foo`, define `foo.doc = {{ ... }}`, immediately before `foo` in the file. The same works for a type or an ability: `Foo.doc`.
-- Inside `{{ }}` you write plain text paragraphs. `` ``foo x`` `` (double backticks) is an inline code example, and `` `x` `` (single backticks) is plain monospaced text. A `#` line is a heading, and `*text*` is emphasis.
+- Inside `{{ }}` you write plain text paragraphs. `` `x` `` (single backticks) is plain monospaced text. A `#` line is a heading, and `*text*` is emphasis.
+- To show a call inline as code that is checked, and hyperlinked when rendered, embed a `docExample`: `{{ docExample 2 (do (flags list -> List.pick flags list)) }}` shows as `List.pick flags list`. The lambda's parameters are the argument names, and the number says how many of them to leave out of the introduction (the two arguments here), so the shown code is just the body. It is typechecked, so a mistake in it is an error.
 - A fenced code block (three backticks, then the code, then three backticks) is an example. It is evaluated when the documentation is rendered, and shows the result next to it, so don't write the result yourself.
 - Refer to other definitions with links: `{List.map}` for a term and `{type Map}` for a type or ability. They become hyperlinks when rendered, which backticks don't. A link to a name that doesn't exist is a type error, so the links are checked. To show type parameters too, write `` {type Map} `k v` ``.
-- A usual shape: an inline example that introduces the variables, a short description ending in "For example:", examples (normal use first, then corner cases), a line `*Also see:* {a}, {b}`, and optionally an `# Implementation notes` heading for the cost (like `O(log n)`) or anything surprising.
+- A usual shape: an embedded `docExample` of the call, which introduces the argument names, a short description ending in "For example:", examples (normal use first, then corner cases), a line `*Also see:* {a}, {b}`, and optionally an `# Implementation notes` heading for the cost (like `O(log n)`) or anything surprising.
 - Examples can't be evaluated when the function uses IO. Define the example as its own term, `foo.docs.examples.exampleName : '{IO, Exception} ()` (see [delayed computations](learn:lang/delayed)), and put `@source{foo.docs.examples.exampleName}` in the documentation (or `@foldedSource{...}` to collapse it), followed by how to run it (`run foo.docs.examples.exampleName`) and its output in a code block tagged `raw`.
 - To show an expression as hyperlinked code without evaluating it, put `@typecheck` just before the fenced code block. It is typechecked and shown, but not run. Use it for a result or a short expression, not to define functions: put a definition in a `foo.docs.examples.exampleName` term and use `@source`.
 - If you write documentation in a `unison` block of a [transcript](learn:ucm/transcript), the block contains fences of its own, so open and close the `unison` block with four backticks instead of three.
@@ -17,7 +18,7 @@ Documentation in Unison is a value of type `Doc`, written in `{{ ... }}` and att
 ```` unison
 List.take.doc = {{
 
-``List.take n list`` returns a list of the first `n` elements of `list`. For example:
+{{ docExample 2 (do (n list -> List.take n list)) }} returns a list of the first `n` elements of `list`. For example:
 
 ```
 List.take 2 [1,2,3,4]
@@ -51,7 +52,7 @@ IO.console.printLine.docs.examples.askName = do
 
 IO.console.printLine.doc = {{
 
-``printLine msg`` prints `msg` to standard out, with a newline at the end. For example:
+{{ docExample 1 (do (msg -> printLine msg)) }} prints `msg` to standard out, with a newline at the end. For example:
 
 @source{IO.console.printLine.docs.examples.askName}
 
@@ -76,7 +77,7 @@ Hello there, Alice
 ```` unison
 List.filterMap.doc = {{
 
-``List.filterMap f list`` keeps the `Some` results of applying `f`. For example, with
+{{ docExample 2 (do (f list -> List.filterMap f list)) }} keeps the `Some` results of applying `f`. For example, with
 
 @typecheck ```
 [None, Some 1, Some 2, None, Some 99]

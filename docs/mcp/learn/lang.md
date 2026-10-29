@@ -1,4 +1,4 @@
-The Unison language: the minimum you need to read and write Unison code. Code is written in `.u` files, or in `unison` blocks of a [transcript](learn:ucm/transcript).
+The Unison language: the minimum you need to read and write Unison code, including how to document it. Code is written in `.u` files, or in `unison` blocks of a [transcript](learn:ucm/transcript). When you write a definition, [document it](learn:lang/documentation).
 
 - A definition is a name, an optional type signature on the line above, and a value: `double : Nat -> Nat` then `double n = n * 2`. Blocks are made with indentation, and the last line of a block is its value (see [terms](learn:lang/terms) and [functions](learn:lang/functions)).
 - Functions are called by writing the arguments after the name, separated by spaces: `double 4`.
