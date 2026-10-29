@@ -12,6 +12,8 @@ module Unison.PrintError
     renderParseErrorAsANSI,
     renderParseErrors,
     renderTypeWarnings,
+    rangeForErrorNote,
+    rangeForWarn,
   )
 where
 
@@ -1721,6 +1723,31 @@ rangeForAnnotated a = case ann a of
   External -> Nothing
   GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
+
+-- | The most specific source location to point an editor at for a given type
+-- error: a location carried directly by the error's cause when there is one,
+-- otherwise the innermost subterm the typechecker was looking at. Used to render
+-- a clickable `file:line:col` reference in the CLI.
+rangeForErrorNote :: (Annotated loc) => C.ErrorNote v loc -> Maybe Range
+rangeForErrorNote note =
+  causeRange (C.cause note) <|> (rangeForAnnotated =<< C.innermostErrorTerm note)
+  where
+    causeRange = \case
+      C.UnknownSymbol loc _ -> rangeForAnnotated loc
+      C.UnknownTerm loc _ _ _ -> rangeForAnnotated loc
+      C.PatternArityMismatch loc _ _ -> rangeForAnnotated loc
+      C.ConcatPatternWithoutConstantLength loc _ -> rangeForAnnotated loc
+      C.HandlerOfUnexpectedType loc _ -> rangeForAnnotated loc
+      C.UncoveredPatterns loc _ -> rangeForAnnotated loc
+      C.RedundantPattern loc -> rangeForAnnotated loc
+      C.InaccessiblePattern loc -> rangeForAnnotated loc
+      C.RunWatchTypeMismatch loc _ -> rangeForAnnotated loc
+      _ -> Nothing
+
+-- | The source location to point an editor at for a typechecker warning.
+rangeForWarn :: (Annotated loc) => C.Warn v loc -> Maybe Range
+rangeForWarn = \case
+  C.AbilityConcreteSubset _ _ tm _ -> rangeForAnnotated tm
 
 showLexerOutput :: Bool
 showLexerOutput = False

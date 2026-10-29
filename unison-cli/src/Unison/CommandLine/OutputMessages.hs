@@ -35,6 +35,7 @@ import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import System.FilePath (makeRelative)
 import System.Exit (ExitCode (..))
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
@@ -97,6 +98,7 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Lexer.Pos (Pos (..))
 import Unison.Merge (GUpdated (..), TwoWay (..))
 import Unison.Merge qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge.DiffOp
@@ -118,7 +120,10 @@ import Unison.PrintError
     prettyResolutionFailures,
     prettyVar,
     printNoteWithSource,
+    rangeForErrorNote,
+    rangeForWarn,
     renderCompilerBug,
+    renderParseErrors,
     renderTypeWarnings,
   )
 import Unison.Project (ProjectAndBranch (..), defaultBranchName)
@@ -167,6 +172,7 @@ import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
+import Unison.Util.Range (Range (..))
 import Unison.Util.Relation qualified as R
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -188,6 +194,29 @@ shortenDirectory dir = do
 
 renderFileName :: FilePath -> IO Pretty
 renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
+
+-- | A clickable `path:line:col` reference to a location in a source file, with
+-- the path made relative to `dir` (the directory UCM was launched in, which is
+-- also the terminal's working directory) so that terminals like VSCode's linkify
+-- it and jump straight to the error. Returns `Nothing` when there is no watch
+-- directory (e.g. in transcripts, whose output must stay stable regardless of
+-- the temp directory) or no location to point at.
+clickableSourceLocation :: Maybe FilePath -> Text -> Maybe Range -> Maybe Pretty
+clickableSourceLocation dir sourceName mayRange = do
+  d <- dir
+  Range (Pos line col) _ <- mayRange
+  let relPath = makeRelative d (Text.unpack sourceName)
+  pure . P.hiBlack . fromString $
+    relPath <> ":" <> show line <> ":" <> show col
+
+-- | Prepend a clickable `path:line:col` header (see `clickableSourceLocation`)
+-- to a rendered error or warning, leaving it untouched when no location is
+-- available.
+withSourceLocation :: Maybe FilePath -> Text -> Maybe Range -> Pretty -> Pretty
+withSourceLocation dir sourceName mayRange body =
+  case clickableSourceLocation dir sourceName mayRange of
+    Nothing -> body
+    Just loc -> P.lines [loc, "", body]
 
 notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
@@ -1026,15 +1055,27 @@ notifyUser dir issueFn = \case
         [ P.wrap "The type uses these names, but I'm not sure what they are:",
           P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
         ]
-  ParseErrors src es ->
-    pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors _curPath src ppenv notes -> do
-    let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
-            . map Result.TypeError
-    pure $ showNote notes
-  TypeWarns _curPath src ppenv warns ->
-    pure $ renderTypeWarnings ppenv (Text.unpack src) warns
+  ParseErrors srcName src es ->
+    let s = Text.unpack src
+        firstRange = listToMaybe . concatMap snd . renderParseErrors s
+        render e = withSourceLocation dir srcName (firstRange e) (prettyParseError s e)
+     in pure . P.sep "\n\n" $ render <$> es
+  TypeErrors srcName _curPath src ppenv notes -> do
+    let s = Text.unpack src
+        showNote note =
+          withSourceLocation
+            dir
+            srcName
+            (rangeForErrorNote note)
+            (printNoteWithSource ppenv s (Result.TypeError note))
+    pure $ intercalateMap "\n\n" showNote notes
+  TypeWarns srcName _curPath src ppenv warns ->
+    pure $
+      withSourceLocation
+        dir
+        srcName
+        (listToMaybe warns >>= rangeForWarn)
+        (renderTypeWarnings ppenv (Text.unpack src) warns)
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)

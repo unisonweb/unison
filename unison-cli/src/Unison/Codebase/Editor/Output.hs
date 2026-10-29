@@ -282,10 +282,10 @@ data Output
   | -- ListStructuredFind patternMatchingUsages termBodyUsages
     -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
-  | -- Original source, followed by the errors:
-    ParseErrors Text [Parser.Err Symbol]
-  | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
-  | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
+  | -- Source file name, original source, followed by the errors:
+    ParseErrors SourceName Text [Parser.Err Symbol]
+  | TypeErrors SourceName Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
+  | TypeWarns SourceName Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure

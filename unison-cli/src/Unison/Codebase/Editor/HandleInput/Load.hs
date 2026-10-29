@@ -381,7 +381,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
           }
   unisonFile <-
     Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors sourceName text [err])
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
   typecheckingEnv <-
@@ -417,7 +417,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
   when (not $ null tws) do
     currentPath <- Cli.getCurrentPath
     Cli.respond $
-      Output.TypeWarns currentPath text suffixifiedPPE tws
+      Output.TypeWarns sourceName currentPath text suffixifiedPPE tws
 
   maybeTypecheckedUnisonFile & onNothing do
     let tes = [err | Result.TypeError err <- toList notes]
@@ -429,7 +429,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
 
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
-      Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+      Cli.respond (Output.TypeErrors sourceName currentPath text suffixifiedPPE tes)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput
