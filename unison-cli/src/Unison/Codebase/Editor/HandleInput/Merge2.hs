@@ -20,8 +20,6 @@ import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
 import Data.Set qualified as Set
-import Data.Char (isSpace)
-import Data.List (dropWhileEnd)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Directory (getCurrentDirectory, removeFile)
@@ -602,37 +600,28 @@ makeMergedFileContents sourceAndTarget fileContents =
           <> foldMap line bob
           <> bobSlug
     & TextBuilder.toText
-    & Text.lines
-    & annotateStitchedDefinitions stitchedComment (Text.lines fileContents.alice) (Text.lines fileContents.bob)
-    & Text.unlines
   where
-    aliceName :: Text
-    aliceName = into @Text sourceAndTarget.alice.branch
-
-    bobName :: Text
-    bobName =
-      case sourceAndTarget.bob of
-        MergeSource'LocalProjectBranch bobProjectAndBranch -> into @Text bobProjectAndBranch.branch.name
-        MergeSource'RemoteProjectBranch bobRemoteBranch -> "remote " <> into @Text bobRemoteBranch.branchName
-        MergeSource'RemoteLooseCode info ->
-          case Path.toName info.path of
-            Nothing -> "<root>"
-            Just name -> Name.toText name
-
-    stitchedComment :: Text
-    stitchedComment =
-      "-- Merged line by line from " <> aliceName <> " and " <> bobName <> ". Please check that it is what you want."
-
     aliceSlug :: TextBuilder
     aliceSlug =
-      "<<<<<<< " <> TextBuilder.text aliceName <> newline
+      "<<<<<<< " <> TextBuilder.text (into @Text sourceAndTarget.alice.branch) <> newline
 
     middleSlug :: TextBuilder
     middleSlug = "=======\n"
 
     bobSlug :: TextBuilder
     bobSlug =
-      ">>>>>>> " <> TextBuilder.text bobName <> newline
+      ">>>>>>> "
+        <> ( case sourceAndTarget.bob of
+               MergeSource'LocalProjectBranch bobProjectAndBranch ->
+                 TextBuilder.text (into @Text bobProjectAndBranch.branch.name)
+               MergeSource'RemoteProjectBranch bobRemoteBranch ->
+                 "remote " <> TextBuilder.text (into @Text bobRemoteBranch.branchName)
+               MergeSource'RemoteLooseCode info ->
+                 case Path.toName info.path of
+                   Nothing -> "<root>"
+                   Just name -> TextBuilder.text (Name.toText name)
+           )
+        <> newline
 
     line :: Text -> TextBuilder
     line s =
@@ -640,65 +629,6 @@ makeMergedFileContents sourceAndTarget fileContents =
 
     newline :: TextBuilder
     newline = "\n"
-
--- | The line-based merge of the two sides' files can succeed for a definition that both sides changed (when they
--- changed different lines), in which case nothing marks it as special. Put a comment above each such definition, so
--- that it is checked: one that is neither alice's version nor bob's, and has no conflict markers of its own.
-annotateStitchedDefinitions :: Text -> [Text] -> [Text] -> [Text] -> [Text]
-annotateStitchedDefinitions comment aliceLines bobLines mergedLines =
-  concatMap annotate (splitDefinitions mergedLines)
-  where
-    aliceDefinitions = definitionsByKey aliceLines
-    bobDefinitions = definitionsByKey bobLines
-
-    annotate :: (Maybe Text, [Text]) -> [Text]
-    annotate (key, block) =
-      case key of
-        Just k
-          | not (any ("<<<<<<< " `Text.isPrefixOf`) block),
-            Just alice <- Map.lookup k aliceDefinitions,
-            Just bob <- Map.lookup k bobDefinitions,
-            let trimmed = dropWhileEnd Text.null block,
-            trimmed /= alice,
-            trimmed /= bob ->
-              comment : block
-        _ -> block
-
-    definitionsByKey :: [Text] -> Map Text [Text]
-    definitionsByKey ls =
-      Map.fromList [(k, dropWhileEnd Text.null block) | (Just k, block) <- reverse (splitDefinitions ls)]
-
--- | Split the lines of a file into its top-level definitions, each with its key (the name of the term, or the header of
--- the type), or no key for comments. Lines inside conflict markers never start a definition.
-splitDefinitions :: [Text] -> [(Maybe Text, [Text])]
-splitDefinitions =
-  go False []
-  where
-    go :: Bool -> [(Maybe Text, [Text])] -> [Text] -> [(Maybe Text, [Text])]
-    go _ acc [] = reverse (map (fmap reverse) acc)
-    go inConflict acc (l : ls)
-      | "<<<<<<< " `Text.isPrefixOf` l = go True (continue l acc) ls
-      | ">>>>>>> " `Text.isPrefixOf` l = go False (continue l acc) ls
-      | inConflict || Text.null l || isSpace (Text.head l) = go inConflict (continue l acc) ls
-      | "--" `Text.isPrefixOf` l = go inConflict (startOrContinue Nothing l acc) ls
-      | otherwise = go inConflict (startOrContinue (Just (keyOf l)) l acc) ls
-
-    continue :: Text -> [(Maybe Text, [Text])] -> [(Maybe Text, [Text])]
-    continue l = \case
-      [] -> [(Nothing, [l])]
-      (key, block) : acc -> (key, l : block) : acc
-
-    startOrContinue :: Maybe Text -> Text -> [(Maybe Text, [Text])] -> [(Maybe Text, [Text])]
-    startOrContinue key l = \case
-      (key', block) : acc | key == key' -> (key', l : block) : acc
-      acc -> (key, [l]) : acc
-
-    keyOf :: Text -> Text
-    keyOf l =
-      case Text.words l of
-        keyword : _ : _ | keyword `elem` ["type", "structural", "unique", "ability"] -> Text.unwords (takeWhile (/= "=") (Text.words l))
-        word : _ -> word
-        [] -> l
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Debugging by printing a bunch of stuff out

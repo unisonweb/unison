@@ -2240,8 +2240,7 @@ notifyUser dir issueFn = \case
                 <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
                 <> "version, the second is the original, and the third is"
                 <> P.group (prettyMergeSource aliceAndBob.bob <> "'s.")
-                <> "Keep what you want and delete the marker lines. A definition that both branches changed, but on"
-                <> "different lines, has been merged line by line, and has a comment above it saying so."
+                <> "Keep what you want and delete the marker lines."
             | conflictMarkers
           ]
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
