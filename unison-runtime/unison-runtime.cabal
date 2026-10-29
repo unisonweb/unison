@@ -98,6 +98,7 @@ library
       Unison.Runtime.Machine.Primops
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Explode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling

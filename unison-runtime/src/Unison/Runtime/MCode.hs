@@ -75,6 +75,7 @@ module Unison.Runtime.MCode
     convertFieldNamesToRefs,
     emitCombs,
     emitComb,
+    emptyRCtx,
     resolveCombs,
     sanitizeCombsOfForeignFuncs,
     absurdCombs,
@@ -159,6 +160,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.MCode.Explode
 import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
@@ -912,12 +914,15 @@ data RefNums = RN
     cnum :: Reference -> Word64,
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
+    -- | the exploded arguments of a combinator of this batch
+    -- (Unison.Runtime.MCode.Explode): the shapes, for one with a worker
+    explode :: Reference -> Maybe [Shape],
     -- Map record schemas into their runtime reference
     recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing) mt
+emptyRNs = RN mt mt (const Nothing) (const Nothing) mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -1313,8 +1318,18 @@ data Ctx v
 -- set of definitions. Previous steps have normalized the term to
 -- only contain a single recursive binding group. The variables in
 -- this binding group are resolved to numbered combinators rather
--- than stack positions.
-type RCtx v = M.Map v Word64
+-- than stack positions. With it, what the lambda being emitted knows
+-- about its constructor lets (Unison.Runtime.MCode.Explode): which
+-- constructor each builds, for a call that takes the fields, and which
+-- are dead once those calls take them.
+data RCtx v = RCtx
+  { rctxCombs :: M.Map v Word64,
+    rctxCons :: ConLets v,
+    rctxDead :: Set v
+  }
+
+emptyRCtx :: RCtx v
+emptyRCtx = RCtx M.empty (ConLets M.empty M.empty M.empty) Set.empty
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1479,7 +1494,7 @@ sumCtx ctx v vcs
 
 -- Look up a variable in the top let rec context
 rctxResolve :: (Var v) => RCtx v -> v -> Maybe Word64
-rctxResolve ctx u = M.lookup u ctx
+rctxResolve ctx u = M.lookup u (rctxCombs ctx)
 
 -- convenient alias for our most used type
 type RNormal = ANormal Reference
@@ -1496,13 +1511,21 @@ emitCombs ::
   SuperGroup Reference v ->
   State RecordFieldMappings (EnumMap Word64 Comb)
 emitCombs rns grpr grpn (Rec grp ent) = do
-  es <- emitComb rns grpr grpn rec (0, ent)
+  es <- case explode rns grpr of
+    -- the entry point with exploded arguments is two combinators: the
+    -- worker at the exploded index, and the entry, which unpacks and
+    -- calls it as a local function
+    Just shapes ->
+      let Split w entry worker = split shapes ent
+          recW = rec {rctxCombs = M.insert w explodedBit (rctxCombs rec)}
+       in (<>) <$> emitComb rns grpr grpn recW (0, entry) <*> emitComb rns grpr grpn rec (explodedBit, worker)
+    Nothing -> emitComb rns grpr grpn rec (0, ent)
   auxEs <- aux
   pure $ es <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
-    rec = M.fromList $ zip rvs ixs
+    rec = emptyRCtx {rctxCombs = M.fromList $ zip rvs ixs}
     aux = foldMapM (emitComb rns grpr grpn rec) (zip ixs cmbs)
 
 -- | lazily replace all references to combinators with the combinators themselves,
@@ -1640,7 +1663,7 @@ emitComb ::
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
   State RecordFieldMappings (EC.EnumMap Word64 Comb)
-emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
+emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
   | Just k <- resultCount bd,
     k /= 1 =
       internalBug [] $
@@ -1649,6 +1672,11 @@ emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
       runEmit n
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
+  where
+    -- the explosion maps variables by name, which shadowing defeats
+    bd = if explodeOn then uniqueBinders bd0 else bd0
+    cons = conLets vs bd
+    rec = rec0 {rctxCons = cons, rctxDead = deadCons (explode rns) cons bd}
 
 -- | How many values a term yields when it is in tail position, or Nothing
 -- for a term that never returns (an error call). Every term yields one
@@ -1738,6 +1766,12 @@ emitSection ::
   Ctx v ->
   RNormal v ->
   Emit Section
+emitSection rns grpr grpn rec ctx (TLets _ [u] _ bu bo)
+  -- a product built only for calls that take its fields instead
+  -- (Unison.Runtime.MCode.Explode): nothing to build
+  | isBuiltLet bu,
+    Set.member u (rctxDead rec) =
+      emitSection rns grpr grpn rec ctx bo
 emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
   -- An unboxed sum: the primitive pushes a tag over the fields of the case
   -- it took, the let names only the tag, and each arm binds the fields of
@@ -1826,6 +1860,15 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
       . Yield
       . VArgV
       $ countBlock ctx
+emitSection rns grpr grpn rec ctx (TApp (FComb r) args)
+  -- a call of a function of this batch with exploded arguments goes to
+  -- its worker with the fields of the constructors built for it
+  -- (Unison.Runtime.MCode.Explode)
+  | Just shapes <- explode rns r,
+    Just fields <- explodedArgs (rctxCons rec) shapes args =
+      emitClosures grpr grpn rec ctx fields $ \ctx as ->
+        let cix = CIx r (cnum rns r) explodedBit
+         in countCtx ctx $ Call False cix cix as
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
     -- A record shape, or the reference for a field a record update replaces,

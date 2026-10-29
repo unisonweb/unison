@@ -272,7 +272,7 @@ baseCCache jit sandboxed = do
             & traverseWithKey
               ( \k v -> do
                   let r = builtinTermBackref ! k
-                  emitComb @Symbol rns r k mempty (0, v)
+                  emitComb @Symbol rns r k emptyRCtx (0, v)
               )
         )
 
@@ -383,7 +383,7 @@ codeValidate cc tml = do
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (recordRefLookup recRefs')
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (const Nothing) (recordRefLookup recRefs')
       combinate (n, (r, g)) = evaluate . fst $ runState (emitCombs rns r n g) rfms
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->

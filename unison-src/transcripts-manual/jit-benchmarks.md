@@ -80,6 +80,34 @@ parseLoop n =
       Res.Err e -> go oks (errs + e) (i + 1)
   go 0 0 0
 
+-- Loop state exploded into parameters (Unison.Runtime.MCode.Explode): the
+-- tuple and the constructor are built for the recursive call and taken
+-- apart at once, so the worker takes their fields.
+tupleLoop : Nat -> Nat
+tupleLoop n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + i, i + 1)
+  go (0, 0)
+
+structural type Pos = Pos Nat Nat Nat
+
+posLoop : Nat -> Nat
+posLoop n =
+  go st = match st with
+    Pos i line col ->
+      if i == n then line + col
+      else if Nat.mod i 10 == 0 then go (Pos (i + 1) (line + 1) 0)
+      else go (Pos (i + 1) line (col + 1))
+  go (Pos 0 0 0)
+
+recLoop : Nat -> Nat
+recLoop n =
+  go : { i: Nat, line: Nat, col: Nat } -> Nat
+  go st = if st@i == n then st@line + st@col
+          else if Nat.mod (st@i) 10 == 0 then go (((st@i.set (st@i + 1))@line.set (st@line + 1))@col.set 0)
+          else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
+  go { i: 0, line: 0, col: 0 }
+
 structural type Tree = Leaf | Node Tree Nat Nat Tree
 
 Tree.insert : Nat -> Nat -> Tree -> Tree
@@ -424,6 +452,9 @@ jitSuite = do
     n -> repeat n do headLoop 10000 c
   printTime "State tuple through a non-tail call, 10000 steps" 1 (n -> repeat n do stateLoop 10000)
   printTime "Ok or Err from a step function, 10000 steps" 1 (n -> repeat n do parseLoop 10000)
+  printTime "Loop state: a tuple rebuilt each round, 100000 rounds" 1 (n -> repeat n do tupleLoop 100000)
+  printTime "Loop state: a three-field constructor rebuilt each round, 100000 rounds" 1 (n -> repeat n do posLoop 100000)
+  printTime "Loop state: a record updated each round, 100000 rounds" 1 (n -> repeat n do recLoop 100000)
   printTime "Apply a function argument 10000 times" 1 (n -> repeat n do applyN 10000 (x -> x + 3) 0)
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)

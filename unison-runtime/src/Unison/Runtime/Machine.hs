@@ -109,6 +109,7 @@ import Unison.Runtime.Foreign.Function
     writeBack,
   )
 import Unison.Runtime.MCode
+import Unison.Runtime.MCode.Explode (explosions)
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Profiling
@@ -2133,7 +2134,11 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       oldRfms <- readTVar (recordFieldMappings cc)
       -- check for missing references
       let arities = fmap (head . ANF.arities) int <> builtinArities
-          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
+          -- the loop state this batch's functions take as fields
+          -- (Unison.Runtime.MCode.Explode): decided over the batch, since
+          -- that is where a function's callers are
+          exploded = explosions opt
+          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (flip M.lookup exploded) (recordRefLookup rrLookup)
           combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
           combinate n (r, g) = (n,) <$> emitCombs rns r n g
       let combRefUpdates = (mapFromList $ zip [ntm ..] rs)

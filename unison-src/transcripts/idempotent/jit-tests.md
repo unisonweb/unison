@@ -806,6 +806,165 @@ wideArgs =
            )
 ```
 
+## Loop state exploded
+
+A function whose every call in its batch passes a constructor built for the
+call, and whose body only takes it apart, takes the fields as parameters
+(`Unison.Runtime.MCode.Explode`): a loop whose state is a tuple or a record
+allocates nothing per round. Callers the batch cannot see, a function value
+or a later definition, go through the entry, which unpacks and calls the
+worker.
+
+``` unison
+use Nat + - * == < 
+
+-- a tuple state, nested as tuples are
+sumTo : Nat -> Nat
+sumTo n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + i, i + 1)
+  go (0, 0)
+
+-- a record-like constructor with three fields
+structural type Pos = Pos Nat Nat Nat
+
+walk : Nat -> Pos
+walk n =
+  go st = match st with
+    Pos i line col ->
+      if i == n then st
+      else if Nat.mod i 10 == 0 then go (Pos (i + 1) (line + 1) 0)
+      else go (Pos (i + 1) line (col + 1))
+  go (Pos 0 0 0)
+
+-- the state escapes on one path (returned): the position stays plain
+-- and the loop is correct either way
+lastPair : Nat -> (Nat, Nat)
+lastPair n =
+  go st = match st with
+    (a, b) -> if a == n then st else go (a + 1, b * 2)
+  go (0, 1)
+
+-- two functions calling each other with a tuple
+ping : (Nat, Nat) -> Nat
+ping = cases (a, b) -> if a == 0 then b else pong (a - 1, b + 1)
+
+pong : (Nat, Nat) -> Nat
+pong = cases (a, b) -> if a == 0 then b + 100 else ping (a - 1, b + 2)
+
+-- a call that passes a variable rather than a constructor it built:
+-- the position is plain for every caller
+through : (Nat, Nat) -> Nat
+through p = ping p
+
+-- a function value reaches the entry
+applyTo : ((Nat, Nat) ->{g} r) -> (Nat, Nat) ->{g} r
+applyTo f p = f p
+
+-- the state is also used after the call: the constructor is still built
+keepState : Nat -> ((Nat, Nat), Nat)
+keepState n =
+  st = (n, n + 1)
+  (st, ping st)
+
+-- a request inside the worker, with the exploded state live across it
+structural ability Ask where
+  ask : Nat
+
+askLoop : Nat ->{Ask} Nat
+askLoop n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + Ask.ask, i + 1)
+  go (0, 0)
+
+withTwo : '{Ask} a -> a
+withTwo c = handle c() with cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k 2 with cases
+    { r } -> r
+    { Ask.ask -> k } -> withTwo '(k 2)
+
+-- a record state, stepped by updates and read by a getter and a pattern
+cursor : Nat -> Nat
+cursor n =
+  go : { i: Nat, line: Nat, col: Nat } -> Nat
+  go st = if st@i == n then st@line * 1000 + st@col
+          else if Nat.mod (st@i) 10 == 0 then go (((st@i.set (st@i + 1))@line.set (st@line + 1))@col.set 0)
+          else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
+  go { i: 0, line: 0, col: 0 }
+
+-- the record is returned on one path: plain
+cursorEnd : Nat -> { i: Nat, acc: Nat }
+cursorEnd n =
+  go : { i: Nat, acc: Nat } -> { i: Nat, acc: Nat }
+  go st = match st with { i: i, acc: acc } -> if i == n then st else go { i: i + 1, acc: acc + i }
+  go { i: 0, acc: 0 }
+
+exploded : (Nat, Pos, (Nat, Nat), Nat, Nat, Nat, Nat, ((Nat, Nat), Nat), Nat, Nat, { i: Nat, acc: Nat })
+exploded =
+  (sumTo 100,
+   walk 25,
+   lastPair 5,
+   ping (7, 0),
+   pong (6, 0),
+   through (4, 1),
+   applyTo ping (3, 3),
+   keepState 9,
+   withTwo '(askLoop 5),
+   cursor 25,
+   cursorEnd 5)
+
+> exploded
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Pos
+
+  + applyTo   : ((Nat, Nat) ->{g} r) -> (Nat, Nat) ->{g} r
+  + askLoop   : Nat ->{Ask} Nat
+  + cursor    : Nat -> Nat
+  + cursorEnd : Nat -> {acc: Nat, i: Nat}
+  + exploded  : ( Nat,
+                  Pos,
+                  (Nat, Nat),
+                  Nat,
+                  Nat,
+                  Nat,
+                  Nat,
+                  ((Nat, Nat), Nat),
+                  Nat,
+                  Nat,
+                  {acc: Nat, i: Nat})
+  + keepState : Nat -> ((Nat, Nat), Nat)
+  + lastPair  : Nat -> (Nat, Nat)
+  + ping      : (Nat, Nat) -> Nat
+  + pong      : (Nat, Nat) -> Nat
+  + sumTo     : Nat -> Nat
+  + through   : (Nat, Nat) -> Nat
+  + walk      : Nat -> Pos
+  + withTwo   : '{Ask} a -> a
+
+  Run `update` to apply these changes to your codebase.
+
+    99 | > exploded
+           ⧩
+           ( 4950
+           , Pos 25 3 4
+           , (5, 32)
+           , 110
+           , 109
+           , 7
+           , 107
+           , ((9, 10), 123)
+           , 10
+           , 3004
+           , {acc: 10, i: 5}
+           )
+```
+
 ## Calls to function values
 
 ``` unison

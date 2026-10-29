@@ -86,7 +86,7 @@ import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, 
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Runtime.MCode
-  ( Args (..),
+  ( emptyRCtx, Args (..),
     CombIx (..),
     FieldRef (..),
     GCombs,
@@ -1125,7 +1125,7 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
-                  emitComb @Symbol rns (rf k) k mempty (0, v)
+                  emitComb @Symbol rns (rf k) k emptyRCtx (0, v)
               )
         )
     srcCombs :: EnumMap Word64 Combs
