@@ -59,16 +59,16 @@ foo = +30
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-b8d06ddf.u.
+  the definitions that need attention in update-main-84a6c46a.u.
 
   To finish the update:
 
-    1. Edit update-b8d06ddf.u until it compiles. Fix each
+    1. Edit update-main-84a6c46a.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-b8d06ddf.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-84a6c46a.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -77,7 +77,7 @@ foo = +30
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-b8d06ddf.u
+``` unison :added-by-ucm update-main-84a6c46a.u
 foo = +30
 
 -- The definitions below no longer typecheck with the changes above.

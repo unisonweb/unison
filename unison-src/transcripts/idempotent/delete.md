@@ -537,16 +537,16 @@ scratch/main> delete a b c
   still in use.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in delete-a9c4a8a9.u.
+  the definitions that need attention in delete-main-9e3d9f66.u.
 
   To finish the delete:
 
-    1. Edit delete-a9c4a8a9.u until it compiles. Fix each
+    1. Edit delete-main-9e3d9f66.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load delete-a9c4a8a9.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load delete-main-9e3d9f66.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -555,7 +555,7 @@ scratch/main> delete a b c
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm delete-a9c4a8a9.u
+``` unison :added-by-ucm delete-main-9e3d9f66.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -750,16 +750,16 @@ scratch/main> delete ping
   still in use.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in delete-b0fa78c8.u.
+  the definitions that need attention in delete-main-0e1e597d.u.
 
   To finish the delete:
 
-    1. Edit delete-b0fa78c8.u until it compiles. Fix each
+    1. Edit delete-main-0e1e597d.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load delete-b0fa78c8.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load delete-main-0e1e597d.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -768,7 +768,7 @@ scratch/main> delete ping
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm delete-b0fa78c8.u
+``` unison :added-by-ucm delete-main-0e1e597d.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 

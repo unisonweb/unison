@@ -244,6 +244,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
       scratchFilePath <-
         ScratchFile.writeActionScratchFile
           "delete"
+          [projectBranchNameToValidProjectBranchNameText projectAndBranch.branch.name & TextBuilder.toText]
           ( into @Text (ProjectUtils.justTheNames projectAndBranch)
               : into @Text (Branch.headHash currentNamespace)
               : Set.toAscList (Set.map Name.toText (targetPlusConstructorsNames.terms <> targetPlusConstructorsNames.types))

@@ -236,6 +236,7 @@ handleUpgrade1 namePairs = do
       scratchFilePath <-
         ScratchFile.writeActionScratchFile
           "upgrade"
+          (foldMap (\info -> [NameSegment.toUnescapedText info.oldName, "to", NameSegment.toUnescapedText info.newName]) upgradeInfos)
           ( into @Text pp.project.name
               : into @Text pp.branch.name
               : into @Text (Branch.headHash currentNamespace)

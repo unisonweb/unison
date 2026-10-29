@@ -49,16 +49,16 @@ foo n = "hello, world!"
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-a498a0f7.u.
+  the definitions that need attention in update-main-a84dea19.u.
 
   To finish the update:
 
-    1. Edit update-a498a0f7.u until it compiles. Fix each
+    1. Edit update-main-a84dea19.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-a498a0f7.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-a84dea19.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -67,7 +67,7 @@ foo n = "hello, world!"
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-a498a0f7.u
+``` unison :added-by-ucm update-main-a84dea19.u
 foo n = "hello, world!"
 
 -- The definitions below no longer typecheck with the changes above.

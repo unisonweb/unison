@@ -55,16 +55,16 @@ scratch/main> update
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-00b86312.u.
+  the definitions that need attention in update-main-605afae5.u.
 
   To finish the update:
 
-    1. Edit update-00b86312.u until it compiles. Fix each
+    1. Edit update-main-605afae5.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-00b86312.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-605afae5.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -73,7 +73,7 @@ scratch/main> update
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-00b86312.u
+``` unison :added-by-ucm update-main-605afae5.u
 foo = +17
 
 -- The definitions below no longer typecheck with the changes above.
@@ -145,16 +145,16 @@ scratch/main> upgrade old new
 
   I've switched you to a temporary branch, upgrade-old-to-new,
   and put the definitions that need attention in
-  upgrade-e3493e45.u.
+  upgrade-old-to-new-adf33066.u.
 
   To finish the upgrade:
 
-    1. Edit upgrade-e3493e45.u until it compiles. Fix each
-       definition, or delete the ones you no longer want:
+    1. Edit upgrade-old-to-new-adf33066.u until it compiles. Fix
+       each definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load upgrade-e3493e45.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load upgrade-old-to-new-adf33066.u` to check the
+       file. Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges upgrade-old-to-new
        into main and deletes the temporary branch.
@@ -163,7 +163,7 @@ scratch/main> upgrade old new
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm upgrade-e3493e45.u
+``` unison :added-by-ucm upgrade-old-to-new-adf33066.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -270,16 +270,16 @@ scratch/alice> merge /bob
 
   I've switched you to a temporary branch, merge-bob-into-alice,
   and put the definitions that need attention in
-  merge-871a0464.u.
+  merge-bob-into-alice-23ffa2e7.u.
 
   To finish the merge:
 
-    1. Edit merge-871a0464.u until it compiles. Fix each
-       definition, or delete the ones you no longer want:
-       deleting a definition from the file deletes it from the
-       branch.
-    2. Run `load merge-871a0464.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    1. Edit merge-bob-into-alice-23ffa2e7.u until it compiles.
+       Fix each definition, or delete the ones you no longer
+       want: deleting a definition from the file deletes it from
+       the branch.
+    2. Run `load merge-bob-into-alice-23ffa2e7.u` to check the
+       file. Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges merge-bob-into-alice
        into alice and deletes the temporary branch.
@@ -288,7 +288,7 @@ scratch/alice> merge /bob
   temporary branch and switch back to alice.
 ```
 
-``` unison :added-by-ucm merge-871a0464.u
+``` unison :added-by-ucm merge-bob-into-alice-23ffa2e7.u
 -- scratch/alice
 foo : Nat
 foo = 17

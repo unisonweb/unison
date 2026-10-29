@@ -392,6 +392,10 @@ doMerge info = do
                 scratchFilePath <-
                   ScratchFile.writeActionScratchFile
                     info.action
+                    [ TextBuilder.toText (mangleMergeSource info.bob.source),
+                      "into",
+                      TextBuilder.toText (projectBranchNameToValidProjectBranchNameText aliceBranchNames.branch)
+                    ]
                     [ into @Text aliceBranchNames,
                       info.description,
                       into @Text info.alice.causalHash,

@@ -156,7 +156,7 @@ myproject/main> share.render @unison/base
 
 ### When an action can't finish
 
-`update`, `delete`, `merge`, `pull` and `upgrade` must produce a branch that compiles. When one can't, UCM switches to a temporary branch and writes the definitions that need attention to `<action>-<shorthash>.u` (for example `merge-a0458b71.u`; the hash is of the action, its arguments and the branches involved). The reply names the file and the branch and says what to do next: edit the file until it compiles, check it with `load <file>`, then run `update` to merge the temporary branch back and delete it (or `cancel` to abandon). Deleting a definition from the file deletes it from the branch.
+`update`, `delete`, `merge`, `pull` and `upgrade` must produce a branch that compiles. When one can't, UCM switches to a temporary branch and writes the definitions that need attention to `<action>-<branches>-<shorthash>.u` (for example `merge-bob-into-alice-a0458b71.u`; the hash is of the action, its arguments and the branches involved). The reply names the file and the branch and says what to do next: edit the file until it compiles, check it with `load <file>`, then run `update` to merge the temporary branch back and delete it (or `cancel` to abandon). Deleting a definition from the file deletes it from the branch.
 
 ## Usage
 

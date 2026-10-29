@@ -51,16 +51,16 @@ unique type Foo a = Bar Nat a
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-dbfd7ab5.u.
+  the definitions that need attention in update-main-554e4a59.u.
 
   To finish the update:
 
-    1. Edit update-dbfd7ab5.u until it compiles. Fix each
+    1. Edit update-main-554e4a59.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-dbfd7ab5.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-554e4a59.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -69,7 +69,7 @@ unique type Foo a = Bar Nat a
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-dbfd7ab5.u
+``` unison :added-by-ucm update-main-554e4a59.u
 type Foo a = Bar Nat a
 
 -- The definitions below no longer typecheck with the changes above.

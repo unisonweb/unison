@@ -57,16 +57,16 @@ ping = 3
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-d59b4b8b.u.
+  the definitions that need attention in update-main-663cfccc.u.
 
   To finish the update:
 
-    1. Edit update-d59b4b8b.u until it compiles. Fix each
+    1. Edit update-main-663cfccc.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-d59b4b8b.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-663cfccc.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -75,7 +75,7 @@ ping = 3
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-d59b4b8b.u
+``` unison :added-by-ucm update-main-663cfccc.u
 ping : Nat
 ping = 3
 

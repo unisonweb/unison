@@ -279,6 +279,7 @@ handleUpdate2 = do
                           scratchFilePath <-
                             ScratchFile.writeActionScratchFile
                               "update"
+                              [projectBranchNameToValidProjectBranchNameText pp.branch.name & TextBuilder.toText]
                               ( into @Text (ProjectAndBranch pp.project.name pp.branch.name)
                                   : into @Text (Branch.headHash currentBranch)
                                   : Set.toAscList (Set.map Name.toText (namespaceBindings.terms <> namespaceBindings.types))

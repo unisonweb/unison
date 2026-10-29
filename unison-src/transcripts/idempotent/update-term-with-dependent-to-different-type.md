@@ -57,16 +57,16 @@ foo = +5
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-3a00b6ea.u.
+  the definitions that need attention in update-main-f1f0e905.u.
 
   To finish the update:
 
-    1. Edit update-3a00b6ea.u until it compiles. Fix each
+    1. Edit update-main-f1f0e905.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-3a00b6ea.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-f1f0e905.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -75,7 +75,7 @@ foo = +5
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-3a00b6ea.u
+``` unison :added-by-ucm update-main-f1f0e905.u
 foo : Int
 foo = +5
 

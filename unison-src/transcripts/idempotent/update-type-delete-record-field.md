@@ -73,16 +73,16 @@ scratch/main> update
   definitions would no longer typecheck.
 
   I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-b902e34f.u.
+  the definitions that need attention in update-main-d9544649.u.
 
   To finish the update:
 
-    1. Edit update-b902e34f.u until it compiles. Fix each
+    1. Edit update-main-d9544649.u until it compiles. Fix each
        definition, or delete the ones you no longer want:
        deleting a definition from the file deletes it from the
        branch.
-    2. Run `load update-b902e34f.u` to check the file. Repeat
-       steps 1 and 2 until it loads with no errors.
+    2. Run `load update-main-d9544649.u` to check the file.
+       Repeat steps 1 and 2 until it loads with no errors.
     3. Run `update` (without arguments, from this branch). It
        saves the file's definitions, merges update-main into
        main and deletes the temporary branch.
@@ -91,7 +91,7 @@ scratch/main> update
   temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm update-b902e34f.u
+``` unison :added-by-ucm update-main-d9544649.u
 type Foo = { bar : Nat }
 
 -- The definitions below no longer typecheck with the changes above.
