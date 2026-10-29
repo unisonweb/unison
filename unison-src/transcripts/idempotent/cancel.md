@@ -57,8 +57,7 @@ scratch/main> update
   You're now on a temporary branch, update-main, and the
   definitions to fix are in update-main-605afae5.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/update-main> load update-main-605afae5.u
 
@@ -67,8 +66,9 @@ scratch/main> update
 
       scratch/update-main> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the update instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the update instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm update-main-605afae5.u
@@ -144,8 +144,7 @@ scratch/main> upgrade old new
   You're now on a temporary branch, upgrade-old-to-new, and the
   definitions to fix are in upgrade-old-to-new-adf33066.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/upgrade-old-to-new> load upgrade-old-to-new-adf33066.u
 
@@ -154,8 +153,10 @@ scratch/main> upgrade old new
 
       scratch/upgrade-old-to-new> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the upgrade instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-adf33066.u
@@ -266,8 +267,7 @@ scratch/alice> merge /bob
   You're now on a temporary branch, merge-bob-into-alice, and
   the definitions to fix are in merge-bob-into-alice-23ffa2e7.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-23ffa2e7.u
 
@@ -276,8 +276,9 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> update
 
-  `update` merges back into alice and deletes the temporary
-  branch. To abandon the merge instead, run `cancel`.
+  `update` saves the file's definitions into alice, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-23ffa2e7.u

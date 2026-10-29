@@ -59,8 +59,7 @@ foo = +5
   You're now on a temporary branch, update-main, and the
   definitions to fix are in update-main-f1f0e905.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/update-main> load update-main-f1f0e905.u
 
@@ -69,8 +68,9 @@ foo = +5
 
       scratch/update-main> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the update instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the update instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm update-main-f1f0e905.u

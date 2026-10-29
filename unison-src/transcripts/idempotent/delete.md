@@ -539,8 +539,7 @@ scratch/main> delete a b c
   You're now on a temporary branch, update-main, and the
   definitions to fix are in delete-main-9e3d9f66.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/update-main> load delete-main-9e3d9f66.u
 
@@ -549,8 +548,9 @@ scratch/main> delete a b c
 
       scratch/update-main> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the delete instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the delete instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm delete-main-9e3d9f66.u
@@ -750,8 +750,7 @@ scratch/main> delete ping
   You're now on a temporary branch, update-main, and the
   definitions to fix are in delete-main-0e1e597d.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/update-main> load delete-main-0e1e597d.u
 
@@ -760,8 +759,9 @@ scratch/main> delete ping
 
       scratch/update-main> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the delete instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the delete instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm delete-main-0e1e597d.u

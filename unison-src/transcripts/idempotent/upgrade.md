@@ -128,8 +128,7 @@ proj/main> upgrade old new
   You're now on a temporary branch, upgrade-old-to-new, and the
   definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
 
@@ -138,8 +137,10 @@ proj/main> upgrade old new
 
       proj/upgrade-old-to-new> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the upgrade instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
@@ -248,8 +249,7 @@ proj/main> upgrade old new
   You're now on a temporary branch, upgrade-old-to-new, and the
   definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
 
@@ -258,8 +258,10 @@ proj/main> upgrade old new
 
       proj/upgrade-old-to-new> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the upgrade instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
@@ -435,8 +437,7 @@ myproject/main> upgrade old new
   You're now on a temporary branch, upgrade-old-to-new, and the
   definitions to fix are in upgrade-old-to-new-aabcdb16.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       myproject/upgrade-old-to-new> load upgrade-old-to-new-aabcdb16.u
 
@@ -445,8 +446,10 @@ myproject/main> upgrade old new
 
       myproject/upgrade-old-to-new> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the upgrade instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-aabcdb16.u
@@ -785,8 +788,7 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   to fix are in
   upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u.
 
-  Edit the file (deleting a definition from it deletes it from
-  the branch), then run:
+  Edit the file, then run:
 
       scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
 
@@ -795,8 +797,10 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
       scratch/upgrade> update
 
-  `update` merges back into main and deletes the temporary
-  branch. To abandon the upgrade instead, run `cancel`.
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u

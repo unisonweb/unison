@@ -2963,8 +2963,8 @@ notifyUser dir issueFn = \case
           "",
           P.wrap $
             if handoff.loadFirst
-              then "Edit the file (deleting a definition from it deletes it from the branch), then run:"
-              else "Edit the file until it compiles (deleting a definition from it deletes it from the branch), then run:",
+              then "Edit the file, then run:"
+              else "Edit the file until it compiles, then run:",
           "",
           if handoff.loadFirst
             then
@@ -2982,9 +2982,9 @@ notifyUser dir issueFn = \case
           "",
           P.wrap $
             P.backticked "update"
-              <> "merges back into"
-              <> P.group (prettyProjectBranchName handoff.baseBranch)
-              <> "and deletes the temporary branch. To abandon the"
+              <> "saves the file's definitions into"
+              <> P.group (prettyProjectBranchName handoff.baseBranch <> ",")
+              <> "removes any definitions you deleted from the file, and deletes the temporary branch. To abandon the"
               <> P.text handoff.action
               <> "instead, run"
               <> P.group (P.backticked "cancel" <> ".")
