@@ -28,7 +28,7 @@ Point the worker's MCP server at the printed directory with `unison -C <dir> mcp
 1. **Prepare** a fresh codebase with `prepare.sh <task>`.
 2. **Work.** A fresh agent with only the MCP server connected gets `prompt.md` and nothing else. It is not told about `learn` topics or the repository. Record its tool calls, the tokens it used, and its turns.
 3. **Judge.** For each file in `judges/`, copy the codebase the worker produced and give it to a fresh agent, with the judge file as its prompt. A judge sees the codebase and its prompt, not the worker's conversation.
-4. **Score.** Every judge ends its reply with a line that is exactly `PASS` or `FAIL`, after a short paragraph of reasons. The task passes when all its judges pass.
+4. **Score.** Every judge ends its reply with a line that is exactly `PASS` or `FAIL`, after a short paragraph of reasons. A judge may define more ratings: the `reuses-existing` judges end with `GREAT` (the exact alias), `PASS` (a wrapper that could be eta reduced, partial credit) or `FAIL`. The task passes when all its judges pass.
 
 Metrics worth recording per run: pass/fail per judge, the worker's turns, tool calls, `learn` calls, failed transcript stanzas, and total tokens (the server instructions and every `learn` reply count).
 
@@ -43,6 +43,6 @@ Run each variant several times, since a single run is noise. Keep some tasks out
 ## Tasks
 
 - `list-pick`: write a small documented, tested function that returns the elements (not the indices) selected by a list of Booleans. Judges: `implementation` (type, values not indices, edge cases, tail recursive, long list), `docs-quality`, and `tests`.
-- `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, tail recursive, following helpers through `dependencies`, function first, 100 elements) and `reuses-existing` (is it `List.map`, by comparing hashes).
+- `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, tail recursive, following helpers through `dependencies`, function first, 100 elements) and `reuses-existing` (is it `List.map`, by comparing hashes: GREAT for the alias, PASS for a wrapper, FAIL for a new implementation).
 - `list-sift`: the same for `List.sift`, which is `List.filter`.
 - `list-xf-keep`: the same for `List.xfKeep`, which is `List.filterMap`.
