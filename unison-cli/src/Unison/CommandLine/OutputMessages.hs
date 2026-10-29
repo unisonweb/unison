@@ -35,8 +35,8 @@ import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
-import System.FilePath (makeRelative)
 import System.Exit (ExitCode (..))
+import System.FilePath (makeRelative)
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
