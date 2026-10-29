@@ -133,3 +133,117 @@ JIT, and 1.25x, 0.90x and 3.6x under the interpreter.
   touch (tree inserts 1.19x, Ok/Err 1.16x, the MCode of which is
   identical in both modes, checked by dumping it), in all four rounds, so
   read its ratios against that drift; the loop rows are well beyond it.
+
+## Code size, compile time and load time
+
+The test transcript under `UNISON_JIT=on UNISON_JIT_THRESHOLD=1` with the
+IR dump, the explosion off and on (the fast build; sizes are of the IR
+text handed to LLVM and after its passes):
+
+| | modules | IR text | optimized IR | compile time |
+|---|---|---|---|---|
+| explode off | 102 | 29.0 MB | 27.1 MB | 17.0 s (generate 6.2, optimize 6.1, codegen 4.7) |
+| explode on | 98 | 28.9 MB | 26.9 MB | 16.8 s (generate 6.3, optimize 5.8, codegen 4.7) |
+
+Loading base (a transcript that evaluates `1 + 1`, three runs each): 2.38
+to 2.43 s with the explosion off, 2.35 to 2.40 s on. The library suite's
+loaded code has about a thousand specialisations among its five thousand
+combinators (`UNISON_JIT_DUMP_MCODE=1` over `jit-suite.md`), and no record
+instruction at all; the analysis and the extra workers cost nothing
+visible at load, and in `on` mode only the hot ones compile.
+
+## The library suite (`jit-suite.md`), the explosion off and on
+
+Ordinary library code (lists, maps, text, JSON, abilities), one run each,
+the same optimized binary, `UNISON_EXPLODE=off` and on.
+
+Under the JIT:
+
+| row | explode-off (ms) | explode-on (ms) | ratio |
+|---|---|---|---|
+| Mutate a Ref 1000 times | 0.014 | 0.014 | 1.00x |
+| Mutate a local Remote.Ref 10k times | 31.584 | 32.792 | 0.96x |
+| Do 10k arithmetic operations | 0.002 | 0.002 | 0.99x |
+| List.map increment (range 0 1000) | 0.024 | 0.023 | 1.01x |
+| List.map murmurHash (range 0 1000) | 0.447 | 0.425 | 1.05x |
+| Multimap.fromList (range 0 1000) | 0.102 | 0.099 | 1.03x |
+| Stream functions | 1.161 | 1.216 | 0.95x |
+| Value.serializeUncompressed (10k element map) | 12.947 | 13.092 | 0.99x |
+| Value.serializeCompressed (10k element map) | 23.500 | 23.436 | 1.00x |
+| Value.deserializeCompressed (10k element map) | 26.245 | 26.506 | 0.99x |
+| Json.toText (per document) | 0.008 | 0.008 | 0.97x |
+| Json parsing (per document) | 0.011 | 0.012 | 0.93x |
+| Json complex parsing (per document) | 0.020 | 0.022 | 0.95x |
+| Json complex decoding (per document) | 0.042 | 0.042 | 0.99x |
+| Generate 100 random numbers | 0.042 | 0.042 | 0.99x |
+| List.foldLeft | 0.190 | 0.186 | 1.03x |
+| Count to 1 million | 0.347 | 0.342 | 1.02x |
+| Count to 1000 | 0.008 | 0.008 | 1.04x |
+| CAS an IO.ref 1000 times | 0.023 | 0.021 | 1.12x |
+| List.range 0 1000 | 0.061 | 0.066 | 0.93x |
+| Set.fromList (range 0 1000) | 0.160 | 0.156 | 1.03x |
+| Map.fromList (range 0 1000) | 0.094 | 0.091 | 1.04x |
+| NatMap.fromList (range 0 1000) | 0.148 | 0.149 | 0.99x |
+| Shuffle a 1000 element array | 0.471 | 0.471 | 1.00x |
+| Mutably mergesort a 1000 element array | 0.146 | 0.144 | 1.01x |
+| Text.split / | 0.003 | 0.003 | 0.99x |
+| Two match | 0.433 | 0.062 | 7.00x |
+| Four match | 0.446 | 0.057 | 7.77x |
+| Thirty match | 0.363 | 0.329 | 1.11x |
+| fib1 | 0.006 | 0.006 | 1.09x |
+| fib2 | 0.064 | 0.065 | 0.97x |
+| fib3 | 0.060 | 0.061 | 0.98x |
+
+Under the interpreter:
+
+| row | explode-off (ms) | explode-on (ms) | ratio |
+|---|---|---|---|
+| Mutate a Ref 1000 times | 0.120 | 0.123 | 0.98x |
+| Mutate a local Remote.Ref 10k times | 23.870 | 23.989 | 1.00x |
+| Do 10k arithmetic operations | 0.092 | 0.092 | 0.99x |
+| List.map increment (range 0 1000) | 0.151 | 0.158 | 0.96x |
+| List.map murmurHash (range 0 1000) | 0.442 | 0.437 | 1.01x |
+| Multimap.fromList (range 0 1000) | 0.085 | 0.089 | 0.95x |
+| Stream functions | 6.657 | 6.692 | 0.99x |
+| Value.serializeUncompressed (10k element map) | 12.701 | 12.341 | 1.03x |
+| Value.serializeCompressed (10k element map) | 23.956 | 22.711 | 1.05x |
+| Value.deserializeCompressed (10k element map) | 29.556 | 25.569 | 1.16x |
+| Json.toText (per document) | 0.009 | 0.008 | 1.13x |
+| Json parsing (per document) | 0.013 | 0.011 | 1.13x |
+| Json complex parsing (per document) | 0.023 | 0.019 | 1.18x |
+| Json complex decoding (per document) | 0.083 | 0.070 | 1.18x |
+| Generate 100 random numbers | 0.112 | 0.092 | 1.21x |
+| List.foldLeft | 1.434 | 1.241 | 1.15x |
+| Count to 1 million | 41.819 | 36.493 | 1.15x |
+| Count to 1000 | 0.104 | 0.081 | 1.28x |
+| CAS an IO.ref 1000 times | 0.161 | 0.136 | 1.19x |
+| List.range 0 1000 | 0.065 | 0.054 | 1.21x |
+| Set.fromList (range 0 1000) | 0.043 | 0.037 | 1.18x |
+| Map.fromList (range 0 1000) | 0.039 | 0.033 | 1.21x |
+| NatMap.fromList (range 0 1000) | 3.229 | 2.725 | 1.19x |
+| Shuffle a 1000 element array | 1.695 | 1.301 | 1.30x |
+| Mutably mergesort a 1000 element array | 5.523 | 3.816 | 1.45x |
+| Text.split / | 0.004 | 0.003 | 1.26x |
+| Two match | 5.318 | 3.684 | 1.44x |
+| Four match | 6.002 | 3.584 | 1.67x |
+| Thirty match | 5.285 | 4.217 | 1.25x |
+| fib1 | 0.169 | 0.168 | 1.00x |
+| fib2 | 0.410 | 0.391 | 1.05x |
+| fib3 | 0.391 | 0.386 | 1.01x |
+
+What it showed:
+
+- **Under the JIT the two pattern-matching rows gain 7x and 7.8x** ("Two
+  match" 0.433 to 0.062 ms, "Four match" 0.446 to 0.057 ms): loops whose
+  state is a tuple of the values matched. Every other row is within the
+  noise of one run (0.93x to 1.12x, none consistently).
+- **Under the interpreter most rows gain 1.1x to 1.7x**: mergesort 1.45x,
+  the two match rows 1.44x and 1.67x, shuffle 1.30x, counting 1.28x, maps
+  and sets 1.2x, JSON 1.13x to 1.18x. The rows whose code the explosion
+  does not touch (`fib`, arithmetic, a `Ref` mutated) are at 1.00x, so
+  this is not drift: about a thousand of the suite's five thousand
+  combinators are specialisations, and under the interpreter every pack
+  and match they remove was a dispatch each. Native code pays little for
+  a bump allocation and a match through memory, which is why the same
+  rows barely move under the JIT.
+
