@@ -1,0 +1,1 @@
+In the current Unison project, I need `shuffleSeeded : Nat -> [a] -> [a]`, which shuffles a list in a reproducible way: the same seed and the same list always give the same result, different seeds usually give different results, and the result is always a permutation of the input (same elements, same count). It must not use IO. Add it to the codebase, with tests.

@@ -46,3 +46,14 @@ Run each variant several times, since a single run is noise. Keep some tasks out
 - `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, tail recursive, following helpers through `dependencies`, function first, 100 elements) and `reuses-existing` (is it `List.map`, by comparing hashes: GREAT for the alias, PASS for a wrapper, FAIL for a new implementation).
 - `list-sift`: the same for `List.sift`, which is `List.filter`.
 - `list-xf-keep`: the same for `List.xfKeep`, which is `List.filterMap`.
+- `list-run-lengths`, `list-neighbors`, `list-running-totals`, `list-merge-sorted`: list tasks. The first three have a `reuses-existing` judge (a base function behind them); merge has an `efficiency` judge.
+- `map-word-counts`, `map-invert`, `map-add-counts`, `map-group-by-length`: `Map` tasks with `behavior`, `tests` and `reuses-existing` judges.
+- `euler-factorial-digits`, `euler-smallest-multiple`, `euler-nth-prime`: Project Euler style; `Integer`/`Natural` needed for the first, `efficiency` judges for the first and last.
+- `types-shape-area`, `types-person-record`: a data type and a record.
+- `text-extract-numbers`, `text-parse-log-line`: text patterns (`Pattern`); the reuse judge rates `Pattern` use GREAT.
+- `abilities-coro`, `abilities-collect-log`: new abilities with handlers; an `ability-polymorphic` judge checks the signature lets other abilities through.
+- `abilities-random-seeded`, `abilities-store-label`: using base's `Random` and `Store`; an `ability-use` judge.
+- `errors-parse-all`, `errors-safe-average`: error handling with `Either`, `Exception` and `Abort`; an `errors` judge.
+- `threads-slow-squares`, `threads-first-done`: structured concurrency with `IO.Threads`; they need the IO transcript tool.
+
+Judges named `behavior` run the function on inputs the prompt doesn't show. `ideas.md` has the reasoning behind the set.
