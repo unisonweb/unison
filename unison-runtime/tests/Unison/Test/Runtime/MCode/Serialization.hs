@@ -18,7 +18,7 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
 import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.MCode (Args (..), Arm (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode (Args (..), Arm (..), Branch, Comb, CombIx (..), FieldRef (..), FrameLayout, GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
@@ -187,10 +187,14 @@ genCombInfo =
 genComb :: Gen Comb
 genComb =
   Gen.choice
-    [ Comb <$> genCombInfo
+    [ Comb <$> genCombInfo <*> genFrameLayout
     -- We omit cached closures from roundtrip tests since we don't currently serialize cached closure results
     -- CachedClosure
     ]
+
+-- | A slot and a width per wide variable of an indirect let's frame.
+genFrameLayout :: Gen FrameLayout
+genFrameLayout = Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
 
 genFieldRef :: Gen FieldRef
 genFieldRef = FieldRef <$> genSmallWord64
@@ -235,6 +239,7 @@ genStoredCache =
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
     <*> genRecordFieldMappings
     <*> Gen.element [JIT.AllReplacements, JIT.TaggedReplacements, JIT.NoReplacements]
+    <*> Gen.bool
 
 sCacheRoundtrip :: Property
 sCacheRoundtrip =
