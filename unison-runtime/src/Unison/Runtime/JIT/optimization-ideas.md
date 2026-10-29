@@ -30,6 +30,29 @@ natively (the type table holds one enum per type, for the reference), which a
 table by constructor would avoid; rare, since a nullary value that escapes is
 usually built boxed in the first place.
 
+### A static product-return worker (Paul, 2026-10-29)
+
+The return-side twin of call-pattern specialisation
+(`Unison.Runtime.MCode.Explode`, design.md "Loop state exploded"). A
+callee whose every return path builds a product (a constructor
+application or a record literal in tail position, through its own tail
+calls) gets an optional worker, a combinator of its group, that yields the
+fields as a multi-value result, the way the unboxed-sum primitives yield
+several values into a let of several names; the entry is the worker
+followed by one pack. A caller in the batch calls the worker when it takes
+the result apart at once (a match on the let-bound variable, a record
+match or field read) or passes it straight to an exploded position of
+another worker, so a loop and its step function exchange a tuple with
+nothing allocated in either direction ("State tuple through a non-tail
+call", 0.7x under the wide convention today); any other use keeps the
+entry. No K, no witness, no runtime convention, any width; the dynamic
+wide return stays for unknown callees. Sums could follow with a tag word
+before the fields. Serialization is untouched as for the specialisations.
+It replaces two items dropped the same day: records returned wide at
+K = 2 (base's loaded code has no record instruction, and the width covers
+only named pairs) and returns wider than K (the census's wider
+constructors are structure nodes that escape anyway).
+
 ### A private convention for specialised workers
 
 A specialisation of a loop (`Unison.Runtime.MCode.Explode`) is called only
