@@ -832,24 +832,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-a9086949.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-a9086949.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-a9086949.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-a9086949.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-a9086949.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-a9086949.u
@@ -924,24 +921,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-2459c2f8.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-2459c2f8.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-2459c2f8.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-2459c2f8.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-2459c2f8.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-2459c2f8.u
@@ -1027,24 +1021,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-e9a78b72.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-e9a78b72.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-e9a78b72.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-e9a78b72.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-e9a78b72.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-e9a78b72.u
@@ -1135,24 +1126,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-b5d30f5c.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-b5d30f5c.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-b5d30f5c.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-b5d30f5c.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-b5d30f5c.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-b5d30f5c.u
@@ -1221,24 +1209,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-a7b263c3.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-a7b263c3.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-a7b263c3.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-a7b263c3.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-a7b263c3.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-a7b263c3.u
@@ -1307,24 +1292,21 @@ scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-98b28f21.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-98b28f21.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-98b28f21.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-98b28f21.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-98b28f21.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-98b28f21.u
@@ -1389,24 +1371,21 @@ scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-36947d6b.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-36947d6b.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-36947d6b.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-36947d6b.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-36947d6b.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-36947d6b.u
@@ -1493,24 +1472,21 @@ scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-6536d733.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-6536d733.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-6536d733.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-6536d733.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-6536d733.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-6536d733.u
@@ -1622,24 +1598,21 @@ scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-24b73211.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-24b73211.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-24b73211.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-24b73211.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-24b73211.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-24b73211.u
@@ -1717,24 +1690,21 @@ scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-ff5dde16.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-ff5dde16.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-ff5dde16.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-ff5dde16.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-ff5dde16.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-ff5dde16.u
@@ -1821,24 +1791,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-25feec1e.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-25feec1e.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-25feec1e.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-25feec1e.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-25feec1e.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-25feec1e.u
@@ -2871,24 +2838,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-2276ceed.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-2276ceed.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-2276ceed.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-2276ceed.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-2276ceed.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-2276ceed.u
@@ -3261,24 +3225,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-f6575e32.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-f6575e32.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-f6575e32.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-f6575e32.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-f6575e32.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-f6575e32.u
@@ -3413,25 +3374,22 @@ scratch/main> merge /topic
   I couldn't automatically merge scratch/topic into
   scratch/main.
 
-  I've switched you to a temporary branch,
-  merge-topic-into-main, and put the definitions that need
-  attention in merge-topic-into-main-a7e5b665.u.
+  You're now on a temporary branch, merge-topic-into-main, and
+  the definitions to fix are in
+  merge-topic-into-main-a7e5b665.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-topic-into-main-a7e5b665.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-topic-into-main-a7e5b665.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges
-       merge-topic-into-main into main and deletes the temporary
-       branch.
+      scratch/merge-topic-into-main> load merge-topic-into-main-a7e5b665.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to main.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-topic-into-main> update
+
+  `update` merges back into main and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-topic-into-main-a7e5b665.u
@@ -3557,25 +3515,22 @@ scratch/topic> merge /main
   I couldn't automatically merge scratch/main into
   scratch/topic.
 
-  I've switched you to a temporary branch,
-  merge-main-into-topic, and put the definitions that need
-  attention in merge-main-into-topic-ba5f1183.u.
+  You're now on a temporary branch, merge-main-into-topic, and
+  the definitions to fix are in
+  merge-main-into-topic-ba5f1183.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-main-into-topic-ba5f1183.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-main-into-topic-ba5f1183.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges
-       merge-main-into-topic into topic and deletes the
-       temporary branch.
+      scratch/merge-main-into-topic> load merge-main-into-topic-ba5f1183.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to topic.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-main-into-topic> update
+
+  `update` merges back into topic and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-main-into-topic-ba5f1183.u
@@ -3714,26 +3669,22 @@ scratch/topic> merge /topic2
   I couldn't automatically merge scratch/topic2 into
   scratch/topic.
 
-  I've switched you to a temporary branch,
-  merge-topic2-into-topic, and put the definitions that need
-  attention in merge-topic2-into-topic-f55b5c98.u.
+  You're now on a temporary branch, merge-topic2-into-topic, and
+  the definitions to fix are in
+  merge-topic2-into-topic-f55b5c98.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-topic2-into-topic-f55b5c98.u until it
-       compiles. Fix each definition, or delete the ones you no
-       longer want: deleting a definition from the file deletes
-       it from the branch.
-    2. Run `load merge-topic2-into-topic-f55b5c98.u` to check
-       the file. Repeat steps 1 and 2 until it loads with no
-       errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges
-       merge-topic2-into-topic into topic and deletes the
-       temporary branch.
+      scratch/merge-topic2-into-topic> load merge-topic2-into-topic-f55b5c98.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to topic.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-topic2-into-topic> update
+
+  `update` merges back into topic and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-topic2-into-topic-f55b5c98.u
@@ -3898,24 +3849,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-12c20b78.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-12c20b78.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-12c20b78.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-12c20b78.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-12c20b78.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-12c20b78.u

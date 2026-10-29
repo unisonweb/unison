@@ -54,23 +54,21 @@ scratch/main> update
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
 
-  I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-main-605afae5.u.
+  You're now on a temporary branch, update-main, and the
+  definitions to fix are in update-main-605afae5.u.
 
-  To finish the update:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit update-main-605afae5.u until it compiles. Fix each
-       definition, or delete the ones you no longer want:
-       deleting a definition from the file deletes it from the
-       branch.
-    2. Run `load update-main-605afae5.u` to check the file.
-       Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges update-main into
-       main and deletes the temporary branch.
+      scratch/update-main> load update-main-605afae5.u
 
-  Or, to abandon the update instead, run `cancel` to delete the
-  temporary branch and switch back to main.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/update-main> update
+
+  `update` merges back into main and deletes the temporary
+  branch. To abandon the update instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm update-main-605afae5.u
@@ -143,24 +141,21 @@ scratch/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've switched you to a temporary branch, upgrade-old-to-new,
-  and put the definitions that need attention in
-  upgrade-old-to-new-adf33066.u.
+  You're now on a temporary branch, upgrade-old-to-new, and the
+  definitions to fix are in upgrade-old-to-new-adf33066.u.
 
-  To finish the upgrade:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit upgrade-old-to-new-adf33066.u until it compiles. Fix
-       each definition, or delete the ones you no longer want:
-       deleting a definition from the file deletes it from the
-       branch.
-    2. Run `load upgrade-old-to-new-adf33066.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges upgrade-old-to-new
-       into main and deletes the temporary branch.
+      scratch/upgrade-old-to-new> load upgrade-old-to-new-adf33066.u
 
-  Or, to abandon the upgrade instead, run `cancel` to delete the
-  temporary branch and switch back to main.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/upgrade-old-to-new> update
+
+  `update` merges back into main and deletes the temporary
+  branch. To abandon the upgrade instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-adf33066.u
@@ -268,24 +263,21 @@ scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
 
-  I've switched you to a temporary branch, merge-bob-into-alice,
-  and put the definitions that need attention in
-  merge-bob-into-alice-23ffa2e7.u.
+  You're now on a temporary branch, merge-bob-into-alice, and
+  the definitions to fix are in merge-bob-into-alice-23ffa2e7.u.
 
-  To finish the merge:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit merge-bob-into-alice-23ffa2e7.u until it compiles.
-       Fix each definition, or delete the ones you no longer
-       want: deleting a definition from the file deletes it from
-       the branch.
-    2. Run `load merge-bob-into-alice-23ffa2e7.u` to check the
-       file. Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges merge-bob-into-alice
-       into alice and deletes the temporary branch.
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-23ffa2e7.u
 
-  Or, to abandon the merge instead, run `cancel` to delete the
-  temporary branch and switch back to alice.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/merge-bob-into-alice> update
+
+  `update` merges back into alice and deletes the temporary
+  branch. To abandon the merge instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-23ffa2e7.u

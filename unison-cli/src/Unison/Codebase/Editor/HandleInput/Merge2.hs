@@ -409,7 +409,9 @@ doMerge info = do
                         { action = info.action,
                           scratchFile = scratchFilePath,
                           temporaryBranch,
-                          baseBranch = aliceBranchNames.branch
+                          baseBranch = aliceBranchNames.branch,
+                          project = aliceBranchNames.project,
+                          loadFirst = isNothing env.watchState
                         }
                       mergeSourceAndTarget
                   )

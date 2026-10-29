@@ -195,7 +195,11 @@ data ScratchFileHandoff = ScratchFileHandoff
     -- | The temporary branch the user is now on.
     temporaryBranch :: !ProjectBranchName,
     -- | The branch the action was run on, which @update@ will get back to.
-    baseBranch :: !ProjectBranchName
+    baseBranch :: !ProjectBranchName,
+    -- | The project, for the prompt in the instructions.
+    project :: !ProjectName,
+    -- | Whether the file has to be @load@ed to be checked: not if UCM is watching it.
+    loadFirst :: !Bool
   }
 
 data Output
@@ -455,7 +459,8 @@ data Output
   | HappyCoding
   | ProjectHasNoReleases ProjectName
   | DeleteFailure !ScratchFileHandoff
-  | UpdateTypecheckingFailure !FilePath
+  | -- | The file, and whether it has to be @load@ed to be checked.
+    UpdateTypecheckingFailure !FilePath !Bool
   | UpdateTypecheckingFailure2 !ScratchFileHandoff
   | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)

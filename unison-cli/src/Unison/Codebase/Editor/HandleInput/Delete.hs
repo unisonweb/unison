@@ -257,7 +257,9 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
               { action = "delete",
                 scratchFile = scratchFilePath,
                 temporaryBranch,
-                baseBranch = projectAndBranch.branch.name
+                baseBranch = projectAndBranch.branch.name,
+                project = projectAndBranch.project.name,
+                loadFirst = isNothing env.watchState
               }
         )
 

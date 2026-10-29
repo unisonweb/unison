@@ -256,7 +256,7 @@ handleUpdate2 = do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
                           liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
-                          done (Output.UpdateTypecheckingFailure scratchFilePath)
+                          done (Output.UpdateTypecheckingFailure scratchFilePath (isNothing env.watchState))
                         else do
                           uniqueTypeGuidsByName <-
                             Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
@@ -291,14 +291,16 @@ handleUpdate2 = do
                                   { action = "update",
                                     scratchFile = scratchFilePath,
                                     temporaryBranch,
-                                    baseBranch = pp.branch.name
+                                    baseBranch = pp.branch.name,
+                                    project = pp.project.name,
+                                    loadFirst = isNothing env.watchState
                                   }
                             )
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       #latestFile ?= (scratchFilePath, True)
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
-                      done (Output.UpdateTypecheckingFailure scratchFilePath)
+                      done (Output.UpdateTypecheckingFailure scratchFilePath (isNothing env.watchState))
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
 

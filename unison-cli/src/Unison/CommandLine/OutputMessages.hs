@@ -2162,7 +2162,7 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> scratchFileNextSteps handoff
-  UpdateTypecheckingFailure scratchFile ->
+  UpdateTypecheckingFailure scratchFile loadFirst ->
     pure $
       P.wrap
         ( "Typechecking failed. I've updated"
@@ -2172,10 +2172,14 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> P.wrap
-          ( "Edit the file, run"
-              <> IP.makeExample IP.load [prettyFilePath scratchFile]
-              <> "to check it, and once it loads with no errors, run"
-              <> makeExample' IP.update
+          ( ( if loadFirst
+                then
+                  "Edit the file and run"
+                    <> IP.makeExample IP.load [prettyFilePath scratchFile]
+                    <> "again, repeating until it loads with no errors, then run"
+                else "Edit the file until it compiles, then run"
+            )
+              <> IP.makeExample' IP.update
               <> "again."
           )
   UpdateTypecheckingFailure2 handoff ->
@@ -2952,43 +2956,42 @@ notifyUser dir issueFn = \case
     scratchFileNextSteps handoff =
       P.lines
         [ P.wrap $
-            "I've switched you to a temporary branch,"
+            "You're now on a temporary branch,"
               <> P.group (prettyProjectBranchName handoff.temporaryBranch <> ",")
-              <> "and put the definitions that need attention in"
+              <> "and the definitions to fix are in"
               <> P.group (file <> "."),
           "",
-          "To finish the " <> P.text handoff.action <> ":",
+          P.wrap $
+            if handoff.loadFirst
+              then "Edit the file (deleting a definition from it deletes it from the branch), then run:"
+              else "Edit the file until it compiles (deleting a definition from it deletes it from the branch), then run:",
           "",
-          P.indentN 2 . P.lines $
-            [ P.indentNAfterNewline 3 . P.wrap $
-                "1. Edit"
-                  <> file
-                  <> "until it compiles. Fix each definition, or delete the ones you no longer want:"
-                  <> "deleting a definition from the file deletes it from the branch.",
-              P.indentNAfterNewline 3 . P.wrap $
-                "2. Run"
-                  <> IP.makeExample IP.load [file]
-                  <> "to check the file. Repeat steps 1 and 2 until it loads with no errors.",
-              P.indentNAfterNewline 3 . P.wrap $
-                "3. Run"
-                  <> makeExample' IP.update
-                  <> "(without arguments, from this branch). It saves the file's definitions, merges"
-                  <> P.group (prettyProjectBranchName handoff.temporaryBranch)
-                  <> "into"
-                  <> P.group (prettyProjectBranchName handoff.baseBranch)
-                  <> "and deletes the temporary branch."
-            ],
+          if handoff.loadFirst
+            then
+              P.lines
+                [ P.indentN 4 (prompt <> "load " <> P.group file),
+                  "",
+                  P.wrap $
+                    "Repeat the edit and"
+                      <> P.backticked "load"
+                      <> "until the file loads with no errors, then run:",
+                  ""
+                ]
+            else mempty,
+          P.indentN 4 (prompt <> "update"),
           "",
           P.wrap $
-            "Or, to abandon the"
+            P.backticked "update"
+              <> "merges back into"
+              <> P.group (prettyProjectBranchName handoff.baseBranch)
+              <> "and deletes the temporary branch. To abandon the"
               <> P.text handoff.action
               <> "instead, run"
-              <> makeExample' IP.cancelInputPattern
-              <> "to delete the temporary branch and switch back to"
-              <> P.group (prettyProjectBranchName handoff.baseBranch <> ".")
+              <> P.group (P.backticked "cancel" <> ".")
         ]
       where
         file = prettyFilePath handoff.scratchFile
+        prompt = P.string (Text.unpack (into @Text (ProjectAndBranch handoff.project handoff.temporaryBranch))) <> "> "
 
     modifyingLibNotAllowed :: (Foldable f) => f Name -> Pretty
     modifyingLibNotAllowed names =

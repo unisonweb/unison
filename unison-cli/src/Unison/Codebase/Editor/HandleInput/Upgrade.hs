@@ -249,7 +249,9 @@ handleUpgrade1 namePairs = do
               { action = "upgrade",
                 scratchFile = scratchFilePath,
                 temporaryBranch,
-                baseBranch = pp.branch.name
+                baseBranch = pp.branch.name,
+                project = pp.project.name,
+                loadFirst = isNothing env.watchState
               }
             ((\info -> (info.oldName, info.newName)) <$> upgradeInfos)
         )

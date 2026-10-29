@@ -56,23 +56,21 @@ foo = +5
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
 
-  I've switched you to a temporary branch, update-main, and put
-  the definitions that need attention in update-main-f1f0e905.u.
+  You're now on a temporary branch, update-main, and the
+  definitions to fix are in update-main-f1f0e905.u.
 
-  To finish the update:
+  Edit the file (deleting a definition from it deletes it from
+  the branch), then run:
 
-    1. Edit update-main-f1f0e905.u until it compiles. Fix each
-       definition, or delete the ones you no longer want:
-       deleting a definition from the file deletes it from the
-       branch.
-    2. Run `load update-main-f1f0e905.u` to check the file.
-       Repeat steps 1 and 2 until it loads with no errors.
-    3. Run `update` (without arguments, from this branch). It
-       saves the file's definitions, merges update-main into
-       main and deletes the temporary branch.
+      scratch/update-main> load update-main-f1f0e905.u
 
-  Or, to abandon the update instead, run `cancel` to delete the
-  temporary branch and switch back to main.
+  Repeat the edit and `load` until the file loads with no
+  errors, then run:
+
+      scratch/update-main> update
+
+  `update` merges back into main and deletes the temporary
+  branch. To abandon the update instead, run `cancel`.
 ```
 
 ``` unison :added-by-ucm update-main-f1f0e905.u
