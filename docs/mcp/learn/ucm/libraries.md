@@ -3,7 +3,6 @@ Installing the libraries your code depends on. A library is a project from [Unis
 - `lib.install @user/project/releases/latest` installs the latest release of a library from Unison Share into `lib`. Also `@user/project/releases/1.2.3`, or `@user/project/branch`.
 - The folder under `lib` is named for the library and version installed, so `list lib` or the output of `lib.install` shows the name to use, like `lib.unison_base_7_20_0.data.List.map`.
 - To see what is installed, run `list lib` (it works with every tool, even `transcript-read-only`). Each line is a library folder, named for the library and its version, like `unison_base_7_13_1` for `@unison/base` 7.13.1. Check it before installing, so you don't add a second copy of a library you already have.
-- A project with no libraries doesn't know even `Nat`, `Text` or `List.map`. If names like those aren't found, install the base library, `lib.install @unison/base/releases/latest`. `list lib` on a project with no libraries fails with "nothing to show", which stops the transcript, so tag that block `:error` (see [transcripts](learn:ucm/transcript)) or skip the check.
 - `find.all <name>` searches libraries as well as your own code, and `view lib.<folder>.<name>` shows a library definition (see [find](learn:ucm/find)).
 - To move to a newer version, see [`upgrade`](learn:ucm/upgrade).
 
