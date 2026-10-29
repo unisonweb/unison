@@ -914,7 +914,7 @@ view :: InputPattern
 view =
   InputPattern
     "view"
-    []
+    ["source"]
     I.Visible
     (Parameters [] $ OnePlus ("definition to view", definitionQueryArg))
     ( P.lines
@@ -977,7 +977,7 @@ display :: InputPattern
 display =
   InputPattern
     "display"
-    []
+    ["render"]
     I.Visible
     (Parameters [] $ OnePlus ("definition to display", definitionQueryArg))
     ( P.lines
@@ -1016,7 +1016,7 @@ docs =
     I.Visible
     (Parameters [] $ OnePlus ("definition", definitionQueryArg))
     ( P.lines
-        [ "`docs foo` shows documentation for the definition `foo`.",
+        [ "`docs foo` shows the type signature of the term `foo` (or the heading of the type `foo`), then its documentation.",
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )

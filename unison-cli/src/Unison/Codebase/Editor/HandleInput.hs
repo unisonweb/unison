@@ -159,11 +159,13 @@ import Unison.Server.SearchResult qualified as SR
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -1207,6 +1209,7 @@ displayI outputLoc hq = do
 
 docsI :: Name -> Cli ()
 docsI src = do
+  printWhatIsDocumented src
   findInScratchfileByName
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
@@ -1225,6 +1228,33 @@ docsI src = do
           -- the hash back to its full name in the file
           displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
         _ -> displayI ConsoleLocation dotDoc
+
+-- | Print what `docs foo` is about before its documentation: the heading of the type named `foo` if there is one, and
+-- otherwise the type signature of each term named `foo`. Definitions that aren't in the codebase yet (only in the
+-- scratch file) are skipped.
+printWhatIsDocumented :: Name -> Cli ()
+printWhatIsDocumented src = do
+  Cli.Env {codebase} <- ask
+  names <- Cli.currentNames
+  let hq = HQ.NameOnly src
+  let ppe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names))
+  termSignatures <-
+    for (Set.toList (Names.lookupHQTerm Names.IncludeSuffixes hq names)) \ref ->
+      Cli.runTransaction (Codebase.getTypeOfReferent codebase ref) <&> \case
+        Just typ -> TypePrinter.prettySignaturesCT ppe [(ref, hq, typ)]
+        Nothing -> []
+  typeHeadings <-
+    for (Set.toList (Names.lookupHQType Names.IncludeSuffixes hq names)) \case
+      Reference.DerivedId refId ->
+        Cli.runTransaction (Codebase.getTypeDeclaration codebase refId) <&> \case
+          Just decl -> [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
+          Nothing -> []
+      Reference.Builtin _ -> pure []
+  -- A type's constructors have its name too (`Thing.Thing`), so when there is a type, just show the type.
+  case (concat typeHeadings, concat termSignatures) of
+    ([], []) -> pure ()
+    ([], signatures) -> Cli.respond (DisplayDefinitions (P.lines signatures))
+    (headings, _) -> Cli.respond (DisplayDefinitions (P.lines headings))
 
 lexedSource :: Text -> Text -> Cli (Text, [L.Token L.Lexeme])
 lexedSource name src = do

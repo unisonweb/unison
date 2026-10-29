@@ -261,7 +261,7 @@
   run. This is a read-only operation that doesn't modify the
   codebase.
 
-  display
+  display (or render)
   `display foo` prints a rendered version of the term `foo`.
   `display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH.
 
@@ -270,7 +270,7 @@
   term `foo` to the given file.
 
   docs
-  `docs foo` shows documentation for the definition `foo`.
+  `docs foo` shows the type signature of the term `foo` (or the heading of the type `foo`), then its documentation.
   `docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH.
 
   docs.to-html
@@ -1080,7 +1080,7 @@
   version
   Print the version of unison you're running
 
-  view
+  view (or source)
   `view foo` shows definitions named `foo` within your current
   namespace.
   `view` without arguments invokes a search to select
