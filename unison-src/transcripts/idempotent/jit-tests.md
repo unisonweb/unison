@@ -661,6 +661,148 @@ askPair n =
             true
 ```
 
+## Wide arguments
+
+A function that matches on an argument and never lets it escape takes it
+unboxed: a caller holding the result of a call passes the slots. One that
+lets it escape on some path takes it boxed, so two callees given the same
+value share one object. Unknown callers (function values, partial
+applications) go through the boxed entry.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.fromList : [a] -> Cons a
+Cons.fromList = cases
+  [] -> Cons.Nil
+  x +: xs -> Cons.Cons x (Cons.fromList xs)
+
+-- returns a small constructor, so the call delivers a wide value
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+-- matched only: wide
+isNone : Optional a -> Boolean
+isNone = cases
+  None -> true
+  Some _ -> false
+
+-- matched, then returned on one path: wide (a return is not an escape)
+orZero : Optional Nat -> Nat
+orZero = cases
+  None -> 0
+  Some n -> n
+
+-- escapes into a list on one path: boxed, the caller boxes
+keep : Optional Nat -> [Optional Nat]
+keep = cases
+  None -> []
+  o -> [o]
+
+-- a local loop whose state is a pair, matched each round
+countdown : Nat -> Nat
+countdown n =
+  go st = match st with
+    (acc, 0) -> acc
+    (acc, i) -> go (acc + i, i - 1)
+  go (0, n)
+
+-- two callees given the same wide value, one taking it boxed
+both : Nat -> (Boolean, [Optional Nat], Nat)
+both n =
+  o = Cons.head (Cons.fromList [n])
+  (isNone o, keep o, orZero o)
+
+-- an unknown call reaches the boxed entry
+applyTo : (Optional Nat ->{g} r) -> Optional Nat ->{g} r
+applyTo f o = f o
+
+-- a request inside a worker, with the wide argument live across it
+structural ability Ask where
+  ask : Nat
+
+askOr : Optional Nat ->{Ask} Nat
+askOr = cases
+  None -> Ask.ask
+  Some n -> n + Ask.ask
+
+withTwo : '{Ask} a -> a
+withTwo c = handle c() with cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k 2 with cases
+    { r } -> r
+    { Ask.ask -> k } -> withTwo '(k 2)
+
+wideArgs : (Boolean, Boolean, Nat, [Optional Nat], Nat, (Boolean, [Optional Nat], Nat), Boolean, Nat, [Boolean], Nat, Nat)
+wideArgs =
+  xs = Cons.fromList [5, 6]
+  (isNone (Cons.head xs),
+   isNone (Cons.head (Cons.fromList [])),
+   orZero (Cons.head xs),
+   keep (Cons.head xs),
+   countdown 10,
+   both 7,
+   applyTo isNone (Cons.head xs),
+   applyTo orZero None,
+   List.map isNone [Some 1, None],
+   withTwo '(askOr (Cons.head xs)),
+   withTwo '(askOr None))
+
+> wideArgs
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Cons a
+
+  + applyTo       : (Optional Nat ->{g} r)
+                    -> Optional Nat
+                    ->{g} r
+  + askOr         : Optional Nat ->{Ask} Nat
+  + both          : Nat -> (Boolean, [Optional Nat], Nat)
+  + Cons.fromList : [a] -> Cons a
+  + Cons.head     : Cons a -> Optional a
+  + countdown     : Nat -> Nat
+  + isNone        : Optional a -> Boolean
+  + keep          : Optional Nat -> [Optional Nat]
+  + orZero        : Optional Nat -> Nat
+  + wideArgs      : ( Boolean,
+                      Boolean,
+                      Nat,
+                      [Optional Nat],
+                      Nat,
+                      (Boolean, [Optional Nat], Nat),
+                      Boolean,
+                      Nat,
+                      [Boolean],
+                      Nat,
+                      Nat)
+  + withTwo       : '{Ask} a -> a
+
+  Run `update` to apply these changes to your codebase.
+
+    83 | > wideArgs
+           ⧩
+           ( false
+           , true
+           , 5
+           , [Some 5]
+           , 55
+           , (false, [Some 7], 7)
+           , false
+           , 0
+           , [false, true]
+           , 7
+           , 2
+           )
+```
+
 ## Calls to function values
 
 ``` unison

@@ -18,6 +18,7 @@
 -- file carries the mode and 'setWide' applies it before anything loads.
 module Unison.Runtime.Wide
   ( wideOn,
+    wideArgsOn,
     setWide,
     wideK,
     wideWidth,
@@ -52,6 +53,18 @@ wideFromEnvironment = do
     (_, "on") -> True
     (_, "eager") -> True
     _ -> False
+
+-- | Whether known functions take the arguments they only match on as
+-- slots (MCode's 'argWidths'): on with the convention unless
+-- @UNISON_WIDE_ARGS=off@, which is for measuring the two apart. A
+-- compiled program's file does not carry it: its workers are in its MCode
+-- either way, and code it loads later only consults the widths stored
+-- with it.
+wideArgsOn :: Bool
+wideArgsOn = unsafePerformIO $ do
+  override <- lookupEnv "UNISON_WIDE_ARGS"
+  pure $ wideOn && (map toLower <$> override) /= Just "off"
+{-# NOINLINE wideArgsOn #-}
 
 wideRef :: IORef (Maybe Bool)
 wideRef = unsafePerformIO (newIORef Nothing)

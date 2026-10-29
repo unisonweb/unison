@@ -310,7 +310,7 @@ groupUnits c sandbox lazy ref grp combs = do
     letCells = Set.fromList [c | Comb (LamI _ _ s _) _ <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
     candidates = [c | c@(i, _, _, _, cell) <- every, isEntry i || Set.member cell letCells]
     every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell) _) <- EC.mapToList combs, cell /= noNativeCell]
-    isEntry i = i .&. 0xFFFF == 0
+    isEntry i = i .&. 0x7FFF == 0
     now = [c | c@(i, _, _, _, _) <- candidates, isEntry i || not lazy]
     later = [c | c@(i, _, _, _, _) <- candidates, not (isEntry i), lazy]
     unit suffix onDemand (i, a, f, entry, cell) =

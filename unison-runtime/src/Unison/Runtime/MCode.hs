@@ -76,6 +76,7 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
+    groupWidths,
     sanitizeCombsOfForeignFuncs,
     absurdCombs,
     emptyRNs,
@@ -108,7 +109,7 @@ import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
 import Data.Semigroup (Max (..))
@@ -159,7 +160,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
-import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
+import Unison.Runtime.Wide (wideK, wideArgsOn, wideOn, wideWidth)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.BiMap (BiMap)
@@ -912,12 +913,15 @@ data RefNums = RN
     cnum :: Reference -> Word64,
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
+    -- | the argument widths of a combinator's entry point ('argWidths'):
+    -- Nothing when unknown, which every caller treats as all narrow
+    awide :: Reference -> Maybe [Bool],
     -- Map record schemas into their runtime reference
     recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing) mt
+emptyRNs = RN mt mt (const Nothing) (const Nothing) mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -1314,7 +1318,17 @@ data Ctx v
 -- only contain a single recursive binding group. The variables in
 -- this binding group are resolved to numbered combinators rather
 -- than stack positions.
-type RCtx v = M.Map v Word64
+-- | The group's local functions: each one's combinator number, and the
+-- widths of its arguments ('argWidths').
+type RCtx v = M.Map v (Word64, [Bool])
+
+-- | The combinator index a lambda's wide-argument worker gets, from the
+-- lambda's own: a bit no let index reaches (lets of a combinator are
+-- numbered from 1 within its low sixteen bits, local functions in the
+-- high bits). The JIT treats a worker like the entry point it stands for
+-- (Compile's @isEntry@).
+wideWorkerBit :: Word64
+wideWorkerBit = 0x8000
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1479,7 +1493,7 @@ sumCtx ctx v vcs
 
 -- Look up a variable in the top let rec context
 rctxResolve :: (Var v) => RCtx v -> v -> Maybe Word64
-rctxResolve ctx u = M.lookup u ctx
+rctxResolve ctx u = fst <$> M.lookup u ctx
 
 -- convenient alias for our most used type
 type RNormal = ANormal Reference
@@ -1488,6 +1502,123 @@ type RNormal = ANormal Reference
 -- The provided word refers to the numbering for the overall group,
 -- and intra-group calls are numbered locally, with 0 specifying
 -- the global entry point.
+-- | Which arguments of a lambda are wide (Unison.Runtime.Wide): a wide
+-- argument arrives as its slots, so a caller holding an unboxed
+-- constructor for it passes the slots instead of boxing it. An argument
+-- is wide when the body matches on it as data somewhere and it never
+-- escapes: a value that escapes on some path is taken boxed, so that the
+-- caller boxes it once and two callees given the same variable share the
+-- object (Paul, 2026-10-28). Passing it to a wide position of a known
+-- callee is not an escape, which is why the widths of a group's functions
+-- are a fixpoint ('groupWidths') and a batch of groups is too. A position
+-- some call in the group passes a plain value (a field of the matched
+-- object, say) stays narrow ('plainlyCalled'): the slots would only ever
+-- carry copies, at the cost of two more register pairs on every call,
+-- which a list's map or a tree's insert pays on each element.
+argWidths :: (Var v) => (v -> Maybe [Bool]) -> (Reference -> Maybe [Bool]) -> [v] -> RNormal v -> [Bool]
+argWidths localW combW vs bd = [wideArgsOn && matchedData v bd && not (escapesArg localW combW v bd) | v <- vs]
+
+-- | The calls in a body, each with whether the variable in each argument
+-- position is wide where it is bound: an argument of the lambda with a
+-- wide position, a let over a call (every yield is wide), or a let of a
+-- small constructor. Fields bound by a match are not.
+callsWith :: (Var v) => Set v -> RNormal v -> [(Func Reference v, [Bool])]
+callsWith = go
+  where
+    go w = \case
+      TLets _ us _ bn bo -> go w bn ++ go (bound w us bn) bo
+      TName _ _ _ bo -> go w bo
+      TMatch _ bs -> concatMap (\(TAbss _ bo) -> go w bo) (toList bs)
+      TShift _ _ e -> go w e
+      THnd _ _ _ e -> go w e
+      TLocal _ e -> go w e
+      TApp f args -> [(f, map (`Set.member` w) args)]
+      _ -> []
+    bound w [u] bn
+      | TApp (FCon _ _) args <- bn, length args <= wideK = Set.insert u w
+      | letYields bn = Set.insert u w
+    bound w _ _ = w
+
+-- | For each lambda of a group (the entry point first), which of its
+-- positions some call in the group passes a plain value, given the
+-- lambdas' current widths.
+plainlyCalled :: (Var v) => Reference -> [v] -> [SuperNormal Reference v] -> [[Bool]] -> [[Bool]]
+plainlyCalled grpr rvs lams cur = [[or [not (ws !! j) | (c, ws) <- calls, c == k, j < length ws] | j <- [0 .. length vs - 1]] | (k, Lambda _ (TAbss vs _)) <- zip [0 :: Int ..] lams]
+  where
+    calls = concat [map (first callee) (callsWith (Set.fromList [v | (v, True) <- zip vs ws]) bd) | (Lambda _ (TAbss vs bd), ws) <- zip lams cur]
+    callee = \case
+      FComb r | r == grpr -> 0
+      FVar u | Just k <- Prelude.lookup u (zip rvs [1 ..]) -> k
+      _ -> -1
+
+-- | Whether the body matches on the variable as a data constructor.
+matchedData :: (Var v) => v -> RNormal v -> Bool
+matchedData v = go
+  where
+    go = \case
+      TMatch u (MatchData {}) | u == v -> True
+      TMatch _ bs -> any arm (toList bs)
+      TLets _ _ _ bn bo -> go bn || go bo
+      TName _ _ _ bo -> go bo
+      TShift _ _ e -> go e
+      THnd _ _ _ e -> go e
+      TLocal _ e -> go e
+      _ -> False
+    arm (TAbss _ bo) = go bo
+
+-- | Whether the variable escapes the body: is passed to a constructor, a
+-- primitive, a closure, a reference update, a force, or a narrow
+-- position of a call (an unknown callee's positions are all narrow, and
+-- so are those of an unsaturated call, which goes through the boxed
+-- entry).
+escapesArg :: (Var v) => (v -> Maybe [Bool]) -> (Reference -> Maybe [Bool]) -> v -> RNormal v -> Bool
+escapesArg localW combW v = go
+  where
+    go = \case
+      TLets _ _ _ bn bo -> go bn || go bo
+      TName _ _ args bo -> v `elem` args || go bo
+      TMatch _ bs -> any arm (toList bs)
+      TShift _ _ e -> go e
+      THnd _ _ _ e -> go e
+      TLocal _ e -> go e
+      TApp f args -> case widthsOf f of
+        Just ws | length ws == length args -> or [a == v && not w | (a, w) <- zip args ws]
+        _ -> v `elem` args
+      TUpdate _ _ x -> x == v
+      TFrc u -> u == v
+      _ -> False
+    arm (TAbss _ bo) = go bo
+    widthsOf = \case
+      FComb r -> combW r
+      FVar u -> localW u
+      _ -> Nothing
+
+-- | The widths of a group's entry point and of each local function, in the
+-- group's order, as the fixpoint from all narrow (each round takes the
+-- candidates by the last round's widths and keeps the positions no call
+-- passes a plain value). The entry point's own reference is looked up in
+-- the table like any other, which a batch of groups keeps consistent
+-- ('cacheAdd').
+groupWidths :: (Var v) => (Reference -> Maybe [Bool]) -> Reference -> SuperGroup Reference v -> ([Bool], [[Bool]])
+groupWidths combW grpr (Rec grp ent) = case iterate step start of
+  (a : b : _) | a == b -> split a
+  xs -> split (fixpoint xs)
+  where
+    (rvs, cmbs) = unzip grp
+    lams = ent : cmbs
+    start = [map (const False) vs | Lambda _ (TAbss vs _) <- lams]
+    step cur = zipWith (zipWith (\w p -> w && not p)) cand (plainlyCalled grpr rvs lams cand)
+      where
+        cand = [argWidths (\u -> Prelude.lookup u (zip rvs (drop 1 cur))) combW vs bd | Lambda _ (TAbss vs bd) <- lams]
+    fixpoint (a : b : rest)
+      | a == b = a
+      | otherwise = fixpoint (b : rest)
+    fixpoint [a] = a
+    fixpoint [] = []
+    split ws = case ws of
+      e : ls -> (e, ls)
+      [] -> ([], [])
+
 emitCombs ::
   (Var v) =>
   RefNums ->
@@ -1495,15 +1626,18 @@ emitCombs ::
   Word64 ->
   SuperGroup Reference v ->
   State RecordFieldMappings (EnumMap Word64 Comb)
-emitCombs rns grpr grpn (Rec grp ent) = do
-  es <- emitComb rns grpr grpn rec (0, ent)
+emitCombs rns grpr grpn sg@(Rec grp ent) = do
+  es <- emitComb rns grpr grpn rec entW (0, ent)
   auxEs <- aux
   pure $ es <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
-    rec = M.fromList $ zip rvs ixs
-    aux = foldMapM (emitComb rns grpr grpn rec) (zip ixs cmbs)
+    -- the entry point's widths are the table's, which its callers use
+    (entW0, localWs) = groupWidths (awide rns) grpr sg
+    entW = fromMaybe entW0 (awide rns grpr)
+    rec = M.fromList $ zip rvs (zip ixs localWs)
+    aux = foldMapM (\(ix, w, c) -> emitComb rns grpr grpn rec w (ix, c)) (zip3 ixs localWs cmbs)
 
 -- | lazily replace all references to combinators with the combinators themselves,
 -- tying the knot recursively when necessary.
@@ -1609,11 +1743,15 @@ record ctx vcs l (EM es) = EM do
   pure $ (n, comb)
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
-recordTop vs l (EM e) = EM do
+recordTop vs = recordTopSlots (length vs)
+
+-- | 'recordTop' with the arity given in slots: a wide-argument worker's
+-- arguments are more slots than variables.
+recordTopSlots :: Int -> Word16 -> Emit Section -> Emit ()
+recordTopSlots na l (EM e) = EM do
   c <- ask
   (s, (_m, Max sz)) <- listen e
-  let na = length vs
-      n = letIndex l c
+  let n = letIndex l c
       lam = Lam na sz s
   tell (EC.mapSingleton n lam, 0)
   pure ()
@@ -1638,17 +1776,41 @@ emitComb ::
   Reference ->
   Word64 ->
   RCtx v ->
+  -- | the widths of the arguments ('argWidths')
+  [Bool] ->
   (Word64, SuperNormal Reference v) ->
   State RecordFieldMappings (EC.EnumMap Word64 Comb)
-emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
+emitComb rns grpr grpn rec ws (n, Lambda ccs (TAbss vs bd))
   | Just k <- resultCount bd,
     k /= 1 =
       internalBug [] $
         "emitComb: a function body that yields " ++ show k ++ " values: " ++ show bd
+  -- a lambda with wide arguments is two combinators: the worker, whose
+  -- frame has the slots of each wide argument and whose body is the
+  -- lambda's, and the boxed entry at the lambda's own index, which has
+  -- the arity every unknown caller assumes and passes each argument on to
+  -- the worker, a wide one as three copies of its slot (an ordinary value
+  -- in the value slot, the slots below it unread until a Box or a match,
+  -- which read the value slot first)
+  | or ws = do
+      let nW = n .|. wideWorkerBit
+          cixW = CIx grpr grpn nW
+          boxed = ctx vs ccs
+          slots = concat [maybe [] (\(i, _) -> if w then replicate wideWidth i else [i]) (ctxResolve boxed v) | (v, w) <- zip vs ws]
+          entry = countCtx boxed $ Call False cixW cixW (VArgN (PA.primArrayFromList slots))
+          wide = ctxWide (zip3 vs ccs ws)
+      es <- runEmit n (recordTop vs 0 entry)
+      wks <- runEmit nW (recordTopSlots (countCtx0 0 wide) 0 (emitSection rns grpr grpn rec wide bd))
+      pure (es <> wks)
   | otherwise =
       runEmit n
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
+
+-- | The context of a worker's arguments: a wide one is a wide variable,
+-- unboxed until a Box; 'pushCtx' otherwise.
+ctxWide :: [(v, Mem, Bool)] -> Ctx v
+ctxWide = foldr (\(v, c, w) acc -> if w then Wide v c True acc else Var v c acc) ECtx
 
 -- | How many values a term yields when it is in tail position, or Nothing
 -- for a term that never returns (an error call). Every term yields one
@@ -1826,6 +1988,13 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
       . Yield
       . VArgV
       $ countBlock ctx
+emitSection rns grpr grpn rec ctx (TApp f args)
+  -- a saturated call of a function with wide arguments goes to its
+  -- worker: a wide position gets the slots of a wide variable, or three
+  -- copies of an ordinary value's slot
+  | Just (cixW, ws) <- wideCallee rns grpr grpn rec f args =
+      emitClosuresWide grpr grpn rec ctx (zip args ws) $ \ctx as ->
+        countCtx ctx $ Call False cixW cixW as
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
     -- A record shape, or the reference for a field a record update replaces,
@@ -2516,6 +2685,56 @@ emitClosures grpr grpn rec ctx args k =
            in Ins (Name (Env cix cix) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug [] $ "emitClosures: unknown reference: " ++ show a ++ show grpr
+
+-- | The worker of a known function with wide arguments, when the call is
+-- saturated, with the widths.
+wideCallee :: (Var v) => RefNums -> Reference -> Word64 -> RCtx v -> Func Reference v -> [v] -> Maybe (CombIx, [Bool])
+wideCallee rns grpr grpn rec f args = case f of
+  FComb r
+    | Just ws <- awide rns r,
+      or ws,
+      length ws == length args ->
+        Just (CIx r (cnum rns r) wideWorkerBit, ws)
+  FVar u
+    | Just (j, ws) <- M.lookup u rec,
+      or ws,
+      length ws == length args ->
+        Just (CIx grpr grpn (j .|. wideWorkerBit), ws)
+  _ -> Nothing
+
+-- | 'emitClosures' for a call with wide positions: a wide variable in a
+-- wide position is passed as its slots and not boxed; an ordinary value
+-- there is passed three times.
+emitClosuresWide ::
+  (Var v) =>
+  Reference ->
+  Word64 ->
+  RCtx v ->
+  Ctx v ->
+  [(v, Bool)] ->
+  (Ctx v -> Args -> Emit Section) ->
+  Emit Section
+emitClosuresWide grpr grpn rec ctx args k =
+  allocate ctx args $ \ctx -> k ctx (VArgN (PA.primArrayFromList (concatMap (slotsOf ctx) args)))
+  where
+    slotsOf ctx (a, w) = case ctxResolve ctx a of
+      Just (i, _)
+        | w && ctxIsWide ctx a -> [i .. i + wideWidth - 1]
+        | w -> replicate wideWidth i
+        | otherwise -> [i]
+      Nothing -> internalBug [] $ "emitClosuresWide: unknown argument: " ++ show a
+    allocate ctx [] k = k ctx
+    allocate ctx ((a, w) : as) k
+      | Just (i, _) <- ctxResolve ctx a,
+        not w,
+        ctxIsWide ctx a =
+          Ins (Box i) <$> allocate (markBoxed ctx a) as k
+      | Just _ <- ctxResolve ctx a = allocate ctx as k
+      | Just n <- rctxResolve rec a =
+          let cix = (CIx grpr grpn n)
+           in Ins (Name (Env cix cix) ZArgs) <$> allocate (Var a BX ctx) as k
+      | otherwise =
+          internalBug [] $ "emitClosuresWide: unknown reference: " ++ show a ++ show grpr
 
 emitArgs :: (Var v) => Word64 -> Ctx v -> [v] -> Args
 emitArgs grpn ctx args

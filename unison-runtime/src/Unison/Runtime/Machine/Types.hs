@@ -194,6 +194,9 @@ data CCache prof = CCache
     recordFieldMappings :: TVar RecordFieldMappings,
     -- native code cells for combinators loaded through this cache (see unison-runtime/src/Unison/Runtime/JIT/design.md)
     nativeCells :: TVar NativeCellPool,
+    -- | the argument widths of every loaded group's entry point
+    -- (MCode's 'argWidths'), which callers loaded later consult
+    argWidths :: TVar (M.Map Reference [Bool]),
     -- the JIT, one for the whole process and shared by every cache in it
     -- (see JIT.hs); this is how the interpreter reaches it. Not unpacked,
     -- so that handing it on doesn't rebuild it.
@@ -252,6 +255,7 @@ baseCCache jit sandboxed = do
     <*> newTVarIO baseSandboxInfo
     <*> newTVarIO rfm
     <*> (newTVarIO =<< newNativeCellPool (initialNativeCount jit) initialNativeCells)
+    <*> newTVarIO M.empty
     <*> pure jit
   where
     builtinFieldNumbering = mempty
@@ -272,7 +276,7 @@ baseCCache jit sandboxed = do
             & traverseWithKey
               ( \k v -> do
                   let r = builtinTermBackref ! k
-                  emitComb @Symbol rns r k mempty (0, v)
+                  emitComb @Symbol rns r k mempty (map (const False) (lambdaArgs v)) (0, v)
               )
         )
 
@@ -383,10 +387,15 @@ codeValidate cc tml = do
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (recordRefLookup recRefs')
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (const Nothing) (recordRefLookup recRefs')
       combinate (n, (r, g)) = evaluate . fst $ runState (emitCombs rns r n g) rfms
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->
       let msg = UText.pack perr
           extra = UText.pack $ show cs
        in pure . Just $ Failure ioFailureRef msg extra
+
+-- | A lambda's arguments, one entry each (its calling conventions list has
+-- one per argument).
+lambdaArgs :: ANF.SuperNormal Reference Symbol -> [ANF.Mem]
+lambdaArgs (ANF.Lambda ccs _) = ccs

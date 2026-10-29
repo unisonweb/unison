@@ -30,6 +30,18 @@ natively (the type table holds one enum per type, for the reference), which a
 table by constructor would avoid; rare, since a nullary value that escapes is
 usually built boxed in the first place.
 
+### A typed Box
+
+A `Box` of a call's result boxes a witness through the module's helper,
+which finds the type's reference in the pool's type table (four tagged
+pointer checks and an index) before it allocates. When the let's callee is
+known, the analysis that marks a result "never a witness" can instead say
+which constructors the callee's code can yield (`filterMap f t` yields `Nil`
+or `Cons` of one type), and the `Box` then takes the reference from the
+pool as a `Pack` does and switches on the field count, no table. The
+`filterMap` row (0.77x on 2026-10-28) boxes the recursive result into a
+`Cons` on every element and pays that lookup each time.
+
 ### One witness closure
 
 A `Box` of a value that may be a witness (the result of an unknown call, say

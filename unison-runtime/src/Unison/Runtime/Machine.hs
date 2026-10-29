@@ -2067,6 +2067,17 @@ normalizeCodes = id
 
 #endif
 
+-- | The argument widths of the entry points of a batch of groups, as a
+-- fixpoint from all narrow (see MCode's 'groupWidths'), over the table of
+-- the groups loaded before.
+batchWidths :: M.Map Reference [Bool] -> M.Map Reference (SuperGroup Reference Symbol) -> M.Map Reference [Bool]
+batchWidths have groups = go (M.map (const []) groups)
+  where
+    go cur =
+      let tbl = M.union cur have
+          next = M.mapWithKey (\r g -> fst (groupWidths (flip M.lookup tbl) r g)) groups
+       in if next == cur then M.union next have else go next
+
 cacheAdd0 ::
   (RuntimeProfiler p) =>
   S.Set Reference ->
@@ -2132,8 +2143,12 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       -- shape during emit interns any name it hasn't seen.
       oldRfms <- readTVar (recordFieldMappings cc)
       -- check for missing references
+      haveW <- readTVar (argWidths cc)
       let arities = fmap (head . ANF.arities) int <> builtinArities
-          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
+          -- the batch's argument widths: a fixpoint over its groups, each
+          -- consulting the table with the others' current widths
+          widths = batchWidths haveW opt
+          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (flip M.lookup widths) (recordRefLookup rrLookup)
           combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
           combinate n (r, g) = (n,) <$> emitCombs rns r n g
       let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
@@ -2162,6 +2177,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           -- Everything is in hand. From here on the transaction only writes.
           writeTVar (nativeCells cc) pool'
           int' <- updateMap new (intermed cc)
+          writeTVar (argWidths cc) widths
           writeTVar (optInfos cc) optInfos'
           rtm' <- updateMap newRefTm (refTm cc)
           rrs <- updateMap newRecSchemaMap (recordRefs cc)
