@@ -62,8 +62,8 @@ scratch/main> update
 
       scratch/update-main> load update-main-605afae5.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/update-main> update
 
@@ -149,8 +149,8 @@ scratch/main> upgrade old new
 
       scratch/upgrade-old-to-new> load upgrade-old-to-new-adf33066.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/upgrade-old-to-new> update
 
@@ -271,8 +271,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-23ffa2e7.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 

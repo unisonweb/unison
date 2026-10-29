@@ -133,8 +133,8 @@ proj/main> upgrade old new
 
       proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       proj/upgrade-old-to-new> update
 
@@ -253,8 +253,8 @@ proj/main> upgrade old new
 
       proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       proj/upgrade-old-to-new> update
 
@@ -440,8 +440,8 @@ myproject/main> upgrade old new
 
       myproject/upgrade-old-to-new> load upgrade-old-to-new-aabcdb16.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       myproject/upgrade-old-to-new> update
 
@@ -790,8 +790,8 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
       scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/upgrade> update
 

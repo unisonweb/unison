@@ -66,8 +66,8 @@ foo = +30
 
       scratch/update-main> load update-main-84a6c46a.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/update-main> update
 

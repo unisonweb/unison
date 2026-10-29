@@ -2972,9 +2972,9 @@ notifyUser dir issueFn = \case
                 [ P.indentN 4 (prompt <> "load " <> P.group file),
                   "",
                   P.wrap $
-                    "Repeat the edit and"
+                    "If"
                       <> P.backticked "load"
-                      <> "until the file loads with no errors, then run:",
+                      <> "reports errors, fix them and run it again. When the file loads with no errors, run:",
                   ""
                 ]
             else mempty,

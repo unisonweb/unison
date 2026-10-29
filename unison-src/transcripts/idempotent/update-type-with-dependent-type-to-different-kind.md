@@ -58,8 +58,8 @@ unique type Foo a = Bar Nat a
 
       scratch/update-main> load update-main-554e4a59.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/update-main> update
 

@@ -544,8 +544,8 @@ scratch/main> delete a b c
 
       scratch/update-main> load delete-main-9e3d9f66.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/update-main> update
 
@@ -755,8 +755,8 @@ scratch/main> delete ping
 
       scratch/update-main> load delete-main-0e1e597d.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/update-main> update
 

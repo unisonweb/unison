@@ -840,8 +840,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-a9086949.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -929,8 +929,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-2459c2f8.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1029,8 +1029,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-e9a78b72.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1134,8 +1134,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-b5d30f5c.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1217,8 +1217,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-a7b263c3.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1300,8 +1300,8 @@ scratch/alice> merge bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-98b28f21.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1379,8 +1379,8 @@ scratch/alice> merge bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-36947d6b.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1480,8 +1480,8 @@ scratch/alice> merge bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-6536d733.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1606,8 +1606,8 @@ scratch/alice> merge bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-24b73211.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1698,8 +1698,8 @@ scratch/alice> merge bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-ff5dde16.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -1799,8 +1799,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-25feec1e.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -2846,8 +2846,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-2276ceed.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -3233,8 +3233,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-f6575e32.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
@@ -3383,8 +3383,8 @@ scratch/main> merge /topic
 
       scratch/merge-topic-into-main> load merge-topic-into-main-a7e5b665.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-topic-into-main> update
 
@@ -3524,8 +3524,8 @@ scratch/topic> merge /main
 
       scratch/merge-main-into-topic> load merge-main-into-topic-ba5f1183.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-main-into-topic> update
 
@@ -3678,8 +3678,8 @@ scratch/topic> merge /topic2
 
       scratch/merge-topic2-into-topic> load merge-topic2-into-topic-f55b5c98.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-topic2-into-topic> update
 
@@ -3857,8 +3857,8 @@ scratch/alice> merge /bob
 
       scratch/merge-bob-into-alice> load merge-bob-into-alice-12c20b78.u
 
-  Repeat the edit and `load` until the file loads with no
-  errors, then run:
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
 
       scratch/merge-bob-into-alice> update
 
