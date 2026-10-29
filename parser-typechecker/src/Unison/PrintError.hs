@@ -1532,9 +1532,9 @@ renderCompilerBug env _src bug = mconcat $ case bug of
 
 renderContext ::
   (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
-renderContext env ctx@(C.Context es) =
+renderContext env ctx =
   "  Γ\n    "
-    <> getDual (intercalateMap (Dual "\n    ") (Dual . showElem ctx) es)
+    <> getDual (intercalateMap (Dual "\n    ") (Dual . showElem ctx) (C.elements ctx))
   where
     shortName :: (Var v, IsString loc) => v -> loc
     shortName = fromString . Text.unpack . Var.name
