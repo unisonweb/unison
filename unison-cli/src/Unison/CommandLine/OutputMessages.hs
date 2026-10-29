@@ -2987,7 +2987,11 @@ notifyUser dir issueFn = \case
               <> "removes any definitions you deleted from the file, and deletes the temporary branch. To abandon the"
               <> P.text handoff.action
               <> "instead, run"
-              <> P.group (P.backticked "cancel" <> ".")
+              <> P.group (P.backticked "cancel" <> "."),
+          "",
+          P.wrap $
+            "Note: Definitions listed in the file don't exist in the branch until a successful"
+              <> P.group (P.backticked "update" <> ".")
         ]
       where
         file = prettyFilePath handoff.scratchFile

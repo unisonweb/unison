@@ -847,6 +847,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-a9086949.u
@@ -936,6 +939,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-2459c2f8.u
@@ -1036,6 +1042,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-e9a78b72.u
@@ -1141,6 +1150,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-b5d30f5c.u
@@ -1224,6 +1236,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-a7b263c3.u
@@ -1307,6 +1322,9 @@ scratch/alice> merge bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-98b28f21.u
@@ -1386,6 +1404,9 @@ scratch/alice> merge bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-36947d6b.u
@@ -1487,6 +1508,9 @@ scratch/alice> merge bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-6536d733.u
@@ -1613,6 +1637,9 @@ scratch/alice> merge bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-24b73211.u
@@ -1705,6 +1732,9 @@ scratch/alice> merge bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-ff5dde16.u
@@ -1806,6 +1836,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-25feec1e.u
@@ -2853,6 +2886,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-2276ceed.u
@@ -3240,6 +3276,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-f6575e32.u
@@ -3390,6 +3429,9 @@ scratch/main> merge /topic
   `update` saves the file's definitions into main, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-topic-into-main-a7e5b665.u
@@ -3531,6 +3573,9 @@ scratch/topic> merge /main
   `update` saves the file's definitions into topic, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-main-into-topic-ba5f1183.u
@@ -3685,6 +3730,9 @@ scratch/topic> merge /topic2
   `update` saves the file's definitions into topic, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-topic2-into-topic-f55b5c98.u
@@ -3864,6 +3912,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-12c20b78.u

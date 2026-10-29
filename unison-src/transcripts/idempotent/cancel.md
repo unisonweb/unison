@@ -69,6 +69,9 @@ scratch/main> update
   `update` saves the file's definitions into main, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the update instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm update-main-605afae5.u
@@ -157,6 +160,9 @@ scratch/main> upgrade old new
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the upgrade instead, run
   `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-adf33066.u
@@ -279,6 +285,9 @@ scratch/alice> merge /bob
   `update` saves the file's definitions into alice, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the merge instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm merge-bob-into-alice-23ffa2e7.u

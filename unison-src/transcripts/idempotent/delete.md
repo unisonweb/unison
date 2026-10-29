@@ -551,6 +551,9 @@ scratch/main> delete a b c
   `update` saves the file's definitions into main, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the delete instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm delete-main-9e3d9f66.u
@@ -762,6 +765,9 @@ scratch/main> delete ping
   `update` saves the file's definitions into main, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the delete instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm delete-main-0e1e597d.u

@@ -141,6 +141,9 @@ proj/main> upgrade old new
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the upgrade instead, run
   `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
@@ -262,6 +265,9 @@ proj/main> upgrade old new
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the upgrade instead, run
   `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
@@ -450,6 +456,9 @@ myproject/main> upgrade old new
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the upgrade instead, run
   `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm upgrade-old-to-new-aabcdb16.u
@@ -801,6 +810,9 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the upgrade instead, run
   `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u

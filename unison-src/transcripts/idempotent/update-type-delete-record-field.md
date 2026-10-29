@@ -87,6 +87,9 @@ scratch/main> update
   `update` saves the file's definitions into main, removes any
   definitions you deleted from the file, and deletes the
   temporary branch. To abandon the update instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
 ``` unison :added-by-ucm update-main-d9544649.u
