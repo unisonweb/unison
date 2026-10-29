@@ -459,8 +459,7 @@ data Output
   | HappyCoding
   | ProjectHasNoReleases ProjectName
   | DeleteFailure !ScratchFileHandoff
-  | -- | The file, and whether it has to be @load@ed to be checked.
-    UpdateTypecheckingFailure !FilePath !Bool
+  | UpdateTypecheckingFailure !ScratchFileHandoff
   | UpdateTypecheckingFailure2 !ScratchFileHandoff
   | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)

@@ -2162,25 +2162,24 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> scratchFileNextSteps handoff
-  UpdateTypecheckingFailure scratchFile loadFirst ->
+  UpdateTypecheckingFailure handoff ->
     pure $
       P.wrap
         ( "Typechecking failed. I've updated"
-            <> P.group (prettyFilePath scratchFile)
+            <> P.group (prettyFilePath handoff.scratchFile)
             <> "with the definitions that still need fixing."
         )
         <> P.newline
         <> P.newline
-        <> P.wrap
-          ( ( if loadFirst
-                then
-                  "Edit the file and run"
-                    <> IP.makeExample IP.load [prettyFilePath scratchFile]
-                    <> "again, repeating until it loads with no errors, then run"
-                else "Edit the file until it compiles, then run"
-            )
-              <> IP.makeExample' IP.update
-              <> "again."
+        <> P.lines
+          ( scratchFileCommands handoff
+              ++ [ "",
+                   P.wrap $
+                     "To abandon the"
+                       <> P.text handoff.action
+                       <> "instead, run"
+                       <> P.group (P.backticked "cancel" <> ".")
+                 ]
           )
   UpdateTypecheckingFailure2 handoff ->
     pure $
@@ -2954,45 +2953,52 @@ notifyUser dir issueFn = \case
     -- What an agent (or person) needs to do next after an action left them on a temporary branch with a scratch file.
     scratchFileNextSteps :: ScratchFileHandoff -> Pretty
     scratchFileNextSteps handoff =
-      P.lines
+      P.lines $
         [ P.wrap $
             "You're now on a temporary branch,"
               <> P.group (prettyProjectBranchName handoff.temporaryBranch <> ",")
               <> "and the definitions to fix are in"
-              <> P.group (file <> "."),
-          "",
-          P.wrap $
-            if handoff.loadFirst
-              then "Edit the file, then run:"
-              else "Edit the file until it compiles, then run:",
-          "",
-          if handoff.loadFirst
-            then
-              P.lines
-                [ P.indentN 4 (prompt <> "load " <> P.group file),
-                  "",
-                  P.wrap $
-                    "If"
-                      <> P.backticked "load"
-                      <> "reports errors, fix them and run it again. When the file loads with no errors, run:",
-                  ""
-                ]
-            else mempty,
-          P.indentN 4 (prompt <> "update"),
-          "",
-          P.wrap $
-            P.backticked "update"
-              <> "saves the file's definitions into"
-              <> P.group (prettyProjectBranchName handoff.baseBranch <> ",")
-              <> "removes any definitions you deleted from the file, and deletes the temporary branch. To abandon the"
-              <> P.text handoff.action
-              <> "instead, run"
-              <> P.group (P.backticked "cancel" <> "."),
-          "",
-          P.wrap $
-            "Note: Definitions listed in the file don't exist in the branch until a successful"
-              <> P.group (P.backticked "update" <> ".")
+              <> P.group (prettyFilePath handoff.scratchFile <> "."),
+          ""
         ]
+          ++ scratchFileCommands handoff
+          ++ [ "",
+               P.wrap $
+                 P.backticked "update"
+                   <> "saves the file's definitions into"
+                   <> P.group (prettyProjectBranchName handoff.baseBranch <> ",")
+                   <> "removes any definitions you deleted from the file, and deletes the temporary branch. To abandon the"
+                   <> P.text handoff.action
+                   <> "instead, run"
+                   <> P.group (P.backticked "cancel" <> "."),
+               "",
+               P.wrap $
+                 "Note: Definitions listed in the file don't exist in the branch until a successful"
+                   <> P.group (P.backticked "update" <> ".")
+             ]
+
+    -- Edit the file, check it, then update: the commands to get out of a temporary branch.
+    scratchFileCommands :: ScratchFileHandoff -> [Pretty]
+    scratchFileCommands handoff =
+      [ P.wrap $
+          if handoff.loadFirst
+            then "Edit the file, then run:"
+            else "Edit the file until it compiles, then run:",
+        ""
+      ]
+        ++ ( if handoff.loadFirst
+               then
+                 [ P.indentN 4 (prompt <> "load " <> P.group file),
+                   "",
+                   P.wrap $
+                     "If"
+                       <> P.backticked "load"
+                       <> "reports errors, fix them and run it again. When the file loads with no errors, run:",
+                   ""
+                 ]
+               else []
+           )
+        ++ [P.indentN 4 (prompt <> "update")]
       where
         file = prettyFilePath handoff.scratchFile
         prompt = P.string (Text.unpack (into @Text (ProjectAndBranch handoff.project handoff.temporaryBranch))) <> "> "
