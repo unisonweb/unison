@@ -118,7 +118,7 @@ After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` 
 
 ## Tools
 
-There are four tools. They all take the transcript either as `transcript` (the Markdown text) or as `transcript-file` (the path of a file that has it, relative to the directory the server was started in; the file isn't changed), and they differ only in which UCM commands they allow, so an agent can be given just as much power as you're comfortable with. A transcript that uses a command its tool doesn't allow is rejected before anything runs, with a list of what to change.
+There are five tools: four that run transcripts, and `learn`, which explains how to use them (see [The `learn` tool](#the-learn-tool)). The four transcript tools all take the transcript either as `transcript` (the Markdown text) or as `transcript-file` (the path of a file that has it, relative to the directory the server was started in; the file isn't changed), and they differ only in which UCM commands they allow, so an agent can be given just as much power as you're comfortable with. A transcript that uses a command its tool doesn't allow is rejected before anything runs, with a list of what to change.
 
 | Tool | Allows |
 | --- | --- |
@@ -138,6 +138,12 @@ The reply repeats the transcript with UCM's output filled in, except that a `uni
 UCM quotes the line it is complaining about with a number that counts from the start of the code block. In messages about the transcript's own `unison` blocks those numbers are rewritten to count from the start of the transcript, so they can be used directly; messages about a file loaded with `load` keep that file's numbers.
 
 If the result is more than 25 lines, it is written to a temporary file and the tool returns the path, so the agent can search the file instead of reading all of it. The files are removed when the MCP server exits. When a transcript fails, the error is always in the reply itself; only the part of the transcript before the failure goes to the file.
+
+### The `learn` tool
+
+`learn` takes the path of a topic, like `ucm/merge`, `testing` or `lang/cases`, and replies in Markdown with a summary of the topic and an index of its subtopics. Adding `/detail` to the path (`ucm/merge/detail`) gives the long version, and an empty path gives an overview of all the topics. Links in the replies, like `learn:ucm/merge`, are paths to pass to `learn`. This lets an agent read just the parts it needs, when it needs them.
+
+The topics, and the server's instructions, are the Markdown files in [`docs/mcp/learn`](mcp/learn), which are embedded in the `unison` executable when it is built; see [its README](mcp/learn/README.md) for how they are organized. Nothing is read from disk, and no other tool is needed, when the server runs.
 
 ### Reading from Share
 

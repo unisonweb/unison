@@ -26,6 +26,7 @@ import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.MCP.Allowlist
 import Unison.MCP.Echo
 import Unison.MCP.LineNumbers
+import Unison.MCP.Learn qualified as Learn
 import Unison.MCP.Output
 import Unison.MCP.Wrapper
 import Unison.Parser.Ann (Ann)
@@ -33,17 +34,6 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..))
 import Unison.Symbol (Symbol)
 import UnliftIO qualified
-
-serverDescription :: Text
-serverDescription =
-  Text.unwords
-    [ "Run Unison transcripts, which are Markdown documents with `ucm` code blocks (UCM commands, one per line, as in",
-      "`myproject/main> view foo`) and `unison` code blocks (code to typecheck). Anything you can do at the UCM command",
-      "line you can do here. The result is the transcript with UCM's output filled in after each command.",
-      "The tools differ only in which commands they allow: `transcript-read-only` can't change anything, `transcript`",
-      "can make changes that are easy to undo, `transcript-io` can also run code, and `transcript-all` allows",
-      "everything, including deleting projects and branches and pushing to Share."
-    ]
 
 -- | The transcript to run, given either as text or as the path of a file that has it.
 data TranscriptArgs = TranscriptArgs
@@ -98,7 +88,10 @@ runOnStdIO runner codebase =
     -- Transcripts run one at a time: they share the codebase, and they take over stdout while they run.
     lock <- newMVar ()
     let run tier args = withMVar lock \() -> runTranscript runner codebase outputDir tier args
-    server <- mkServer (Implementation "unison-mcp" "0.0.1") serverDescription (transcriptTool run <$> [minBound .. maxBound])
+    server <- mkServer
+        (Implementation "unison-mcp" "0.0.1")
+        (Learn.instructions Learn.embeddedGuide)
+        (learnTool : (transcriptTool run <$> [minBound .. maxBound]))
     transport <- newSTDIOTransport
     handleMessages transport (fmap (fmap renameAnnotations) . MCP.handleMessage server)
 
@@ -121,6 +114,57 @@ renameAnnotations = \case
     rename key
       | key `elem` ["readOnly", "destructive", "idempotent", "openWorld"] = key <> Key.fromText "Hint"
       | otherwise = key
+
+-- | The topic to look up.
+newtype LearnArgs = LearnArgs {path :: Text}
+
+instance FromJSON LearnArgs where
+  parseJSON = Aeson.withObject "LearnArgs" \o ->
+    LearnArgs . fromMaybe "" <$> o .:? "path"
+
+instance HasInputSchema LearnArgs where
+  toInputSchema _ =
+    Aeson.object
+      [ ("type", Aeson.String "object"),
+        ( "properties",
+          Aeson.object
+            [ ( "path",
+                Aeson.object
+                  [ ("type", Aeson.String "string"),
+                    ( "description",
+                      Aeson.String
+                        "The path of a topic, like `ucm/merge` or `testing`. Add `/detail` for the long version, like `ucm/merge/detail`. Leave it empty for an overview of all the topics."
+                    )
+                  ]
+              )
+            ]
+        )
+      ]
+
+-- | Look up how to use Unison and this server. The topics are in @docs/mcp/learn.md@.
+learnTool :: Tool IO
+learnTool =
+  Tool
+    { toolName = "learn",
+      toolDescription =
+        "Explains how to use Unison and UCM, and how to write transcripts for the other tools. Give it the path of a topic, "
+          <> "like `ucm/merge`, `testing` or `lang/cases`; it replies in Markdown with a summary of the topic and an index of "
+          <> "its subtopics. Add `/detail` to the path for the long version, like `ucm/merge/detail`. An empty path gives an "
+          <> "overview of all the topics. Links in the replies like `learn:ucm/merge` mean a topic: pass what comes after `learn:` as the path.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Learn about Unison and UCM",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \LearnArgs {path} ->
+        pure case Learn.learn Learn.embeddedGuide path of
+          Right text -> textToolResult text
+          Left problem -> errorToolResult problem
+    }
 
 transcriptTool :: (Tier -> TranscriptArgs -> IO CallToolResult) -> Tier -> Tool IO
 transcriptTool run tier =
@@ -182,7 +226,8 @@ transcriptTool run tier =
 -- | Added to every tool's description, so agents find `transcript-file` without having to read the schema.
 howToGiveTheTranscript :: Text
 howToGiveTheTranscript =
-  "Give the transcript as `transcript` (its text) or, preferably for anything long, as `transcript-file` (the path of "
+  "New to this? The `learn` tool explains the transcript format and how to use UCM and Unison. "
+    <> "Give the transcript as `transcript` (its text) or, preferably for anything long, as `transcript-file` (the path of "
     <> "a file that has it), so that when something goes wrong you can edit just the part that needs fixing and run it again."
 
 runTranscript :: Transcript.Runner -> Codebase IO Symbol Ann -> OutputDir -> Tier -> TranscriptArgs -> IO CallToolResult
