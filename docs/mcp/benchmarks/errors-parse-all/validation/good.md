@@ -1,12 +1,6 @@
 ``` unison
 parseAll : [Text] -> Either Text [Nat]
-parseAll xs =
-  go acc = cases
-    [] -> Right acc
-    t +: rest -> match Nat.fromText t with
-      None -> Left t
-      Some n -> go (acc :+ n) rest
-  go [] xs
+parseAll xs = Throw.toEither do List.map (t -> Optional.orThrow t (Nat.fromText t)) xs
 
 test> parseAll.tests.example = test.verify do
   ensureEqual (parseAll ["1", "2", "3"]) (Right [1, 2, 3])
