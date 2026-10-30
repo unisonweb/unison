@@ -13,7 +13,7 @@ test> factorialDigitSum.tests.example = test.verify do
   ensureEqual (factorialDigitSum 25) 72
   ensureEqual (factorialDigitSum 100) 648
   ensureEqual (factorialDigitSum 1000) 10539
-  ensureEqual (factorialDigitSum 2000) 19350
+  ensureEqual (factorialDigitSum 2000) 23382
 ```
 ``` ucm
 scratch/main> add
