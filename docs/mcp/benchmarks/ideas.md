@@ -130,6 +130,7 @@ That is 38 ideas, 34 of them new since the baseline. My proposed first batch is 
 ## Topics to write (not started; waiting for the baseline)
 
 - **Ability polymorphism.** Writing higher-order functions and functions that take thunks: the `g` variable, `'{g, Stream a} r -> '{g, Stream b} r` versus a closed `'{Stream a}`, and why a closed signature rejects callers that use other abilities. Use `Stream.map` as the model.
+- **Mutable state with `Scope`.** `Scope.run` with `Scope.ref`, `Ref.read`, `Ref.write` and `Scope.ref.modify`: the efficient way to keep a counter or accumulator across a recursion, preferred over `Store`. Also arrays in `Scope`.
 - **Effects as values vs executed.** When to take and return thunks (building streams, delayed computations) and when to run the effect and put the ability on the last arrow.
 
 ## Open questions

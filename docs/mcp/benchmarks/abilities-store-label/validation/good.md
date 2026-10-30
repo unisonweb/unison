@@ -2,18 +2,18 @@
 type Tree a = Leaf a | Branch (Tree a) (Tree a)
 
 Tree.label : Tree a -> Tree (Nat, a)
-Tree.label t =
-  go : Tree a ->{Store Nat} Tree (Nat, a)
+Tree.label t = Scope.run do
+  counter = Scope.ref 0
   go = cases
     Leaf a ->
-      n = Store.get
-      Store.put (n + 1)
+      n = Ref.read counter
+      Ref.write counter (n + 1)
       Leaf (n, a)
     Branch l r ->
       l' = go l
       r' = go r
       Branch l' r'
-  Store.withInitialValue 0 do go t
+  go t
 
 test> Tree.label.tests.example = test.verify do
   ensureEqual (Tree.label (Branch (Leaf "a") (Branch (Leaf "b") (Leaf "c")))) (Branch (Leaf (0, "a")) (Branch (Leaf (1, "b")) (Leaf (2, "c"))))
