@@ -218,3 +218,122 @@ other.c =
 other.d : Text
 other.d = "no match"
 ```
+
+## Finding partially applied constructors and requests
+
+A `case` rule that names a constructor or an ability request without its arguments, like `case Left ==> ()`, finds every
+pattern that uses it (<https://github.com/unisonweb/unison/issues/5072>). It used to find nothing unless the arguments
+were written out.
+
+``` unison :hide
+unique ability Emit where emit : Nat -> ()
+
+eitherF : Either Nat Nat -> Nat
+eitherF = cases
+  Left a -> a
+  Right b -> b
+
+eitherG : Either Nat Nat -> Nat
+eitherG = cases
+  Left _ -> 0
+  Right b -> b
+
+optionH : Optional Nat -> Nat
+optionH = cases
+  Some n -> n
+  None -> 0
+
+handler : '{Emit} r -> [Nat]
+handler thunk = handle !thunk with cases
+  { r } -> []
+  { emit n -> resume } -> n +: handler resume
+
+plain : Nat -> Nat
+plain n = n
+
+findLeft = @rewrite case Left ==> ()
+findLeftWithArgument a = @rewrite case Left a ==> ()
+findSome = @rewrite case Some ==> ()
+findEmit = @rewrite case Emit.emit ==> ()
+```
+
+``` ucm
+scratch/main> load
+
+  Loading changes detected in scratch.u.
+
+  + ability Emit
+
+  + eitherF              : Either Nat Nat -> Nat
+  + eitherG              : Either Nat Nat -> Nat
+  + findEmit             : Rewrites
+                             (Tuple
+                               (RewriteCase (Nat ->{Emit} ()) ())
+                               ())
+  + findLeft             : Rewrites
+                             (Tuple
+                               (RewriteCase (a -> Either a b) ())
+                               ())
+  + findLeftWithArgument : a
+                           -> Rewrites
+                             (Tuple
+                               (RewriteCase (Either a b) ()) ())
+  + findSome             : Rewrites
+                             (Tuple
+                               (RewriteCase (a -> Optional a) ())
+                               ())
+  + handler              : '{Emit} r -> [Nat]
+  + optionH              : Optional Nat -> Nat
+  + plain                : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> rewrite.find :findLeft
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. eitherF
+    2. eitherG
+
+  Tip: Try `edit 1` or `edit 1-2` to bring these into your
+       scratch file.
+
+scratch/main> rewrite.find :findLeftWithArgument
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. eitherF
+
+  Tip: Try `edit 1` to bring this into your scratch file.
+
+scratch/main> rewrite.find :findSome
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. optionH
+
+  Tip: Try `edit 1` to bring this into your scratch file.
+
+scratch/main> rewrite.find :findEmit
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. handler
+
+  Tip: Try `edit 1` to bring this into your scratch file.
+```
