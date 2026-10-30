@@ -1,0 +1,1 @@
+In the current Unison project, add a `port : Nat` field, as the last field, to `Config`. The port is now chosen by the caller: `Config.parse`, `Server.connect`, `Server.status` and `Server.report` each take it as one more last argument (a `Nat`) and pass it along. `Server.connect` shows it after the host, like `connect example.com:8080 (retries 3)`. Update the tests to match.

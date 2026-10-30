@@ -1,0 +1,1 @@
+In the current Unison project, I tried to merge my teammate Bob's branch `bob` into my branch `alice`, but it's a mess: among other things it deletes `Page.render`, which I still need. I don't want his branch merged. Put me back on my own `alice` branch as it was, and bring over just his new function `Text.slug` and its test. Make sure all the tests pass.

@@ -11,6 +11,9 @@
 #   UNISON="$(stack exec -- which unison)" docs/mcp/benchmarks/prepare.sh
 set -euo pipefail
 
+# A conflicting merge launches $UCM_MERGETOOL if it is set; benchmarks must never open an editor.
+export UCM_MERGETOOL=
+
 here=$(cd "$(dirname "$0")" && pwd)
 unison=${UNISON:-unison}
 task=${1:-}

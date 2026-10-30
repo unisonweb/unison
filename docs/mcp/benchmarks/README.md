@@ -57,3 +57,15 @@ Run each variant several times, since a single run is noise. Keep some tasks out
 - `threads-slow-squares`, `threads-first-done`: structured concurrency with `IO.Threads`; they need the IO transcript tool.
 
 Judges named `behavior` run the function on inputs the prompt doesn't show. `ideas.md` has the reasoning behind the set.
+
+### Workflow and refactoring tasks
+
+Whole UCM workflows rather than single functions; the starting codebase comes from each task's `setup.md`. See `workflows.md` for the ideas and the setup tricks.
+
+- Merges and history: `workflow-merge-clean`, `workflow-merge-conflict`, `workflow-merge-type-break`, `workflow-merge-silent-combine`, `workflow-merge-cancel`, `workflow-undo-update`.
+- Updates and deletes: `workflow-update-clean`, `workflow-update-type-conflict`, `workflow-update-multiround`, `workflow-delete-with-dependents`.
+- Libraries: `workflow-lib-install-upgrade`, `workflow-lib-install-fresh` (these two need the network), `workflow-lib-upgrade-conflict`, `workflow-lib-upgrade-two` (offline).
+- Finding libraries and branches: `workflow-http-json-server`, `workflow-json-encode-record` (network), `workflow-feature-branch`.
+- Refactorings: `refactor-add-argument`, `refactor-swap-arguments`, `refactor-ability-operation`, `refactor-add-constructor`. The judges check the outcome only; the method (structural `sfind` and `rewrite` or by hand) is recorded afterwards by grepping the worker's submitted transcripts.
+
+Each folder also has `about.md` (what it tests, traps, topics, reliability) and `validation/` (`good*.md` and `bad-*.md` solutions for checking the judges).

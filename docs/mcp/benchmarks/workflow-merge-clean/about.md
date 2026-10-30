@@ -1,0 +1,6 @@
+Tests the plain merge: `alice` and `bob` branched from `main` and added different definitions (with tests), and the worker has to merge `/bob` into `alice` and leave everything on `alice`. Nothing conflicts, so the points are that the worker uses the merge (not retyping Bob's code), merges in the right direction, runs the tests, and leaves no temporary branch.
+- Good run: one `merge /bob` from `alice`, then `test`. `learn`: `ucm/merge` (and `ucm/branches`). Offline; no network needed after the base codebase.
+- Traps: merging `alice` into `bob`, merging into `main`, retyping Bob's functions (same hashes, because Unison hashes content, so only the history gives it away), ending the last stanza on another branch.
+- Judges: `outcome` (state), `approach` (GREAT with a merge commit, PASS when the code was copied by hand), `no-collateral` (`main` and `bob` untouched, nothing extra in `alice`).
+- The current branch is read with a bare `> reflog` stanza (it lists the changes of the current branch). A bare stanza starts on the codebase's saved branch, which is the one the worker's last stanza ended on. There is no `pwd` in UCM.
+- Open question: is a retyped copy a PASS (rated below GREAT) or a FAIL? I chose PASS, since the prompt does not say "merge".

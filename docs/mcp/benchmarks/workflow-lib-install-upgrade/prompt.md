@@ -1,0 +1,1 @@
+In the current Unison project, `parseNats` uses the JSON library, `@unison/json`, which is installed in `lib` at an old release. I want the project on the latest release of that library, with the old copy removed from `lib`. `parseNats` and its tests must keep working.

@@ -1,0 +1,7 @@
+Tests whether the worker looks for a JSON library on Unison Share instead of building JSON text by hand, then uses it for a record round trip with error cases. The prompt names no library; `Person` already exists (setup adds it).
+
+A good run: search Share, `lib.install @unison/json/releases/latest`, `Json.object` with `Json.text` and `Json.nat` for `toJson`, `Decoder.run` with `Decoder.object.at!` under `catch` for `fromJson`, tests for round trip and `Left` cases. Traps: hand-built text with `++` (library-choice FAIL), individuals' JSON libraries (PASS, not GREAT), lenient decoding that defaults a missing field (behavior FAIL), `Decoder.object.atOr` is easy to misuse.
+
+Judges: `outcome`, `behavior` (more inputs than the prompt shows: other key order, white space, escapes, missing and wrong-typed fields, a negative age), `library-choice` (GREAT `@unison/json`, PASS another installed JSON library, FAIL hand-rolled). Validated: `good.md` passes all; `bad-handrolled` fails library-choice, outcome and behavior; `bad-lenient` (uses the library, missing fields become defaults) fails behavior only. I did not build a PASS variant with `@stew/json` or another library. Checked on the good solution: a negative age gives a `Left` (`Decoder.nat`); a solution that decodes an `Int` and converts would fail behavior check 4 (strict on purpose, tell me if you disagree).
+
+Needs the network at the worker's run (about 10 seconds for the install); the judges are offline. Topics exercised: `ucm/share`, `ucm/libraries`, `lang/records`, `testing`.

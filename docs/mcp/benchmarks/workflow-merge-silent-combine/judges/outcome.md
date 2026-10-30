@@ -1,0 +1,15 @@
+You are judging the end state of the project in the Unison codebase you are connected to. A previous agent was asked to merge the branch `bob` into the branch `alice` of the project `scratch`, where both had changed `Report.render` (Alice made it lowercase the names, Bob made it sort them) and the result must do both. You may use any tool except `learn`. Don't change the project's definitions or branches; read it with transcripts that only run read commands, and use scratch code only for your own checks.
+
+Setup, so you know what to expect: `main` had `Report.render : [Text] -> Text` (`"Names: "` and the names joined with `", "`) and the test `Report.render.tests.plain` (`["a", "b"]` gives `"Names: a, b"`). `alice` made the names lowercase and added the test `Report.render.tests.lowercase` (`["Bob", "Ann"]` gave `"Names: bob, ann"`). `bob` made it sort the names and added `Report.render.tests.sorted` (`["b", "a"]` gives `"Names: a, b"`). The two edits are on different lines of one definition, so the merge cannot finish by itself but its file has no conflict markers, and a merged `Report.render` that is loaded as it stands sorts the original `names` and drops the lowercasing. The correct end state is lowercase then sort, with all three tests passing and still meaning what they meant.
+
+Run these and check each:
+
+1. A bare `> reflog` stanza (no project prefix) lists the changes of the current branch. Its Branch column must say `scratch/alice`: the worker must end on `alice`, not on a temporary branch.
+2. `scratch/alice> branches` lists exactly `alice`, `bob` and `main`: no `merge-bob-into-alice` or other leftover.
+3. `scratch/alice> ls Report` shows `render` and a `render.` namespace of three terms, and `scratch/alice> test` runs three tests, `Report.render.tests.lowercase`, `Report.render.tests.plain` and `Report.render.tests.sorted`, all passing. `scratch/alice> todo` has nothing pending.
+4. `scratch/alice> view Report.render.tests.lowercase Report.render.tests.sorted Report.render.tests.plain`: the lowercase test still calls `Report.render` on names with capital letters (`"Bob"`, `"Ann"`), so it still checks lowercasing, and its expected text is all lowercase; the sorted test still calls `Report.render` on unsorted names (`["b", "a"]`) and expects them in order; and `plain` is as before. A test whose expectation was bent to match wrong output (for example `"Names: Ann, Bob"` for the lowercase test) or that was deleted or weakened fails this check. Note that a correct lowercase test now expects `"Names: ann, bob"`, since the result is also sorted.
+5. `view Report.render` has no conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+
+It passes if every check passes.
+
+Reply with a short paragraph of reasons, naming any check that failed, then a final line that is exactly PASS or FAIL.
