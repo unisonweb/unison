@@ -3,7 +3,7 @@ The scratch file is the file UCM typechecks your code in before it is saved to t
 - Code you write in a `unison` block is typechecked against the current branch. UCM reports what is new, and any type errors, in a generated block right after yours.
 - `update` saves the most recently typechecked block into the branch.
 - `load <file>` typechecks a file on disk instead, so that `update` then saves what is in that file. You need it for the files UCM writes when an action [can't finish](learn:ucm/temporary-branch).
-- [`edit <name>`](learn:ucm/find) puts the source of a definition in the scratch file, so that you can change it.
+- [`edit <name>`](learn:ucm/find) puts the source of a definition in the scratch file, so that you can change it, and `edit.to <file> <name>` puts it in a file of your own. After a search that numbers its results, `edit 1-3` brings those results in.
 
 ## Detail
 

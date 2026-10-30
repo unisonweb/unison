@@ -12,7 +12,9 @@ Searching for definitions in the [codebase](learn:ucm/codebase), and reading the
 
 **View several at once.** `view` takes several names, and `?` is a wildcard: `view List.?`.
 
-**Put code in the scratch file.** `edit <name>` puts a definition's source in the [scratch file](learn:ucm/scratch-file) so you can change it, and `edit.dependents <name>` includes everything that depends on it.
+**Put code in the scratch file.** `edit <name>` puts a definition's source in the [scratch file](learn:ucm/scratch-file) so you can change it, and `edit.dependents <name>` includes everything that depends on it. `find`, `rewrite.find`, `dependents` and similar commands number their results, and `edit` takes the numbers: `edit 1`, or `edit 1-5` for a range, so you can dump some or all of a list into the file you are working on. `edit.to <file> <names>` (and `edit.new.to`, `edit.namespace.to`, `edit.dependents.to`) sends them to a `.u` file of your choice instead, which it creates if needed; it refuses to write into an existing file whose name doesn't end in `.u`.
+
+**Find code by shape.** `rewrite.find` lists definitions that match a structural pattern, which is how to find every use of a function in one form or another. See [refactoring](learn:skills/refactor).
 
 **Problems in the branch.** `todo` lists conflicted names, dependencies with missing names, and other problems in the branch.
 
