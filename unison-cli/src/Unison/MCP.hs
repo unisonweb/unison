@@ -17,9 +17,11 @@ import Network.MCP.Transport.StdIO (newSTDIOTransport)
 import Network.MCP.Transport.Types (Message (..), Response (..), Transport (..))
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
@@ -236,19 +238,23 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
     Left problem -> pure (errorToolResult problem)
     Right (name, source, hint) -> do
       let sourceName = if isJust transcriptFile then Text.pack name else "your transcript"
-      let ok text = textToolResult (text <> hint)
-          failed text = errorToolResult (text <> hint)
+      -- Every reply says which branch the codebase is on, since a transcript can end on another one.
+      let finish toolResult text = do
+            note <- currentBranchNote codebase
+            pure (toolResult (text <> hint <> note))
+          ok = finish textToolResult
+          failed = finish errorToolResult
       let sourceText = Text.decodeUtf8With Text.lenientDecode source
           -- The numbers have to be fixed first, while the blocks are still whole.
           absolutize =
             (if echo then id else elideLongBlocks maxEchoedLines sourceName sourceText)
               . absolutizeLineNumbers sourceName sourceText
       case Transcript.parse name source of
-        Left err -> pure (failed ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err)))
+        Left err -> failed ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err))
         Right parsed -> do
           missing <- if tier == ReadOnly then missingContexts codebase parsed else pure []
           case validate tier parsed ++ missing of
-            violations@(_ : _) -> pure (failed (renderViolations tier violations))
+            violations@(_ : _) -> failed (renderViolations tier violations)
             [] -> do
               (stdout, stderr, result) <- captureHandles (runner name source codebase)
               let withProgramOutput rendered =
@@ -256,16 +262,16 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
                       <> section "Standard output" stdout
                       <> section "Standard error" stderr
               case result of
-                Right done -> ok <$> deliver outputDir (withProgramOutput (Transcript.format (absolutize done)))
+                Right done -> deliver outputDir (withProgramOutput (Transcript.format (absolutize done))) >>= ok
                 Left (Transcript.RunFailure failure) -> do
                   -- The error is what the client most needs, so it always comes back inline, even when the transcript before it
                   -- is long enough to go to a file.
                   let (body, trailer) = splitFailure (absolutize failure)
                   shown <- deliver outputDir (withProgramOutput (Transcript.format body))
-                  pure (failed (Text.stripEnd shown <> "\n\n" <> Transcript.format trailer))
-                Left (Transcript.ParseError err) -> pure (failed (Text.pack (P.errorBundlePretty err)))
-                Left Transcript.PortBindingFailure -> pure (failed "The codebase server failed to start: no port was available.")
-                Left (Transcript.Exception err) -> pure (failed ("The transcript failed with an exception: " <> tShow err))
+                  failed (Text.stripEnd shown <> "\n\n" <> Transcript.format trailer)
+                Left (Transcript.ParseError err) -> failed (Text.pack (P.errorBundlePretty err))
+                Left Transcript.PortBindingFailure -> failed "The codebase server failed to start: no port was available."
+                Left (Transcript.Exception err) -> failed ("The transcript failed with an exception: " <> tShow err)
   where
     -- The transcript's name (for error messages), its contents, and what to add to the reply.
     loadTranscript :: IO (Either Text (String, ByteString, Text))
@@ -321,3 +327,17 @@ missingContexts codebase transcript =
       | (n, Ucm _ lines) <- zip [1 :: Int ..] [block | Right block <- stanzas transcript],
         (i, UcmCommand (UcmContextProject projectAndBranch) command) <- zip [1 :: Int ..] lines
       ]
+
+-- | A line that says which project and branch the codebase is on, for the end of a reply. On the branch that an update, upgrade
+-- or merge that couldn't finish moved to, it also says how to get off it.
+currentBranchNote :: Codebase IO Symbol Ann -> IO Text
+currentBranchNote codebase =
+  UnliftIO.tryAny (Codebase.runTransaction codebase Codebase.expectCurrentProjectPath) <&> \case
+    Left _ -> ""
+    Right ProjectPath {project, branch} ->
+      "\n\nCurrent branch: " <> into @Text project.name <> "/" <> into @Text branch.name
+        <> if branch.isUpdate || branch.isUpgrade || branch.isMerge
+          then
+            "\nThis is a temporary branch for work in progress. When its file loads with no errors, run `update` to save the "
+              <> "work and delete the branch, or run `cancel` to abandon it."
+          else ""

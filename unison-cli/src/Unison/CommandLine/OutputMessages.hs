@@ -2304,6 +2304,12 @@ notifyUser dir issueFn = \case
         <> prettyProjectAndBranchName libdep
         <> "into"
         <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
+  LibdepAlreadyInstalled libdep segment ->
+    pure . P.wrap $
+      prettyProjectAndBranchName libdep
+        <> "is already installed as"
+        <> P.group (P.text (into @Text (Path.fromList [NameSegment.libSegment, segment])) <> ".")
+        <> "I didn't install it again."
   UseLibInstallNotPull libdep ->
     pure . P.wrap $
       "The use of"

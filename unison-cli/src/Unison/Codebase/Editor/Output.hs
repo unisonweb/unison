@@ -15,6 +15,8 @@ module Unison.Codebase.Editor.Output
     UndoFailureReason (..),
     ShareError (..),
     isFailure,
+    isFailureForMcp,
+    isNumberedFailureForMcp,
     isNumberedFailure,
     outputShouldUsePager,
   )
@@ -472,6 +474,8 @@ data Output
   | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
+  | -- | The library, at this release, was already installed under this name in @lib@, so nothing was installed.
+    LibdepAlreadyInstalled !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
@@ -599,6 +603,31 @@ outputShouldUsePager o = case o of
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
+
+-- | Like 'isFailure', except that an output that is only an empty result (a search that found nothing, a listing of an empty
+-- namespace) is not a failure. A transcript test wants those to stop it, since an empty result usually means the test is
+-- wrong, but an agent driving UCM through the MCP server needs the rest of its transcript to run.
+isFailureForMcp :: Output -> Bool
+isFailureForMcp o = isFailure o && not (isEmptyResult o)
+  where
+    isEmptyResult = \case
+      ListNames _ _ tys tms -> null tms && null tys
+      ListOfDefinitions _ _ _ ds -> null ds
+      ListStructuredFind tms -> null tms
+      ListTextFind _ tms -> null tms
+      ListShallow _ es -> null es
+      NoExactTypeMatches -> True
+      BranchEmpty {} -> True
+      NamespaceEmpty {} -> True
+      _ -> False
+
+-- | 'isFailureForMcp' for numbered outputs: a diff of two identical namespaces is just an empty result.
+isNumberedFailureForMcp :: NumberedOutput -> Bool
+isNumberedFailureForMcp o = isNumberedFailure o && not (isEmptyDiff o)
+  where
+    isEmptyDiff = \case
+      ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
+      _ -> False
 
 isFailure :: Output -> Bool
 isFailure o = case o of
@@ -774,6 +803,7 @@ isFailure o = case o of
   MergeConflictInvolvingBuiltin {} -> True
   MergeDefnsInLib {} -> True
   InstalledLibdep {} -> False
+  LibdepAlreadyInstalled {} -> False
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True

@@ -174,7 +174,7 @@ main version = do
         MCPServer -> do
           let ucmVersion = Version.gitDescribeWithDate version
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) ->
-            Transcript.withRunner jit Transcript.defaultConfig {Transcript.unattended = True} Verbosity.Silent ucmVersion \runner ->
+            Transcript.withRunner jit Transcript.mcpConfig Verbosity.Silent ucmVersion \runner ->
               MCP.runOnStdIO runner theCodebase
         Init -> do
           exitError

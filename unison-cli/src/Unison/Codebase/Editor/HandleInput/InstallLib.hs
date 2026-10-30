@@ -69,9 +69,21 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
       & onLeftM (Cli.returnEarly . Output.ShareError)
 
   remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase causalHash)
-  let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
-  libdepNameSegment <- attachNewLib reflogDescription remoteBranchObject libdepProjectName libdepBranchName Nothing
-  Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
+
+  -- Installing what is already in `lib` would only make a second copy under a name like `unison_base_7_20_0__2`, and leave the
+  -- code that uses the first copy and the code that uses the second unable to work together.
+  currentBranchObject <- Cli.getCurrentProjectRoot0
+  let installedLibdeps =
+        case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children_) of
+          Nothing -> Map.empty
+          Just libdeps -> Branch.head libdeps ^. Branch.children_
+  case List.find (\(_, libdep) -> Branch.headHash libdep == Branch.headHash remoteBranchObject) (Map.toList installedLibdeps) of
+    Just (installedName, _) ->
+      Cli.respond (Output.LibdepAlreadyInstalled libdepProjectAndBranchNames installedName)
+    Nothing -> do
+      let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
+      libdepNameSegment <- attachNewLib reflogDescription remoteBranchObject libdepProjectName libdepBranchName Nothing
+      Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
 -- | Attach a new library to the current project branch, under the `lib` namespace, using a fresh name derived from the
 -- project and branch names.

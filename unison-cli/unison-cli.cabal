@@ -395,6 +395,7 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.MCP
       Unison.Test.MCP.Learn
+      Unison.Test.MCP.Runner
       Unison.Test.TestProgress
       Unison.Test.Ucm
       Unison.Test.UriParser

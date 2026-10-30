@@ -4,6 +4,7 @@
 module Unison.Codebase.Transcript.Runner
   ( Error (..),
     Config (..),
+    mcpConfig,
     defaultConfig,
     testConfig,
     Runner,
@@ -86,7 +87,14 @@ data Config = Config
     --  __TODO__: This should be broken down with the individual pieces included here.
     isTest :: Bool,
     -- | Whether a program, not a person, is driving UCM: see 'Cli.unattended'.
-    unattended :: Bool
+    unattended :: Bool,
+    -- | Which outputs stop the transcript. A transcript test stops on any failure; the MCP server doesn't stop on an empty
+    -- result.
+    outputIsFailure :: Output.Output -> Bool,
+    outputIsNumberedFailure :: Output.NumberedOutput -> Bool,
+    -- | Whether a command's context (like @myproject/main>@) that names a project or branch that doesn't exist creates it, which
+    -- transcript tests rely on. When it's off, the transcript stops with an error that lists what does exist.
+    createMissingContexts :: Bool
   }
 
 -- | A reasonable set of defaults to use.
@@ -101,7 +109,21 @@ defaultConfig =
       fzfPath = Nothing,
       credentialsFile = Nothing,
       isTest = False,
-      unattended = False
+      unattended = False,
+      outputIsFailure = Output.isFailure,
+      outputIsNumberedFailure = Output.isNumberedFailure,
+      createMissingContexts = True
+    }
+
+-- | What the MCP server uses: an agent is driving UCM, so an empty result is not an error that stops the transcript, and a command
+-- context that names a project or branch that doesn't exist is an error, not a request to create it.
+mcpConfig :: Config
+mcpConfig =
+  defaultConfig
+    { unattended = True,
+      outputIsFailure = Output.isFailureForMcp,
+      outputIsNumberedFailure = Output.isNumberedFailureForMcp,
+      createMissingContexts = False
     }
 
 testConfig :: FilePath -> Config
@@ -194,6 +216,23 @@ isApiBlock = \case
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
+
+-- | What to say when a command's context names a project that doesn't exist, and the runner isn't going to create it.
+noSuchProject :: Text -> [Text] -> Text
+noSuchProject projectName projectNames =
+  Text.unlines
+    [ "There is no project named `" <> projectName <> "`. "
+        <> if null projectNames then "The codebase has no projects." else "The projects are: " <> Text.intercalate ", " projectNames <> ".",
+      "A command like `" <> projectName <> "/main> ...` has to name a project and branch that already exist. Use the one you are working in, or create a project first with `project.create`."
+    ]
+
+-- | What to say when a command's context names a branch that doesn't exist, and the runner isn't going to create it.
+noSuchBranch :: Text -> Text -> [Text] -> Text
+noSuchBranch projectName branchName branchNames =
+  Text.unlines
+    [ "The project `" <> projectName <> "` has no branch named `" <> branchName <> "`. The branches are: " <> Text.intercalate ", " branchNames <> ".",
+      "A command like `" <> projectName <> "/" <> branchName <> "> ...` has to name a branch that already exists. Create it first with `branch`."
+    ]
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
@@ -357,31 +396,46 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             curPath <- Cli.getCurrentProjectPath
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
             -- the right context first, then run the command next.
-            maybeSwitchCommand <- case context of
-              UcmContextEmpty -> pure Nothing
+            eitherSwitchCommand <- case context of
+              UcmContextEmpty -> pure (Right Nothing)
               UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
-                Project {projectId, name = projectName} <-
-                  Q.loadProjectByName projectName
-                    >>= \case
-                      Nothing -> do
-                        projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
-                        Q.insertProject projectId projectName
-                        pure $ Project {projectId, name = projectName}
-                      Just project -> pure project
-                projectAndBranchIds <-
-                  Q.loadProjectBranchByName projectId branchName >>= \case
-                    Nothing -> do
-                      branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
-                      Q.insertProjectBranch
-                        "Branch Created"
-                        emptyCausalHashId
-                        ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                      pure (ProjectAndBranch projectId branchId)
-                    Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
-                pure
-                  if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
-                    then Nothing
-                    else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                maybeProject <- Q.loadProjectByName projectName
+                case maybeProject of
+                  Nothing
+                    | not (createMissingContexts config) -> do
+                        projectNames <- fmap (\project -> into @Text project.name) <$> Q.loadAllProjects
+                        pure (Left (noSuchProject (into @Text projectName) projectNames))
+                  _ -> do
+                    Project {projectId, name = projectName} <-
+                      case maybeProject of
+                        Nothing -> do
+                          projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
+                          Q.insertProject projectId projectName
+                          pure $ Project {projectId, name = projectName}
+                        Just project -> pure project
+                    maybeBranch <- Q.loadProjectBranchByName projectId branchName
+                    case maybeBranch of
+                      Nothing
+                        | not (createMissingContexts config) -> do
+                            branchNames <- fmap (into @Text . snd) <$> Q.loadAllProjectBranchesBeginningWith projectId Nothing
+                            pure (Left (noSuchBranch (into @Text projectName) (into @Text branchName) branchNames))
+                      _ -> do
+                        projectAndBranchIds <-
+                          case maybeBranch of
+                            Nothing -> do
+                              branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
+                              Q.insertProjectBranch
+                                "Branch Created"
+                                emptyCausalHashId
+                                ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                              pure (ProjectAndBranch projectId branchId)
+                            Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
+                        pure $
+                          Right
+                            if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
+                              then Nothing
+                              else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+            maybeSwitchCommand <- either (liftIO . dieWithMsg) pure eitherSwitchCommand
             case maybeSwitchCommand of
               Just switchCommand -> do
                 atomically . Q.undequeue cmdQueue $ Just p
@@ -508,13 +562,13 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         --     transcript output, it makes transcripts non-reproducible.
         msg <- notifyUser Nothing showIssueUrl o
         outputUcmResult msg
-        when (Output.isFailure o) $ maybeDieWithMsg msg
+        when (outputIsFailure config o) $ maybeDieWithMsg msg
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
         outputUcmResult msg
-        when (Output.isNumberedFailure o) $ maybeDieWithMsg msg
+        when (outputIsNumberedFailure config o) $ maybeDieWithMsg msg
         pure numberedArgs
 
       -- Looks at the current stanza and decides if it is contained in the

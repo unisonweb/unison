@@ -1,0 +1,125 @@
+-- | How transcripts behave when the MCP server runs them ('Transcript.mcpConfig'), compared with a transcript test.
+module Unison.Test.MCP.Runner (test) where
+
+import Data.Either (isLeft)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import EasyTest
+import System.IO.Temp qualified as Temp
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Init qualified as Codebase.Init
+import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.Codebase.Transcript (Transcript)
+import Unison.Codebase.Transcript.Runner qualified as Transcript
+import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.Runtime.JIT qualified as JIT
+import Unison.Codebase.Transcript.Parser qualified as Transcript
+import Control.Exception (finally)
+import System.Directory (removeDirectoryRecursive)
+
+test :: Test ()
+test =
+  scope "mcp.runner" . tests $
+    [ scope "an empty search is not a failure for the MCP server" do
+        result <- runTranscriptWith mcp (ucm ["scratch/main> find nothing_is_called_this"])
+        expect (not (failed result)),
+      scope "an empty search stops a transcript test" do
+        result <- runTranscriptWith testConfig (ucm ["scratch/main> find nothing_is_called_this"])
+        expect (failed result),
+      scope "listing an empty namespace is not a failure for the MCP server" do
+        result <- runTranscriptWith mcp (ucm ["scratch/main> ls nothing_is_called_this"])
+        expect (not (failed result)),
+      scope "a project that doesn't exist is an error, with the projects that do" do
+        result <- runTranscriptWith mcp (ucm ["myproject/main> ls"])
+        expectFailureMentioning ["There is no project named `myproject`", "scratch"] result,
+      scope "a project that doesn't exist is created for a transcript test" do
+        result <- runTranscriptWith testConfig (ucm ["myproject/main> branches"])
+        expect (not (failed result)),
+      scope "a branch that doesn't exist is an error, with the branches that do" do
+        result <- runTranscriptWith mcp (ucm ["scratch/nope> ls"])
+        expectFailureMentioning ["has no branch named `nope`", "main"] result,
+      scope "a branch created by an earlier command can be named" do
+        result <- runTranscriptWith mcp (ucm ["scratch/main> branch alice", "scratch/alice> ls"])
+        expect (not (failed result)),
+      scope "a unison block right after an update that couldn't finish is checked" do
+        result <- runTranscriptWith mcp updateThatCannotFinish
+        case result of
+          Left err -> crash (show err)
+          Right output ->
+            -- The block comes after the file that UCM wrote for the update, and it must get UCM's report of what it
+            -- typechecked, like any other unison block.
+            expectTextContaining ["I couldn't complete the update", "foo : Text"] (Text.pack (renderOutput output))
+    ]
+  where
+    mcp = const Transcript.mcpConfig
+    testConfig = Transcript.testConfig
+    failed = isLeft
+
+ucm :: [Text] -> Text
+ucm commands = "``` ucm\n" <> Text.unlines commands <> "```\n"
+
+-- | A definition is added, then changed to a type that its dependent can't use, so the update stops. The transcript goes on (the
+-- failure is expected) with a unison block, which has to be loaded.
+updateThatCannotFinish :: Text
+updateThatCannotFinish =
+  Text.unlines
+    [ "``` ucm",
+      "scratch/main> builtins.merge lib.builtins",
+      "```",
+      "",
+      "``` unison",
+      "foo : Nat",
+      "foo = 1",
+      "",
+      "bar : Nat",
+      "bar = foo",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/main> add",
+      "```",
+      "",
+      "``` unison",
+      "foo : Text",
+      "foo = \"x\"",
+      "```",
+      "",
+      "``` ucm :error",
+      "scratch/main> update",
+      "```",
+      "",
+      "``` unison",
+      "foo : Text",
+      "foo = \"x\"",
+      "",
+      "bar : Text",
+      "bar = foo",
+      "```"
+    ]
+
+runTranscriptWith :: (FilePath -> Transcript.Config) -> Text -> Test (Either Transcript.Error Transcript)
+runTranscriptWith config source = io do
+  tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-mcp-runner-test"
+  (do
+      jit <- JIT.newJIT =<< JIT.readConfig
+      Transcript.withRunner jit (config tmp) Verbosity.Silent "Unison.Test.MCP.Runner" \runner -> do
+        result <-
+          Codebase.Init.withCreatedCodebase SC.init "ucm-mcp-runner-test" tmp SC.DoLock \codebase -> do
+            Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
+            runner "transcript" (Text.encodeUtf8 source) codebase
+        either (fail . show) pure result)
+    `finally` removeDirectoryRecursive tmp
+
+expectFailureMentioning :: [Text] -> Either Transcript.Error Transcript -> Test ()
+expectFailureMentioning needles = \case
+  Left (Transcript.RunFailure failure) -> expectTextContaining needles (Text.pack (renderOutput failure))
+  Left other -> crash ("expected a run failure, got " <> show other)
+  Right _ -> crash "expected the transcript to fail, but it succeeded"
+
+expectTextContaining :: [Text] -> Text -> Test ()
+expectTextContaining needles haystack =
+  tests [expect' (needle `Text.isInfixOf` haystack) | needle <- needles]
+
+renderOutput :: Transcript -> String
+renderOutput = Text.unpack . Transcript.format

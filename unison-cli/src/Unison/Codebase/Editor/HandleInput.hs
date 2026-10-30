@@ -197,9 +197,11 @@ loop e = do
   env <- ask
   case e of
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
-      -- We skip this update if it was programmatically generated and we aren't running a transcript
+      -- We skip this update if it was programmatically generated (UCM wrote the file itself, and the file watcher is about to
+      -- report that write as a change). Without a file watcher, as in a transcript, there is no such report, so the next
+      -- file change is always the user's own, and it must not be skipped.
       Cli.getLatestFile >>= \case
-        Just (_, True) | not env.isTranscriptTest -> (#latestFile . _Just . _2) .= False
+        Just (_, True) | isJust env.watchState -> (#latestFile . _Just . _2) .= False
         _ -> loadUnisonFile sourceName text
     Right input ->
       Cli.time "InputPattern" case input of

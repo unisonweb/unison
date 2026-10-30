@@ -10,6 +10,7 @@ import Unison.Test.Cli.ScratchFile qualified as Cli.ScratchFile
 import Unison.Test.LSP qualified as LSP
 import Unison.Test.MCP qualified as MCP
 import Unison.Test.MCP.Learn qualified as MCP.Learn
+import Unison.Test.MCP.Runner qualified as MCP.Runner
 import Unison.Test.TestProgress qualified as TestProgress
 import Unison.Test.UriParser qualified as UriParser
 
@@ -22,6 +23,7 @@ test =
       Cli.ScratchFile.test,
       MCP.test,
       MCP.Learn.test,
+      MCP.Runner.test,
       TestProgress.test,
       UriParser.test
     ]
