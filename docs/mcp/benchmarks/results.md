@@ -44,6 +44,10 @@ What the failures have in common, from the workers' transcripts:
 
 ## Round 4: alias guidance and the project-name warning, Sonnet (all 16) and Haiku (`list-xf`)
 
-Sonnet 16 / 16. Haiku `list-xf`, the one failure of round 3, now passes: it wrote `List.xf f xs = List.map f xs`, which the reuse judge rates PASS (a wrapper that could be eta reduced). Four judges rate the Sonnet runs GREAT where it matters: `Throw.toEither`, `Pattern`, `Random.shuffle`, `Scope.ref`, `Threads.parMap` and `multiRace`. Compared with the baseline, Sonnet moved from 10 / 16 to 16 / 16 and Haiku from 9 / 16 to 16 / 16, though the Haiku figure combines rounds 3 and 4, and each cell is one run.
+Sonnet 16 / 16. Haiku `list-xf`, the one failure of round 3, now passes: it wrote `List.xf f xs = List.map f xs`, which the reuse judge rates PASS (a wrapper that could be eta reduced). The reuse and style judges rate the Sonnet runs GREAT where it matters (`Throw.toEither`, `Pattern`, `Random.shuffle`, `Scope.ref`, `Threads.parMap`, `multiRace`, the new record syntax). Compared with the baseline, Sonnet moved from 10 / 16 to 16 / 16 and Haiku from 9 / 16 to 16 / 16, though the Haiku figure combines rounds 3 and 4, and each cell is one run.
 
 Harness slips, so that nobody repeats them: judging a run while its worker is still going stops its server (it happened to `slow-squares` in round 1 and `list-pick` in round 4, and both were rerun), and the first Haiku `list-pick` run created a project named `myproject` from the examples in the topics.
+
+## Round 5: confirmation run, Haiku, all 16 tasks on the final topics
+
+15 / 16, from a fresh run of every task on one build. The failure is `abilities-coro`: the worker gave `Coro.feed` the type `'{Stream b} r1 -> '{g, Coro a b} r2 -> '{g, Stream a} ()`, with no ability variable on the producer, so a producer that uses another ability doesn't typecheck (the `ability-polymorphic` and `behavior` judges both caught it). It passed in rounds 2 to 4, so this is run-to-run variation, and `lang/abilities` now says to give every thunk argument the variable, with an example of a two-stream function.
