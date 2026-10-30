@@ -4,7 +4,7 @@ Defining named values, with optional type signatures, and the literals and tuple
 - By convention, term names start with a lowercase letter (camelCase). Type names start with an uppercase letter. Names are organized in namespaces separated by dots, as in `Nat.toText`. A [branch](learn:ucm/branches) is a versioned namespace of Unison definitions.
 - Values never change. Defining the same name twice in the same scope is an error.
 - Comments are `-- until the end of the line` and `{- a block -}`. Or use `note "a comment"` (on its own line) if you'd like the comment to be persisted to the codebase.
-- Literals: `"text"` (`"""` for several lines), `?a` is a `Char`, `5` is a `Nat` (zero or more), `+4` and `-9` are `Int`s (note the `+`), `3.14` is a `Float`, `true` and `false` are `Boolean`s, and `0xs0102` is `Bytes`.
+- Literals: `"text"` (`"""` for several lines), `?a` is a `Char`, `5` is a `Nat` (zero or more; the type to use for numbers unless they can be negative, see [numbers](learn:lang/numbers)), `+4` and `-9` are `Int`s (note the `+`), `3.14` is a `Float`, `true` and `false` are `Boolean`s, and `0xs0102` is `Bytes`.
 - A tuple groups values of different types: `("Alice", 5) : (Text, Nat)`. Take one apart inside a block, not at the top level: `(name, count) = tuple`.
 
 ## Detail
