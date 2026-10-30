@@ -7,9 +7,15 @@ slowSquares.doc = {{
 
 @source{slowSquares.docs.examples.small}
 
-You can run this in UCM via `run slowSquares.docs.examples.small`, and it produces:
+Run it in UCM with:
 
 ```raw
+run slowSquares.docs.examples.small
+```
+
+which returns
+
+@typecheck ```
 [1, 4, 9]
 ```
 
