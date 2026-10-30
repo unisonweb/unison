@@ -20,6 +20,14 @@ Order.fromJson txt =
         (Decoder.object.optionalAt! "note" Decoder.text))
     txt
 
+Order.fromJson.doc : Doc
+Order.fromJson.doc =
+  {{
+  Reads an order from JSON text: an object with a `customer`, a list of `items`
+  (each with a `sku`, a `quantity` and a `priceCents`) and an optional `note`.
+  Raises an exception when the text is not valid JSON or does not have that shape.
+  }}
+
 test> Order.fromJson.tests.full = test.verify do
   ensureEqual
     (Order.fromJson "{\"customer\": \"Ada\", \"items\": [{\"sku\": \"A-1\", \"quantity\": 2, \"priceCents\": 1250}], \"note\": \"gift\"}")
