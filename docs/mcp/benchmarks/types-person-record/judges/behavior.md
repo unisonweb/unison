@@ -1,12 +1,15 @@
-You are judging `Person` in the Unison codebase you are connected to. A previous agent wrote it, with tests. You may use any tool except `learn`. Don't change the project's definitions; use scratch code only for your own checks.
+You are judging `Person.birthday` and `Person.oldest` in the Unison codebase you are connected to. A previous agent wrote them, with tests. You may use any tool except `learn`. Don't change the project's definitions; use scratch code only for your own checks.
+
+A person is a record with a `name : Text` and an `age : Nat`. Records are written `{ name: "Ann", age: 30 }`, and `r@age` reads a field.
 
 Run each of the following, and note the result of each:
 
-1. `view Person`: it is a record type with fields `name : Text` and `age : Nat` (written `type Person = { name : Text, age : Nat }` or equivalent), so `Person.name`, `Person.age`, and the field modifiers such as `Person.age.modify` exist (`find Person.age`).
-2. `Person.age (Person.birthday (Person.Person "Ann" 30))` is `31` and its `name` is still `"Ann"`.
-3. `Person.oldest` of `[Person "Ann" 30, Person "Bob" 41, Person "Cy" 25]` returns Bob. `Person.oldest []` is `None`.
-4. `view Person.birthday`: it uses a field modifier (`Person.age.modify`, `Person.age.set`, or a record update `p.age`-style helper) rather than rebuilding the whole record by hand. This check is informational: mention it, but it does not affect pass or fail.
+1. `view Person.birthday` and `view Person.oldest`: `Person.birthday` takes a person and returns a person; `Person.oldest` takes a list of persons and returns an `Optional` person.
+2. `Person.birthday { name: "Ann", age: 30 }` is `{ name: "Ann", age: 31 }`: the age goes up by one and the name is unchanged.
+3. `Person.oldest [{ name: "Ann", age: 30 }, { name: "Bob", age: 41 }, { name: "Cy", age: 25 }]` is `Some { name: "Bob", age: 41 }`.
+4. `Person.oldest []` is `None`.
+5. Informational only (it does not affect pass or fail): note whether `Person.birthday` and `Person.oldest` are typed over records with an `age` field of any other fields (`{ age: Nat | r }`), and whether the agent declared a `type Person = { ... }` (the older declared-record syntax) instead of using records directly.
 
-`Person` passes only if every check passes.
+They pass only if checks 1 to 4 pass.
 
 Reply with a short paragraph of reasons, naming any check that failed, then a final line that is exactly PASS or FAIL.

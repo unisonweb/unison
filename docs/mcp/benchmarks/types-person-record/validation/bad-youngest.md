@@ -1,14 +1,12 @@
 ``` unison
-type Person = { name : Text, age : Nat }
+Person.birthday : { age: Nat | r } -> { age: Nat | r }
+Person.birthday p = p@age.set (p@age + 1)
 
-Person.birthday : Person -> Person
-Person.birthday = Person.age.modify Nat.increment
-
-Person.oldest : [Person] -> Optional Person
-Person.oldest = List.maximumOn (a b -> Universal.ordering b a) Person.age
+Person.oldest : [{ age: Nat | r }] -> Optional { age: Nat | r }
+Person.oldest = List.maximumOn (a b -> Universal.ordering b a) (@age)
 
 test> Person.birthday.tests.example = test.verify do
-  ensureEqual (Person.birthday (Person "Ann" 30)) (Person "Ann" 31)
+  ensureEqual (Person.birthday { name: "Ann", age: 30 }) { name: "Ann", age: 31 }
   ensureEqual (Person.oldest []) None
 ```
 ``` ucm
