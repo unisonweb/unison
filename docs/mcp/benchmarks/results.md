@@ -55,3 +55,16 @@ Harness slips, so that nobody repeats them: judging a run while its worker is st
 ### Round 5 follow-up: `abilities-coro` three more times, Haiku, after the `lang/abilities` change
 
 3 / 3. All three runs gave both thunk arguments the ability variable (`'{g, Stream b} r -> '{g, Coro a b} s -> '{g, Stream a} ()`), and the `ability-polymorphic`, `behavior` (including the lazy producer check) and `tests` judges passed each time.
+
+## Rounds 7 to 12: all 47 tasks, after the workflow and refactoring tasks were added
+
+Every task (the 16 approved ones, 15 more single-function tasks, and the 16 workflow and refactoring tasks), each with a Haiku and a Sonnet worker, judged by Sonnet. Counts are tasks whose judges all passed, one run each. The harness is in `harness/` (scripts, a ledger and metrics tool); `report.md` has the full account.
+
+| round | what changed before it | Haiku | Sonnet |
+|---|---|---|---|
+| r7 | baseline (`learn` topics as of `41da98db3`, new UCM commands) | 39 / 47 | 47 / 47 |
+| r9 | topics for libraries from Share, base list functions, a finish checklist; `find` hint | 40 / 47 | 44 / 47 |
+| r11 | harness told workers to run long calls in the foreground; judge fix; reuse and UCM-job pointers in the instructions | 45 / 47 | 46 / 47 |
+| r12 | `ucm/upgrade` says to upgrade several libraries in one command | `workflow-lib-upgrade-two` passes | the same task, and two library controls, pass |
+
+Sonnet's r9 misses were two network tasks whose worker stopped to wait for a background library install (a harness artifact, fixed in the worker prompt) and `workflow-merge-cancel` (the judge rejected documentation the worker added). Its only r11 miss, `workflow-lib-upgrade-two`, upgraded the two libraries one at a time and passes with one `upgrade` command once the topic said so. Haiku's remaining misses are hand-written list loops where base has the function (`List.map`, `List.filterMap`, `List.filter`, `List.scanLeft`), which vary from run to run.
