@@ -51,3 +51,7 @@ Harness slips, so that nobody repeats them: judging a run while its worker is st
 ## Round 5: confirmation run, Haiku, all 16 tasks on the final topics
 
 15 / 16, from a fresh run of every task on one build. The failure is `abilities-coro`: the worker gave `Coro.feed` the type `'{Stream b} r1 -> '{g, Coro a b} r2 -> '{g, Stream a} ()`, with no ability variable on the producer, so a producer that uses another ability doesn't typecheck (the `ability-polymorphic` and `behavior` judges both caught it). It passed in rounds 2 to 4, so this is run-to-run variation, and `lang/abilities` now says to give every thunk argument the variable, with an example of a two-stream function.
+
+### Round 5 follow-up: `abilities-coro` three more times, Haiku, after the `lang/abilities` change
+
+3 / 3. All three runs gave both thunk arguments the ability variable (`'{g, Stream b} r -> '{g, Coro a b} s -> '{g, Stream a} ()`), and the `ability-polymorphic`, `behavior` (including the lazy producer check) and `tests` judges passed each time.
