@@ -309,3 +309,28 @@ Dependency trap: installing `@unison/json` 1.4.2 next to `routes` gives a second
 ### 16. `workflow-pull-share-branch`: pull a branch from Share (hard)
 
 **Situation.** Merge a published branch of a small public project into a local one with `pull` (needs a stable Share branch with a known conflict; none picked). **Automation.** Hard: depends on the network and on someone else's branch not changing. Skip unless a branch we control is published.
+
+### 17. `workflow-delete-with-dependents`: delete a definition that others still use
+
+**Situation.** The project has `base`, used directly by `mid` and `other`, and indirectly by `top` (via `mid`), and the developer wants `base` gone. UCM refuses to just delete it. Verified with the built binary: `delete.term base` stops the transcript with "I couldn't complete the delete, because some definitions are still in use", puts the worker on a temporary branch (`update-main-2`), and writes a scratch file (`delete-main-<hash>.u`) of the direct dependents:
+
+```
+-- The definitions below depend on the deleted definitions.
+-- Please fix the errors and run `update`.
+
+mid : Nat -> Nat
+mid n =
+  use Nat *
+  base n * 2
+
+other : Nat -> Nat
+other n = base (base n)
+```
+
+The worker has to rewrite `mid` and `other` so they no longer mention `base`, `load` the file, and `update`. Here `top` doesn't refer to `base` itself, but it may show up in a later round if its type or body changes. A transitive version (`top` also uses `base` directly through a second layer) makes a good harder variant.
+
+**Setup.** Base codebase plus a setup transcript that adds the four definitions and tests for each (so the judge can tell the behavior was kept).
+
+**Prompt.** `> Remove base: nothing should use it any more. Keep the behavior of everything else.`
+
+**Judge checks.** `base` is gone (`find base` in the project finds nothing, `view` fails); `mid`, `other` and `top` exist with the same behavior (their tests still pass, and they give the same values on a few new inputs); `todo` is empty; no temporary branch (`branches`); the history has one update, not a hand-made rename. **Traps.** Inlining `base` in a way that changes behavior; deleting `mid` or `other` instead of fixing them; stopping at the first `load` error; leaving the worker on the temporary branch; `cancel` instead of `update`. **Topics.** `ucm/rename-and-delete` (what happens with dependents), `ucm/update`, `ucm/temporary-branch`. **Automation.** Easy, and offline.

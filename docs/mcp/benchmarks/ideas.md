@@ -144,3 +144,15 @@ That is 38 ideas, 34 of them new since the baseline. My proposed first batch is 
 
 1. Should the reuse rating for composition tasks (`Map.invert`, `groupByLength`) stay `GREAT`/`PASS`/`FAIL` as written in the judges?
 2. After the diverse baseline, which topics do we write first: ability polymorphism and effects as values, as above?
+
+## UCM idea: put what needs attention at the top of the scratch file
+
+(From Paul.) Whenever UCM writes a scratch file for an unfinished transaction (a `delete` with dependents, an `update` that needs fixing, a merge with conflicts), the things that need a person, such as conflicts and definitions that no longer typecheck, should come first, followed by a marker comment and then everything else, for example:
+
+```
+-- Note: All definitions in this file have been temporarily removed from <branchname>
+-- Deleting a definition from this file will cause it to be deleted on `update`
+-- ** Full dependents of change below **
+```
+
+Why: an agent can then be told to read and edit only down to the marker, and aim its edits at the definitions above it, without reading every transitive dependent, which saves tokens. What the files look like today, checked with the built binary: the file for a `delete` has two header comment lines and then the direct dependents in alphabetical order, with no ordering by urgency and no marker. This is a UCM change (where the file is written), not a `learn` change. Until it exists a `learn` topic can only say "read the whole file"; once it does, `ucm/update` and `ucm/rename-and-delete` should say "read up to the marker". Worth a benchmark of its own: the `workflow-update-type-conflict` and `workflow-delete-with-dependents` tasks, with the tokens the worker spends reading the file as a metric.
