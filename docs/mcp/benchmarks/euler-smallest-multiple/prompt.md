@@ -1,1 +1,0 @@
-In the current Unison project, I need `smallestMultiple : Nat -> Optional Nat`, the smallest positive number that is evenly divisible by every number from `1` to `n`, or `None` when `n` is `0`. For example, `smallestMultiple 10` is `Some 2520`. The answer can be big; it should be exact and fast for `n` up to at least 40. Add it to the codebase, with tests.

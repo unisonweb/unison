@@ -31,14 +31,13 @@ Each row's prompt describes behaviour and gives one example, and never names the
 | 10 | `map-top-keys` | `Map.topKeys : Nat -> Map k Nat -> [k]`, the `n` keys with the biggest values, ties by smaller key first. | `Map.toList`, `List.sortBy`, `List.take`. | `n` larger than the map. Ties. Descending sort. |
 | 11 | `map-group-by-length` | `Map.groupByLength : [Text] -> Map Nat [Text]`, keeping input order inside each group. | `Map.fromListWith`, `List.groupMap` or similar. | Combining with `(++)` reverses the order. This is the one a careless solution gets wrong. |
 
-### Project Euler style (three)
+### Project Euler style (two)
 
 Base has `Integer` and `Natural` (arbitrary size, `Natural.pow`, `Integer.lcm`, `Integer.toText`), so big-number problems are fair game. The prompts say performance matters (the judge's input is big enough that a naive version times out). The prompt gives one small case; the judge adds the real one.
 
 | # | Folder | The ask | Reuse angle | Judge inputs (not in the prompt) |
 |---|---|---|---|---|
 | 12 | `euler-factorial-digits` | Sum of the digits of `n!` as a `Natural`. Prompt shows `10 -> 27`. | `Natural` arithmetic, `Stream` or `List.foldLeft` over a range, `Natural.toText` and `Text.toCharList`, or `Natural.divMod`-style loop. | `100 -> 648`. `0 -> 1`. Using `Nat` overflows silently from `21!`. |
-| 13 | `euler-smallest-multiple` | Smallest number divisible by every number from 1 to `n`. | `lcm` folded over `List.rangeClosed` (look for `Nat.lcm` or `Natural` gcd), so the reuse judge looks for it. | `10 -> 2520`, `20 -> 232792560`, `40 -> 5342931457063200`. |
 | 14 | `euler-nth-prime` | The `n`th prime. Prompt shows `6th -> 13`. Reasonably fast. | `Stream` plus `Stream.filter`, or a bounded trial division over earlier primes. | `100 -> 541`. `1 -> 2`. |
 
 Dropped from the first draft: multiples of 3 or 5, even Fibonacci, largest prime factor, palindrome product, Pythagorean triplet, Collatz, digit powers. I can bring any back.
