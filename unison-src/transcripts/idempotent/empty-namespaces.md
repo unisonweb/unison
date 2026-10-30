@@ -31,6 +31,9 @@ The deleted namespace shouldn't appear in `ls` output.
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
 
+  `find` doesn't search `lib`, where libraries like base are
+  installed: `find.all <name>` does.
+
   `debug.find.global` can be used to search outside the current
   namespace.
 ```
@@ -47,6 +50,9 @@ The deleted namespace shouldn't appear in `ls` output.
 
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
+
+  `find` doesn't search `lib`, where libraries like base are
+  installed: `find.all <name>` does.
 
   `debug.find.global` can be used to search outside the current
   namespace.

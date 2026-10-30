@@ -4213,8 +4213,15 @@ noResults fscope =
       ]
         ++ case fscope of
           Input.FindGlobal -> []
-          _ -> [suggestFindGlobal]
+          Input.FindLocal _ -> [suggestFindAll, "", suggestFindGlobal]
+          Input.FindLocalAndDeps _ -> [suggestFindGlobal]
   where
+    suggestFindAll =
+      P.wrap $
+        IP.makeExample IP.find []
+          <> "doesn't search `lib`, where libraries like base are installed:"
+          <> IP.makeExample IP.findAll ["<name>"]
+          <> "does."
     suggestFindGlobal =
       P.wrap $
         IP.makeExample IP.findGlobal []

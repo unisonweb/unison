@@ -9,6 +9,7 @@ Before you write a function, find out whether the base library already has it. F
 - **If a search by type finds a function with exactly the type you were asked for, and its documentation describes the behavior you were asked for, you have found it:** the task is asking for something that exists under another name. Define yours as that function, `myName = existingFunction` (or `myName f xs = existingFunction f xs`), and test it. Don't write the same logic again, and don't extend it with more behavior than was asked.
 - If you find something close but not exact, use it and adapt: wrap it, or give it a different function. Don't copy its logic.
 - A task's own words are a hint. "At the same time" is `IO.Threads`, "from a seed" is `Random`, "that can fail" is `Exception` or `Throw`, "numbers in text" is `Pattern`, "a counter" is `Ref`.
+- If base has nothing for the job (JSON, HTTP, dates, a file format), look on Unison Share for a library and use it: see [libraries from Share](learn:skills/library).
 - Don't install a library that `list lib` already shows, and don't create new projects: work in the current one (see [libraries](learn:ucm/libraries)).
 
 ## Detail

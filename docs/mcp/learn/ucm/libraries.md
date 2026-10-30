@@ -1,5 +1,6 @@
 Installing the libraries your code depends on. A library is a project from [Unison Share](learn:ucm/share) installed under the namespace `lib` of your own [project](learn:ucm/branches).
 
+- To find a library for a job, search Share (`share.project-search json`) and read its README before installing it: see [libraries from Share](learn:skills/library).
 - `lib.install @user/project/releases/latest` installs the latest release of a library from Unison Share into `lib`. Also `@user/project/releases/1.2.3`, or `@user/project/branch`.
 - The folder under `lib` is named for the library and version installed, so `list lib` or the output of `lib.install` shows the name to use, like `lib.unison_base_7_20_0.data.List.map`.
 - To see what is installed, run `list lib` (it works with every tool, even `transcript-read-only`). Each line is a library folder, named for the library and its version, like `unison_base_7_13_1` for `@unison/base` 7.13.1. Check it before installing, so you don't add a second copy of a library you already have.
