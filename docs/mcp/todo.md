@@ -18,3 +18,13 @@ Today `share.search take Nat -> [a] -> [a]` prints, for each match, the full ref
 4. **New command `share.docs`**: shows the function signature (or type header), then the rendered docs of that definition, like the normal `docs` command does. It takes a number from the last `share.search` or an explicit `@user/project[/releases/x.y.z]:name`. (Today `share.render @user/project:name` prints only the rendered docs, with no signature.)
 
 Also: add `share.docs` to the read-only tier in `unison-cli/src/Unison/MCP/Allowlist.hs`, document the commands in `docs/mcp/learn/ucm/share.md` and `ucm/libraries.md` (finding a library, then its docs), and add a transcript test (network).
+
+## Clean up after the benchmark rounds
+
+When the benchmark work is finished, delete the harness data (frozen UCM binary, cached base codebases, one directory per run, about several GB). The harness scripts themselves are in `docs/mcp/benchmarks/harness/` and stay.
+
+```
+rm -rf ~/.cache/unison-mcp-bench
+```
+
+(Check first that no round is still running: `pgrep -f unison-mcp-bench`.) Claude: remind Paul of this in the final report of the benchmark session, and give him the command.
