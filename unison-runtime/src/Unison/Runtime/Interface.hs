@@ -84,9 +84,8 @@ import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Runtime.MCode
-  ( emptyRCtx, Args (..),
+  ( Args (..),
     CombIx (..),
     FieldRef (..),
     GCombs,
@@ -99,6 +98,7 @@ import Unison.Runtime.MCode
     attachNativeCells,
     combTypes,
     emitComb,
+    emptyRCtx,
     emptyRNs,
     newNativeCellPool,
     prettyComb,
@@ -133,6 +133,7 @@ import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Serialize.Get
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
+import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)

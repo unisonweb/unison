@@ -160,10 +160,10 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
-import Unison.Runtime.MCode.Explode
-import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Runtime.MCode.Explode
+import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.Bytes (Bytes)
@@ -2042,7 +2042,8 @@ emitFunction rns _mshape _grpr _ _ _ (FComb r) as
     n = cnum rns r
     cix = CIx r n 0
 emitFunction rns _mshape _grpr _ _ _ (FCon r t) as
-  | wideOn, countArgs as <= wideK =
+  | wideOn,
+    countArgs as <= wideK =
       Ins (PackWide r (packTags rt t) True as)
         . Yield
         $ VArgR 0 wideWidth

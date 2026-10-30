@@ -26,8 +26,8 @@ import Data.Bifunctor (first)
 import Data.Bits ((.&.))
 import Data.Foldable (toList)
 import Data.IORef
-import Data.Map qualified as Map
 import Data.List (zip4)
+import Data.Map qualified as Map
 import Data.Map.Strict qualified as MapS
 import Data.Maybe (isJust)
 import Data.Primitive.PrimArray (sizeofPrimArray)
@@ -453,9 +453,9 @@ compileUnits c st numbers modName lazy candidates = do
     -- the placeholders become the global indices and the real cells
     let compiled =
           [ (u, patched)
-            | ((u, f), eb, fb, cb) <- zip4 ok (scanl (+) base counts) (scanl (+) fbase fcounts) (scanl (+) 0 acounts),
-              let relocated = relocateCells (\k -> nativeCellAt cellBlock (cb + k)) f
-                  patched = relocated {fnIR = UT.fromText (patchIndices eb fb (UT.toText (fnIR f)))}
+          | ((u, f), eb, fb, cb) <- zip4 ok (scanl (+) base counts) (scanl (+) fbase fcounts) (scanl (+) 0 acounts),
+            let relocated = relocateCells (\k -> nativeCellAt cellBlock (cb + k)) f
+                patched = relocated {fnIR = UT.fromText (patchIndices eb fb (UT.toText (fnIR f)))}
           ]
         fns = map snd compiled
         local = directOf (map fst ok)

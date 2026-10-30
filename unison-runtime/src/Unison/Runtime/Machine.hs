@@ -59,7 +59,6 @@ import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
-import Unison.Runtime.Wide (widePad, wideOn, wideWidth)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
@@ -87,6 +86,7 @@ import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
 import Unison.Runtime.JIT.Native
 import Unison.Runtime.JIT.Pool (currentPool)
+import Unison.Runtime.Wide (wideOn, widePad, wideWidth)
 import Unison.Util.Deque qualified as Sq
 import Unsafe.Coerce (unsafeCoerce)
 #ifdef CODE_SERIAL_CHECK
@@ -1629,7 +1629,8 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
 -- slots, or several values, pass through.
 padYield :: Int -> Stack -> IO Stack
 padYield !n !stk
-  | wideOn, n == 1 = do
+  | wideOn,
+    n == 1 = do
       v <- peek stk
       stk <- ensure stk widePad
       stk <- bumpn stk widePad

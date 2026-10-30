@@ -219,11 +219,11 @@ siteShape cons depth a
 sites :: (Var v) => (Reference -> Maybe Int) -> ANormal Reference v -> [(Reference, Pattern)]
 sites arityOf bd =
   [ (r, pat)
-    | TApp (FComb r) args <- universe bd,
-      Just n <- [arityOf r],
-      n == length args,
-      let pat = map (siteShape cons 0) args,
-      not (all isPlain pat)
+  | TApp (FComb r) args <- universe bd,
+    Just n <- [arityOf r],
+    n == length args,
+    let pat = map (siteShape cons 0) args,
+    not (all isPlain pat)
   ]
   where
     cons = conLets bd
@@ -446,18 +446,19 @@ deadCons specsOf cons bd = go Set.empty
     -- is taken apart by
     tops =
       [ (a, s)
-        | TApp (FComb r) args <- universe bd,
-          Just pats <- [specsOf r],
-          Just (_, pat) <- [siteSpec cons pats args],
-          (s, a) <- zip pat args,
-          not (isPlain s),
-          Just b <- [M.lookup a (builtOf cons)],
-          matchesBuilt s b
+      | TApp (FComb r) args <- universe bd,
+        Just pats <- [specsOf r],
+        Just (_, pat) <- [siteSpec cons pats args],
+        (s, a) <- zip pat args,
+        not (isPlain s),
+        Just b <- [M.lookup a (builtOf cons)],
+        matchesBuilt s b
       ]
     -- a product let and each field of it the shape takes apart in turn
     edges = concatMap (uncurry under) tops
     under a s
-      | Just b <- M.lookup a (builtOf cons), matchesBuilt s b =
+      | Just b <- M.lookup a (builtOf cons),
+        matchesBuilt s b =
           concat [(a, c) : under c sub | (sub, c) <- zip (subShapes s) (builtFields b), not (isPlain sub), Just cb <- [M.lookup c (builtOf cons)], matchesBuilt sub cb]
       | otherwise = []
 

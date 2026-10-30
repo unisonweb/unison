@@ -42,8 +42,8 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
 import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, witnessTag, pattern BoxedVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
-import Unison.Runtime.Wide (wideK)
 import Unison.Runtime.Stack qualified as Stack
+import Unison.Runtime.Wide (wideK)
 import Unison.Util.EnumContainers qualified as EC
 
 -- The order matches unboxedTypeTagToInt in Stack.hs.

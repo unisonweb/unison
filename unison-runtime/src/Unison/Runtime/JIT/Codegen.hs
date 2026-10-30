@@ -57,9 +57,9 @@ import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust, isNothing)
 import Data.Primitive.PrimArray (primArrayToList)
+import Data.Text qualified as UText
 import Data.Vector qualified as V
 import Data.Word (Word64)
-import Data.Text qualified as UText
 import Foreign.Ptr (Ptr, WordPtr (..), minusPtr, nullPtr, plusPtr, ptrToWordPtr)
 import GHC.Float (castDoubleToWord64)
 import System.Info (arch, os)
@@ -74,10 +74,10 @@ import Unison.Runtime.JIT.Layout
 import Unison.Runtime.JIT.Pool
 import Unison.Runtime.JIT.Strict
 import Unison.Runtime.MCode hiding (Env)
-import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
 import Unison.Runtime.Stack (MCombs, MRef, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
+import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Util.Deque (Deque, (<|), (><), (|>), pattern Empty, pattern (:<|))
 import Unison.Util.Deque qualified as D
 import Unison.Util.EnumContainers qualified as EC
@@ -1429,16 +1429,22 @@ unpackWorkerRet w r = do
     emit (u0 <> " = extractvalue " <> workerRet w <> " " <> r <> ", " <> tshow (1 + 2 * j))
     b0 <- fresh "r.b"
     emit (b0 <> " = extractvalue " <> workerRet w <> " " <> r <> ", " <> tshow (2 + 2 * j))
-    u <- if tu == "i64" then pure u0 else do
-      i <- fresh "r.u"
-      emit (i <> " = bitcast double " <> u0 <> " to i64")
-      pure i
-    b <- if tb == "ptr" then pure b0 else do
-      i <- fresh "r.bi"
-      emit (i <> " = bitcast double " <> b0 <> " to i64")
-      p <- fresh "r.b"
-      emit (p <> " = inttoptr i64 " <> i <> " to ptr")
-      pure p
+    u <-
+      if tu == "i64"
+        then pure u0
+        else do
+          i <- fresh "r.u"
+          emit (i <> " = bitcast double " <> u0 <> " to i64")
+          pure i
+    b <-
+      if tb == "ptr"
+        then pure b0
+        else do
+          i <- fresh "r.bi"
+          emit (i <> " = bitcast double " <> b0 <> " to i64")
+          p <- fresh "r.b"
+          emit (p <> " = inttoptr i64 " <> i <> " to ptr")
+          pure p
     pure (Pair u b)
   pure (st, D.fromList vals)
 
@@ -1844,20 +1850,20 @@ genWrapper fe body = do
             )
             [0 .. resultWidth - 1]
             <> lines
-            [ "%res = add i64 %fp.in, " <> tshow resultWidth,
-              field "%ap.a" oAp,
-              "store i64 %ap, ptr %ap.a",
-              field "%fp.a" oFp,
-              "store i64 %ap, ptr %fp.a",
-              field "%sp.a" oSp,
-              "store i64 %res, ptr %sp.a",
-              field "%maxsp.a" oMaxSp,
-              "%maxsp.old = load i64, ptr %maxsp.a",
-              "%maxsp.gt = icmp sgt i64 %res, %maxsp.old",
-              "%maxsp.new = select i1 %maxsp.gt, i64 %res, i64 %maxsp.old",
-              "store i64 %maxsp.new, ptr %maxsp.a",
-              "ret i64 0"
-            ]
+              [ "%res = add i64 %fp.in, " <> tshow resultWidth,
+                field "%ap.a" oAp,
+                "store i64 %ap, ptr %ap.a",
+                field "%fp.a" oFp,
+                "store i64 %ap, ptr %fp.a",
+                field "%sp.a" oSp,
+                "store i64 %res, ptr %sp.a",
+                field "%maxsp.a" oMaxSp,
+                "%maxsp.old = load i64, ptr %maxsp.a",
+                "%maxsp.gt = icmp sgt i64 %res, %maxsp.old",
+                "%maxsp.new = select i1 %maxsp.gt, i64 %res, i64 %maxsp.old",
+                "store i64 %maxsp.new, ptr %maxsp.a",
+                "ret i64 0"
+              ]
         )
       <> lines ["tail:"]
       <> indent
@@ -3082,17 +3088,20 @@ genCall fe d cix comb args sect
           then exitResume fe d sect
           else case Map.lookup cell (envWorkers env) of
             -- worker to worker: a real tail call with the arguments in registers
-            Just wk | feWorker fe, workerWidth wk == feWidth fe, let wname = wName wk -> do
-              when (envStressCallee env) $ do
-                fire <- stressFire env oStressCalleeLeft oStressCallee
-                slow <- exitBlock fe d (Resume (feCix fe) sect)
-                goL <- freshLabel "tail"
-                emit ("br i1 " <> fire <> ", label %" <> slow <> ", label %" <> goL <> unlikely)
-                startBlock goL
-              vals <- loadSources srcs
-              r <- fresh "r"
-              emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet (feWidth fe) <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
-              emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
+            Just wk
+              | feWorker fe,
+                workerWidth wk == feWidth fe,
+                let wname = wName wk -> do
+                  when (envStressCallee env) $ do
+                    fire <- stressFire env oStressCalleeLeft oStressCallee
+                    slow <- exitBlock fe d (Resume (feCix fe) sect)
+                    goL <- freshLabel "tail"
+                    emit ("br i1 " <> fire <> ", label %" <> slow <> ", label %" <> goL <> unlikely)
+                    startBlock goL
+                  vals <- loadSources srcs
+                  r <- fresh "r"
+                  emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet (feWidth fe) <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
+                  emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
             _ -> do
               Pair fnp isNull <- loadCallee env cell
               slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -3759,667 +3768,668 @@ endLocal fe = forM_ (feLocal fe) $ \lo -> do
 
 -- | An instruction at depth @d@; continues with the depth after it.
 genInstr :: FnEnv -> Int -> GInstr (RComb Val) -> MSection -> (Int -> Gen ()) -> Gen ()
-genInstr fe d instr sect k = modify' (\s -> s {gsWhere = UT.pack (prettyIns instr "") <> " (depth " <> tshow d <> ")"}) >> case instr of
-  Lit l | litSupported l -> do
-    let !(Pair u tag) = case l of
-          MI i -> Pair (tshow i) (feTagInt fe)
-          MN n -> Pair (tshow (fromIntegral n :: Int64)) (feTagNat fe)
-          MC c -> Pair (tshow (ord c)) (feTagChar fe)
-          MD x -> Pair (tshow (fromIntegral (castDoubleToWord64 x) :: Int64)) (feTagFloat fe)
-          _ -> error "unreachable"
-    storeU (d + 1) u
-    storeB (d + 1) tag
-    k (d + 1)
-  -- boxed literals and constructors without fields are pool constants
-  Lit l | Just ix <- Map.lookup (KeyLit l) (envPool (feEnv fe)) -> do
-    poolConstant fe d ix
-    k (d + 1)
-  Pack r t ZArgs | Just ix <- Map.lookup (KeyEnum r t) (envPool (feEnv fe)) -> do
-    poolConstant fe d ix
-    k (d + 1)
-  Pack r t args
-    | Just refIx <- Map.lookup (KeyEnum r (PackedTag 0)) (envPool (feEnv fe)),
-      Just fields <- packFields fe d args -> do
-        slow <- exitBlock fe d (Resume (feCix fe) sect)
-        genPack fe d refIx t fields slow
-        k (d + 1)
-  -- an unboxed constructor: the packed tag and its witness in the value
-  -- slot on top, the fields in the slots below (Unison.Runtime.Wide)
-  PackWide _ (PackedTag t) _ args -> do
-    vals <- loadSources (argSources fe d args)
-    let n = D.size vals
-        w = wideWidth
-    wp <- witnessClosure n
-    storeU (d + w) (tshow t)
-    storeB (d + w) wp
-    iforM_ vals $ \j (Pair u b) -> do
-      storeU (d + w - 1 - j) u
-      storeB (d + w - 1 - j) b
-    -- the field slots a smaller constructor leaves unused get the witness
-    -- too: every slot up to the depth is written (see 'padResults')
-    forM_ [n .. w - 2] $ \j -> do
-      storeU (d + w - 1 - j) "0"
-      storeB (d + w - 1 - j) wp
-    k (d + w)
-  -- boxing a wide variable in place: an ordinary value needs nothing; a
-  -- witness (one of the pool's, compared by pointer: their shared info
-  -- pointer would not do, since the type tags of unboxed numbers have it
-  -- too) is replaced by the object it stands for
-  Box i -> do
-    plain <- gets (IS.member (d - i) . gsPlain)
-    if plain
-      then k d
-      else do
-        p <- loadB (d - i)
-        slow <- exitBlock fe d (Resume (feCix fe) sect)
-        done <- freshLabel "boxed"
-        boxL <- freshLabel "box"
-        -- which witness, if any: the field count is the index of the one the
-        -- pointer equals
-        tests <- forM [0 .. wideK] $ \n -> do
-          wp <- witnessClosure n
-          is <- fresh "is.w"
-          emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
-          pure is
-        let (test0, testsN) = case tests of
-              t : ts -> (t, ts)
-              [] -> ("false", [])
-        anyW <- foldM (\acc is -> do r <- fresh "witness"; emit (r <> " = or i1 " <> acc <> ", " <> is); pure r) test0 testsN
-        n <- foldM (\acc (j, is) -> do r <- fresh "n"; emit (r <> " = select i1 " <> is <> ", i64 " <> tshow j <> ", i64 " <> acc); pure r) "0" (zip [1 :: Int ..] testsN)
-        emit ("br i1 " <> anyW <> ", label %" <> boxL <> ", label %" <> done <> unlikely)
-        startBlock boxL
-        tagw <- loadU (d - i)
-        fields <- forM [1 .. wideK] $ \j -> Pair <$> loadU (d - i - j) <*> loadB (d - i - j)
-        r <- fresh "boxed"
-        emit (r <> " = call ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 " <> tagw <> ", i64 " <> n <> foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b) fields <> ")")
-        isNull <- fresh "unboxed"
-        emit (isNull <> " = icmp eq ptr " <> r <> ", null")
-        okL <- freshLabel "boxed.ok"
-        emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> okL <> unlikely)
-        startBlock okL
-        storeU (d - i) "-1"
-        storeB (d - i) r
-        emit ("br label %" <> done)
-        startBlock done
-        k d
-  -- a record literal: built from the pool's empty record of its shape
-  RecPack shape args
-    | enabled fe "records",
-      Just protoIx <- Map.lookup (KeyRecord shape) (envPool (feEnv fe)) -> do
-        slow <- exitBlock fe d (Resume (feCix fe) sect)
-        genRecPack fe d protoIx (argSources fe d args) slow
-        k (d + 1)
-  -- a record pattern, or a field read: the named fields are pushed
-  RecUnpack fields i | enabled fe "records" -> do
-    slow <- exitBlock fe d (Resume (feCix fe) sect)
-    genRecUnpack fe d i (V.toList fields) slow
-    k (d + V.length fields)
-  -- a field update: a copy with one slot replaced, by the C helper, which
-  -- gives null for anything that isn't a record with that field
-  RecSet (FieldRef f) (VArg2 ri vi) | enabled fe "records" -> do
-    slow <- exitBlock fe d (Resume (feCix fe) sect)
-    rec <- loadB (d - ri)
-    u <- loadU (d - vi)
-    b <- loadB (d - vi)
-    r <- fresh "rec"
-    emit (r <> " = call ptr @unison_jit_rec_set(ptr %ctx, ptr " <> rec <> ", i64 " <> tshow f <> ", i64 " <> u <> ", ptr " <> b <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp eq ptr " <> r <> ", null")
-    branchIf "recset" miss slow
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
-  -- An affine handler's switch to its own environment: nothing left in
-  -- the case can tell (see 'localUnobserved'), so nothing is done; the
-  -- interpreter's Local frame would only restore what was never changed.
-  InLocal _ | enabled fe "requests", Ins _ rest <- sect, localUnobserved rest -> k d
-  -- The handler's next state goes into the ref inside the Affine closure
-  -- in slot i, through the runtime's barrier; the helper refuses anything
-  -- that isn't an Affine closure, and the interpreter runs it then.
-  SetAff False i j | enabled fe "requests" -> do
-    slow <- callOutExit True fe d instr sect
-    aff <- loadB (d - i)
-    v <- loadB (d - j)
-    r <- fresh "setaff"
-    emit (r <> " = call i64 @unison_jit_set_aff(ptr %ctx, ptr " <> aff <> ", ptr " <> v <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp eq i64 " <> r <> ", 0")
-    branchIf "setaff" miss slow
-    k d
-  Prim1 op i | prim1Supported op -> do
-    x <- loadU (d - i)
-    genPrim1 fe d op x sect
-    k (d + 1)
-  Prim1 NOTB i -> do
-    slow <- callOutExit True fe d instr sect
-    c <- loadBoolean fe (d - i) slow
-    r <- fresh "not"
-    emit (r <> " = xor i1 " <> c <> ", true")
-    resultBool fe d r
-    k (d + 1)
-  Prim2 op i j | op `elem` [ANDB, IORB] -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadBoolean fe (d - i) slow
-    y <- loadBoolean fe (d - j) slow
-    r <- fresh "bool"
-    emit (r <> " = " <> (if op == ANDB then "and" else "or") <> " i1 " <> x <> ", " <> y)
-    resultBool fe d r
-    k (d + 1)
-  Prim1 REFR i | enabled fe "ref" -> do
-    genRefRead fe d (d - i) instr sect
-    k (d + 1)
-  -- A partial application: a function value with the arguments added.
-  -- Of a known function, whose closure is in the pool: built in place
-  -- ('genNameInline'). Of a function value on the stack: a copy made by
-  -- a C helper, with the arguments passed on the Unison stack
-  -- ('genNameStack'). Any number of arguments either way.
-  Name (MCode.Env cix comb) args
-    | enabled fe "name",
-      Comb info _ <- unRComb comb,
-      Just ix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) -> do
-        genNameInline fe d ix (argSources fe d args)
-        k (d + 1)
-  Name (Stk i) args
-    | enabled fe "name" -> do
-        slow <- callOutExit True fe d instr sect
-        f <- loadB (d - i)
-        genNameStack fe d slow f (argSources fe d args)
-        k (d + 1)
-  -- Lists: C helpers that are ports of the Haskell operations (see "Lists"
-  -- in jit_rt.c). They handle every list; the slow path is only for a
-  -- closure that isn't one.
-  Prim1 SIZS i | enabled fe "list" -> do
-    slow <- callOutExit True fe d instr sect
-    l <- loadB (d - i)
-    n <- fresh "size"
-    emit (n <> " = call i64 @unison_jit_list_size(ptr " <> l <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp slt i64 " <> n <> ", 0")
-    branchIf "list" miss slow
-    result fe d (feTagNat fe) n
-    k (d + 1)
-  Prim1 op i
-    | enabled fe "list",
-      op == VWLS || op == VWRS,
-      Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
-        let PackedTag elemTag = TT.seqViewElemTag
-        slow <- callOutExit True fe d instr sect
-        l <- loadB (d - i)
-        e <- poolValue emptyIx
-        listHelper d slow ("@unison_jit_list_view(ptr %ctx, ptr " <> l <> ", ptr " <> e <> ", i64 " <> tshow elemTag <> ", i64 " <> (if op == VWLS then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 op i j
-    | enabled fe "list",
-      op == CONS || op == SNOC -> do
-        -- cons takes the element first, snoc the list
-        let !(Pair kl kx) = if op == CONS then Pair (d - j) (d - i) else Pair (d - i) (d - j)
-        slow <- callOutExit True fe d instr sect
-        l <- loadB kl
-        u <- loadU kx
-        b <- loadB kx
-        listHelper d slow ("@unison_jit_list_push(ptr %ctx, ptr " <> l <> ", i64 " <> u <> ", ptr " <> b <> ", i64 " <> (if op == CONS then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 op i j
-    | enabled fe "list",
-      op == TAKS || op == DRPS -> do
-        slow <- callOutExit True fe d instr sect
-        n <- loadU (d - i)
-        l <- loadB (d - j)
-        listHelper d slow ("@unison_jit_list_cut(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", i64 " <> (if op == TAKS then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 op i j
-    | enabled fe "list",
-      op == SPLL || op == SPLR,
-      Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
-        let PackedTag elemTag = TT.seqViewElemTag
-        slow <- callOutExit True fe d instr sect
-        n <- loadU (d - i)
-        l <- loadB (d - j)
-        e <- poolValue emptyIx
-        listHelper d slow ("@unison_jit_list_split(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", ptr " <> e <> ", i64 " <> tshow elemTag <> ", i64 " <> (if op == SPLL then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 CATS i j | enabled fe "list" -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadB (d - i)
-    y <- loadB (d - j)
-    listHelper d slow ("@unison_jit_list_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
-    k (d + 1)
-  -- A list literal: the elements are added one at a time to a deque that
-  -- is wrapped at the end. The only slow path is an untagged element.
-  Seq args | enabled fe "list" -> do
-    vals <- loadSources (argSources fe d args)
-    slow <- exitBlock fe d (Resume (feCix fe) sect)
-    requireTagged slow (fmap (\(Pair _ b) -> b) vals)
-    let add acc (Pair u b) = do
-          r <- fresh "lit"
-          emit (r <> " = call ptr @unison_jit_list_lit(ptr %ctx, ptr " <> acc <> ", i64 " <> u <> ", ptr " <> b <> ")")
-          pure r
-    acc <- foldM add "null" vals
-    r <- fresh "list"
-    emit (r <> " = call ptr @unison_jit_list_wrap(ptr %ctx, ptr " <> acc <> ")")
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
-  -- Text: the same arrangement (see "Text" in jit_rt.c). The helpers handle
-  -- every text; the slow path is only for a closure that isn't one.
-  Prim1 SIZT i | enabled fe "text" -> do
-    slow <- callOutExit True fe d instr sect
-    t <- loadB (d - i)
-    n <- fresh "size"
-    emit (n <> " = call i64 @unison_jit_text_size(ptr " <> t <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp slt i64 " <> n <> ", 0")
-    branchIf "text" miss slow
-    result fe d (feTagNat fe) n
-    k (d + 1)
-  Prim2 CATT i j | enabled fe "text" -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadB (d - i)
-    y <- loadB (d - j)
-    listHelper d slow ("@unison_jit_text_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
-    k (d + 1)
-  Prim2 op i j
-    | enabled fe "text",
-      op == TAKT || op == DRPT -> do
-        slow <- callOutExit True fe d instr sect
-        n <- loadU (d - i)
-        t <- loadB (d - j)
-        listHelper d slow ("@unison_jit_text_cut(ptr %ctx, ptr " <> t <> ", i64 " <> n <> ", i64 " <> (if op == TAKT then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 EQLT i j | enabled fe "text" -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadB (d - i)
-    y <- loadB (d - j)
-    r <- fresh "eq"
-    emit (r <> " = call i64 @unison_jit_text_eq(ptr " <> x <> ", ptr " <> y <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp slt i64 " <> r <> ", 0")
-    branchIf "text" miss slow
-    c <- fresh "bool"
-    emit (c <> " = icmp ne i64 " <> r <> ", 0")
-    resultBool fe d c
-    k (d + 1)
-  -- Bytes: the same rope with chunks of bytes and the same helpers (see
-  -- "Ropes" in jit_rt.c), plus Bytes.at and Bytes.flatten.
-  Prim1 SIZB i | enabled fe "bytes" -> do
-    slow <- callOutExit True fe d instr sect
-    b <- loadB (d - i)
-    n <- fresh "size"
-    emit (n <> " = call i64 @unison_jit_bytes_size(ptr " <> b <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp slt i64 " <> n <> ", 0")
-    branchIf "bytes" miss slow
-    result fe d (feTagNat fe) n
-    k (d + 1)
-  Prim1 FLTB i | enabled fe "bytes" -> do
-    slow <- callOutExit True fe d instr sect
-    b <- loadB (d - i)
-    listHelper d slow ("@unison_jit_bytes_flatten(ptr %ctx, ptr " <> b <> ")")
-    k (d + 1)
-  Prim2 CATB i j | enabled fe "bytes" -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadB (d - i)
-    y <- loadB (d - j)
-    listHelper d slow ("@unison_jit_bytes_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
-    k (d + 1)
-  Prim2 op i j
-    | enabled fe "bytes",
-      op == TAKB || op == DRPB -> do
-        slow <- callOutExit True fe d instr sect
-        n <- loadU (d - i)
-        b <- loadB (d - j)
-        listHelper d slow ("@unison_jit_bytes_cut(ptr %ctx, ptr " <> b <> ", i64 " <> n <> ", i64 " <> (if op == TAKB then "1" else "0") <> ")")
-        k (d + 1)
-  Prim2 IDXB i j
-    | enabled fe "bytes",
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-        slow <- callOutExit True fe d instr sect
-        ix <- loadU (d - i)
-        b <- loadB (d - j)
-        none <- poolValue noneIx
-        listHelper d slow ("@unison_jit_bytes_index(ptr %ctx, ptr " <> b <> ", i64 " <> ix <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
-        k (d + 1)
-  -- The rest of Text and Bytes (see that section of jit_rt.c): uncons and
-  -- unsnoc, numbers to and from text, pack and unpack, indexOf, the
-  -- orderings, and the foreign functions. A helper answers "not handled"
-  -- for a form it doesn't decide, and the call-out does it.
-  Prim1 op i
-    | enabled fe "text",
-      op == UCNS || op == USNC,
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
-      Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
-      Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-            PackedTag pairTag = TT.pairTag
-        slow <- callOutExit True fe d instr sect
-        t <- loadB (d - i)
-        none <- poolValue noneIx
-        pair <- poolValue pairIx
-        unit <- poolValue unitIx
-        listHelper d slow ("@unison_jit_text_uncons(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagChar fe <> ", i64 " <> (if op == UCNS then "1" else "0") <> ")")
-        k (d + 1)
-  Prim1 op i
-    | enabled fe "text",
-      op == ITOT || op == NTOT -> do
-        n <- loadU (d - i)
-        r <- fresh "text"
-        emit (r <> " = call ptr @unison_jit_int_to_text(ptr %ctx, i64 " <> n <> ", i64 " <> (if op == ITOT then "1" else "0") <> ")")
-        storeU (d + 1) "-1"
-        storeB (d + 1) r
-        k (d + 1)
-  Prim1 FTOT i | enabled fe "text" -> do
-    bits <- loadU (d - i)
-    r <- fresh "text"
-    emit (r <> " = call ptr @unison_jit_float_to_text(ptr %ctx, i64 " <> bits <> ")")
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
-  Prim1 op i
-    | enabled fe "text",
-      op `elem` [TTOI, TTON, TTOF],
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-            !(Pair tag kind) = case op of
-              TTOI -> Pair (feTagInt fe) "0"
-              TTON -> Pair (feTagNat fe) "1"
-              _ -> Pair (feTagFloat fe) "2"
-        slow <- callOutExit True fe d instr sect
-        t <- loadB (d - i)
-        none <- poolValue noneIx
-        listHelper d slow ("@unison_jit_text_to_num(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> tag <> ", i64 " <> kind <> ")")
-        k (d + 1)
-  Prim1 PAKT i | enabled fe "text" -> do
-    slow <- callOutExit True fe d instr sect
-    l <- loadB (d - i)
-    listHelper d slow ("@unison_jit_text_pack(ptr %ctx, ptr " <> l <> ", ptr " <> feTagChar fe <> ")")
-    k (d + 1)
-  Prim1 UPKT i | enabled fe "text" -> do
-    slow <- callOutExit True fe d instr sect
-    t <- loadB (d - i)
-    listHelper d slow ("@unison_jit_text_unpack(ptr %ctx, ptr " <> t <> ", ptr " <> feTagChar fe <> ")")
-    k (d + 1)
-  Prim2 IXOT i j
-    | enabled fe "text",
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-        slow <- callOutExit True fe d instr sect
-        x <- loadB (d - i)
-        y <- loadB (d - j)
-        none <- poolValue noneIx
-        listHelper d slow ("@unison_jit_text_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
-        k (d + 1)
-  Prim2 op i j
-    | enabled fe "text",
-      op == LEQT || op == LEST -> do
-        slow <- callOutExit True fe d instr sect
-        x <- loadB (d - i)
-        y <- loadB (d - j)
-        r <- fresh "cmp"
-        emit (r <> " = call i64 @unison_jit_text_cmp(ptr " <> x <> ", ptr " <> y <> ")")
-        miss <- fresh "miss"
-        emit (miss <> " = icmp eq i64 " <> r <> ", 2")
-        branchIf "text" miss slow
-        c <- fresh "bool"
-        emit (c <> " = icmp " <> (if op == LEQT then "sle" else "slt") <> " i64 " <> r <> ", 0")
-        resultBool fe d c
-        k (d + 1)
-  Prim1 PAKB i | enabled fe "bytes" -> do
-    slow <- callOutExit True fe d instr sect
-    l <- loadB (d - i)
-    listHelper d slow ("@unison_jit_bytes_pack(ptr %ctx, ptr " <> l <> ", ptr " <> feTagNat fe <> ")")
-    k (d + 1)
-  Prim1 UPKB i | enabled fe "bytes" -> do
-    slow <- callOutExit True fe d instr sect
-    b <- loadB (d - i)
-    listHelper d slow ("@unison_jit_bytes_unpack(ptr %ctx, ptr " <> b <> ", ptr " <> feTagNat fe <> ")")
-    k (d + 1)
-  Prim2 IXOB i j
-    | enabled fe "bytes",
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-        slow <- callOutExit True fe d instr sect
-        x <- loadB (d - i)
-        y <- loadB (d - j)
-        none <- poolValue noneIx
-        listHelper d slow ("@unison_jit_bytes_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
-        k (d + 1)
-  ForeignCall _ Text_repeat args
-    | enabled fe "text",
-      kn :<| kt :<| Empty <- argSources fe d args -> do
-        slow <- callOutExit True fe d instr sect
-        n <- loadU kn
-        t <- loadB kt
-        listHelper d slow ("@unison_jit_text_repeat(ptr %ctx, i64 " <> n <> ", ptr " <> t <> ")")
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "text",
-      f `elem` [Text_reverse, Text_toUppercase, Text_toLowercase, Text_toUtf8],
-      kt :<| Empty <- argSources fe d args -> do
-        slow <- callOutExit True fe d instr sect
-        t <- loadB kt
-        let call = case f of
-              Text_reverse -> "@unison_jit_text_reverse(ptr %ctx, ptr " <> t <> ")"
-              Text_toUppercase -> "@unison_jit_text_case(ptr %ctx, ptr " <> t <> ", i64 1)"
-              Text_toLowercase -> "@unison_jit_text_case(ptr %ctx, ptr " <> t <> ", i64 0)"
-              _ -> "@unison_jit_text_to_utf8(ptr %ctx, ptr " <> t <> ")"
-        listHelper d slow call
-        k (d + 1)
-  ForeignCall _ Text_fromUtf8_impl_v3 args
-    | enabled fe "text",
-      kb :<| Empty <- argSources fe d args,
-      Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
-        let PackedTag rightTag = TT.rightTag
-        slow <- callOutExit True fe d instr sect
-        b <- loadB kb
-        eith <- poolValue eitherIx
-        listHelper d slow ("@unison_jit_text_from_utf8(ptr %ctx, ptr " <> b <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
-        k (d + 1)
-  ForeignCall _ Char_toText args
-    | enabled fe "text",
-      kc :<| Empty <- argSources fe d args -> do
-        c <- loadU kc
-        r <- fresh "text"
-        emit (r <> " = call ptr @unison_jit_char_to_text(ptr %ctx, i64 " <> c <> ")")
-        storeU (d + 1) "-1"
-        storeB (d + 1) r
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "bytes",
-      Just (Pair width be) <- decodeNatKind f,
-      kb :<| Empty <- argSources fe d args,
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
-      Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
-      Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-            PackedTag pairTag = TT.pairTag
-        slow <- callOutExit True fe d instr sect
-        b <- loadB kb
-        none <- poolValue noneIx
-        pair <- poolValue pairIx
-        unit <- poolValue unitIx
-        listHelper d slow ("@unison_jit_bytes_decode_nat(ptr %ctx, ptr " <> b <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagNat fe <> ")")
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "bytes",
-      Just (Pair width be) <- encodeNatKind f,
-      kn :<| Empty <- argSources fe d args -> do
-        n <- loadU kn
-        r <- fresh "bytes"
-        emit (r <> " = call ptr @unison_jit_bytes_encode_nat(ptr %ctx, i64 " <> n <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
-        storeU (d + 1) "-1"
-        storeB (d + 1) r
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "bytes",
-      Just (Pair width be) <- readKind f,
-      ki :<| kb :<| Empty <- argSources fe d args -> do
-        slow <- callOutExit True fe d instr sect
-        ix <- loadU ki
-        b <- loadB kb
-        ok <- fresh "ok"
-        emit (ok <> " = call i64 @unison_jit_bytes_read_ok(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ")")
-        miss <- fresh "miss"
-        emit (miss <> " = icmp ne i64 " <> ok <> ", 1")
-        branchIf "bytes" miss slow
-        v <- fresh "read"
-        emit (v <> " = call i64 @unison_jit_bytes_read_at(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
-        result fe d (feTagNat fe) v
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "bytes",
-      Just base <- toBaseKind f,
-      kb :<| Empty <- argSources fe d args -> do
-        slow <- callOutExit True fe d instr sect
-        b <- loadB kb
-        listHelper d slow ("@unison_jit_bytes_to_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ")")
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "bytes",
-      Just base <- fromBaseKind f,
-      kb :<| Empty <- argSources fe d args,
-      Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
-        let PackedTag rightTag = TT.rightTag
-        slow <- callOutExit True fe d instr sect
-        b <- loadB kb
-        eith <- poolValue eitherIx
-        listHelper d slow ("@unison_jit_bytes_from_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
-        k (d + 1)
-  Prim2 IDXS i j
-    | enabled fe "list",
-      Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
-        let PackedTag someTag = TT.someTag
-        slow <- callOutExit True fe d instr sect
-        ix <- loadU (d - i)
-        l <- loadB (d - j)
-        none <- poolValue noneIx
-        listHelper d slow ("@unison_jit_list_index(ptr %ctx, ptr " <> l <> ", i64 " <> ix <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ")")
-        k (d + 1)
-  Prim2 REFW i j
-    | enabled fe "ref",
-      Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
-        genRefWrite fe d (d - i) (d - j) unitIx instr sect
-        k (d + 1)
-  Prim2 op i j
-    | enabled fe "cmp",
-      op `elem` [EQLU, LEQU, LESU, CMPU] -> do
-        genUniversal fe d op (d - i) (d - j) instr sect
-        k (d + 1)
-  ForeignCall _ MutableArray_size args
-    | enabled fe "array",
-      ka :<| Empty <- argSources fe d args -> do
-        genArrayOp fe d (mutableArrayWrap fe) ka Nothing Nothing instr sect
-        k (d + 1)
-  ForeignCall _ MutableArray_read args
-    | enabled fe "array",
-      ka :<| ki :<| Empty <- argSources fe d args -> do
-        genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) Nothing instr sect
-        k (d + 1)
-  ForeignCall _ MutableArray_write args
-    | enabled fe "array",
-      ka :<| ki :<| kv :<| Empty <- argSources fe d args,
-      Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
-        genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) (Just (Pair kv unitIx)) instr sect
-        k (d + 1)
-  ForeignCall _ ImmutableArray_size args
-    | enabled fe "array",
-      ka :<| Empty <- argSources fe d args -> do
-        genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka Nothing Nothing instr sect
-        k (d + 1)
-  ForeignCall _ ImmutableArray_read args
-    | enabled fe "array",
-      ka :<| ki :<| Empty <- argSources fe d args -> do
-        genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka (Just ki) Nothing instr sect
-        k (d + 1)
-  -- the rest of the array builtins: C helpers (see "Arrays and Refs" in jit_rt.c)
-  ForeignCall _ f args
-    | enabled fe "array",
-      Just op <- arrayForeign f -> do
-        genArrayForeign fe d op (argSources fe d args) instr sect
-        k (d + 1)
-  ForeignCall _ f args
-    | enabled fe "ptr",
-      Just op <- ptrForeign f -> do
-        genPtrOp fe d op (argSources fe d args) instr sect
-        k (d + 1)
-  -- Universal.murmurHashUntyped is Value.value (VALU) followed by the
-  -- foreign hash of the reflected value. The two together are one C helper
-  -- that hashes the closures directly ("Universal.murmurHashUntyped" in
-  -- jit_rt.c); the reflected value's slot gets the original value, which
-  -- nothing reads. A value the helper doesn't handle goes to the call-out
-  -- for VALU, after which the foreign call is a call-out of its own.
-  Prim1 VALU i
-    | enabled fe "hash",
-      Ins _ (Ins (ForeignCall _ Universal_murmurHashUntyped (VArg1 0)) rest) <- sect -> do
-        slow <- callOutExit True fe d instr sect
-        u <- loadU (d - i)
-        b <- loadB (d - i)
-        r <- fresh "pair"
-        emit (r <> " = call { i64, i64 } @unison_jit_murmur(i64 " <> u <> ", ptr " <> b <> ")")
-        ok <- fresh "ok"
-        emit (ok <> " = extractvalue { i64, i64 } " <> r <> ", 0")
-        miss <- fresh "miss"
-        emit (miss <> " = icmp eq i64 " <> ok <> ", 0")
-        branchIf "hash" miss slow
-        h <- fresh "hash"
-        emit (h <> " = extractvalue { i64, i64 } " <> r <> ", 1")
-        storeU (d + 1) u
-        storeB (d + 1) b
-        result fe (d + 1) (feTagNat fe) h
-        genSection fe (d + 2) rest
-  -- Refs: Scope.ref, Ref.readForCas, Ticket.read and Ref.cas
-  Prim1 REFN i | enabled fe "ref" -> do
-    slow <- callOutExit True fe d instr sect
-    u <- loadU (d - i)
-    b <- loadB (d - i)
-    requireTagged slow (D.singleton b)
-    listHelper d slow ("@unison_jit_ref_new(ptr %ctx, i64 " <> u <> ", ptr " <> b <> ")")
-    k (d + 1)
-  Prim1 RRFC i
-    | enabled fe "ref",
-      not (envSandboxed (feEnv fe)) -> do
-        slow <- callOutExit True fe d instr sect
-        r <- loadB (d - i)
-        listHelper d slow ("@unison_jit_ref_read_for_cas(ptr %ctx, ptr " <> r <> ")")
-        k (d + 1)
-  Prim1 TIKR i | enabled fe "ref" -> do
-    let ls = envLayouts (feEnv fe)
-    slow <- callOutExit True fe d instr sect
-    p <- loadB (d - i)
-    raw <- fresh "raw"
-    emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
-    fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
-    wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
-    w <- taggedObjectTag "ticket" wrapped (lTicketWrap ls) slow
-    valp <- loadAt w "val" "i64" (lHeaderBytes ls)
-    Pair u b <- valFields fe valp slow
-    storeU (d + 1) u
-    storeB (d + 1) b
-    k (d + 1)
-  RefCAS i j kv
-    | enabled fe "ref",
-      not (envSandboxed (feEnv fe)) -> do
-        slow <- callOutExit True fe d instr sect
-        r <- loadB (d - i)
-        t <- loadB (d - j)
-        u <- loadU (d - kv)
-        b <- loadB (d - kv)
-        requireTagged slow (D.singleton b)
-        res <- fresh "cas"
-        emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
-        miss <- fresh "miss"
-        emit (miss <> " = icmp slt i64 " <> res <> ", 0")
-        branchIf "cas" miss slow
-        c <- fresh "c"
-        emit (c <> " = icmp eq i64 " <> res <> ", 1")
-        resultBool fe d c
-        k (d + 1)
-  Prim2 op i j | prim2Supported op -> do
-    x <- loadU (d - i)
-    y <- loadU (d - j)
-    genPrim2 fe d op x y sect
-    k (d + 1)
-  _ -> genCallOut fe d instr sect
+genInstr fe d instr sect k =
+  modify' (\s -> s {gsWhere = UT.pack (prettyIns instr "") <> " (depth " <> tshow d <> ")"}) >> case instr of
+    Lit l | litSupported l -> do
+      let !(Pair u tag) = case l of
+            MI i -> Pair (tshow i) (feTagInt fe)
+            MN n -> Pair (tshow (fromIntegral n :: Int64)) (feTagNat fe)
+            MC c -> Pair (tshow (ord c)) (feTagChar fe)
+            MD x -> Pair (tshow (fromIntegral (castDoubleToWord64 x) :: Int64)) (feTagFloat fe)
+            _ -> error "unreachable"
+      storeU (d + 1) u
+      storeB (d + 1) tag
+      k (d + 1)
+    -- boxed literals and constructors without fields are pool constants
+    Lit l | Just ix <- Map.lookup (KeyLit l) (envPool (feEnv fe)) -> do
+      poolConstant fe d ix
+      k (d + 1)
+    Pack r t ZArgs | Just ix <- Map.lookup (KeyEnum r t) (envPool (feEnv fe)) -> do
+      poolConstant fe d ix
+      k (d + 1)
+    Pack r t args
+      | Just refIx <- Map.lookup (KeyEnum r (PackedTag 0)) (envPool (feEnv fe)),
+        Just fields <- packFields fe d args -> do
+          slow <- exitBlock fe d (Resume (feCix fe) sect)
+          genPack fe d refIx t fields slow
+          k (d + 1)
+    -- an unboxed constructor: the packed tag and its witness in the value
+    -- slot on top, the fields in the slots below (Unison.Runtime.Wide)
+    PackWide _ (PackedTag t) _ args -> do
+      vals <- loadSources (argSources fe d args)
+      let n = D.size vals
+          w = wideWidth
+      wp <- witnessClosure n
+      storeU (d + w) (tshow t)
+      storeB (d + w) wp
+      iforM_ vals $ \j (Pair u b) -> do
+        storeU (d + w - 1 - j) u
+        storeB (d + w - 1 - j) b
+      -- the field slots a smaller constructor leaves unused get the witness
+      -- too: every slot up to the depth is written (see 'padResults')
+      forM_ [n .. w - 2] $ \j -> do
+        storeU (d + w - 1 - j) "0"
+        storeB (d + w - 1 - j) wp
+      k (d + w)
+    -- boxing a wide variable in place: an ordinary value needs nothing; a
+    -- witness (one of the pool's, compared by pointer: their shared info
+    -- pointer would not do, since the type tags of unboxed numbers have it
+    -- too) is replaced by the object it stands for
+    Box i -> do
+      plain <- gets (IS.member (d - i) . gsPlain)
+      if plain
+        then k d
+        else do
+          p <- loadB (d - i)
+          slow <- exitBlock fe d (Resume (feCix fe) sect)
+          done <- freshLabel "boxed"
+          boxL <- freshLabel "box"
+          -- which witness, if any: the field count is the index of the one the
+          -- pointer equals
+          tests <- forM [0 .. wideK] $ \n -> do
+            wp <- witnessClosure n
+            is <- fresh "is.w"
+            emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
+            pure is
+          let (test0, testsN) = case tests of
+                t : ts -> (t, ts)
+                [] -> ("false", [])
+          anyW <- foldM (\acc is -> do r <- fresh "witness"; emit (r <> " = or i1 " <> acc <> ", " <> is); pure r) test0 testsN
+          n <- foldM (\acc (j, is) -> do r <- fresh "n"; emit (r <> " = select i1 " <> is <> ", i64 " <> tshow j <> ", i64 " <> acc); pure r) "0" (zip [1 :: Int ..] testsN)
+          emit ("br i1 " <> anyW <> ", label %" <> boxL <> ", label %" <> done <> unlikely)
+          startBlock boxL
+          tagw <- loadU (d - i)
+          fields <- forM [1 .. wideK] $ \j -> Pair <$> loadU (d - i - j) <*> loadB (d - i - j)
+          r <- fresh "boxed"
+          emit (r <> " = call ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 " <> tagw <> ", i64 " <> n <> foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b) fields <> ")")
+          isNull <- fresh "unboxed"
+          emit (isNull <> " = icmp eq ptr " <> r <> ", null")
+          okL <- freshLabel "boxed.ok"
+          emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> okL <> unlikely)
+          startBlock okL
+          storeU (d - i) "-1"
+          storeB (d - i) r
+          emit ("br label %" <> done)
+          startBlock done
+          k d
+    -- a record literal: built from the pool's empty record of its shape
+    RecPack shape args
+      | enabled fe "records",
+        Just protoIx <- Map.lookup (KeyRecord shape) (envPool (feEnv fe)) -> do
+          slow <- exitBlock fe d (Resume (feCix fe) sect)
+          genRecPack fe d protoIx (argSources fe d args) slow
+          k (d + 1)
+    -- a record pattern, or a field read: the named fields are pushed
+    RecUnpack fields i | enabled fe "records" -> do
+      slow <- exitBlock fe d (Resume (feCix fe) sect)
+      genRecUnpack fe d i (V.toList fields) slow
+      k (d + V.length fields)
+    -- a field update: a copy with one slot replaced, by the C helper, which
+    -- gives null for anything that isn't a record with that field
+    RecSet (FieldRef f) (VArg2 ri vi) | enabled fe "records" -> do
+      slow <- exitBlock fe d (Resume (feCix fe) sect)
+      rec <- loadB (d - ri)
+      u <- loadU (d - vi)
+      b <- loadB (d - vi)
+      r <- fresh "rec"
+      emit (r <> " = call ptr @unison_jit_rec_set(ptr %ctx, ptr " <> rec <> ", i64 " <> tshow f <> ", i64 " <> u <> ", ptr " <> b <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp eq ptr " <> r <> ", null")
+      branchIf "recset" miss slow
+      storeU (d + 1) "-1"
+      storeB (d + 1) r
+      k (d + 1)
+    -- An affine handler's switch to its own environment: nothing left in
+    -- the case can tell (see 'localUnobserved'), so nothing is done; the
+    -- interpreter's Local frame would only restore what was never changed.
+    InLocal _ | enabled fe "requests", Ins _ rest <- sect, localUnobserved rest -> k d
+    -- The handler's next state goes into the ref inside the Affine closure
+    -- in slot i, through the runtime's barrier; the helper refuses anything
+    -- that isn't an Affine closure, and the interpreter runs it then.
+    SetAff False i j | enabled fe "requests" -> do
+      slow <- callOutExit True fe d instr sect
+      aff <- loadB (d - i)
+      v <- loadB (d - j)
+      r <- fresh "setaff"
+      emit (r <> " = call i64 @unison_jit_set_aff(ptr %ctx, ptr " <> aff <> ", ptr " <> v <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp eq i64 " <> r <> ", 0")
+      branchIf "setaff" miss slow
+      k d
+    Prim1 op i | prim1Supported op -> do
+      x <- loadU (d - i)
+      genPrim1 fe d op x sect
+      k (d + 1)
+    Prim1 NOTB i -> do
+      slow <- callOutExit True fe d instr sect
+      c <- loadBoolean fe (d - i) slow
+      r <- fresh "not"
+      emit (r <> " = xor i1 " <> c <> ", true")
+      resultBool fe d r
+      k (d + 1)
+    Prim2 op i j | op `elem` [ANDB, IORB] -> do
+      slow <- callOutExit True fe d instr sect
+      x <- loadBoolean fe (d - i) slow
+      y <- loadBoolean fe (d - j) slow
+      r <- fresh "bool"
+      emit (r <> " = " <> (if op == ANDB then "and" else "or") <> " i1 " <> x <> ", " <> y)
+      resultBool fe d r
+      k (d + 1)
+    Prim1 REFR i | enabled fe "ref" -> do
+      genRefRead fe d (d - i) instr sect
+      k (d + 1)
+    -- A partial application: a function value with the arguments added.
+    -- Of a known function, whose closure is in the pool: built in place
+    -- ('genNameInline'). Of a function value on the stack: a copy made by
+    -- a C helper, with the arguments passed on the Unison stack
+    -- ('genNameStack'). Any number of arguments either way.
+    Name (MCode.Env cix comb) args
+      | enabled fe "name",
+        Comb info _ <- unRComb comb,
+        Just ix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) -> do
+          genNameInline fe d ix (argSources fe d args)
+          k (d + 1)
+    Name (Stk i) args
+      | enabled fe "name" -> do
+          slow <- callOutExit True fe d instr sect
+          f <- loadB (d - i)
+          genNameStack fe d slow f (argSources fe d args)
+          k (d + 1)
+    -- Lists: C helpers that are ports of the Haskell operations (see "Lists"
+    -- in jit_rt.c). They handle every list; the slow path is only for a
+    -- closure that isn't one.
+    Prim1 SIZS i | enabled fe "list" -> do
+      slow <- callOutExit True fe d instr sect
+      l <- loadB (d - i)
+      n <- fresh "size"
+      emit (n <> " = call i64 @unison_jit_list_size(ptr " <> l <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp slt i64 " <> n <> ", 0")
+      branchIf "list" miss slow
+      result fe d (feTagNat fe) n
+      k (d + 1)
+    Prim1 op i
+      | enabled fe "list",
+        op == VWLS || op == VWRS,
+        Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
+          let PackedTag elemTag = TT.seqViewElemTag
+          slow <- callOutExit True fe d instr sect
+          l <- loadB (d - i)
+          e <- poolValue emptyIx
+          listHelper d slow ("@unison_jit_list_view(ptr %ctx, ptr " <> l <> ", ptr " <> e <> ", i64 " <> tshow elemTag <> ", i64 " <> (if op == VWLS then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 op i j
+      | enabled fe "list",
+        op == CONS || op == SNOC -> do
+          -- cons takes the element first, snoc the list
+          let !(Pair kl kx) = if op == CONS then Pair (d - j) (d - i) else Pair (d - i) (d - j)
+          slow <- callOutExit True fe d instr sect
+          l <- loadB kl
+          u <- loadU kx
+          b <- loadB kx
+          listHelper d slow ("@unison_jit_list_push(ptr %ctx, ptr " <> l <> ", i64 " <> u <> ", ptr " <> b <> ", i64 " <> (if op == CONS then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 op i j
+      | enabled fe "list",
+        op == TAKS || op == DRPS -> do
+          slow <- callOutExit True fe d instr sect
+          n <- loadU (d - i)
+          l <- loadB (d - j)
+          listHelper d slow ("@unison_jit_list_cut(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", i64 " <> (if op == TAKS then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 op i j
+      | enabled fe "list",
+        op == SPLL || op == SPLR,
+        Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
+          let PackedTag elemTag = TT.seqViewElemTag
+          slow <- callOutExit True fe d instr sect
+          n <- loadU (d - i)
+          l <- loadB (d - j)
+          e <- poolValue emptyIx
+          listHelper d slow ("@unison_jit_list_split(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", ptr " <> e <> ", i64 " <> tshow elemTag <> ", i64 " <> (if op == SPLL then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 CATS i j | enabled fe "list" -> do
+      slow <- callOutExit True fe d instr sect
+      x <- loadB (d - i)
+      y <- loadB (d - j)
+      listHelper d slow ("@unison_jit_list_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
+      k (d + 1)
+    -- A list literal: the elements are added one at a time to a deque that
+    -- is wrapped at the end. The only slow path is an untagged element.
+    Seq args | enabled fe "list" -> do
+      vals <- loadSources (argSources fe d args)
+      slow <- exitBlock fe d (Resume (feCix fe) sect)
+      requireTagged slow (fmap (\(Pair _ b) -> b) vals)
+      let add acc (Pair u b) = do
+            r <- fresh "lit"
+            emit (r <> " = call ptr @unison_jit_list_lit(ptr %ctx, ptr " <> acc <> ", i64 " <> u <> ", ptr " <> b <> ")")
+            pure r
+      acc <- foldM add "null" vals
+      r <- fresh "list"
+      emit (r <> " = call ptr @unison_jit_list_wrap(ptr %ctx, ptr " <> acc <> ")")
+      storeU (d + 1) "-1"
+      storeB (d + 1) r
+      k (d + 1)
+    -- Text: the same arrangement (see "Text" in jit_rt.c). The helpers handle
+    -- every text; the slow path is only for a closure that isn't one.
+    Prim1 SIZT i | enabled fe "text" -> do
+      slow <- callOutExit True fe d instr sect
+      t <- loadB (d - i)
+      n <- fresh "size"
+      emit (n <> " = call i64 @unison_jit_text_size(ptr " <> t <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp slt i64 " <> n <> ", 0")
+      branchIf "text" miss slow
+      result fe d (feTagNat fe) n
+      k (d + 1)
+    Prim2 CATT i j | enabled fe "text" -> do
+      slow <- callOutExit True fe d instr sect
+      x <- loadB (d - i)
+      y <- loadB (d - j)
+      listHelper d slow ("@unison_jit_text_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
+      k (d + 1)
+    Prim2 op i j
+      | enabled fe "text",
+        op == TAKT || op == DRPT -> do
+          slow <- callOutExit True fe d instr sect
+          n <- loadU (d - i)
+          t <- loadB (d - j)
+          listHelper d slow ("@unison_jit_text_cut(ptr %ctx, ptr " <> t <> ", i64 " <> n <> ", i64 " <> (if op == TAKT then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 EQLT i j | enabled fe "text" -> do
+      slow <- callOutExit True fe d instr sect
+      x <- loadB (d - i)
+      y <- loadB (d - j)
+      r <- fresh "eq"
+      emit (r <> " = call i64 @unison_jit_text_eq(ptr " <> x <> ", ptr " <> y <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp slt i64 " <> r <> ", 0")
+      branchIf "text" miss slow
+      c <- fresh "bool"
+      emit (c <> " = icmp ne i64 " <> r <> ", 0")
+      resultBool fe d c
+      k (d + 1)
+    -- Bytes: the same rope with chunks of bytes and the same helpers (see
+    -- "Ropes" in jit_rt.c), plus Bytes.at and Bytes.flatten.
+    Prim1 SIZB i | enabled fe "bytes" -> do
+      slow <- callOutExit True fe d instr sect
+      b <- loadB (d - i)
+      n <- fresh "size"
+      emit (n <> " = call i64 @unison_jit_bytes_size(ptr " <> b <> ")")
+      miss <- fresh "miss"
+      emit (miss <> " = icmp slt i64 " <> n <> ", 0")
+      branchIf "bytes" miss slow
+      result fe d (feTagNat fe) n
+      k (d + 1)
+    Prim1 FLTB i | enabled fe "bytes" -> do
+      slow <- callOutExit True fe d instr sect
+      b <- loadB (d - i)
+      listHelper d slow ("@unison_jit_bytes_flatten(ptr %ctx, ptr " <> b <> ")")
+      k (d + 1)
+    Prim2 CATB i j | enabled fe "bytes" -> do
+      slow <- callOutExit True fe d instr sect
+      x <- loadB (d - i)
+      y <- loadB (d - j)
+      listHelper d slow ("@unison_jit_bytes_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
+      k (d + 1)
+    Prim2 op i j
+      | enabled fe "bytes",
+        op == TAKB || op == DRPB -> do
+          slow <- callOutExit True fe d instr sect
+          n <- loadU (d - i)
+          b <- loadB (d - j)
+          listHelper d slow ("@unison_jit_bytes_cut(ptr %ctx, ptr " <> b <> ", i64 " <> n <> ", i64 " <> (if op == TAKB then "1" else "0") <> ")")
+          k (d + 1)
+    Prim2 IDXB i j
+      | enabled fe "bytes",
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+          slow <- callOutExit True fe d instr sect
+          ix <- loadU (d - i)
+          b <- loadB (d - j)
+          none <- poolValue noneIx
+          listHelper d slow ("@unison_jit_bytes_index(ptr %ctx, ptr " <> b <> ", i64 " <> ix <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
+          k (d + 1)
+    -- The rest of Text and Bytes (see that section of jit_rt.c): uncons and
+    -- unsnoc, numbers to and from text, pack and unpack, indexOf, the
+    -- orderings, and the foreign functions. A helper answers "not handled"
+    -- for a form it doesn't decide, and the call-out does it.
+    Prim1 op i
+      | enabled fe "text",
+        op == UCNS || op == USNC,
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
+        Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
+        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+              PackedTag pairTag = TT.pairTag
+          slow <- callOutExit True fe d instr sect
+          t <- loadB (d - i)
+          none <- poolValue noneIx
+          pair <- poolValue pairIx
+          unit <- poolValue unitIx
+          listHelper d slow ("@unison_jit_text_uncons(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagChar fe <> ", i64 " <> (if op == UCNS then "1" else "0") <> ")")
+          k (d + 1)
+    Prim1 op i
+      | enabled fe "text",
+        op == ITOT || op == NTOT -> do
+          n <- loadU (d - i)
+          r <- fresh "text"
+          emit (r <> " = call ptr @unison_jit_int_to_text(ptr %ctx, i64 " <> n <> ", i64 " <> (if op == ITOT then "1" else "0") <> ")")
+          storeU (d + 1) "-1"
+          storeB (d + 1) r
+          k (d + 1)
+    Prim1 FTOT i | enabled fe "text" -> do
+      bits <- loadU (d - i)
+      r <- fresh "text"
+      emit (r <> " = call ptr @unison_jit_float_to_text(ptr %ctx, i64 " <> bits <> ")")
+      storeU (d + 1) "-1"
+      storeB (d + 1) r
+      k (d + 1)
+    Prim1 op i
+      | enabled fe "text",
+        op `elem` [TTOI, TTON, TTOF],
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+              !(Pair tag kind) = case op of
+                TTOI -> Pair (feTagInt fe) "0"
+                TTON -> Pair (feTagNat fe) "1"
+                _ -> Pair (feTagFloat fe) "2"
+          slow <- callOutExit True fe d instr sect
+          t <- loadB (d - i)
+          none <- poolValue noneIx
+          listHelper d slow ("@unison_jit_text_to_num(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> tag <> ", i64 " <> kind <> ")")
+          k (d + 1)
+    Prim1 PAKT i | enabled fe "text" -> do
+      slow <- callOutExit True fe d instr sect
+      l <- loadB (d - i)
+      listHelper d slow ("@unison_jit_text_pack(ptr %ctx, ptr " <> l <> ", ptr " <> feTagChar fe <> ")")
+      k (d + 1)
+    Prim1 UPKT i | enabled fe "text" -> do
+      slow <- callOutExit True fe d instr sect
+      t <- loadB (d - i)
+      listHelper d slow ("@unison_jit_text_unpack(ptr %ctx, ptr " <> t <> ", ptr " <> feTagChar fe <> ")")
+      k (d + 1)
+    Prim2 IXOT i j
+      | enabled fe "text",
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+          slow <- callOutExit True fe d instr sect
+          x <- loadB (d - i)
+          y <- loadB (d - j)
+          none <- poolValue noneIx
+          listHelper d slow ("@unison_jit_text_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
+          k (d + 1)
+    Prim2 op i j
+      | enabled fe "text",
+        op == LEQT || op == LEST -> do
+          slow <- callOutExit True fe d instr sect
+          x <- loadB (d - i)
+          y <- loadB (d - j)
+          r <- fresh "cmp"
+          emit (r <> " = call i64 @unison_jit_text_cmp(ptr " <> x <> ", ptr " <> y <> ")")
+          miss <- fresh "miss"
+          emit (miss <> " = icmp eq i64 " <> r <> ", 2")
+          branchIf "text" miss slow
+          c <- fresh "bool"
+          emit (c <> " = icmp " <> (if op == LEQT then "sle" else "slt") <> " i64 " <> r <> ", 0")
+          resultBool fe d c
+          k (d + 1)
+    Prim1 PAKB i | enabled fe "bytes" -> do
+      slow <- callOutExit True fe d instr sect
+      l <- loadB (d - i)
+      listHelper d slow ("@unison_jit_bytes_pack(ptr %ctx, ptr " <> l <> ", ptr " <> feTagNat fe <> ")")
+      k (d + 1)
+    Prim1 UPKB i | enabled fe "bytes" -> do
+      slow <- callOutExit True fe d instr sect
+      b <- loadB (d - i)
+      listHelper d slow ("@unison_jit_bytes_unpack(ptr %ctx, ptr " <> b <> ", ptr " <> feTagNat fe <> ")")
+      k (d + 1)
+    Prim2 IXOB i j
+      | enabled fe "bytes",
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+          slow <- callOutExit True fe d instr sect
+          x <- loadB (d - i)
+          y <- loadB (d - j)
+          none <- poolValue noneIx
+          listHelper d slow ("@unison_jit_bytes_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
+          k (d + 1)
+    ForeignCall _ Text_repeat args
+      | enabled fe "text",
+        kn :<| kt :<| Empty <- argSources fe d args -> do
+          slow <- callOutExit True fe d instr sect
+          n <- loadU kn
+          t <- loadB kt
+          listHelper d slow ("@unison_jit_text_repeat(ptr %ctx, i64 " <> n <> ", ptr " <> t <> ")")
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "text",
+        f `elem` [Text_reverse, Text_toUppercase, Text_toLowercase, Text_toUtf8],
+        kt :<| Empty <- argSources fe d args -> do
+          slow <- callOutExit True fe d instr sect
+          t <- loadB kt
+          let call = case f of
+                Text_reverse -> "@unison_jit_text_reverse(ptr %ctx, ptr " <> t <> ")"
+                Text_toUppercase -> "@unison_jit_text_case(ptr %ctx, ptr " <> t <> ", i64 1)"
+                Text_toLowercase -> "@unison_jit_text_case(ptr %ctx, ptr " <> t <> ", i64 0)"
+                _ -> "@unison_jit_text_to_utf8(ptr %ctx, ptr " <> t <> ")"
+          listHelper d slow call
+          k (d + 1)
+    ForeignCall _ Text_fromUtf8_impl_v3 args
+      | enabled fe "text",
+        kb :<| Empty <- argSources fe d args,
+        Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
+          let PackedTag rightTag = TT.rightTag
+          slow <- callOutExit True fe d instr sect
+          b <- loadB kb
+          eith <- poolValue eitherIx
+          listHelper d slow ("@unison_jit_text_from_utf8(ptr %ctx, ptr " <> b <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
+          k (d + 1)
+    ForeignCall _ Char_toText args
+      | enabled fe "text",
+        kc :<| Empty <- argSources fe d args -> do
+          c <- loadU kc
+          r <- fresh "text"
+          emit (r <> " = call ptr @unison_jit_char_to_text(ptr %ctx, i64 " <> c <> ")")
+          storeU (d + 1) "-1"
+          storeB (d + 1) r
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "bytes",
+        Just (Pair width be) <- decodeNatKind f,
+        kb :<| Empty <- argSources fe d args,
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
+        Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
+        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+              PackedTag pairTag = TT.pairTag
+          slow <- callOutExit True fe d instr sect
+          b <- loadB kb
+          none <- poolValue noneIx
+          pair <- poolValue pairIx
+          unit <- poolValue unitIx
+          listHelper d slow ("@unison_jit_bytes_decode_nat(ptr %ctx, ptr " <> b <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagNat fe <> ")")
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "bytes",
+        Just (Pair width be) <- encodeNatKind f,
+        kn :<| Empty <- argSources fe d args -> do
+          n <- loadU kn
+          r <- fresh "bytes"
+          emit (r <> " = call ptr @unison_jit_bytes_encode_nat(ptr %ctx, i64 " <> n <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
+          storeU (d + 1) "-1"
+          storeB (d + 1) r
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "bytes",
+        Just (Pair width be) <- readKind f,
+        ki :<| kb :<| Empty <- argSources fe d args -> do
+          slow <- callOutExit True fe d instr sect
+          ix <- loadU ki
+          b <- loadB kb
+          ok <- fresh "ok"
+          emit (ok <> " = call i64 @unison_jit_bytes_read_ok(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ")")
+          miss <- fresh "miss"
+          emit (miss <> " = icmp ne i64 " <> ok <> ", 1")
+          branchIf "bytes" miss slow
+          v <- fresh "read"
+          emit (v <> " = call i64 @unison_jit_bytes_read_at(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
+          result fe d (feTagNat fe) v
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "bytes",
+        Just base <- toBaseKind f,
+        kb :<| Empty <- argSources fe d args -> do
+          slow <- callOutExit True fe d instr sect
+          b <- loadB kb
+          listHelper d slow ("@unison_jit_bytes_to_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ")")
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "bytes",
+        Just base <- fromBaseKind f,
+        kb :<| Empty <- argSources fe d args,
+        Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
+          let PackedTag rightTag = TT.rightTag
+          slow <- callOutExit True fe d instr sect
+          b <- loadB kb
+          eith <- poolValue eitherIx
+          listHelper d slow ("@unison_jit_bytes_from_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
+          k (d + 1)
+    Prim2 IDXS i j
+      | enabled fe "list",
+        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+          let PackedTag someTag = TT.someTag
+          slow <- callOutExit True fe d instr sect
+          ix <- loadU (d - i)
+          l <- loadB (d - j)
+          none <- poolValue noneIx
+          listHelper d slow ("@unison_jit_list_index(ptr %ctx, ptr " <> l <> ", i64 " <> ix <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ")")
+          k (d + 1)
+    Prim2 REFW i j
+      | enabled fe "ref",
+        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+          genRefWrite fe d (d - i) (d - j) unitIx instr sect
+          k (d + 1)
+    Prim2 op i j
+      | enabled fe "cmp",
+        op `elem` [EQLU, LEQU, LESU, CMPU] -> do
+          genUniversal fe d op (d - i) (d - j) instr sect
+          k (d + 1)
+    ForeignCall _ MutableArray_size args
+      | enabled fe "array",
+        ka :<| Empty <- argSources fe d args -> do
+          genArrayOp fe d (mutableArrayWrap fe) ka Nothing Nothing instr sect
+          k (d + 1)
+    ForeignCall _ MutableArray_read args
+      | enabled fe "array",
+        ka :<| ki :<| Empty <- argSources fe d args -> do
+          genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) Nothing instr sect
+          k (d + 1)
+    ForeignCall _ MutableArray_write args
+      | enabled fe "array",
+        ka :<| ki :<| kv :<| Empty <- argSources fe d args,
+        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+          genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) (Just (Pair kv unitIx)) instr sect
+          k (d + 1)
+    ForeignCall _ ImmutableArray_size args
+      | enabled fe "array",
+        ka :<| Empty <- argSources fe d args -> do
+          genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka Nothing Nothing instr sect
+          k (d + 1)
+    ForeignCall _ ImmutableArray_read args
+      | enabled fe "array",
+        ka :<| ki :<| Empty <- argSources fe d args -> do
+          genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka (Just ki) Nothing instr sect
+          k (d + 1)
+    -- the rest of the array builtins: C helpers (see "Arrays and Refs" in jit_rt.c)
+    ForeignCall _ f args
+      | enabled fe "array",
+        Just op <- arrayForeign f -> do
+          genArrayForeign fe d op (argSources fe d args) instr sect
+          k (d + 1)
+    ForeignCall _ f args
+      | enabled fe "ptr",
+        Just op <- ptrForeign f -> do
+          genPtrOp fe d op (argSources fe d args) instr sect
+          k (d + 1)
+    -- Universal.murmurHashUntyped is Value.value (VALU) followed by the
+    -- foreign hash of the reflected value. The two together are one C helper
+    -- that hashes the closures directly ("Universal.murmurHashUntyped" in
+    -- jit_rt.c); the reflected value's slot gets the original value, which
+    -- nothing reads. A value the helper doesn't handle goes to the call-out
+    -- for VALU, after which the foreign call is a call-out of its own.
+    Prim1 VALU i
+      | enabled fe "hash",
+        Ins _ (Ins (ForeignCall _ Universal_murmurHashUntyped (VArg1 0)) rest) <- sect -> do
+          slow <- callOutExit True fe d instr sect
+          u <- loadU (d - i)
+          b <- loadB (d - i)
+          r <- fresh "pair"
+          emit (r <> " = call { i64, i64 } @unison_jit_murmur(i64 " <> u <> ", ptr " <> b <> ")")
+          ok <- fresh "ok"
+          emit (ok <> " = extractvalue { i64, i64 } " <> r <> ", 0")
+          miss <- fresh "miss"
+          emit (miss <> " = icmp eq i64 " <> ok <> ", 0")
+          branchIf "hash" miss slow
+          h <- fresh "hash"
+          emit (h <> " = extractvalue { i64, i64 } " <> r <> ", 1")
+          storeU (d + 1) u
+          storeB (d + 1) b
+          result fe (d + 1) (feTagNat fe) h
+          genSection fe (d + 2) rest
+    -- Refs: Scope.ref, Ref.readForCas, Ticket.read and Ref.cas
+    Prim1 REFN i | enabled fe "ref" -> do
+      slow <- callOutExit True fe d instr sect
+      u <- loadU (d - i)
+      b <- loadB (d - i)
+      requireTagged slow (D.singleton b)
+      listHelper d slow ("@unison_jit_ref_new(ptr %ctx, i64 " <> u <> ", ptr " <> b <> ")")
+      k (d + 1)
+    Prim1 RRFC i
+      | enabled fe "ref",
+        not (envSandboxed (feEnv fe)) -> do
+          slow <- callOutExit True fe d instr sect
+          r <- loadB (d - i)
+          listHelper d slow ("@unison_jit_ref_read_for_cas(ptr %ctx, ptr " <> r <> ")")
+          k (d + 1)
+    Prim1 TIKR i | enabled fe "ref" -> do
+      let ls = envLayouts (feEnv fe)
+      slow <- callOutExit True fe d instr sect
+      p <- loadB (d - i)
+      raw <- fresh "raw"
+      emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
+      fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
+      wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
+      w <- taggedObjectTag "ticket" wrapped (lTicketWrap ls) slow
+      valp <- loadAt w "val" "i64" (lHeaderBytes ls)
+      Pair u b <- valFields fe valp slow
+      storeU (d + 1) u
+      storeB (d + 1) b
+      k (d + 1)
+    RefCAS i j kv
+      | enabled fe "ref",
+        not (envSandboxed (feEnv fe)) -> do
+          slow <- callOutExit True fe d instr sect
+          r <- loadB (d - i)
+          t <- loadB (d - j)
+          u <- loadU (d - kv)
+          b <- loadB (d - kv)
+          requireTagged slow (D.singleton b)
+          res <- fresh "cas"
+          emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
+          miss <- fresh "miss"
+          emit (miss <> " = icmp slt i64 " <> res <> ", 0")
+          branchIf "cas" miss slow
+          c <- fresh "c"
+          emit (c <> " = icmp eq i64 " <> res <> ", 1")
+          resultBool fe d c
+          k (d + 1)
+    Prim2 op i j | prim2Supported op -> do
+      x <- loadU (d - i)
+      y <- loadU (d - j)
+      genPrim2 fe d op x y sect
+      k (d + 1)
+    _ -> genCallOut fe d instr sect
 
 -- | The boolean in slot @k@ as an i1. One still held as an i1 costs
 -- nothing; otherwise the closure must be an enumeration (else @slow@),
@@ -4697,7 +4707,7 @@ boxHelperText env
                 tp <- genPackPtr fe ref "%tagw" vals
                 emit ("ret ptr " <> tp)
               pure (Pair n l)
-            emit ("switch i64 %n, label %" <> failL <> " [ " <> intercalateT " " (D.fromList [ "i64 " <> tshow n <> ", label %" <> l | Pair n l <- arms]) <> " ]")
+            emit ("switch i64 %n, label %" <> failL <> " [ " <> intercalateT " " (D.fromList ["i64 " <> tshow n <> ", label %" <> l | Pair n l <- arms]) <> " ]")
             sideBlockNamed failL (emit "ret ptr null")
             startBlock "unreachable"
           block (Pair l is)

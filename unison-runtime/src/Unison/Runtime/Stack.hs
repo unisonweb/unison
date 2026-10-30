@@ -679,6 +679,7 @@ witnessTag1 = Closure (GUnboxedTypeTag (WitnessTag 1))
 {-# NOINLINE witnessTag1 #-}
 witnessTag2 = Closure (GUnboxedTypeTag (WitnessTag 2))
 {-# NOINLINE witnessTag2 #-}
+
 {-# NOINLINE natTypeTag #-}
 
 intTypeTag :: Closure
