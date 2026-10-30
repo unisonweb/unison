@@ -38,6 +38,10 @@ test> Coro.feed.tests.example = test.verify do
   ensureEqual (Stream.toList (Coro.feed (Stream.fromList [1, 2, 3, 4]) Coro.tests.runningSum)) [0, 1, 3, 6, 10]
   ensureEqual (Stream.toList (Coro.feed Stream.empty Coro.tests.runningSum)) [0]
   ensureEqual (Stream.toList (Coro.feed (Stream.fromList [10, 20]) Coro.tests.once)) [1]
+  producer = Stream.tap (_ -> Store.modify (n -> n + 1)) (Stream.range 1 101)
+  (out, pulled) = Store.withInitialValue 0 do (Stream.toList (Stream.take 3 (Coro.feed producer Coro.tests.runningSum)), Store.get)
+  ensureEqual out [0, 1, 3]
+  ensureEqual pulled 2
 ```
 ``` ucm
 scratch/main> add
