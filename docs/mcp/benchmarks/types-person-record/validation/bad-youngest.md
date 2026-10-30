@@ -1,6 +1,6 @@
 ``` unison
 Person.birthday : { age: Nat | r } -> { age: Nat | r }
-Person.birthday p = p@age.set (p@age + 1)
+Person.birthday p = p@{age: @age + 1}
 
 Person.oldest : [{ age: Nat | r }] -> Optional { age: Nat | r }
 Person.oldest = List.maximumOn (a b -> Universal.ordering b a) (@age)
