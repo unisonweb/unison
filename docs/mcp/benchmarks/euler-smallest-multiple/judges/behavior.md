@@ -2,9 +2,10 @@ You are judging `smallestMultiple` in the Unison codebase you are connected to. 
 
 Run each of the following, and note the result of each:
 
-1. `view smallestMultiple`: the type is `Nat -> Nat` (or a type that is compatible and returns the exact value).
-2. `smallestMultiple 1` is `1`, `smallestMultiple 10` is `2520`, `smallestMultiple 20` is `232792560`.
-3. `smallestMultiple 40` is `5342931457063200` (a brute-force search up the numbers would not finish).
+1. `view smallestMultiple`: the type is `Nat -> Optional Nat`.
+2. `smallestMultiple 1` is `Some 1`, `smallestMultiple 10` is `Some 2520`, `smallestMultiple 20` is `Some 232792560`.
+3. `smallestMultiple 0` is `None`.
+4. `smallestMultiple 40` is `Some 5342931457063200` (a brute-force search up the numbers would not finish: don't wait more than about 20 seconds for it).
 
 `smallestMultiple` passes only if every check passes.
 

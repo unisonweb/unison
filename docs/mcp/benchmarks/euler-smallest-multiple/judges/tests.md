@@ -4,7 +4,7 @@ Steps:
 
 1. Find the tests for `smallestMultiple` (`ls smallestMultiple.tests`, or `find tests`; they are in the project, not in a library) and view them.
 2. Run them with `test`. They must all pass.
-3. Check that they cover: the example in the task, `1`, and `20`.
+3. Check that they cover: the example in the task, `0` (which gives `None`), `1`, and `20`.
 4. Check that the expected values are written out in the tests, not computed by calling `smallestMultiple` itself.
 5. Check that the definitions and the tests were added to the codebase, not only left in a scratch file.
 
