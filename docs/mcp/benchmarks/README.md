@@ -48,7 +48,7 @@ Run each variant several times, since a single run is noise. Keep some tasks out
 - `list-xf-keep`: the same for `List.xfKeep`, which is `List.filterMap`.
 - `list-run-lengths`, `list-neighbors`, `list-running-totals`, `list-merge-sorted`: list tasks. The first three have a `reuses-existing` judge (a base function behind them); merge has an `efficiency` judge.
 - `map-word-counts`, `map-invert`, `map-add-counts`, `map-group-by-length`: `Map` tasks with `behavior`, `tests` and `reuses-existing` judges.
-- `euler-factorial-digits`, `euler-smallest-multiple`, `euler-nth-prime`: Project Euler style; `Integer`/`Natural` needed for the first, `efficiency` judges for the first and last.
+- `euler-factorial-digits`, `euler-smallest-multiple`, `euler-nth-prime`: Project Euler style; `Integer`/`Natural` needed for the first, an `efficiency` judge for the first.
 - `types-shape-area`, `types-person-record`: a data type and a record.
 - `text-extract-numbers`, `text-parse-log-line`: text patterns (`Pattern`); the reuse judge rates `Pattern` use GREAT.
 - `abilities-coro`, `abilities-collect-log`: new abilities with handlers; an `ability-polymorphic` judge checks the signature lets other abilities through.

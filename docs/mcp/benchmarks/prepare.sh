@@ -2,7 +2,7 @@
 # Prints the directory of a fresh codebase for a benchmark task, ready for a worker agent:
 # project `scratch`, branch `main`, with the base library installed.
 #
-#   docs/mcp/benchmarks/prepare.sh <task>      (task is optional; its setup.md runs first)
+#   docs/mcp/benchmarks/prepare.sh <task> [<setup>]   (task is optional; <setup>, default <task>/setup.md, runs first)
 #
 # The base codebase is built once, by running base-codebase.md (this needs the network the first time),
 # and cached under $TMPDIR (or BENCHMARK_CODEBASES_DIR) in a directory named for the hash of
@@ -14,6 +14,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 unison=${UNISON:-unison}
 task=${1:-}
+setup=${2:-${task:+$here/$task/setup.md}}
 
 if command -v sha256sum >/dev/null; then hash=$(sha256sum "$here/base-codebase.md" | cut -c1-16); else hash=$(shasum -a 256 "$here/base-codebase.md" | cut -c1-16); fi
 cache=${BENCHMARK_CODEBASES_DIR:-${TMPDIR:-/tmp}/unison-mcp-benchmarks}
@@ -33,11 +34,11 @@ if [ ! -f "$base/.unison/v2/unison.sqlite3" ]; then
 fi
 
 run="$cache/run.$(date +%s).$$"
-if [ -n "$task" ] && [ -f "$here/$task/setup.md" ]; then
+if [ -n "$setup" ] && [ -f "$setup" ]; then
   mkdir -p "$run.tmp"
-  cp "$here/$task/setup.md" "$run.tmp/setup.md"
+  cp "$setup" "$run.tmp/setup.md"
   "$unison" -C "$base" transcript.fork -S "$run" "$run.tmp/setup.md" >&2
-  if grep -q "error occurred" "$run.tmp/setup.output.md"; then echo "setup.md failed; see $run.tmp/setup.output.md" >&2; exit 1; fi
+  if grep -qE "error occurred|🛑" "$run.tmp/setup.output.md"; then echo "setup.md failed; see $run.tmp/setup.output.md" >&2; exit 1; fi
   rm -rf "$run.tmp"
 else
   cp -R "$base" "$run"

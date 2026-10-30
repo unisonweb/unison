@@ -39,7 +39,7 @@ Base has `Integer` and `Natural` (arbitrary size, `Natural.pow`, `Integer.lcm`, 
 |---|---|---|---|---|
 | 12 | `euler-factorial-digits` | Sum of the digits of `n!` as a `Natural`. Prompt shows `10 -> 27`. | `Natural` arithmetic, `Stream` or `List.foldLeft` over a range, `Natural.toText` and `Text.toCharList`, or `Natural.divMod`-style loop. | `100 -> 648`. `0 -> 1`. Using `Nat` overflows silently from `21!`. |
 | 13 | `euler-smallest-multiple` | Smallest number divisible by every number from 1 to `n`. | `lcm` folded over `List.rangeClosed` (look for `Nat.lcm` or `Natural` gcd), so the reuse judge looks for it. | `10 -> 2520`, `20 -> 232792560`, `40 -> 5342931457063200`. |
-| 14 | `euler-nth-prime` | The `n`th prime. Prompt shows `6th -> 13`. Must be fast. | `Stream` plus `Stream.filter`, or a bounded trial division over earlier primes. | `10001 -> 104743` in seconds. `1 -> 2`. |
+| 14 | `euler-nth-prime` | The `n`th prime. Prompt shows `6th -> 13`. Reasonably fast. | `Stream` plus `Stream.filter`, or a bounded trial division over earlier primes. | `100 -> 541`. `1 -> 2`. |
 
 Dropped from the first draft: multiples of 3 or 5, even Fibonacci, largest prime factor, palindrome product, Pythagorean triplet, Collatz, digit powers. I can bring any back.
 
