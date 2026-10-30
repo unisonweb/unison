@@ -1,8 +1,8 @@
 ``` unison
 factorialDigitSum : Nat -> Nat
 factorialDigitSum n =
-  one = Natural.fromNat 1
-  fact = List.foldLeft (acc k -> (Natural.*) acc (Natural.fromNat k)) one (List.range 1 (n + 1))
+  naturals = List.tabulate n (i -> Natural.fromNat (i + 1))
+  fact = List.foldLeft (Natural.*) (Natural.fromNat 1) naturals
   digits = Text.toCharList (Natural.toText fact)
   List.foldLeft (acc c -> acc + (Char.toNat c - Char.toNat ?0)) 0 digits
 
