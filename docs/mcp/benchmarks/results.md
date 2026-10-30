@@ -41,3 +41,9 @@ What the failures have in common, from the workers' transcripts:
 ## Round 3: area-to-topic list in the instructions, Haiku only
 
 15 / 16. Only `list-xf` fails: the worker noticed that `List.map` has the same shape but wrote its own `foldLeft`. `extract-numbers` and `parse-log-line` now use `Pattern` (GREAT), `store-label` uses `Scope.ref` (GREAT), `safe-average` derives `averageOrNone` from `average` with `Exception.catch` (GREAT), and `parse-all` uses `Throw.toEither` (GREAT). One `list-pick` worker created a project called `myproject` (copied from the examples in the topics), which the instructions now warn about. `first-done/behavior` was loosened like `slow-squares/behavior`.
+
+## Round 4: alias guidance and the project-name warning, Sonnet (all 16) and Haiku (`list-xf`)
+
+Sonnet 16 / 16. Haiku `list-xf`, the one failure of round 3, now passes: it wrote `List.xf f xs = List.map f xs`, which the reuse judge rates PASS (a wrapper that could be eta reduced). Four judges rate the Sonnet runs GREAT where it matters: `Throw.toEither`, `Pattern`, `Random.shuffle`, `Scope.ref`, `Threads.parMap` and `multiRace`. Compared with the baseline, Sonnet moved from 10 / 16 to 16 / 16 and Haiku from 9 / 16 to 16 / 16, though the Haiku figure combines rounds 3 and 4, and each cell is one run.
+
+Harness slips, so that nobody repeats them: judging a run while its worker is still going stops its server (it happened to `slow-squares` in round 1 and `list-pick` in round 4, and both were rerun), and the first Haiku `list-pick` run created a project named `myproject` from the examples in the topics.
