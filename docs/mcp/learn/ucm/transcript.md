@@ -20,6 +20,7 @@ The format of the transcripts you send, what the four tools allow, and how to re
 - A command that fails in a block without `:error` stops the transcript. The reply is everything up to and including that block, then the error. Fix that spot and run again.
 - The tools differ only in what they allow. `transcript-read-only` changes nothing (start here). `transcript` also makes changes that are easy to undo: [`update`](learn:ucm/update), [`merge`](learn:ucm/merge), [branches](learn:ucm/branches), installing [libraries](learn:ucm/libraries), deleting definitions. `transcript-io` also [runs code](learn:ucm/run). `transcript-all` allows everything, including deleting projects and branches and pushing to [Unison Share](learn:ucm/share). A transcript that uses a command its tool doesn't allow doesn't run at all, and the reply says which tool it needs.
 - For anything long, write the transcript to a file and pass `transcript-file`, so that you can fix one spot and run it again.
+- **Before you say you are done,** check that the work is really in the codebase and finished: your definitions are saved with `update` (code in a `unison` block alone isn't), each one has documentation (`docs <name>` shows it; a function without a `.doc` is not finished, even if the prompt didn't mention docs) and tests that pass (`test`), you are on the branch the task wants (the reply ends with `Current branch: ...`), and no temporary branch or extra definition is left over.
 
 ## Detail
 

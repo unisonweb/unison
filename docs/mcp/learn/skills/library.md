@@ -4,6 +4,7 @@ When the task needs something the base library doesn't have (reading or writing 
 - **Read about it before installing.** `share.render @unison/json` prints the README, and `share.source @unison/json:Decoder.run` a definition. `share.releases @unison/json` lists its releases with dates, and `share.releases.detail 1` shows the release notes of the first.
 - **Install it.** `lib.install @unison/json/releases/latest`. It goes into `lib` in the current project (see [libraries](learn:ucm/libraries)). Check `list lib` first, because it may be installed already, and never install a second copy of one you have.
 - **Get to know it,** with its README and documentation: `display lib.<folder>.README`, `find.all <word>`, `docs <name>`, `view <name>` (see [familiarize](learn:skills/familiarize)). Names resolve by their last parts, so after `find.all Decoder` you can use `docs Decoder.run`.
+- **Use it for both directions:** a JSON library reads *and* builds JSON, so build output with it too (`Json.object`, `Json.toText`) rather than joining strings with `++`; a web library has helpers for its responses. Hand-built text is the part that goes wrong (escaping, quotes).
 - **Use it, then test and document your code** as usual.
 - **A library that doesn't fit** (a missing feature, a different type) is a reason to adapt your code to it or to pick another library, not to copy its internals. Writing your own is a last resort when no library does the job.
 
