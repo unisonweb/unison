@@ -135,6 +135,7 @@ tests:
       - unison-cli
       - unison-core
       - unison-core1
+      - unison-merge
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer

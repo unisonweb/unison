@@ -113,7 +113,9 @@ commandTiers =
         "share.project-search",
         "share.search",
         "share.source",
-        "share.render"
+        "share.render",
+        "share.releases",
+        "share.releases.detail"
       ]
     local =
       [ "update",

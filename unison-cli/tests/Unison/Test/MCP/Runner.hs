@@ -2,12 +2,16 @@
 module Unison.Test.MCP.Runner (test) where
 
 import Data.Either (isLeft)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import EasyTest
 import System.IO.Temp qualified as Temp
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Merge2 (lineMergedNames, lineMergedNote)
+import Unison.Merge.ThreeWay qualified as Merge
+import Unison.Syntax.Name qualified as Name
 import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript (Transcript)
@@ -49,7 +53,19 @@ test =
           Right output ->
             -- The block comes after the file that UCM wrote for the update, and it must get UCM's report of what it
             -- typechecked, like any other unison block.
-            expectTextContaining ["I couldn't complete the update", "foo : Text"] (Text.pack (renderOutput output))
+            expectTextContaining ["I couldn't complete the update", "foo : Text"] (Text.pack (renderOutput output)),
+      scope "a definition both branches changed on different lines is named as merged at the line level" do
+        let version a c = Text.unlines ["f x =", "  a = " <> a, "  b = 7", "  c = " <> c, "  a + b + c"]
+            texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10" "x + 2", Merge.bob = version "x + 1" "x + 20", Merge.lca = version "x + 1" "x + 2"}
+        expect' (lineMergedNames texts == [Name.unsafeParseText "f"])
+        expect'
+          ( "successfully merged at the line-level: f" `Text.isInfixOf` lineMergedNote (lineMergedNames texts)
+          ),
+      scope "a definition both branches changed on the same line is left to the conflict markers" do
+        let version a = Text.unlines ["f x =", "  " <> a]
+            texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10", Merge.bob = version "x + 20", Merge.lca = version "x + 1"}
+        expect' (null (lineMergedNames texts))
+        expect' (Text.null (lineMergedNote (lineMergedNames texts)))
     ]
   where
     mcp = const Transcript.mcpConfig

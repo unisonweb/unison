@@ -89,7 +89,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
-import Unison.Codebase.Editor.HandleInput.Share (handleShareProjectSearch, handleShareRender, handleShareSearch, handleShareSource)
+import Unison.Codebase.Editor.HandleInput.Share (handleShareProjectSearch, handleShareReleaseDetail, handleShareReleases, handleShareRender, handleShareSearch, handleShareSource)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
@@ -622,6 +622,8 @@ loop e = do
         ShareSearchI query filter_ -> handleShareSearch query filter_
         ShareSourceI ref -> handleShareSource ref
         ShareRenderI ref -> handleShareRender ref
+        ShareReleasesI handle slug -> handleShareReleases handle slug
+        ShareReleaseDetailI ref -> handleShareReleaseDetail ref
         PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
         PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
         QuitI -> Cli.haltRepl
@@ -863,6 +865,8 @@ inputDescription input =
     ShareSearchI {} -> wat
     ShareSourceI {} -> wat
     ShareRenderI {} -> wat
+    ShareReleasesI {} -> wat
+    ShareReleaseDetailI {} -> wat
     PullI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat

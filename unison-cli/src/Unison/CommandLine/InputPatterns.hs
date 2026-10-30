@@ -185,7 +185,7 @@ import Unison.Cli.Pretty
     prettySlashProjectBranchName,
     prettyURI,
   )
-import Unison.Cli.Share.Ref (ShareRef (..), parseSearchWords, parseShareRef)
+import Unison.Cli.Share.Ref (ShareBranch (..), ShareRef (..), parseSearchWords, parseShareRef)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
@@ -270,6 +270,7 @@ formatStructuredArgument schLength = \case
   SA.ShallowListEntry path entry -> entryToHQText path entry
   SA.SearchResult searchRoot searchResult -> HQ.toText $ searchResultToHQ searchRoot searchResult
   SA.FilePath fp -> Text.pack fp
+  SA.ShareReleaseRef ref -> ref
   where
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
@@ -383,6 +384,7 @@ wrongStructuredArgument expected actual =
       SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
       SA.FilePath _ -> "a file path"
+      SA.ShareReleaseRef _ -> "a release"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
@@ -3869,6 +3871,73 @@ shareRender =
       parse = fmap Input.ShareRenderI . parseShareRefArg shareRender False
     }
 
+shareReleases :: InputPattern
+shareReleases =
+  InputPattern
+    { patternName = "share.releases",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("project on Share", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareReleases ["@user/project"],
+                  "lists the releases of a project on Share, newest first (up to 100), with their dates."
+                )
+              ],
+            "",
+            P.wrap $
+              "The list is numbered: "
+                <> makeExample shareReleaseDetail ["2"]
+                <> "shows the release notes of the second one."
+          ],
+      parse = \case
+        [arg] -> do
+          raw <- unsupportedStructuredArgument shareReleases "a project on Share" arg
+          ref <- first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+          when (ref.branch /= ShareLatest || isJust ref.path) do
+            Left . P.wrap $ "I expected a project, like @user/project."
+          pure (Input.ShareReleasesI ref.handle ref.slug)
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+shareReleaseDetail :: InputPattern
+shareReleaseDetail =
+  InputPattern
+    { patternName = "share.releases.detail",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("release on Share", shareReleaseArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareReleaseDetail ["@user/project/releases/2.3.1"],
+                  "prints the release notes of that release of a project on Share."
+                ),
+                ( makeExample shareReleaseDetail ["2"],
+                  "does the same for the second release in the list that " <> makeExample' shareReleases <> " printed."
+                ),
+                ( makeExample shareReleaseDetail ["@user/project"],
+                  "prints the release notes of the latest release."
+                )
+              ]
+          ],
+      parse = \case
+        [I.StructuredArg (SA.ShareReleaseRef ref)] -> Input.ShareReleaseDetailI <$> first (P.wrap . P.text) (parseShareRef ref)
+        [I.StructuredArg other] -> Left (wrongStructuredArgument "a release" other)
+        [I.RawArg raw] -> Input.ShareReleaseDetailI <$> first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+shareReleaseArg :: ParameterType
+shareReleaseArg =
+  ParameterType
+    { typeName = "release",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
 branchesInputPattern :: InputPattern
 branchesInputPattern =
   InputPattern
@@ -4267,6 +4336,8 @@ validInputs =
       projectSwitch,
       projectsInputPattern,
       shareProjectSearch,
+      shareReleases,
+      shareReleaseDetail,
       shareRender,
       shareSearch,
       shareSource,

@@ -980,6 +980,43 @@
                                   projects and libraries
                                   matching the query.
 
+  share.releases
+  `share.releases @user/project`  lists the releases of a
+                                  project on Share, newest first
+                                  (up to 100), with their dates.
+
+  The list is numbered: `share.releases.detail 2` shows the
+  release notes of the second one.
+
+  share.releases.detail
+  `share.releases.detail @user/project/releases/2.3.1`  prints
+                                                        the
+                                                        release
+                                                        notes of
+                                                        that
+                                                        release
+                                                        of a
+                                                        project
+                                                        on
+                                                        Share.
+  `share.releases.detail 2`                             does the
+                                                        same for
+                                                        the
+                                                        second
+                                                        release
+                                                        in the
+                                                        list
+                                                        that
+                                                        `share.releases`
+                                                        printed.
+  `share.releases.detail @user/project`                 prints
+                                                        the
+                                                        release
+                                                        notes of
+                                                        the
+                                                        latest
+                                                        release.
+
   share.render
   `share.render @user/project`       prints the README of a
                                      project on Share.

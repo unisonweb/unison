@@ -50,7 +50,7 @@ renderUnisonFiles ::
   Updated Names ->
   TwoWay (DefnsF Set Name Name) ->
   TwoWay (DefnsF Set Name Name) ->
-  (Pretty ColorText, ThreeWay (Pretty ColorText))
+  (Pretty ColorText, ThreeWay (Pretty ColorText), ThreeWay (Map Name Text))
 renderUnisonFiles authors declNameLookups defnsByName hydratedDefns libdepsNames conflicts dependents =
   let pped :: PrettyPrintEnvDecl
       pped =
@@ -88,7 +88,16 @@ renderUnisonFiles authors declNameLookups defnsByName hydratedDefns libdepsNames
             lca = renderedLcaConflicts
           }
           <&> \conflicts -> makePrettySoloUnisonFile conflicts renderedDependents
-   in (unparsedFile, unparsedSoloFiles)
+      -- The conflicted definitions, each one rendered on its own, in the three versions
+      conflictTexts :: ThreeWay (Map Name Text)
+      conflictTexts =
+        ThreeWay
+          { alice = renderedConflicts.alice,
+            bob = renderedConflicts.bob,
+            lca = renderedLcaConflicts
+          }
+          <&> \defns -> Map.union (Pretty.toPlain 80 <$> defns.terms) (Pretty.toPlain 80 <$> defns.types)
+   in (unparsedFile, unparsedSoloFiles, conflictTexts)
 
 -- Create a PPE that uses Alice's names whenever possible, falling back to Bob's names only when Alice doesn't have any,
 -- and falling back to the LCA after that.

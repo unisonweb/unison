@@ -7,6 +7,8 @@ module Unison.Cli.Share.Definitions
     SearchHit (..),
     searchEntities,
     searchDefinitions,
+    ReleaseInfo (..),
+    listReleases,
     getReadme,
     getDefinitions,
   )
@@ -66,6 +68,27 @@ data ProjectInfo = ProjectInfo
 instance FromJSON ProjectInfo where
   parseJSON = Aeson.withObject "ProjectInfo" \o -> ProjectInfo <$> o .:? "latestRelease" <*> o .: "defaultBranch"
 
+-- | One release of a project: its version, when it was published, and its status if it isn't published.
+data ReleaseInfo = ReleaseInfo
+  { version :: Text,
+    date :: Text,
+    status :: Text
+  }
+
+instance FromJSON ReleaseInfo where
+  parseJSON = Aeson.withObject "ReleaseInfo" \o -> do
+    version <- o .: "version"
+    created <- o .: "createdAt"
+    status <- o .: "status"
+    statusName <- status .: "status"
+    published <- status .:? "publishedAt"
+    pure ReleaseInfo {version, date = Text.takeWhile (/= 'T') (fromMaybe created published), status = statusName}
+
+newtype ReleasesResponse = ReleasesResponse [ReleaseInfo]
+
+instance FromJSON ReleasesResponse where
+  parseJSON = Aeson.withObject "ReleasesResponse" \o -> ReleasesResponse <$> o .: "items"
+
 type ShareAPI =
   ("search" :> Servant.QueryParam "query" Text :> Servant.Get '[Servant.JSON] SearchHits)
     :<|> ( "search-definitions"
@@ -75,6 +98,7 @@ type ShareAPI =
              :> Servant.Get '[Servant.JSON] DefinitionSearchResults
          )
     :<|> Project (Servant.Get '[Servant.JSON] ProjectInfo)
+    :<|> Project ("releases" :> Servant.QueryParam "limit" Int :> Servant.Get '[Servant.JSON] ReleasesResponse)
     :<|> Project ("readme" :> Servant.Get '[Servant.JSON] ReadmeResponse)
     :<|> Project ("branches" :> Servant.Capture "branch" Text :> DefinitionByName)
     :<|> Project ("releases" :> Servant.Capture "version" Text :> DefinitionByName)
@@ -88,12 +112,14 @@ type DefinitionByName =
 httpSearch :: Maybe Text -> Servant.ClientM SearchHits
 httpSearchDefinitions :: Maybe Text -> Maybe Text -> Maybe Text -> Servant.ClientM DefinitionSearchResults
 httpProjectInfo :: Text -> Text -> Servant.ClientM ProjectInfo
+httpReleases :: Text -> Text -> Maybe Int -> Servant.ClientM ReleasesResponse
 httpReadme :: Text -> Text -> Servant.ClientM ReadmeResponse
 httpBranchDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
 httpReleaseDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
 ( httpSearch
     :<|> httpSearchDefinitions
     :<|> httpProjectInfo
+    :<|> httpReleases
     :<|> httpReadme
     :<|> httpBranchDefinition
     :<|> httpReleaseDefinition
@@ -115,6 +141,11 @@ searchDefinitions query filter_ =
   where
     projectFilter = case filter_ of Just (FilterProject project) -> Just project; _ -> Nothing
     userFilter = case filter_ of Just (FilterUser user) -> Just user; _ -> Nothing
+
+-- | The releases of a project, newest first (at most 100).
+listReleases :: Text -> Text -> Cli (Either Servant.ClientError [ReleaseInfo])
+listReleases handle slug =
+  run (httpReleases handle slug (Just 100)) <&> fmap \(ReleasesResponse releases) -> releases
 
 -- | The project's README, as markdown.
 getReadme :: ShareRef -> Cli (Either Servant.ClientError Text)

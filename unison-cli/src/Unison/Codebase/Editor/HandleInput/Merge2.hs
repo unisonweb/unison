@@ -10,6 +10,10 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     doMerge,
     doMergeLocalBranch,
 
+    -- * Exported for tests
+    lineMergedNames,
+    lineMergedNote,
+
     -- * API exported for @todo@
     hasDefnsInLib,
   )
@@ -407,7 +411,9 @@ doMerge info = do
                       maybe "" (into @Text) info.lca.causalHash
                     ]
                     ( if conflictMarkers
-                        then makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
+                        then
+                          lineMergedNote (lineMergedNames mergeblob.conflictTexts)
+                            <> makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
                         else Pretty.toPlain 80 mergeblob.unparsedFile
                     )
                 done
@@ -585,6 +591,33 @@ typecheckedUnisonFileToBranchAdds tuf = do
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Making file with conflict markers
+
+-- | The conflicted definitions that both branches changed, and whose changes git-style line merging combined without a
+-- conflict: they appear in the merged file with no conflict markers, and may not do what either branch meant.
+lineMergedNames :: Merge.ThreeWay (Map Name Text) -> [Name]
+lineMergedNames texts =
+  [ name
+  | (name, aliceText) <- Map.toList texts.alice,
+    Just bobText <- [Map.lookup name texts.bob],
+    let lcaText = Map.findWithDefault "" name texts.lca,
+    aliceText /= lcaText,
+    bobText /= lcaText,
+    aliceText /= bobText,
+    all (not . isConflict) (Diff3.diff3 (Text.lines lcaText) (Text.lines aliceText) (Text.lines bobText))
+  ]
+  where
+    isConflict = \case
+      Diff3.Conflict {} -> True
+      Diff3.Hunk {} -> False
+
+-- | A note for the top of the merged file that names the definitions that were merged line by line (see 'lineMergedNames').
+lineMergedNote :: [Name] -> Text
+lineMergedNote = \case
+  [] -> ""
+  names ->
+    "-- The following definitions below were successfully merged at the line-level: "
+      <> Text.intercalate ", " (Name.toText <$> names)
+      <> "\n-- You may want to manually review them for correctness.\n\n"
 
 makeMergedFileContents :: MergeSourceAndTarget -> Merge.ThreeWay Text -> Text
 makeMergedFileContents sourceAndTarget fileContents =

@@ -208,6 +208,8 @@ data Input
   | ShareSearchI Text (Maybe SearchFilter)
   | ShareSourceI ShareRef
   | ShareRenderI ShareRef
+  | ShareReleasesI Text Text -- handle, project slug
+  | ShareReleaseDetailI ShareRef
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | QuitI

@@ -4,6 +4,8 @@ module Unison.Codebase.Editor.HandleInput.Share
     handleShareSearch,
     handleShareSource,
     handleShareRender,
+    handleShareReleases,
+    handleShareReleaseDetail,
   )
 where
 
@@ -13,6 +15,7 @@ import Network.HTTP.Types (status404)
 import Servant.Client qualified as Servant
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Cli.Share.Definitions
 import Unison.Cli.Share.Ref (SearchFilter, ShareRef (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
@@ -120,3 +123,39 @@ lookupDefinitions ref@ShareRef {path} = do
   when (not (null (missingDefinitions results))) do
     Cli.returnEarly (Output.ShareFailed ("Not found on Share: " <> Text.intercalate ", " (missingDefinitions results)))
   pure results
+
+-- | List the releases of a project, newest first, numbered so that @share.releases.detail 2@ can refer to one.
+handleShareReleases :: Text -> Text -> Cli ()
+handleShareReleases handle slug = do
+  releases <- listReleases handle slug & onLeftM \case
+    Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed ("There is no project @" <> handle <> "/" <> slug <> " on Share."))
+    err -> Cli.returnEarly (Output.ServantClientError err)
+  case releases of
+    [] -> Cli.respond (Output.ShareText ("@" <> handle <> "/" <> slug <> " has no releases."))
+    _ -> do
+      let refs = releases <&> \ReleaseInfo {version} -> "@" <> handle <> "/" <> slug <> "/releases/" <> version
+      Cli.setNumberedArgs (SA.ShareReleaseRef <$> refs)
+      let width = Text.length (tShow (length releases))
+      Cli.respond . Output.ShareText . Text.unlines $
+        [ Text.justifyRight width ' ' (tShow n) <> ". " <> version <> "  " <> date <> (if status == "published" then "" else "  (" <> status <> ")")
+          | (n, ReleaseInfo {version, date, status}) <- zip [1 :: Int ..] releases
+        ]
+          ++ [ "",
+               "Use `share.releases.detail <number>` (or `share.releases.detail @" <> handle <> "/" <> slug <> "/releases/<version>`) to read the release notes of one."
+             ]
+
+-- | Print the release notes (the doc named @ReleaseNotes@) of a release.
+handleShareReleaseDetail :: ShareRef -> Cli ()
+handleShareReleaseDetail ref = do
+  when (isJust ref.path) do
+    Cli.returnEarly (Output.ShareFailed "Expected a release, like @user/project/releases/1.2.3")
+  results <- getDefinitions ref "ReleaseNotes" & onLeftM \case
+    Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed "That release was not found on Share.")
+    err -> Cli.returnEarly (Output.ServantClientError err)
+  let DefinitionDisplayResults {termDefinitions, typeDefinitions} = results
+      docs =
+        [doc | TermDefinition {termDocs} <- Map.elems termDefinitions, (_, _, doc) <- termDocs]
+          ++ [doc | TypeDefinition {typeDocs} <- Map.elems typeDefinitions, (_, _, doc) <- typeDocs]
+  if null docs
+    then Cli.respond (Output.ShareText "This release has no ReleaseNotes.")
+    else Cli.respond . Output.ShareText . Text.intercalate "\n\n---\n\n" $ docs <&> Markdown.toText . Doc.toMarkdown

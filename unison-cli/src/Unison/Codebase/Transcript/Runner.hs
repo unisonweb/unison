@@ -121,6 +121,8 @@ mcpConfig :: Config
 mcpConfig =
   defaultConfig
     { unattended = True,
+      -- No person is there to answer an interactive search, so a command with no arguments fails instead of opening fzf.
+      fzfPath = pure "NONE",
       outputIsFailure = Output.isFailureForMcp,
       outputIsNumberedFailure = Output.isNumberedFailureForMcp,
       createMissingContexts = False
