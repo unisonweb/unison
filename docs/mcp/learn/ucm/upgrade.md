@@ -3,6 +3,7 @@ Upgrading a library you depend on to a newer version, with `upgrade`.
 - Install the new version next to the old one with `lib.install` (see [libraries](learn:ucm/libraries)), so that `lib` has both, for example `lib.old` and `lib.new`.
 - `upgrade old new` switches everything in your code that uses `lib.old` to use `lib.new`, then removes `lib.old`. `lib.new` stays under its own name.
 - If some of your code no longer typechecks against the new version, the upgrade can't finish. You are put on a [temporary branch](learn:ucm/temporary-branch), `upgrade-old-to-new`, with a file of the code to fix.
+- **Don't `cancel` an upgrade that stops:** that abandons it, leaving your code on the old version. Fix the file (what to change is in the new version's release notes, README or `migration` docs, `display lib.new.README`, and in the types), `load` it, and `update`, which finishes the upgrade and removes `lib.old`.
 - `upgrade` takes more than one pair: `upgrade old new old2 new2`.
 
 ## Detail
