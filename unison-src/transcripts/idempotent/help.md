@@ -882,10 +882,14 @@
 
   The rewritten definitions go to a new file,
   `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`. (For a file
-  target, that is in a `rewrites` directory next to the file,
-  unless the file is already in one, and then the new file goes
-  beside it.) Review that file, typecheck it with `load` and run
-  `update` when you are done.
+  target, it is
+  `rewrites/<file>-<yyyy-mm-dd-hh-mm>-<short-guid>.u` in a
+  `rewrites` directory next to the file, unless the file is
+  already in one, and then the new file goes beside it, so that
+  all the rewrites of a file sort together.) Nothing is changed
+  in the branch or in the target file until you `update`. Review
+  that file, typecheck it with `load` and run `update` when you
+  are done.
 
   An example of a rewrite:
 

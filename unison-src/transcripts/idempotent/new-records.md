@@ -1179,14 +1179,15 @@ scratch/main> rewrite :litRule scratch.u
   I found and replaced matches in these definitions: targetLit
 
   The rewritten definitions are in
-  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
-  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
-  run `update` when you are done.
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
 -- Rewrote using: litRule
--- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetLit
 
 litRule = @rewrite case {x: 0} ==> {x: 1}
@@ -1238,14 +1239,15 @@ scratch/main> rewrite :swapRule scratch.u
   I found and replaced matches in these definitions: targetSwap
 
   The rewritten definitions are in
-  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
-  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
-  run `update` when you are done.
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
 -- Rewrote using: swapRule
--- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetSwap
 
 swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
@@ -1292,14 +1294,15 @@ scratch/main> rewrite :wildRule scratch.u
   I found and replaced matches in these definitions: targetWild
 
   The rewritten definitions are in
-  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
-  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
-  run `update` when you are done.
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
 -- Rewrote using: wildRule
--- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetWild
 
 wildRule _w = @rewrite case {w: _w} ==> {w: 0}

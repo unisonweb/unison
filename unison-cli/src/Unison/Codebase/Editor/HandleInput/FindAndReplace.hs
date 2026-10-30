@@ -13,7 +13,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
-import System.FilePath (normalise, takeDirectory, takeFileName, (</>))
+import System.FilePath (normalise, takeBaseName, takeDirectory, takeFileName, (</>))
 import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
 import Unison.Codebase.Editor.Input (RelativeToFold (..), RewriteTarget (..), RewritesSpec (..))
@@ -71,7 +71,7 @@ handleStructuredFindReplaceI spec target = do
   case target of
     Just (RewriteFile path) -> do
       uf0 <- loadAndParse path
-      dest <- newRewritesPath (rewritesDirectoryFor path)
+      dest <- newRewritesPath (rewritesDirectoryFor path) (Just (takeBaseName path))
       applyRewrites False ruleTerms (UFN.toNames uf0 <> branchNames) dest uf0
     Just (RewriteNamespace path0) -> rewriteDefinitionsIn (Just path0) currentBranch ruleTerms
     Nothing -> rewriteDefinitionsIn Nothing currentBranch ruleTerms
@@ -111,7 +111,7 @@ handleStructuredFindReplaceI spec target = do
           uf0 <-
             Cli.runTransaction (Parsers.parseFile "rewrites" (Text.unpack text) parsingEnv)
               & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
-          dest <- newRewritesPath "rewrites"
+          dest <- newRewritesPath "rewrites" Nothing
           applyRewrites True ruleTerms (UFN.toNames uf0 <> branchNames) dest uf0
 
 -- | Apply the rewrites to the definitions of a parsed file, and write the result, if anything changed, to a new file.
@@ -161,9 +161,10 @@ rewritesDirectoryFor path
   where
     dir = takeDirectory path
 
--- | @<dir>/<yyyy-mm-dd-hh-mm>-<short-guid>.u@. A transcript test gets a fixed name, so that its output doesn't change.
-newRewritesPath :: FilePath -> Cli FilePath
-newRewritesPath dir = do
+-- | @<dir>/[<file>-]<yyyy-mm-dd-hh-mm>-<short-guid>.u@, where @file@ is the file being rewritten, if any, so that all the
+-- rewrites of a file sort together. A transcript test gets a fixed name, so that its output doesn't change.
+newRewritesPath :: FilePath -> Maybe String -> Cli FilePath
+newRewritesPath dir mfile = do
   env <- ask
   (time, guid) <-
     if env.isTranscriptTest
@@ -172,7 +173,7 @@ newRewritesPath dir = do
         now <- getCurrentTime
         uuid <- UUID.nextRandom
         pure (formatTime defaultTimeLocale "%Y-%m-%d-%H-%M" now, take 8 (UUID.toString uuid))
-  pure (dir </> time <> "-" <> guid <> ".u")
+  pure (dir </> maybe "" (<> "-") mfile <> time <> "-" <> guid <> ".u")
 
 -- | Parse a file, without typechecking it.
 loadAndParse :: FilePath -> Cli (UF.UnisonFile Symbol Ann)
