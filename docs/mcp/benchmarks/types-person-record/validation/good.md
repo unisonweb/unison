@@ -1,13 +1,15 @@
 ``` unison
-Person.birthday : { age: Nat | r } -> { age: Nat | r }
-Person.birthday p = p@{age: @age + 1}
+type Person = Person { name: Text, age: Nat }
 
-Person.oldest : [{ age: Nat | r }] -> Optional { age: Nat | r }
-Person.oldest = List.maximumOn Universal.ordering (@age)
+Person.birthday : Person -> Person
+Person.birthday = cases Person r -> Person r@{age: @age + 1}
+
+Person.oldest : [Person] -> Optional Person
+Person.oldest = List.maximumOn Universal.ordering (cases Person { age: a } -> a)
 
 test> Person.birthday.tests.example = test.verify do
-  ensureEqual (Person.birthday { name: "Ann", age: 30 }) { name: "Ann", age: 31 }
-  ensureEqual (Person.oldest [{ name: "Ann", age: 30 }, { name: "Bob", age: 41 }, { name: "Cy", age: 25 }]) (Some { name: "Bob", age: 41 })
+  ensureEqual (Person.birthday (Person { name: "Ann", age: 30 })) (Person { name: "Ann", age: 31 })
+  ensureEqual (Person.oldest [Person { name: "Ann", age: 30 }, Person { name: "Bob", age: 41 }, Person { name: "Cy", age: 25 }]) (Some (Person { name: "Bob", age: 41 }))
   ensureEqual (Person.oldest []) None
 ```
 ``` ucm
