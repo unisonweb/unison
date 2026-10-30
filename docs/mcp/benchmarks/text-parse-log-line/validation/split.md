@@ -12,7 +12,7 @@ LogLine.parse t =
           message = Text.join " " msgPieces
           match Text.splitOnText ":" time with
             [h, m] -> match (Nat.fromText h, Nat.fromText m) with
-              (Some hour, Some minute) -> Some (LogLine level hour minute message)
+              (Some hour, Some minute) | Text.size h === 2 && Text.size m === 2 -> Some (LogLine level hour minute message)
               _ -> None
             _ -> None
         _ -> None

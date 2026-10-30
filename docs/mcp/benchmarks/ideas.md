@@ -132,6 +132,10 @@ That is 38 ideas, 34 of them new since the baseline. My proposed first batch is 
 - **Ability polymorphism.** Writing higher-order functions and functions that take thunks: the `g` variable, `'{g, Stream a} r -> '{g, Stream b} r` versus a closed `'{Stream a}`, and why a closed signature rejects callers that use other abilities. Use `Stream.map` as the model.
 - **Mutable state with `Scope`.** `Scope.run` with `Scope.ref`, `Ref.read`, `Ref.write` and `Scope.ref.modify`: the efficient way to keep a counter or accumulator across a recursion, preferred over `Store`. Also arrays in `Scope`.
 - **Documenting a function that uses IO.** Recommended shape: an example term `foo.docs.examples.name`, shown with `@source{...}`; then the `run foo.docs.examples.name` command in a `raw` block; then, when the program returns a value and prints nothing, the result in a `@typecheck` block. (Use a `raw` block for the output only when the program prints to the console.)
+- **Layout (the offside rule).** A common source of errors. What I tried (`transcript` runs, one definition each):
+  - After `=`, the first token of the right-hand side sets the block's column. A continuation line indented *less than or equal to* that column ends the block: `xs = List.map f` then `  [1, 2]` on the next line fails, and so does `p = Pattern.join` with the list at four spaces (the `P` is at column five). Indenting the continuation further than the first token works, or start the right-hand side on its own line (`xs =` then an indented body).
+  - Inside brackets the rules are looser: `xs = [ 1` with `, 2` and `]` on later lines at a smaller indent, and `List.map f [` with the elements and `]` on following lines, both parse.
+  - Not yet checked: `match`/`cases` arms, `do` blocks inside arguments, `if`/`then`/`else` across lines, `where`-less local definitions. Worth a short topic with these examples before iterating; ask Paul to confirm the rule for each.
 - **Effects as values vs executed.** When to take and return thunks (building streams, delayed computations) and when to run the effect and put the ability on the last arrow.
 
 ## Open questions

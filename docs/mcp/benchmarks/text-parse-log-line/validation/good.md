@@ -3,9 +3,24 @@ type LogLine = { level : Text, hour : Nat, minute : Nat, message : Text }
 
 LogLine.parse : Text -> Optional LogLine
 LogLine.parse t =
-  digits = Pattern.some Text.patterns.digit
-  p = Pattern.join [Text.patterns.literal "[", Pattern.capture (Pattern.some (Text.patterns.notCharIn [?]])), Text.patterns.literal "] ", Pattern.capture digits, Text.patterns.literal ":", Pattern.capture digits, Text.patterns.literal " ", Pattern.capture (Pattern.many Text.patterns.anyChar), Text.patterns.eof]
-  match Pattern.run p t with
+  literal = Text.patterns.literal
+  digit = Text.patterns.digit
+  level = Pattern.capture (Pattern.some (Text.patterns.notCharIn [?]]))
+  twoDigits = Pattern.capture (Pattern.join [digit, digit])
+  message = Pattern.capture (Pattern.many Text.patterns.anyChar)
+  line =
+    Pattern.join
+      [ literal "["
+      , level
+      , literal "] "
+      , twoDigits
+      , literal ":"
+      , twoDigits
+      , literal " "
+      , message
+      , Text.patterns.eof
+      ]
+  match Pattern.run line t with
     Some ([level, h, m, message], _) ->
       match (Nat.fromText h, Nat.fromText m) with
         (Some hour, Some minute) -> Some (LogLine level hour minute message)
@@ -18,6 +33,8 @@ test> LogLine.parse.tests.example = test.verify do
   ensureEqual (LogLine.parse "garbage") None
   ensureEqual (LogLine.parse "") None
   ensureEqual (LogLine.parse "[INFO] 12 no minutes") None
+  ensureEqual (LogLine.parse "[INFO] 123:45 too many hour digits") None
+  ensureEqual (LogLine.parse "[INFO] 7:05 one hour digit") None
 ```
 ``` ucm
 scratch/main> add
