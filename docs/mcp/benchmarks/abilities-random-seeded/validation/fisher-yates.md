@@ -17,15 +17,16 @@ List.sort (shuffleSeeded 42 [5, 3, 1, 4, 2])
 
 shuffleSeeded : Nat -> [a] -> [a]
 shuffleSeeded seed xs =
+  n = List.size xs
   go = do
-    arr = mutable.Array.fromList xs
-    n = mutable.Array.size arr
+    arr = Scope.Raw.array n
+    List.foreach (cases (x, i) -> mutable.Array.Raw.write arr i x) (List.indexed xs)
     swap i j =
-      tmp = mutable.Array.read arr i
-      mutable.Array.write arr i (mutable.Array.read arr j)
-      mutable.Array.write arr j tmp
+      tmp = mutable.Array.Raw.read arr i
+      mutable.Array.Raw.write arr i (mutable.Array.Raw.read arr j)
+      mutable.Array.Raw.write arr j tmp
     List.foreach (i -> swap i (Random.natIn 0 (i + 1))) (List.reverse (List.range 1 n))
-    List.map (i -> mutable.Array.read arr i) (List.range 0 n)
+    List.map (i -> mutable.Array.Raw.read arr i) (List.range 0 n)
   Random.splitmix seed do Exception.unsafeRun! do Scope.run go
 
 test> shuffleSeeded.tests.example = test.verify do
