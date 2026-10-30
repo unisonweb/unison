@@ -33,3 +33,11 @@ What the failures have in common, from the workers' transcripts:
 - Long replies are saved to a file, and the first round's worker prompt told them not to read other files. Most read the file anyway. (Fixed in the prompt for later rounds.)
 - Judge changes made along the way: `abilities-store-label/ability-use` rates a hand-threaded counter PASS, not FAIL (`Scope.ref` is still GREAT), because the prompt doesn't say how to count.
 - Other judge changes: `threads-slow-squares/behavior` no longer requires `Threads` in the type (handling it inside with `Threads.run` is fine).
+
+## Round 2: new topics (`learn` as of `8baaba553`), Haiku only
+
+12 / 16 (13 / 16 with the `ability-use` change). Passing now that failed before: `random-seeded` (reuses `Random.shuffle`), `list-pick` (`List.zip` and `List.filterMap`), `parse-log-line` (base `Text` functions), `first-done`, `person-record` (new record syntax, rated GREAT). Failing: `extract-numbers`, `safe-average`, `list-xf`, and `store-label` before the judge change. The failures were workers that never opened the topic for their area (`lang/text`, `lang/errors`, `lang/mutable`).
+
+## Round 3: area-to-topic list in the instructions, Haiku only
+
+15 / 16. Only `list-xf` fails: the worker noticed that `List.map` has the same shape but wrote its own `foldLeft`. `extract-numbers` and `parse-log-line` now use `Pattern` (GREAT), `store-label` uses `Scope.ref` (GREAT), `safe-average` derives `averageOrNone` from `average` with `Exception.catch` (GREAT), and `parse-all` uses `Throw.toEither` (GREAT). One `list-pick` worker created a project called `myproject` (copied from the examples in the topics), which the instructions now warn about. `first-done/behavior` was loosened like `slow-squares/behavior`.
