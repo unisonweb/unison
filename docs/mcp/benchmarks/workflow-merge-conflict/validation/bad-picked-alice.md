@@ -4,17 +4,17 @@ scratch/alice> merge /bob
 ```
 
 ``` unison resolved.u
-Order.total : Int -> Int
-Order.total subtotal = subtotal + +5
+Order.total : Nat -> Nat
+Order.total subtotal = subtotal + 5
 
-Order.summary : Int -> Text
-Order.summary subtotal = "Total: " ++ Int.toText (Order.total subtotal)
+Order.summary : Nat -> Text
+Order.summary subtotal = "Total: " ++ Nat.toText (Order.total subtotal)
 
 test> Order.total.tests.example = test.verify do
-  ensureEqual (Order.total +100) +105
+  ensureEqual (Order.total 100) 105
 
 test> Order.summary.tests.example = test.verify do
-  ensureEqual (Order.summary +100) "Total: 105"
+  ensureEqual (Order.summary 100) "Total: 105"
 ```
 
 ``` ucm

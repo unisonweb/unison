@@ -1,39 +1,44 @@
-<!-- Needs the network (a real install from Share). -->
+<!-- Needs the network (a real install from Share). Run on the codebase prepare.sh makes from setup.md. -->
 
 ``` ucm
-scratch/main> list lib
 scratch/main> lib.install @unison/json/releases/latest
 ```
 
-```` unison
-{{ `parseNats t` reads the JSON text `t`, which must be an array of non-negative whole numbers, into a list of `Nat`s. It gives a `Left` when the text is not valid JSON or has other contents. For example:
+``` unison
+Order.fromJson : Text ->{Exception} Order
+Order.fromJson txt =
+  lineItem = do
+    LineItem
+      (Decoder.object.at! "sku" Decoder.text)
+      (Decoder.object.at! "quantity" Decoder.nat)
+      (Decoder.object.at! "priceCents" Decoder.nat)
+  Decoder.run
+    (do
+      Order
+        (Decoder.object.at! "customer" Decoder.text)
+        (Decoder.object.at! "items" (Decoder.array lineItem))
+        (Decoder.object.optionalAt! "note" Decoder.text))
+    txt
 
+test> Order.fromJson.tests.full = test.verify do
+  ensureEqual
+    (Order.fromJson "{\"customer\": \"Ada\", \"items\": [{\"sku\": \"A-1\", \"quantity\": 2, \"priceCents\": 1250}], \"note\": \"gift\"}")
+    (Order "Ada" [LineItem "A-1" 2 1250] (Some "gift"))
+
+test> Order.fromJson.tests.noNote = test.verify do
+  ensureEqual
+    (Order.fromJson "{\"items\": [], \"customer\": \"Bo\"}")
+    (Order "Bo" [] None)
+
+test> Order.fromJson.tests.failures = test.verify do
+  ensure (Either.isLeft (catch do Order.fromJson "not json"))
+  ensure (Either.isLeft (catch do Order.fromJson "[1, 2]"))
+  ensure (Either.isLeft (catch do Order.fromJson "{\"items\": []}"))
+  ensure (Either.isLeft (catch do Order.fromJson "{\"customer\": \"Ada\", \"items\": [{\"sku\": \"A\", \"quantity\": \"2\", \"priceCents\": 5}]}"))
 ```
-parseNats "[1, 2, 3]"
-```
-}}
-parseNats : Text -> Either Failure [Nat]
-parseNats t = catch do Decoder.run (Decoder.array Decoder.nat) t
-
-parseNats.tests.numbers = test.verify do
-  ensureEqual (Either.toOptional (parseNats "[1, 2, 3]")) (Some [1, 2, 3])
-
-parseNats.tests.empty = test.verify do
-  ensureEqual (Either.toOptional (parseNats "[]")) (Some [])
-
-parseNats.tests.notNumbers = test.verify do
-  ensure (Either.isLeft (parseNats "[\"a\"]"))
-
-parseNats.tests.negative = test.verify do
-  ensure (Either.isLeft (parseNats "[-1]"))
-
-parseNats.tests.notJson = test.verify do
-  ensure (Either.isLeft (parseNats "[1, 2"))
-````
 
 ``` ucm
 scratch/main> add
 scratch/main> test
 scratch/main> list lib
-scratch/main> docs parseNats
 ```

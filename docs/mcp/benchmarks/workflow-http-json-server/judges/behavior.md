@@ -30,7 +30,7 @@ judge.call method path body =
 ```
 ````
 
-If its type is something else (for example a function from `HttpRequest` to `HttpResponse`, written directly against `@unison/http`), build the same requests with that library's request constructors and call the function with them under whatever abilities its type needs, without opening a port. If that cannot be done without a port, test the pieces the service is built from instead (the functions it calls to decode the body and to build the answer, found with `dependencies sumService`) on the same inputs, and say so in your reply.
+If its type is something else (for example a `Handler` or a function from `HttpRequest` to `HttpResponse`, written directly against `@unison/http`, where `Handler` wraps `HttpRequest ->{g, Exception, Abort} HttpResponse` and an `Abort` means "not my route"), build the same requests with that library's request constructors and call the function with them under whatever abilities its type needs, without opening a port. If that cannot be done without a port, test the pieces the service is built from instead (the functions it calls to decode the body and to build the answer, found with `dependencies sumService`) on the same inputs, and say so in your reply.
 
 The results must be, in order:
 

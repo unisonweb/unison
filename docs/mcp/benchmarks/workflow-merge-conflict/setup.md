@@ -1,15 +1,15 @@
 ``` unison
-Order.total : Int -> Int
+Order.total : Nat -> Nat
 Order.total subtotal = subtotal
 
-Order.summary : Int -> Text
-Order.summary subtotal = "Total: " ++ Int.toText (Order.total subtotal)
+Order.summary : Nat -> Text
+Order.summary subtotal = "Total: " ++ Nat.toText (Order.total subtotal)
 
 test> Order.total.tests.example = test.verify do
-  ensureEqual (Order.total +100) +100
+  ensureEqual (Order.total 100) 100
 
 test> Order.summary.tests.example = test.verify do
-  ensureEqual (Order.summary +100) "Total: 100"
+  ensureEqual (Order.summary 100) "Total: 100"
 ```
 
 ``` ucm
@@ -21,17 +21,17 @@ scratch/main> branch bob
 Alice adds a flat shipping fee.
 
 ``` unison
-Order.total : Int -> Int
-Order.total subtotal = subtotal + +5
+Order.total : Nat -> Nat
+Order.total subtotal = subtotal + 5
 
-Order.summary : Int -> Text
-Order.summary subtotal = "Total: " ++ Int.toText (Order.total subtotal)
+Order.summary : Nat -> Text
+Order.summary subtotal = "Total: " ++ Nat.toText (Order.total subtotal)
 
 test> Order.total.tests.example = test.verify do
-  ensureEqual (Order.total +100) +105
+  ensureEqual (Order.total 100) 105
 
 test> Order.summary.tests.example = test.verify do
-  ensureEqual (Order.summary +100) "Total: 105"
+  ensureEqual (Order.summary 100) "Total: 105"
 ```
 
 ``` ucm
@@ -45,17 +45,17 @@ scratch/bob> ls Order
 ```
 
 ``` unison
-Order.total : Int -> Int
-Order.total subtotal = subtotal - +10
+Order.total : Nat -> Nat
+Order.total subtotal = subtotal - 10
 
-Order.summary : Int -> Text
-Order.summary subtotal = "Total: " ++ Int.toText (Order.total subtotal)
+Order.summary : Nat -> Text
+Order.summary subtotal = "Total: " ++ Nat.toText (Order.total subtotal)
 
 test> Order.total.tests.example = test.verify do
-  ensureEqual (Order.total +100) +90
+  ensureEqual (Order.total 100) 90
 
 test> Order.summary.tests.example = test.verify do
-  ensureEqual (Order.summary +100) "Total: 90"
+  ensureEqual (Order.summary 100) "Total: 90"
 ```
 
 ``` ucm

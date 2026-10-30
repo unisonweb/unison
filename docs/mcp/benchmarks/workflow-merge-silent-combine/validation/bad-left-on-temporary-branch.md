@@ -6,9 +6,8 @@ scratch/alice> merge /bob
 ``` unison resolved.u
 Report.render : [Text] -> Text
 Report.render names =
-  cleaned = List.map Text.toLowercase names
+  body = Text.join ", " (List.sort (List.map Text.toLowercase names))
   title = "Names"
-  body = Text.join ", " (List.sort cleaned)
   title ++ ": " ++ body
 
 test> Report.render.tests.lowercase = test.verify do

@@ -1,31 +1,38 @@
 <!-- expected: library FAIL -->
-<!-- The agent writes its own small parser and installs nothing: the behavior on simple inputs is right, but no library is used. -->
+<!-- The agent writes its own small scanner and installs nothing: the happy path on compact, ordered JSON works (and its tests only cover that), but no library is used and other key orders, white space and bad shapes are mishandled. -->
 
 ``` unison
-{{ `parseNats t` reads a JSON array of non-negative whole numbers, like `"[1, 2, 3]"`, into a list of `Nat`s, or gives a `Left` when the text is not of that shape. }}
-parseNats : Text -> Either Failure [Nat]
-parseNats t =
+-- the text after `"key":` up to the next `,` or `}` or `]`, without quotes
+Order.fromJson.field : Text -> Text ->{Exception} Text
+Order.fromJson.field key txt =
   use Text ++
-  trimmed = Text.trim t
-  if not (Text.startsWith "[" trimmed && Text.endsWith "]" trimmed) then
-    Left (Failure (typeLink Generic) "not an array" (Any t))
-  else
-    inner = Text.trim (Text.drop 1 (Text.take (Text.size trimmed Nat.- 1) trimmed))
-    if inner === "" then Right []
-    else
-      parts = Text.split ?, inner
-      parsed = List.map (p -> Nat.fromText (Text.trim p)) parts
-      if List.all Optional.isSome parsed then Right (List.map (o -> Optional.getOrElse 0 o) parsed)
-      else Left (Failure (typeLink Generic) "not numbers" (Any t))
+  needle = "\"" ++ key ++ "\":"
+  match Text.indexOf needle txt with
+    None -> raise (Failure (typeLink Generic) ("missing " ++ key) (Any key))
+    Some i ->
+      rest = Text.drop (i + Text.size needle) txt
+      Text.trim (Text.takeWhile (c -> c !== ?, && c !== ?} && c !== ?]) rest)
+        |> Text.filter (c -> c !== ?")
 
-parseNats.tests.numbers = test.verify do
-  ensureEqual (Either.toOptional (parseNats "[1, 2, 3]")) (Some [1, 2, 3])
+Order.fromJson.nat : Text -> Text ->{Exception} Nat
+Order.fromJson.nat key txt =
+  match Nat.fromText (Order.fromJson.field key txt) with
+    Some n -> n
+    None -> raise (Failure (typeLink Generic) "not a number" (Any key))
 
-parseNats.tests.empty = test.verify do
-  ensureEqual (Either.toOptional (parseNats "[]")) (Some [])
+Order.fromJson : Text ->{Exception} Order
+Order.fromJson txt =
+  compact = Text.filter (c -> c !== ?\s) txt
+  itemsText = Text.takeWhile (c -> c !== ?]) (Text.dropWhile (c -> c !== ?[) compact)
+  rawItems = List.drop 1 (Text.split ?{ itemsText)
+  items = List.map (i -> LineItem (Order.fromJson.field "sku" i) (Order.fromJson.nat "quantity" i) (Order.fromJson.nat "priceCents" i)) rawItems
+  note = Optional.map (_ -> Order.fromJson.field "note" compact) (Text.indexOf "\"note\":" compact)
+  Order (Order.fromJson.field "customer" compact) items note
 
-parseNats.tests.notNumbers = test.verify do
-  ensure (Either.isLeft (parseNats "[\"a\"]"))
+test> Order.fromJson.tests.full = test.verify do
+  ensureEqual
+    (Order.fromJson "{\"customer\":\"Ada\",\"items\":[{\"sku\":\"A-1\",\"quantity\":2,\"priceCents\":1250}],\"note\":\"gift\"}")
+    (Order "Ada" [LineItem "A-1" 2 1250] (Some "gift"))
 ```
 
 ``` ucm

@@ -1,9 +1,8 @@
 ``` unison
 Report.render : [Text] -> Text
 Report.render names =
-  cleaned = names
+  body = Text.join ", " names
   title = "Names"
-  body = Text.join ", " cleaned
   title ++ ": " ++ body
 
 test> Report.render.tests.plain = test.verify do
@@ -16,7 +15,7 @@ scratch/main> branch alice
 scratch/main> branch bob
 ```
 
-Alice makes the names come out in lowercase.
+Alice makes the names come out in lowercase, on the line that puts the report together.
 
 ``` ucm
 scratch/alice> ls Report
@@ -25,10 +24,9 @@ scratch/alice> ls Report
 ``` unison
 Report.render : [Text] -> Text
 Report.render names =
-  cleaned = List.map Text.toLowercase names
+  body = Text.join ", " names
   title = "Names"
-  body = Text.join ", " cleaned
-  title ++ ": " ++ body
+  title ++ ": " ++ Text.toLowercase body
 
 test> Report.render.tests.lowercase = test.verify do
   ensureEqual (Report.render ["Bob", "Ann"]) "Names: bob, ann"
@@ -38,7 +36,7 @@ test> Report.render.tests.lowercase = test.verify do
 scratch/alice> update
 ```
 
-Bob makes the names come out sorted.
+Bob makes the names come out sorted, on the line that builds the body.
 
 ``` ucm
 scratch/bob> ls Report
@@ -47,9 +45,8 @@ scratch/bob> ls Report
 ``` unison
 Report.render : [Text] -> Text
 Report.render names =
-  cleaned = names
-  title = "Names"
   body = Text.join ", " (List.sort names)
+  title = "Names"
   title ++ ": " ++ body
 
 test> Report.render.tests.sorted = test.verify do

@@ -1,4 +1,4 @@
-The libraries `textkit` and `tally` stand in for Share libraries: local projects forked into `lib`, so this setup needs no network. `textkit` 2.0.0 only adds a function; `tally` 2.0.0 changes the type of `tick`.
+The libraries `textkit` and `tally` stand in for Share libraries: local projects forked into `lib`, so this setup needs no network. `tally` depends on `textkit` (its `Tally` carries a `textkit` `Label`), as real libraries do: each `tally` release has its own copy of the `textkit` release it was built with in its own `lib`. `textkit` 2.0.0 changes `Label` (a second field) and `tally` 2.0.0 is built on `textkit` 2.0.0; it also changes the type of `tick`. The project mixes the two libraries in `heading`, which passes the `Label` that `tally` returns to `textkit`'s `shout`: with only one of the two libraries upgraded the two sides disagree about what a `Label` is.
 
 ``` ucm
 scratch/main> project.create-empty textkit
@@ -7,11 +7,16 @@ textkit/main> branch v1
 ```
 
 ``` unison
-shout : Text -> Text
-shout t = t ++ "!"
+unique type Label = Label Text
+
+label : Text -> Label
+label t = Label t
+
+shout : Label -> Text
+shout = cases Label t -> t ++ "!"
 
 migration : Text
-migration = "1.0.0 : shout."
+migration = "1.0.0 : Label, label, shout."
 ```
 
 ``` ucm
@@ -20,14 +25,16 @@ textkit/v1> branch /v2
 ```
 
 ``` unison
-shout : Text -> Text
-shout t = t ++ "!"
+unique type Label = Label Text Nat
 
-whisper : Text -> Text
-whisper t = "(" ++ t ++ ")"
+label : Text -> Label
+label t = Label t 1
+
+shout : Label -> Text
+shout = cases Label t k -> t ++ Text.repeat k "!"
 
 migration : Text
-migration = "2.0.0 : adds whisper. Nothing else changed."
+migration = "2.0.0 : Label has a second field, the number of exclamation marks, and label t of 1.0.0 is Label t 1 now. shout, label and the rest keep their names and meanings."
 ```
 
 ``` ucm
@@ -35,43 +42,52 @@ textkit/v2> update
 scratch/main> project.create-empty tally
 tally/main> builtins.merge lib.builtins
 tally/main> branch v1
+tally/v1> fork textkit/v1: lib.textkit_1_0_0
 ```
 
 ``` unison
-unique type Tally = Tally Nat
+unique type Tally = Tally Label Nat
 
-empty : Tally
-empty = Tally 0
+named : Text -> Tally
+named t = Tally (label t) 0
 
 tick : Tally -> Tally
-tick = cases Tally n -> Tally (n + 1)
+tick = cases Tally l n -> Tally l (n + 1)
 
 total : Tally -> Nat
-total = cases Tally n -> n
+total = cases Tally _ n -> n
+
+title : Tally -> Label
+title = cases Tally l _ -> l
 
 migration : Text
-migration = "1.0.0 : Tally, empty, tick, total."
+migration = "1.0.0 : Tally, named, tick, total, title. Built on textkit 1.0.0."
 ```
 
 ``` ucm
 tally/v1> add
 tally/v1> branch /v2
+tally/v2> delete.namespace.force lib.textkit_1_0_0
+tally/v2> fork textkit/v2: lib.textkit_2_0_0
 ```
 
 ``` unison
-unique type Tally = Tally Nat
+unique type Tally = Tally Label Nat
 
-empty : Tally
-empty = Tally 0
+named : Text -> Tally
+named t = Tally (label t) 0
 
 tick : Nat -> Tally -> Tally
-tick amount = cases Tally n -> Tally (n + amount)
+tick amount = cases Tally l n -> Tally l (n + amount)
 
 total : Tally -> Nat
-total = cases Tally n -> n
+total = cases Tally _ n -> n
+
+title : Tally -> Label
+title = cases Tally l _ -> l
 
 migration : Text
-migration = "2.0.0 : tick now takes the amount to add first, so tick t of 1.0.0 is tick 1 t now."
+migration = "2.0.0 : tick now takes the amount to add first, so tick t of 1.0.0 is tick 1 t now. Built on textkit 2.0.0: title returns its Label."
 ```
 
 ``` ucm
@@ -84,16 +100,20 @@ The project's own code, written against the 1.0.0 releases.
 
 ``` unison
 excite : Text -> Text
-excite name = shout name
+excite name = shout (label name)
 
 countThree : Nat
-countThree = total (tick (tick (tick empty)))
+countThree = total (tick (tick (tick (named "three"))))
+
+heading : Text -> Text
+heading name = shout (title (named name))
 
 report : Text -> Text
-report name = shout name ++ " " ++ Nat.toText countThree
+report name = excite name ++ " " ++ Nat.toText countThree
 
 excite.tests.hi = test.verify do ensureEqual (excite "hi") "hi!"
 countThree.tests.three = test.verify do ensureEqual countThree 3
+heading.tests.top = test.verify do ensureEqual (heading "top") "top!"
 report.tests.go = test.verify do ensureEqual (report "go") "go! 3"
 ```
 

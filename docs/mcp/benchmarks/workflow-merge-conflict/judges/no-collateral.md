@@ -3,7 +3,7 @@ You are judging whether anything was disturbed that should not have been, in the
 The setup made, in `main`: `Order.total` (the subtotal), `Order.summary` (the text `"Total: "` followed by the total), and the tests `Order.total.tests.example` and `Order.summary.tests.example`. `alice` changed them to add a shipping fee of 5, `bob` to subtract 10; neither changed `main`. Run:
 
 1. `scratch/main> view Order.total` is the subtotal itself (`Order.total subtotal = subtotal`), and `scratch/main> ls Order` lists `summary`, `summary.`, `total` and `total.`. `main` is unchanged.
-2. `scratch/bob> view Order.total` is `subtotal - +10`, and `scratch/bob> view Order.total.tests.example` expects `+90`. `bob` is unchanged: `scratch/bob> view Order.summary.tests.example` expects `"Total: 90"`.
+2. `scratch/bob> view Order.total` is `subtotal - 10`, and `scratch/bob> view Order.total.tests.example` expects `90`. `bob` is unchanged: `scratch/bob> view Order.summary.tests.example` expects `"Total: 90"`.
 3. `scratch/alice> ls` shows `Order.` (4 terms) and `lib.` only, and `scratch/alice> ls lib` shows one library, `unison_base_7_20_0` (9109 terms, 215 types).
 4. `scratch/main> ls lib` shows the same single library.
 

@@ -1,4 +1,4 @@
-You are judging the behavior of the project's functions in the Unison codebase you are connected to. A previous agent moved the project's code from version 1.0.0 of the library `mylib` to version 2.0.0 (folder `lib.mylib_2_0_0`) and was asked to keep the behavior exactly the same as before. You may use any tool except `learn`. Don't change the project's definitions; use scratch code only for your own checks. This check needs no network.
+You are judging the behavior of the project's functions in the Unison codebase you are connected to. A previous agent was asked to upgrade the dependency `mylib` from 1.0.0 to 2.0.0 (folder `lib.mylib_2_0_0`) and moved the project's code over. The prompt did not mention it, but an upgrade must not change what the project's functions do: the behavior has to be exactly the same as before. You may use any tool except `learn`. Don't change the project's definitions; use scratch code only for your own checks. This check needs no network.
 
 Evaluate each of the following (for example with `> welcome "bob"` in a `unison` block, or `run`), and compare with the expected value, which comes from the 1.0.0 behavior:
 

@@ -1,4 +1,4 @@
-A small client library over four layers: the record `Config` (the first layer), `Config.parse` that builds one with its constructor, `Server.connect` that uses `Config.parse`, `Server.status` that uses `connect`, and `Server.report` that uses `status`, with a test for each function.
+Two independent layers of dependents. The connection layer: the record `Config` (the first layer), `Config.parse` that builds one with its constructor, `Server.connect` that uses `Config.parse`, and `Server.status` that uses `connect`. The retry layer: `Backoff.delay`, `Job.wait` that uses it, `Job.total` that uses `wait`, and `Job.within` that uses `total`. Nothing in one layer refers to the other. There is a test for each function.
 
 ```` unison
 unique type Config = { host : Text, retries : Nat }
@@ -14,8 +14,17 @@ Server.connect host =
 Server.status : Text -> Text
 Server.status host = Server.connect host ++ ": ok"
 
-Server.report : [Text] -> Text
-Server.report hosts = Text.join "\n" (List.map Server.status hosts)
+Backoff.delay : Nat -> Nat
+Backoff.delay attempt = 100 Nat.* Nat.pow 2 attempt
+
+Job.wait : Nat -> Nat
+Job.wait attempt = Backoff.delay attempt
+
+Job.total : Nat -> Nat
+Job.total attempts = List.foldLeft (acc n -> acc Nat.+ Job.wait n) 0 (List.range 0 attempts)
+
+Job.within : Nat -> Nat -> Boolean
+Job.within attempts limit = Job.total attempts Nat.<= limit
 
 test> Config.parse.tests.example = test.verify do
   ensureEqual (Config.parse "example.com") (Config "example.com" 3)
@@ -26,8 +35,17 @@ test> Server.connect.tests.example = test.verify do
 test> Server.status.tests.example = test.verify do
   ensureEqual (Server.status "example.com") "connect example.com (retries 3): ok"
 
-test> Server.report.tests.example = test.verify do
-  ensureEqual (Server.report ["a.com", "b.org"]) "connect a.com (retries 3): ok\nconnect b.org (retries 3): ok"
+test> Backoff.delay.tests.example = test.verify do
+  ensureEqual (Backoff.delay 3) 800
+
+test> Job.wait.tests.example = test.verify do
+  ensureEqual (Job.wait 2) 400
+
+test> Job.total.tests.example = test.verify do
+  ensureEqual (Job.total 3) 700
+
+test> Job.within.tests.example = test.verify do
+  ensureEqual (Job.within 3 700, Job.within 3 699) (true, false)
 ````
 
 ``` ucm

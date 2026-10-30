@@ -4,11 +4,11 @@ scratch/alice> merge /bob
 ```
 
 ``` unison resolved.u
-Order.total : Int -> Int
-Order.total subtotal = subtotal - +10 + +5
+Order.total : Nat -> Nat
+Order.total subtotal = subtotal - 10 + 5
 
 test> Order.total.tests.example = test.verify do
-  ensureEqual (Order.total +100) +95
+  ensureEqual (Order.total 100) 95
 ```
 
 ``` ucm

@@ -30,6 +30,8 @@ Point the worker's MCP server at the printed directory with `unison -C <dir> mcp
 3. **Judge.** For each file in `judges/`, copy the codebase the worker produced and give it to a fresh agent, with the judge file as its prompt. A judge sees the codebase and its prompt, not the worker's conversation.
 4. **Score.** Every judge ends its reply with a line that is exactly `PASS` or `FAIL`, after a short paragraph of reasons. A judge may define more ratings: the `reuses-existing` judges end with `GREAT` (the exact alias), `PASS` (a wrapper that could be eta reduced, partial credit) or `FAIL`. The task passes when all its judges pass.
 
+A judge that needs to see how the worker worked (the `method` judges of the refactoring tasks) cannot tell from the codebase, so its prompt contains placeholders that the harness replaces before giving it to the judge: `{{WORKER_TRANSCRIPTS}}` is the path of a directory holding the worker's submitted transcripts, one Markdown file per call to a transcript tool (the files the worker wrote for `ask.py`, i.e. the worker's `agent/` directory), and `{{CALLS_LOG}}` is the path of the worker's `calls.log` (tool, `learn` path, reply size and error flag per call; it does not hold the transcripts themselves). In the proxy scripts, `jstart.sh` (called by `jall.sh` and `jbundle.sh`) copies those two into the judge's directory (`worker-transcripts/`, `worker-calls.log`) and substitutes the paths with `sed` when it writes `judge-prompt.txt`; judges without the placeholders are unaffected. With any other harness, copy the worker's transcripts somewhere the judge can read and substitute the path the same way.
+
 Metrics worth recording per run: pass/fail per judge, the worker's turns, tool calls, `learn` calls, failed transcript stanzas, and total tokens (the server instructions and every `learn` reply count).
 
 Run each variant several times, since a single run is noise. Keep some tasks out of the loop (don't tune topics against them) to check for overfitting.
@@ -66,6 +68,6 @@ Whole UCM workflows rather than single functions; the starting codebase comes fr
 - Updates and deletes: `workflow-update-clean`, `workflow-update-type-conflict`, `workflow-update-multiround`, `workflow-delete-with-dependents`.
 - Libraries: `workflow-lib-install-upgrade`, `workflow-lib-install-fresh` (these two need the network), `workflow-lib-upgrade-conflict`, `workflow-lib-upgrade-two` (offline).
 - Finding libraries and branches: `workflow-http-json-server`, `workflow-json-encode-record` (network), `workflow-feature-branch`.
-- Refactorings: `refactor-add-argument`, `refactor-swap-arguments`, `refactor-ability-operation`, `refactor-add-constructor`. The judges check the outcome only; the method (structural `sfind` and `rewrite` or by hand) is recorded afterwards by grepping the worker's submitted transcripts.
+- Refactorings: `refactor-add-argument`, `refactor-swap-arguments`, `refactor-ability-operation`, `refactor-add-constructor`. `refactor-add-argument` and `refactor-swap-arguments` have a `method` judge (GREAT for a structural `rewrite`, PASS for doing it by hand) that reads the worker's submitted transcripts; the other judges check the outcome only.
 
 Each folder also has `about.md` (what it tests, traps, topics, reliability) and `validation/` (`good*.md` and `bad-*.md` solutions for checking the judges).

@@ -1,4 +1,4 @@
-<!-- expected: outcome FAIL and behavior FAIL (the merged file was loaded without reading it: render sorts names and ignores cleaned, and the lowercase test fails) -->
+<!-- expected: outcome FAIL and behavior FAIL (the merged file was loaded without reading it: render sorts the names and lowercases the joined text, and the lowercase test, still expecting the old order, fails) -->
 ``` ucm :error
 scratch/alice> merge /bob
 ```
@@ -6,10 +6,9 @@ scratch/alice> merge /bob
 ``` unison resolved.u
 Report.render : [Text] -> Text
 Report.render names =
-  cleaned = List.map Text.toLowercase names
-  title = "Names"
   body = Text.join ", " (List.sort names)
-  title ++ ": " ++ body
+  title = "Names"
+  title ++ ": " ++ Text.toLowercase body
 
 test> Report.render.tests.lowercase = test.verify do
   ensureEqual (Report.render ["Bob", "Ann"]) "Names: bob, ann"

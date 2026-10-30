@@ -1,4 +1,4 @@
-<!-- Finds the state before the change with reflog, looks at the old Cfg.parse and its test there, comes back to the latest state, and restores both. The hashes are the ones this setup makes (printed by reflog in a fresh copy); they are stable for a given setup.md and base library. -->
+<!-- The older route: reset to the state before the change to view it, come back with reset to the newest hash, and restore both by hand. The hashes are the ones this setup makes (printed by reflog in a fresh copy); they are stable for a given setup.md and base library. -->
 ``` ucm
 scratch/main> reflog
 scratch/main> reset #j5ae1dgiq1

@@ -9,21 +9,20 @@ Person.toJson p =
   Json.toText
     (Json.object [("name", Json.text (Person.name p)), ("age", Json.nat (Person.age p))])
 
-Person.fromJson : Text -> Either Failure Person
+Person.fromJson : Text ->{Exception} Person
 Person.fromJson txt =
-  catch do
-    Decoder.run
-      (do
-        Person
-          (Optional.getOrElse "" (Decoder.object.optionalAt! "name" Decoder.text))
-          (Optional.getOrElse 0 (Decoder.object.optionalAt! "age" Decoder.nat)))
-      txt
+  Decoder.run
+    (do
+      Person
+        (Optional.getOrElse "" (Decoder.object.optionalAt! "name" Decoder.text))
+        (Optional.getOrElse 0 (Decoder.object.optionalAt! "age" Decoder.nat)))
+    txt
 
 test> Person.tests.roundTrip = test.verify do
-  ensureEqual (Person.fromJson (Person.toJson (Person "Ada" 36))) (Right (Person "Ada" 36))
+  ensureEqual (Person.fromJson (Person.toJson (Person "Ada" 36))) (Person "Ada" 36)
 
 test> Person.tests.errors = test.verify do
-  ensure (Either.isLeft (Person.fromJson "not json"))
+  ensure (Either.isLeft (catch do Person.fromJson "not json"))
 ```
 
 ``` ucm

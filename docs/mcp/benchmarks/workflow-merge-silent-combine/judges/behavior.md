@@ -4,7 +4,7 @@ The intended behavior: `Report.render : [Text] -> Text` lowercases every name, s
 
 1. `Report.render ["Bob", "alice", "Carol"]` is `"Names: alice, bob, carol"`.
 2. `Report.render ["b", "A"]` is `"Names: a, b"`, `Report.render ["Zed", "ann", "Bob", "carl"]` is `"Names: ann, bob, carl, zed"`, and `Report.render []` is `"Names: "`.
-3. `Report.render ["B", "a", "C"]` is `"Names: a, b, c"` (a sort of the original names would put `"B"` and `"C"` before `"a"`, and lowercasing without sorting would keep `"b, a, c"`).
+3. `Report.render ["B", "a", "C"]` is `"Names: a, b, c"`. Three wrong implementations are told apart by it: sorting the original names and lowercasing afterwards (as a merge that keeps both edits as they came does) gives `"Names: b, c, a"`, a sort of the original names without lowercasing gives `"Names: B, C, a"`, and lowercasing without sorting gives `"Names: b, a, c"`.
 
 It passes if every check passes. If the definition cannot be found or the code doesn't typecheck, that is a FAIL.
 

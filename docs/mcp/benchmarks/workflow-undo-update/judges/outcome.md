@@ -4,7 +4,7 @@ Setup, so you know what to expect. `main` got four updates, in this order: (1) t
 
 Run these and check each:
 
-1. `scratch/main> ls Cfg` shows `defaultPort`, `defaultPort.`, `parse`, `parse.`, `render` and `render.`: nothing lost, nothing renamed or duplicated.
+1. `scratch/main> ls` shows only `Cfg.` (6 terms) and `lib.`: no leftover namespace (for example `oldversion.`, a copy of an older state made to look at it) next to them. `scratch/main> ls Cfg` shows `defaultPort`, `defaultPort.`, `parse`, `parse.`, `render` and `render.`: nothing lost, nothing renamed or duplicated.
 2. `scratch/main> test` runs three tests (`Cfg.defaultPort.tests.example`, `Cfg.parse.tests.example`, `Cfg.render.tests.example`), all passing. `scratch/main> todo` has nothing pending.
 3. `scratch/main> view Cfg.parse Cfg.parse.tests.example`: `Cfg.parse t = Nat.fromText t`, and the test expects `Some 8080`, `None` and `None` for `"8080"`, `"abc"` and `""`, as written values (not `Some 0`).
 4. The parse and its test are the original ones, with the same hashes: `scratch/main> reflog` lists every change of the branch; its oldest row described as `update` (the row just above `lib.install`) is the first version, with the namespace hash in the Hash column (in a fresh copy of the setup it is `#j5ae1dgiq1`). Run `scratch/main> diff.namespace #<that hash> /main:` (substitute the hash). It must list only added definitions: `Cfg.defaultPort`, `Cfg.defaultPort.tests.example`, `Cfg.render`, `Cfg.render.tests.example`. If it lists `Cfg.parse` or `Cfg.parse.tests.example` under Updates, they are not the original ones. (Run this command in its own transcript or in a `ucm :error` stanza: UCM reports identical namespaces as an error, which does not happen here.)
