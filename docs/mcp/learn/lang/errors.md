@@ -4,6 +4,9 @@ Handling things that can fail or be missing: `Optional` and `Either` for values,
 - `Either e a` is `Left e` (a failure, by convention) or `Right a`. `Either.mapRight f`, `Either.mapLeft f`, and `Either.fold onLeft onRight`.
 - Functions that can fail can instead use an [ability](learn:lang/abilities): `Exception` (the error is a `Failure`), `Throw e` (the error is of type `e`), or `Abort` (no error details). Each is turned back into a value by a handler: `catch do ...` gives `Either Failure a`, `toEither do ...` gives `Either e a`, and `toOptional! do ...` gives `Optional a`.
 - Raise an `Exception` with `Exception.raise (Generic.failure "message" value)`, a `Throw` with `throw error`, and an `Abort` with `Abort.abort`.
+- **Which to use.** For a function that fails in its user-facing type, `Exception` is the usual choice, and `Throw e` when the failure should carry a value you choose, such as the input that was bad. `Abort` is for control flow inside a function and rarely appears in a signature, since it can't say what went wrong. `Exception.raiseGeneric "message" value` is the short way to raise.
+- **Turn an `Optional` into a failure** with `Optional.orThrow error opt` (in a `Throw`) and, to process a whole list, `List.map` over a function that does that, inside one handler. `Throw.toEither do List.map (k -> Optional.orThrow k (Map.get k table)) keys` is `Left` the first key that isn't in the table, or `Right` all the values, in order. The first failure stops everything after it, so there is no loop to write.
+- **When a function has a failing version and an `Optional` or `Either` version, write one and get the other from it** with a handler: `findOrNone x = Either.toOptional (Exception.catch do find x)`. Don't write the logic twice, and make the plain failing one the main one.
 
 ## Detail
 
