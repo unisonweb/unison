@@ -411,6 +411,9 @@ data Output
   | InvalidProjectBranchName Text
   | InvalidStructuredFindReplace (HQ.HashQualified Name)
   | InvalidStructuredFind (HQ.HashQualified Name)
+  | InvalidRewriteSpec Text
+  | -- | An edit command was asked to write to an existing file that isn't a `.u` file.
+    EditDestinationNotUnisonFile FilePath
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -759,6 +762,8 @@ isFailure o = case o of
   InvalidProjectBranchName {} -> True
   InvalidStructuredFindReplace {} -> True
   InvalidStructuredFind {} -> True
+  InvalidRewriteSpec {} -> True
+  EditDestinationNotUnisonFile {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True

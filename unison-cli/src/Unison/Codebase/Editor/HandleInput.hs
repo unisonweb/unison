@@ -510,8 +510,8 @@ loop e = do
               Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) env.codebase env.runtime (Identity docRef)
               pure . Md.toText $ Md.toMarkdown doc
           Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
-        EditDependentsI name -> handleEditDependents name
-        EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
+        EditDependentsI outputLoc name -> handleEditDependents outputLoc name
+        EditNamespaceI outputLoc paths -> handleEditNamespace outputLoc paths
         ExecuteI prof main args -> handleRun prof main args
         FindShallowI pathArg -> handleLs pathArg
         FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
@@ -676,8 +676,8 @@ loop e = do
                   -- No expectation, either because this is the most recent entry or
                   -- because we're recovering from a discontinuity
                   Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
-        StructuredFindI _fscope ws -> handleStructuredFindI ws
-        StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
+        StructuredFindI spec -> handleStructuredFindI spec
+        StructuredFindReplaceI spec target -> handleStructuredFindReplaceI spec target
         SwitchBranchI path' -> do
           path <- Cli.resolvePath' path'
           branchExists <- Cli.branchExistsAtPath' path'

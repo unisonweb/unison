@@ -865,6 +865,13 @@ notifyUser dir issueFn = \case
     pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
   InvalidStructuredFind _sym ->
     pure . P.callout "😶" $ IP.helpFor IP.sfind
+  EditDestinationNotUnisonFile path ->
+    pure . P.fatalCallout . P.wrap $
+      "I won't write definitions to"
+        <> P.backticked' (P.string path) ","
+        <> "because it already exists and its name doesn't end in `.u`. Pick a `.u` file, or a file that doesn't exist yet."
+  InvalidRewriteSpec reason ->
+    pure . P.fatalCallout $ P.wrap (P.text reason)
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -3364,14 +3371,21 @@ formatMissingStuff terms types =
 
 displayOutputRewrittenFile :: (Var v) => FilePath -> [v] -> IO Pretty
 displayOutputRewrittenFile _fp [] =
-  pure "😶️ I couldn't find any matches in the file."
+  pure "😶️ I couldn't find any definitions that these rewrites match."
 displayOutputRewrittenFile fp vs = do
   let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
   pure $
     P.callout "☝️" . P.lines $
       [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
         "",
-        "The rewritten file has been added to the top of " <> fromString fp
+        P.wrap $
+          "The rewritten definitions are in"
+            <> P.backticked' (fromString fp) "."
+            <> "Review them, typecheck that file with"
+            <> IP.makeExample IP.load [fromString fp]
+            <> "and run"
+            <> IP.makeExample' IP.update
+            <> "when you are done."
       ]
 
 displayDefinitions' ::

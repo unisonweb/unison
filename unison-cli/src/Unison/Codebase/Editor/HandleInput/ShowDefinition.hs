@@ -29,6 +29,8 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
+import System.Directory qualified as Directory
+import System.FilePath (takeExtension)
 import Unison.Codebase.Editor.Output
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -149,6 +151,13 @@ showDefinitions ::
 showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
+  -- Don't clobber a file that isn't Unison code, if a command is given one by mistake.
+  case outputLoc of
+    FileLocation path _ -> do
+      exists <- liftIO (Directory.doesFileExist path)
+      when (exists && takeExtension path /= ".u") do
+        Cli.returnEarly (EditDestinationNotUnisonFile path)
+    _ -> pure ()
   case outputPath of
     _ | null terms && null types -> pure ()
     Nothing -> renderToConsole nameInOriginalQuery pped terms types

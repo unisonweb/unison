@@ -97,6 +97,10 @@ commandTiers =
         "edit.new",
         "edit.dependents",
         "edit.namespace",
+        "edit.to",
+        "edit.new.to",
+        "edit.dependents.to",
+        "edit.namespace.to",
         "rewrite",
         -- Navigation within the session.
         "switch",

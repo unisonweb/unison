@@ -56,6 +56,10 @@ module Unison.CommandLine.InputPatterns
     edit,
     editDependents,
     editNamespace,
+    editNamespaceTo,
+    editTo,
+    editNewTo,
+    editDependentsTo,
     execute,
     execProfiled,
     execProfiledFull,
@@ -1102,24 +1106,26 @@ sfind =
     "rewrite.find"
     ["sfind"]
     I.Visible
-    (Parameters [("rewrite-rule definition", definitionQueryArg)] $ Optional [] Nothing)
+    (Parameters [("rewrites", rewritesSpecArg)] $ Optional [] Nothing)
     msg
     parse
   where
     parse = \case
-      q : _ -> Input.StructuredFindI (Input.FindLocal Path.Current') <$> handleHashQualifiedNameArg q
+      [spec] -> Input.StructuredFindI <$> parseRewritesSpec sfind spec
       args -> wrongArgsLength "exactly one argument" args
     msg =
       P.lines
         [ P.wrap $
-            makeExample sfind ["rule1"]
-              <> " finds definitions that match any of the left side(s) of `rule`"
-              <> "in the current namespace.",
+            makeExample sfind ["<rewrites>"]
+              <> "lists the definitions in the current branch (excluding `lib`) that match the left side of any of the rewrites."
+              <> "Use"
+              <> makeExample edit ["1-<n>"]
+              <> "to bring them into your scratch file.",
+          "",
+          rewritesSpecHelp,
           "",
           P.wrap $
-            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
-              <> "a `@rewrite` block."
-              <> "It can be in the codebase or scratch file. An example:",
+            "The right side of a rewrite is ignored by this command. An example:",
           "",
           "    -- right of ==> is ignored by this command",
           "    rule1 x = @rewrite term x + 1 ==> ()",
@@ -1140,21 +1146,52 @@ sfindReplace =
     "rewrite"
     ["sfind.replace"]
     I.Visible
-    (Parameters [("rewrite-rule definition", definitionQueryArg)] $ Optional [] Nothing)
+    ( Parameters
+        [("rewrites", rewritesSpecArg)]
+        (Optional [("target", rewriteTargetArg)] Nothing)
+    )
     msg
     parse
   where
-    parse (q : _) = Input.StructuredFindReplaceI <$> handleHashQualifiedNameArg q
-    parse args = wrongArgsLength "exactly one argument" args
+    parse = \case
+      [spec] -> (\spec -> Input.StructuredFindReplaceI spec Nothing) <$> parseRewritesSpec sfindReplace spec
+      [spec, target] -> do
+        spec <- parseRewritesSpec sfindReplace spec
+        target <- unsupportedStructuredArgument sfindReplace "a file name or namespace" target
+        let rewriteTarget
+              | ".u" `List.isSuffixOf` target = pure (Input.RewriteFile target)
+              | otherwise = Input.RewriteNamespace <$> Path.parsePath' target
+        Input.StructuredFindReplaceI spec . Just <$> first P.text rewriteTarget
+      args -> wrongArgsLength "one or two arguments" args
     msg :: P.Pretty CT.ColorText
     msg =
       P.lines
-        [ makeExample sfindReplace ["rule1"] <> " rewrites definitions in the latest scratch file.",
+        [ P.wrap $
+            makeExample sfindReplace ["<rewrites>", "[<target>]"]
+              <> "applies the rewrites to the definitions in the target that match them,"
+              <> "and writes the rewritten definitions to a new file for you to review.",
+          "",
+          rewritesSpecHelp,
+          "",
+          P.wrap "The target says what to rewrite:",
+          "",
+          P.indentN 2 . P.column2 $
+            [ ("(none)", "the current branch (excluding `lib`)."),
+              ("foo.u", "the definitions in the file `foo.u`."),
+              ("path.to.mymodule", "the definitions in that namespace of the current branch.")
+            ],
           "",
           P.wrap $
-            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
-              <> "a `@rewrite` block."
-              <> "It can be in the codebase or scratch file. An example:",
+            "The rewritten definitions go to a new file, `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`."
+              <> "(For a file target, that is in a `rewrites` directory next to the file, unless the file is already in one,"
+              <> "and then the new file goes beside it.)"
+              <> "Review that file, typecheck it with"
+              <> makeExample' load
+              <> "and run"
+              <> makeExample' update
+              <> "when you are done.",
+          "",
+          P.wrap "An example of a rewrite:",
           "",
           "    rule1 x = @rewrite term x + 1 ==> Nat.increment x",
           "",
@@ -1169,6 +1206,52 @@ sfindReplace =
           "",
           P.wrap ("Also see the related command" <> makeExample sfind [])
         ]
+
+rewritesSpecHelp :: P.Pretty CT.ColorText
+rewritesSpecHelp =
+  P.lines
+    [ P.wrap "The `<rewrites>` argument says which `@rewrite` blocks (or functions that immediately return one) to use. It is one of:",
+      "",
+      P.indentN 2 . P.column2 $
+        [ ("foo.u:r1,r2", "the rewrites `r1` and `r2` in the file `foo.u`."),
+          ("foo.u", "the rewrite in `foo.u`, which must be its only definition."),
+          (":r1,r2", "the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.")
+        ]
+    ]
+
+-- | Parse a rewrites spec: @foo.u:r1,r2@, @foo.u@, or @:r1,r2@ (or just @r1,r2@).
+parseRewritesSpec :: InputPattern -> I.Argument -> Either (P.Pretty CT.ColorText) Input.RewritesSpec
+parseRewritesSpec command arg = do
+  spec <- Text.pack <$> unsupportedStructuredArgument command "a rewrites spec" arg
+  let (file, names) =
+        case Text.breakOn ".u:" spec of
+          (before, after) | not (Text.null after) -> (Just (before <> ".u"), Text.drop 3 after)
+          _
+            | ".u" `Text.isSuffixOf` spec -> (Just spec, "")
+            | Just names <- Text.stripPrefix ":" spec -> (Nothing, names)
+            | otherwise -> (Nothing, spec)
+  rules <- traverse (handleHashQualifiedNameArg . I.RawArg . Text.unpack) (filter (not . Text.null) (Text.splitOn "," names))
+  when (isNothing file && null rules) do
+    Left . P.wrap $ makeExample' command <> "needs the name of at least one rewrite, as in `:rule1,rule2`, or a file."
+  pure Input.RewritesSpec {file = Text.unpack <$> file, rewrites = rules}
+
+rewritesSpecArg :: ParameterType
+rewritesSpecArg =
+  ParameterType
+    { typeName = "rewrites",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+rewriteTargetArg :: ParameterType
+rewriteTargetArg =
+  ParameterType
+    { typeName = "file-or-namespace",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
 
 find :: InputPattern
 find = find' "find" (Input.FindLocal Path.Current')
@@ -2678,15 +2761,29 @@ edit =
         P.lines
           [ "`edit foo` prepends the definition of `foo` to the top of the most "
               <> "recently saved file.",
-            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH.",
+            "",
+            P.wrap ("See also" <> makeExample editTo [] <> "to send the definitions to a file of your choice.")
           ],
-      parse =
-        maybe
-          (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.WithinFold) Input.ShowDefinitionLocal)
-              . traverse handleHashQualifiedNameArg
-          )
-          . NE.nonEmpty
+      parse = parseEditDefinitions (Input.LatestFileLocation Input.WithinFold)
+    }
+
+editTo :: InputPattern
+editTo =
+  InputPattern
+    { patternName = "edit.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("definition to edit", definitionQueryArg),
+      help =
+        P.wrap $
+          makeExample editTo ["<filename>", "foo"]
+            <> "is like"
+            <> P.backticked "edit foo"
+            <> "but prepends the definition of `foo` to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editTo args
+        parseEditDefinitions (Input.FileLocation file Input.WithinFold) rest
     }
 
 editNew :: InputPattern
@@ -2697,13 +2794,20 @@ editNew =
       visibility = I.Visible,
       params = Parameters [] $ OnePlus ("definition to edit", definitionQueryArg),
       help = "Like `edit`, but adds a new fold line below the definitions.",
-      parse =
-        maybe
-          (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.AboveFold) Input.ShowDefinitionLocal)
-              . traverse handleHashQualifiedNameArg
-          )
-          . NE.nonEmpty
+      parse = parseEditDefinitions (Input.LatestFileLocation Input.AboveFold)
+    }
+
+editNewTo :: InputPattern
+editNewTo =
+  InputPattern
+    { patternName = "edit.new.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("definition to edit", definitionQueryArg),
+      help = "Like `edit.new`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editNewTo args
+        parseEditDefinitions (Input.FileLocation file Input.AboveFold) rest
     }
 
 editDependents :: InputPattern
@@ -2715,8 +2819,24 @@ editDependents =
       params = Parameters [("definition to edit", definitionQueryArg)] $ Optional [] Nothing,
       help = "Like `edit`, but also includes all transitive dependents in the current project.",
       parse = \case
-        [name] -> Input.EditDependentsI <$> handleHashQualifiedNameArg name
+        [name] -> Input.EditDependentsI (Input.LatestFileLocation Input.WithinFold) <$> handleHashQualifiedNameArg name
         args -> wrongArgsLength "exactly one argument" args
+    }
+
+editDependentsTo :: InputPattern
+editDependentsTo =
+  InputPattern
+    { patternName = "edit.dependents.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg), ("definition to edit", definitionQueryArg)] $ Optional [] Nothing,
+      help =
+        "Like `edit.dependents`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editDependentsTo args
+        case rest of
+          [name] -> Input.EditDependentsI (Input.FileLocation file Input.WithinFold) <$> handleHashQualifiedNameArg name
+          _ -> wrongArgsLength "a file name and exactly one definition" args
     }
 
 editNamespace :: InputPattern
@@ -2732,8 +2852,36 @@ editNamespace =
             "`edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
+      parse = fmap (Input.EditNamespaceI (Input.LatestFileLocation Input.AboveFold)) . traverse handlePath'Arg
     }
+
+editNamespaceTo :: InputPattern
+editNamespaceTo =
+  InputPattern
+    { patternName = "edit.namespace.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("namespace to load definitions from", namespaceArg),
+      help =
+        "Like `edit.namespace`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editNamespaceTo args
+        Input.EditNamespaceI (Input.FileLocation file Input.AboveFold) <$> traverse handlePath'Arg rest
+    }
+
+-- | Parse the definitions of an @edit@ or @edit.new@ command, which go to the given location.
+parseEditDefinitions :: Input.OutputLocation -> [I.Argument] -> Either (P.Pretty CT.ColorText) Input
+parseEditDefinitions location =
+  maybe
+    (wrongArgsLength "at least one argument" [])
+    (fmap (Input.ShowDefinitionI location Input.ShowDefinitionLocal) . traverse handleHashQualifiedNameArg)
+    . NE.nonEmpty
+
+-- | Split off the destination file name that begins the arguments of a @.to@ command.
+parseDestinationFile :: InputPattern -> [I.Argument] -> Either (P.Pretty CT.ColorText) (FilePath, [I.Argument])
+parseDestinationFile command = \case
+  file : rest -> (,rest) <$> unsupportedStructuredArgument command "a file name" file
+  [] -> wrongArgsLength "a file name followed by at least one argument" []
 
 newBranchNameArg :: ParameterType
 newBranchNameArg =
@@ -4072,7 +4220,11 @@ validInputs =
       edit,
       editDependents,
       editNamespace,
+      editNamespaceTo,
       editNew,
+      editNewTo,
+      editTo,
+      editDependentsTo,
       execute,
       execProfiled,
       execProfiledFull,

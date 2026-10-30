@@ -21,6 +21,8 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     FindScope (..),
+    RewritesSpec (..),
+    RewriteTarget (..),
     ShowDefinitionScope (..),
     IsGlobal,
     DeleteTarget (..),
@@ -160,8 +162,8 @@ data Input
   | DocToMarkdownI Name
   | DocsI (NonEmpty Name)
   | DocsToHtmlI BranchRelativePath FilePath
-  | EditDependentsI !(HQ.HashQualified Name)
-  | EditNamespaceI [Path.Path']
+  | EditDependentsI OutputLocation !(HQ.HashQualified Name)
+  | EditNamespaceI OutputLocation [Path.Path']
   | ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
   | FindI Bool FindScope [String] -- isVerbose, findScope, query
   | FindShallowI Path'
@@ -218,8 +220,8 @@ data Input
   | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
   | ShowProjectReflogI (Maybe ProjectName)
   | ShowRootReflogI {- Deprecated -}
-  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
-  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | StructuredFindI RewritesSpec -- rewrite.find rewrites
+  | StructuredFindReplaceI RewritesSpec (Maybe RewriteTarget) -- rewrite rewrites target
   | SwitchBranchI Path'
   | -- | Sync from a codebase project branch to this codebase's project branch
     SyncFromCodebaseI FilePath (ProjectAndBranch ProjectName ProjectBranchName) UnresolvedProjectBranch
@@ -305,6 +307,21 @@ data OutputLocation
 data RelativeToFold
   = AboveFold
   | WithinFold
+  deriving stock (Eq, Show)
+
+-- | Where the rules of @rewrite.find@ and @rewrite@ come from: the names of @\@rewrite@ blocks (or functions that return
+-- one), looked up in the file, if there is one, else in the latest file or the branch. A file with no names must have
+-- exactly one definition, and that is the rule.
+data RewritesSpec = RewritesSpec
+  { file :: Maybe FilePath,
+    rewrites :: [HQ.HashQualified Name]
+  }
+  deriving stock (Eq, Show)
+
+-- | What @rewrite@ rewrites, other than the current branch.
+data RewriteTarget
+  = RewriteFile FilePath
+  | RewriteNamespace Path'
   deriving stock (Eq, Show)
 
 data FindScope

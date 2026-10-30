@@ -1172,17 +1172,21 @@ targetLit = cases
 ```
 
 ``` ucm
-scratch/main> rewrite litRule
+scratch/main> rewrite :litRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetLit
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
+  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
+  run `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+-- Rewrote using: litRule
+-- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetLit
 
 litRule = @rewrite case {x: 0} ==> {x: 1}
@@ -1227,17 +1231,21 @@ targetSwap = cases
 ```
 
 ``` ucm
-scratch/main> rewrite swapRule
+scratch/main> rewrite :swapRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetSwap
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
+  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
+  run `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+-- Rewrote using: swapRule
+-- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetSwap
 
 swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
@@ -1277,17 +1285,21 @@ targetWild = cases
 ```
 
 ``` ucm
-scratch/main> rewrite wildRule
+scratch/main> rewrite :wildRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetWild
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/0000-00-00-00-00-00000000.u`. Review them, typecheck
+  that file with `load rewrites/0000-00-00-00-00-00000000.u` and
+  run `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-00000000.u
+-- Rewrote using: wildRule
+-- Review the definitions below, then typecheck this file (`load rewrites/0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetWild
 
 wildRule _w = @rewrite case {w: _w} ==> {w: 0}

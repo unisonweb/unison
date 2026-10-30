@@ -308,16 +308,33 @@
   `edit foo` prepends the definition of `foo` to the top of the most recently saved file.
   `edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH.
 
+  See also `edit.to` to send the definitions to a file of your
+  choice.
+
   edit.dependents
   Like `edit`, but also includes all transitive dependents in the current project.
+
+  edit.dependents.to
+  Like `edit.dependents`, but sends the definitions to the given file, creating it if it doesn't exist.
 
   edit.namespace
   `edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).
   `edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
   `edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces.
 
+  edit.namespace.to
+  Like `edit.namespace`, but sends the definitions to the given file, creating it if it doesn't exist.
+
   edit.new
   Like `edit`, but adds a new fold line below the definitions.
+
+  edit.new.to
+  Like `edit.new`, but sends the definitions to the given file, creating it if it doesn't exist.
+
+  edit.to
+  `edit.to <filename> foo` is like `edit foo` but prepends the
+  definition of `foo` to the given file, creating it if it
+  doesn't exist.
 
   find
   `find`                           lists all definitions in the
@@ -846,11 +863,31 @@
   previous state.
 
   rewrite (or sfind.replace)
-  `rewrite rule1` rewrites definitions in the latest scratch file.
+  `rewrite <rewrites> [<target>]` applies the rewrites to the
+  definitions in the target that match them, and writes the
+  rewritten definitions to a new file for you to review.
 
-  The argument `rule1` must refer to a `@rewrite` block or a
-  function that immediately returns a `@rewrite` block. It can
-  be in the codebase or scratch file. An example:
+  The `<rewrites>` argument says which `@rewrite` blocks (or
+  functions that immediately return one) to use. It is one of:
+
+    foo.u:r1,r2 the rewrites `r1` and `r2` in the file `foo.u`.
+    foo.u       the rewrite in `foo.u`, which must be its only definition.
+    :r1,r2      the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.
+
+  The target says what to rewrite:
+
+    (none)           the current branch (excluding `lib`).
+    foo.u            the definitions in the file `foo.u`.
+    path.to.mymodule the definitions in that namespace of the current branch.
+
+  The rewritten definitions go to a new file,
+  `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`. (For a file
+  target, that is in a `rewrites` directory next to the file,
+  unless the file is already in one, and then the new file goes
+  beside it.) Review that file, typecheck it with `load` and run
+  `update` when you are done.
+
+  An example of a rewrite:
 
       rule1 x = @rewrite term x + 1 ==> Nat.increment x
 
@@ -863,12 +900,20 @@
   Also see the related command `rewrite.find`
 
   rewrite.find (or sfind)
-  `rewrite.find rule1` finds definitions that match any of the
-  left side(s) of `rule` in the current namespace.
+  `rewrite.find <rewrites>` lists the definitions in the current
+  branch (excluding `lib`) that match the left side of any of
+  the rewrites. Use `edit 1-<n>` to bring them into your scratch
+  file.
 
-  The argument `rule1` must refer to a `@rewrite` block or a
-  function that immediately returns a `@rewrite` block. It can
-  be in the codebase or scratch file. An example:
+  The `<rewrites>` argument says which `@rewrite` blocks (or
+  functions that immediately return one) to use. It is one of:
+
+    foo.u:r1,r2 the rewrites `r1` and `r2` in the file `foo.u`.
+    foo.u       the rewrite in `foo.u`, which must be its only definition.
+    :r1,r2      the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.
+
+  The right side of a rewrite is ignored by this command. An
+  example:
 
       -- right of ==> is ignored by this command
       rule1 x = @rewrite term x + 1 ==> ()
