@@ -122,8 +122,8 @@ embeddedGuideTests =
       scope "every link in the instructions and the topics goes to a topic" do
         let missing =
               [ link
-                | link <- linksIn (instructions embeddedGuide) ++ concatMap linksIn (everyText embeddedGuide),
-                  isLeft (learn embeddedGuide link)
+              | link <- linksIn (instructions embeddedGuide) ++ concatMap linksIn (everyText embeddedGuide),
+                isLeft (learn embeddedGuide link)
               ]
         expectEqual [] missing
     ]
@@ -132,8 +132,8 @@ embeddedGuideTests =
 linksIn :: Text -> [Text]
 linksIn text =
   [ Text.takeWhile (/= ')') rest
-    | piece <- drop 1 (Text.splitOn "](learn:" text),
-      let rest = piece
+  | piece <- drop 1 (Text.splitOn "](learn:" text),
+    let rest = piece
   ]
 
 -- | The text of every topic and detail, found by following the index from the root.

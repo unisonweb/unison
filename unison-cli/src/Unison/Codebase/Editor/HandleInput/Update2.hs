@@ -311,16 +311,16 @@ handleUpdate2 = do
                       #latestFile ?= (scratchFilePath, True)
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                       done
-                            ( Output.UpdateTypecheckingFailure
-                                Output.ScratchFileHandoff
-                                  { action = "update",
-                                    scratchFile = scratchFilePath,
-                                    temporaryBranch = pp.branch.name,
-                                    baseBranch = pp.branch.name,
-                                    project = pp.project.name,
-                                    loadFirst = isNothing env.watchState
-                                  }
-                            )
+                        ( Output.UpdateTypecheckingFailure
+                            Output.ScratchFileHandoff
+                              { action = "update",
+                                scratchFile = scratchFilePath,
+                                temporaryBranch = pp.branch.name,
+                                baseBranch = pp.branch.name,
+                                project = pp.project.name,
+                                loadFirst = isNothing env.watchState
+                              }
+                        )
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
 

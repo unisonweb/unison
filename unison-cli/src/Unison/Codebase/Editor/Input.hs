@@ -37,11 +37,11 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.Config (ConfigKey)
+import Unison.Cli.Share.Ref (SearchFilter, ShareRef)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
-import Unison.Cli.Share.Ref (SearchFilter, ShareRef)
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime.Profile (ProfileSpec)

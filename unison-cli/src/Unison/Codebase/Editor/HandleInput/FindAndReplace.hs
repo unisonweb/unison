@@ -8,21 +8,14 @@ where
 import Control.Lens hiding (at)
 import Control.Monad.Reader (ask)
 import Control.Monad.State
-import Data.Map.Strict qualified as Map
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import System.FilePath (normalise, takeBaseName, takeDirectory, takeFileName, (</>))
-import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
-import Unison.Codebase.Editor.HandleInput.Load (parseAndTypecheckUnisonFile)
-import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
-import Unison.Codebase.Editor.Input (RelativeToFold (..), RewriteTarget (..), RewritesSpec (..))
-import Unison.Codebase.Path qualified as Path
-import Unison.Parsers qualified as Parsers
-import Unison.UnisonFile.Names qualified as UFN
-import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
@@ -32,8 +25,13 @@ import Unison.Cli.Pretty qualified as P
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
+import Unison.Codebase.Editor.HandleInput.Load (parseAndTypecheckUnisonFile)
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
+import Unison.Codebase.Editor.Input (RelativeToFold (..), RewriteTarget (..), RewritesSpec (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
+import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -43,6 +41,7 @@ import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -58,6 +57,7 @@ import Unison.Syntax.Name qualified as Name (unsafeParseText)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation qualified as Relation
@@ -314,25 +314,26 @@ lookupRuleTerms spec = case spec.file of
           Cli.returnEarly . InvalidRewriteSpec $
             "I couldn't find a definition named " <> HQ.toText name <> " in " <> Text.pack path <> "."
     pure (rules, fileNames)
-  Nothing -> (,mempty) <$> for spec.rewrites \name -> do
-    Cli.Env {codebase} <- ask
-    currentBranch <- Cli.getCurrentBranch0
-    hqLength <- Cli.runTransaction Codebase.hashLength
-    fileNames <- Cli.getNamesFromLatestFile
-    let currentNames = fileNames <> Branch.toNames currentBranch
-    let ppe = PPED.makePPED (PPE.hqNamer hqLength currentNames) (PPE.suffixifyByHash currentNames)
-    ot <- Cli.getTermFromLatestParsedFile name
-    ot <- case ot of
-      Just _ -> pure ot
-      Nothing -> do
-        case Names.lookupHQTerm Names.IncludeSuffixes name currentNames of
-          s
-            | Set.size s == 1,
-              Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
-                Cli.runTransaction (Codebase.getTerm codebase r)
-          s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) name s)
-    tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) name mempty)) pure ot
-    pure (name, tm)
+  Nothing ->
+    (,mempty) <$> for spec.rewrites \name -> do
+      Cli.Env {codebase} <- ask
+      currentBranch <- Cli.getCurrentBranch0
+      hqLength <- Cli.runTransaction Codebase.hashLength
+      fileNames <- Cli.getNamesFromLatestFile
+      let currentNames = fileNames <> Branch.toNames currentBranch
+      let ppe = PPED.makePPED (PPE.hqNamer hqLength currentNames) (PPE.suffixifyByHash currentNames)
+      ot <- Cli.getTermFromLatestParsedFile name
+      ot <- case ot of
+        Just _ -> pure ot
+        Nothing -> do
+          case Names.lookupHQTerm Names.IncludeSuffixes name currentNames of
+            s
+              | Set.size s == 1,
+                Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
+                  Cli.runTransaction (Codebase.getTerm codebase r)
+            s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) name s)
+      tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) name mempty)) pure ot
+      pure (name, tm)
 
 -- | Turn each rewrite term into a function that rewrites a term, and one that says whether a term has anything to
 -- rewrite. @prepare@ is applied to the terms first (to make references to the definitions in a file stand for them).
@@ -341,29 +342,30 @@ extractRules ::
   ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) ->
   [(HQ.HashQualified Name, Term Symbol Ann)] ->
   Cli [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)]
-extractRules onErr prepare ruleTerms = concat <$> for ruleTerms \(rule, tm) -> do
-  let extract vs tm = case tm of
-        Term.Ann' tm _typ -> extract vs tm
-        (DD.RewriteTerm' lhs rhs) ->
-          pure
-            ( ABT.rewriteExpression lhs rhs,
-              ABT.containsExpression lhs
-            )
-        (DD.RewriteCase' lhs rhs) ->
-          pure
-            ( Term.rewriteCasesLHS lhs rhs,
-              fromMaybe False . Term.containsCaseTerm lhs
-            )
-        (DD.RewriteSignature' _vs lhs rhs) ->
-          pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
-        _ -> Cli.returnEarly (onErr rule)
-      extractOuter vs0 tm = case tm of
-        Term.Ann' tm _typ -> extractOuter vs0 tm
-        Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
-        tm -> case prepare vs0 tm of
-          DD.Rewrites' rules -> traverse (extract vs0) rules
+extractRules onErr prepare ruleTerms =
+  concat <$> for ruleTerms \(rule, tm) -> do
+    let extract vs tm = case tm of
+          Term.Ann' tm _typ -> extract vs tm
+          (DD.RewriteTerm' lhs rhs) ->
+            pure
+              ( ABT.rewriteExpression lhs rhs,
+                ABT.containsExpression lhs
+              )
+          (DD.RewriteCase' lhs rhs) ->
+            pure
+              ( Term.rewriteCasesLHS lhs rhs,
+                fromMaybe False . Term.containsCaseTerm lhs
+              )
+          (DD.RewriteSignature' _vs lhs rhs) ->
+            pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
           _ -> Cli.returnEarly (onErr rule)
-  extractOuter [] tm
+        extractOuter vs0 tm = case tm of
+          Term.Ann' tm _typ -> extractOuter vs0 tm
+          Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
+          tm -> case prepare vs0 tm of
+            DD.Rewrites' rules -> traverse (extract vs0) rules
+            _ -> Cli.returnEarly (onErr rule)
+    extractOuter [] tm
 
 renderRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> [Text] -> ([v], UF.UnisonFile v a) -> P.Pretty P.ColorText
 renderRewrittenFile ppe headerLines (vs, uf) = do

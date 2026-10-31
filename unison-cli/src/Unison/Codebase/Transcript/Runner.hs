@@ -185,17 +185,16 @@ withRunner jit config verbosity ucmVersion action = do
                   & catchExceptions
           -- The codebase server is only for `api` blocks, so don't start one (and take a port) for transcripts without them.
           if any (either (const False) isApiBlock) (stanzas transcript')
-            then
-              Server.startServer
-                (isTest config)
-                Backend.BackendEnv
-                Server.defaultCodebaseServerOpts
-                runtime
-                codebase
-                (\_ -> pure Nothing) -- a transcript's codebase server doesn't speak MCP
-                \case
-                  Nothing -> pure $ Left PortBindingFailure
-                  Just baseUrl -> runWith (tShow @Server.BaseUrl baseUrl)
+            then Server.startServer
+              (isTest config)
+              Backend.BackendEnv
+              Server.defaultCodebaseServerOpts
+              runtime
+              codebase
+              (\_ -> pure Nothing) -- a transcript's codebase server doesn't speak MCP
+              \case
+                Nothing -> pure $ Left PortBindingFailure
+                Just baseUrl -> runWith (tShow @Server.BaseUrl baseUrl)
             else runWith ""
   where
     catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
@@ -226,7 +225,9 @@ isGeneratedBlock = generated . getCommonInfoTags
 noSuchProject :: Text -> [Text] -> Text
 noSuchProject projectName projectNames =
   Text.unlines
-    [ "There is no project named `" <> projectName <> "`. "
+    [ "There is no project named `"
+        <> projectName
+        <> "`. "
         <> if null projectNames then "The codebase has no projects." else "The projects are: " <> Text.intercalate ", " projectNames <> ".",
       "A command like `" <> projectName <> "/main> ...` has to name a project and branch that already exist. Use the one you are working in, or create a project first with `project.create`."
     ]

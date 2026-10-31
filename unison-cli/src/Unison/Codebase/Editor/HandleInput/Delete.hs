@@ -42,7 +42,6 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
-import Unison.Syntax.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NamesUtils qualified as NamesUtils
@@ -56,6 +55,7 @@ import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
+import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))

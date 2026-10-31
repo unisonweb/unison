@@ -1,6 +1,7 @@
 -- | How transcripts behave when the MCP server runs them ('Transcript.mcpConfig'), compared with a transcript test.
 module Unison.Test.MCP.Runner (test) where
 
+import Control.Exception (finally)
 import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
 import Data.Foldable (traverse_)
@@ -10,20 +11,19 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import EasyTest
+import System.Directory (listDirectory, removeDirectoryRecursive, removeFile)
 import System.IO.Temp qualified as Temp
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.Merge2 (lineMergedNames, lineMergedNote)
-import Unison.Merge.ThreeWay qualified as Merge
-import Unison.Syntax.Name qualified as Name
 import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript (Transcript)
+import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.Merge.ThreeWay qualified as Merge
 import Unison.Runtime.JIT qualified as JIT
-import Unison.Codebase.Transcript.Parser qualified as Transcript
-import Control.Exception (finally)
-import System.Directory (listDirectory, removeDirectoryRecursive, removeFile)
+import Unison.Syntax.Name qualified as Name
 
 test :: Test ()
 test =
@@ -76,8 +76,7 @@ test =
             texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10" "x + 2", Merge.bob = version "x + 1" "x + 20", Merge.lca = version "x + 1" "x + 2"}
         expect' (lineMergedNames texts == [Name.unsafeParseText "f"])
         expect'
-          ( "successfully merged at the line-level: f" `Text.isInfixOf` lineMergedNote (lineMergedNames texts)
-          ),
+          ("successfully merged at the line-level: f" `Text.isInfixOf` lineMergedNote (lineMergedNames texts)),
       scope "a definition both branches changed on the same line is left to the conflict markers" do
         let version a = Text.unlines ["f x =", "  " <> a]
             texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10", Merge.bob = version "x + 20", Merge.lca = version "x + 1"}
@@ -186,14 +185,15 @@ updateThatCannotFinish =
 runTranscriptWith :: (FilePath -> Transcript.Config) -> Text -> Test (Either Transcript.Error Transcript)
 runTranscriptWith config source = io do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-mcp-runner-test"
-  (do
+  ( do
       jit <- JIT.newJIT =<< JIT.readConfig
       Transcript.withRunner jit (config tmp) Verbosity.Silent "Unison.Test.MCP.Runner" \runner -> do
         result <-
           Codebase.Init.withCreatedCodebase SC.init "ucm-mcp-runner-test" tmp SC.DoLock \codebase -> do
             Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
             runner "transcript" (Text.encodeUtf8 source) codebase
-        either (fail . show) pure result)
+        either (fail . show) pure result
+    )
     `finally` removeDirectoryRecursive tmp
 
 expectFailureMentioning :: [Text] -> Either Transcript.Error Transcript -> Test ()

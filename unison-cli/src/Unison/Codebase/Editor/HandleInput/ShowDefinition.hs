@@ -16,6 +16,8 @@ import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import System.Directory qualified as Directory
+import System.FilePath (takeExtension)
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -29,8 +31,6 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), ShowDefinitionScope (..))
-import System.Directory qualified as Directory
-import System.FilePath (takeExtension)
 import Unison.Codebase.Editor.Output
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ

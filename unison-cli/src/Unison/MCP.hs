@@ -1,17 +1,17 @@
 -- | The MCP server: tools that run Unison transcripts, which differ in which UCM commands they allow.
 module Unison.MCP (runOnStdIO, withMessageHandler) where
 
-import Control.Concurrent.MVar (newMVar, withMVar)
 import CMark qualified
+import Control.Concurrent.MVar (newMVar, withMVar)
 import Data.Aeson (FromJSON (..), (.:?))
 import Data.Aeson qualified as Aeson
-import Data.Proxy (Proxy (..))
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString qualified as BS
+import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
-import Data.Aeson.Key qualified as Key
-import Data.Aeson.KeyMap qualified as KeyMap
 import Network.MCP.Server qualified as MCP
 import Network.MCP.Transport.StdIO (newSTDIOTransport)
 import Network.MCP.Transport.Types (Message (..), Response (..), Transport (..))
@@ -27,8 +27,8 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.MCP.Allowlist
 import Unison.MCP.Echo
-import Unison.MCP.LineNumbers
 import Unison.MCP.Learn qualified as Learn
+import Unison.MCP.LineNumbers
 import Unison.MCP.Output
 import Unison.MCP.Wrapper
 import Unison.Parser.Ann (Ann)
@@ -342,7 +342,10 @@ currentBranchNote codebase =
   UnliftIO.tryAny (Codebase.runTransaction codebase Codebase.expectCurrentProjectPath) <&> \case
     Left _ -> ""
     Right ProjectPath {project, branch} ->
-      "\n\nCurrent branch: " <> into @Text project.name <> "/" <> into @Text branch.name
+      "\n\nCurrent branch: "
+        <> into @Text project.name
+        <> "/"
+        <> into @Text branch.name
         <> if branch.isUpdate || branch.isUpgrade || branch.isMerge
           then
             "\nThis is a temporary branch for work in progress. When its file loads with no errors, run `update` to save the "

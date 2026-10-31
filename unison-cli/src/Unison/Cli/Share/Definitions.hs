@@ -17,20 +17,20 @@ where
 import Control.Monad.Reader (ask)
 import Data.Aeson (FromJSON (..), (.:), (.:?))
 import Data.Aeson qualified as Aeson
-import Data.Text qualified as Text
 import Data.Proxy (Proxy (..))
+import Data.Text qualified as Text
 import Servant.API ((:<|>) (..), (:>))
 import Servant.API qualified as Servant
 import Servant.Client qualified as Servant
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Server.Orphans ()
-import Unison.Util.Pretty qualified as Pretty
 import Unison.Cli.Share.Projects (hardCodedBaseUrl)
 import Unison.Cli.Share.Ref
 import Unison.Prelude
+import Unison.Server.Orphans ()
 import Unison.Server.Types (DefinitionDisplayResults, DefinitionSearchResult, DefinitionSearchResults (..))
+import Unison.Util.Pretty qualified as Pretty
 
 -- | One match of an entity search: a project, or a user or organization.
 data SearchHit

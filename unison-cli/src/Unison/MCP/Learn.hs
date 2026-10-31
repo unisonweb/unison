@@ -287,7 +287,7 @@ index guide path =
 subtopics :: Guide -> Text -> [Text]
 subtopics guide path =
   [ " * " <> child <> " - " <> maybe "" blurb (Map.lookup child (guideTopics guide))
-    | child <- Map.findWithDefault [] path (guideChildren guide)
+  | child <- Map.findWithDefault [] path (guideChildren guide)
   ]
 
 notFound :: Guide -> [Text] -> Text

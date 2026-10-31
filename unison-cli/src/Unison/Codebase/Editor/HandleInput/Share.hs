@@ -17,16 +17,15 @@ import Network.HTTP.Types (status404)
 import Servant.Client qualified as Servant
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Cli.Share.Definitions
 import Unison.Cli.Share.Ref (SearchFilter, ShareRef (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Prelude
 import Unison.Server.Doc.Console (docToConsole)
 import Unison.Server.Doc.Markdown.Render qualified as Doc
 import Unison.Server.Doc.Markdown.Types qualified as Markdown
-import Unison.Util.Pretty qualified as P
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
   ( DefinitionDisplayResults (..),
@@ -38,6 +37,7 @@ import Unison.Server.Types
     TypeSummary (..),
   )
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.Pretty qualified as P
 
 handleShareProjectSearch :: Text -> Cli ()
 handleShareProjectSearch = searchEntities'
@@ -128,9 +128,10 @@ handleShareRender ref@ShareRef {path} =
 lookupDefinitions :: ShareRef -> Cli DefinitionDisplayResults
 lookupDefinitions ref@ShareRef {path} = do
   name <- path & onNothing (Cli.returnEarly (Output.ShareFailed "Expected a name after the `:`, like @user/project:some.name"))
-  results <- getDefinitions ref name & onLeftM \case
-    Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed ("Not found on Share: " <> name))
-    err -> Cli.returnEarly (Output.ServantClientError err)
+  results <-
+    getDefinitions ref name & onLeftM \case
+      Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed ("Not found on Share: " <> name))
+      err -> Cli.returnEarly (Output.ServantClientError err)
   when (not (null (missingDefinitions results))) do
     Cli.returnEarly (Output.ShareFailed ("Not found on Share: " <> Text.intercalate ", " (missingDefinitions results)))
   pure results
@@ -138,9 +139,10 @@ lookupDefinitions ref@ShareRef {path} = do
 -- | List the releases of a project, newest first, numbered so that @share.releases.detail 2@ can refer to one.
 handleShareReleases :: Text -> Text -> Cli ()
 handleShareReleases handle slug = do
-  releases <- listReleases handle slug & onLeftM \case
-    Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed ("There is no project @" <> handle <> "/" <> slug <> " on Share."))
-    err -> Cli.returnEarly (Output.ServantClientError err)
+  releases <-
+    listReleases handle slug & onLeftM \case
+      Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed ("There is no project @" <> handle <> "/" <> slug <> " on Share."))
+      err -> Cli.returnEarly (Output.ServantClientError err)
   case releases of
     [] -> Cli.respond (Output.ShareText ("@" <> handle <> "/" <> slug <> " has no releases."))
     _ -> do
@@ -149,7 +151,7 @@ handleShareReleases handle slug = do
       let width = Text.length (tShow (length releases))
       Cli.respond . Output.ShareText . Text.unlines $
         [ Text.justifyRight width ' ' (tShow n) <> ". " <> version <> "  " <> date <> (if status == "published" then "" else "  (" <> status <> ")")
-          | (n, ReleaseInfo {version, date, status}) <- zip [1 :: Int ..] releases
+        | (n, ReleaseInfo {version, date, status}) <- zip [1 :: Int ..] releases
         ]
           ++ [ "",
                "Use `share.releases.detail <number>` (or `share.releases.detail @" <> handle <> "/" <> slug <> "/releases/<version>`) to read the release notes of one."
@@ -160,9 +162,10 @@ handleShareReleaseDetail :: ShareRef -> Cli ()
 handleShareReleaseDetail ref = do
   when (isJust ref.path) do
     Cli.returnEarly (Output.ShareFailed "Expected a release, like @user/project/releases/1.2.3")
-  results <- getDefinitions ref "ReleaseNotes" & onLeftM \case
-    Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed "That release was not found on Share.")
-    err -> Cli.returnEarly (Output.ServantClientError err)
+  results <-
+    getDefinitions ref "ReleaseNotes" & onLeftM \case
+      Servant.FailureResponse _ response | Servant.responseStatusCode response == status404 -> Cli.returnEarly (Output.ShareFailed "That release was not found on Share.")
+      err -> Cli.returnEarly (Output.ServantClientError err)
   let DefinitionDisplayResults {termDefinitions, typeDefinitions} = results
       docs =
         [doc | TermDefinition {termDocs} <- Map.elems termDefinitions, (_, _, doc) <- termDocs]

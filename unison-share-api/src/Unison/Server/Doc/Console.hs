@@ -11,12 +11,12 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.HashQualified qualified as HQ
-import Unison.Syntax.Name qualified as Name
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Doc
 import Unison.Server.Syntax qualified as Server
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.AnnotatedText (AnnotatedText (..), Segment (..))
 import Unison.Util.ColorText (ColorText)
 import Unison.Util.ColorText qualified as CT
@@ -175,6 +175,5 @@ elementForColor = \case
   Server.RecordFieldName name -> ST.RecordFieldName name
   Server.RecordFieldValueColon -> ST.RecordFieldValueColon
   Server.RecordExtraFields -> ST.RecordExtraFields
-
   where
     dummy = Reference.Builtin ""
