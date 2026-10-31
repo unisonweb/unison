@@ -337,3 +337,46 @@ scratch/main> rewrite.find :findEmit
 
   Tip: Try `edit 1` to bring this into your scratch file.
 ```
+
+## Rules in a file are typechecked when the command runs
+
+The file doesn't need to have been loaded. The names in its rules are resolved by type, so a rule that mentions a helper
+defined in the same file works, and an ambiguous name is an error, as it is in any file.
+
+``` unison :hide ruleset.u
+helper : Nat -> Nat
+helper x = x * 2
+
+rule x = @rewrite term x Nat.+ x ==> helper x
+```
+
+``` unison :hide
+double : Nat -> Nat
+double x =
+  use Nat +
+  x + x
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> rewrite.find ruleset.u:rule
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. a
+    2. b
+    3. c
+    4. double
+    5. doubleRule
+
+  Tip: Try `edit 1` or `edit 1-5` to bring these into your
+       scratch file.
+```

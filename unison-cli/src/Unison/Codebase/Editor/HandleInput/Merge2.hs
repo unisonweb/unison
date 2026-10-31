@@ -414,7 +414,8 @@ doMerge info = do
                         then
                           lineMergedNote (lineMergedNames mergeblob.conflictTexts)
                             <> makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
-                        else Pretty.toPlain 80 mergeblob.unparsedFile
+                        else
+                          (if env.unattended then noConflictsNote else "") <> Pretty.toPlain 80 mergeblob.unparsedFile
                     )
                 done
                   ( Output.MergeFailure
@@ -610,12 +611,18 @@ lineMergedNames texts =
       Diff3.Conflict {} -> True
       Diff3.Hunk {} -> False
 
+-- | A note for the top of a file of definitions that depend on what was merged and no longer typecheck (the merge had no
+-- conflicts).
+noConflictsNote :: Text
+noConflictsNote =
+  "-- ** There are no conflicts. The definitions below depend on what was merged, and don't typecheck with it.\n\n"
+
 -- | A note for the top of the merged file that names the definitions that were merged line by line (see 'lineMergedNames').
 lineMergedNote :: [Name] -> Text
 lineMergedNote = \case
   [] -> ""
   names ->
-    "-- The following definitions below were successfully merged at the line-level: "
+    "-- ** The following definitions below were successfully merged at the line-level: "
       <> Text.intercalate ", " (Name.toText <$> names)
       <> "\n-- You may want to manually review them for correctness.\n\n"
 
@@ -627,7 +634,7 @@ makeMergedFileContents sourceAndTarget fileContents =
       Diff3.Conflict lca alice bob ->
         aliceSlug
           <> foldMap line alice
-          <> middleSlug
+          <> baseSlug
           <> foldMap line lca
           <> middleSlug
           <> foldMap line bob
@@ -637,6 +644,11 @@ makeMergedFileContents sourceAndTarget fileContents =
     aliceSlug :: TextBuilder
     aliceSlug =
       "<<<<<<< " <> TextBuilder.text (into @Text sourceAndTarget.alice.branch) <> newline
+
+    -- The conflict markers are git's, in its @diff3@ style (@merge.conflictStyle=diff3@): alice's lines, then the common
+    -- ancestor's after @|||||||@, then bob's after @=======@.
+    baseSlug :: TextBuilder
+    baseSlug = "||||||| base\n"
 
     middleSlug :: TextBuilder
     middleSlug = "=======\n"

@@ -227,7 +227,7 @@ makePrettyUnisonFile authors conflicts dependents =
        in if thereAre conflicts && thereAre dependents
             then
               fold
-                [ "-- The definitions below are not conflicted, but they each depend on one or more\n",
+                [ "-- ** The definitions below are not conflicted, but they each depend on one or more\n",
                   "-- conflicted definitions above.\n\n"
                 ]
             else mempty,
@@ -257,7 +257,7 @@ makePrettySoloUnisonFile conflicts dependents =
       if not (defnsAreEmpty conflicts) && TwoWay.or (not . defnsAreEmpty <$> dependents)
         then
           fold
-            [ "-- The definitions below are not conflicted, but they each depend on one or more\n",
+            [ "-- ** The definitions below are not conflicted, but they each depend on one or more\n",
               "-- conflicted definitions.\n\n"
             ]
         else mempty,

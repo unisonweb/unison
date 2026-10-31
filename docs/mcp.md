@@ -61,6 +61,10 @@ _e.g._ my complete file on macOS looks like this:
 
 After saving the file, restart the agent. For Claude, you should then see a new "unison" option in the MCP server list. For Bob, make sure "Use MCP Servers" is enabled in the MCP settings, then manage or restart the `unison` server from there. In Gemini CLI, Claude Code, and Antigravity CLI, check with `/mcp`.
 
+#### Over HTTP, to a running UCM
+
+A UCM that is serving the codebase (the `ucm` session you are working in, or `ucm headless`) also speaks MCP over HTTP at `/<token>/mcp`, where the token is the one in the codebase server's URL (set it with `UCM_TOKEN`). It has the same tools as `ucm mcp`, and works on the codebase that session has open, so you can work alongside the agent. Transcripts it runs take over that process's output while they run, so with a session at the terminal prefer `ucm headless`.
+
 #### Codex
 
 Codex is primarily used for OpenAI models, but can be used with other model providers that support the OpenAI API.
@@ -162,7 +166,7 @@ myproject/main> share.render @unison/base
 
 ### When an action can't finish
 
-`update`, `delete`, `merge`, `pull` and `upgrade` must produce a branch that compiles. When one can't, UCM switches to a temporary branch and writes the definitions that need attention to `<action>-<branches>-<shorthash>.u` (for example `merge-bob-into-alice-a0458b71.u`; the hash is of the action, its arguments and the branches involved). The file is a real file in the directory the server was started in (and its contents are not repeated in the reply), so edit it with your own tools. For a merge with conflicts it holds the three-way merge, with conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) where the branches disagree. The reply names the file and the branch and says what to do next: edit the file until it compiles, check it with `load <file>`, then run `update` to merge the temporary branch back and delete it (or `cancel` to abandon). The server never runs an external merge tool (`UCM_MERGETOOL`), since nobody is there to use it. While you are on the temporary branch the definitions in the file are not on the branch, so `view` and `find` won't show them; `update` saves what is in the file, so deleting a definition from the file removes it from the branch.
+`update`, `delete`, `merge`, `pull` and `upgrade` must produce a branch that compiles. When one can't, UCM switches to a temporary branch and writes the definitions that need attention to `<action>-<branches>-<shorthash>.u` (for example `merge-bob-into-alice-a0458b71.u`; the hash is of the action, its arguments and the branches involved). The file is a real file in the directory the server was started in (and its contents are not repeated in the reply), so edit it with your own tools. For a merge with conflicts it holds the three-way merge, with git-style conflict markers (`<<<<<<<`, `|||||||` for the original, `=======`, `>>>>>>>`) where the branches disagree, and `-- **` notes that start each other part of the file. The reply names the file and the branch and says what to do next: edit the file until it compiles, check it with `load <file>`, then run `update` to merge the temporary branch back and delete it (or `cancel` to abandon). The server never runs an external merge tool (`UCM_MERGETOOL`), since nobody is there to use it. While you are on the temporary branch the definitions in the file are not on the branch, so `view` and `find` won't show them; `update` saves what is in the file, so deleting a definition from the file removes it from the branch.
 
 ## Usage
 

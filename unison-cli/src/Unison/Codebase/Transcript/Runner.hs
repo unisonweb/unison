@@ -190,6 +190,7 @@ withRunner jit config verbosity ucmVersion action = do
                 Server.defaultCodebaseServerOpts
                 runtime
                 codebase
+                (\_ -> pure Nothing) -- a transcript's codebase server doesn't speak MCP
                 \case
                   Nothing -> pure $ Left PortBindingFailure
                   Just baseUrl -> runWith (tShow @Server.BaseUrl baseUrl)

@@ -25,6 +25,7 @@ import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
 import Network.HTTP.Types.Status (ok200)
+import Network.MCP.Transport.Types qualified as MCP
 import Network.URI.Encode as UriEncode
 import Network.URI.Encode qualified as URI
 import Network.Wai (Middleware, responseLBS)
@@ -134,6 +135,12 @@ instance MimeRender HTML RawHtml where
 
 type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
+type MCPServer = MCP.Message -> Handler (Maybe MCP.Message)
+
+type MCPAPI =
+  Servant.ReqBody '[JSON] MCP.Message
+    :> Servant.Post '[JSON] (Maybe MCP.Message)
+
 type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
 type UnisonLocalAPI =
@@ -198,7 +205,7 @@ instance ToParam (Servant.QueryParam' mods "newType" a) where
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
-type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> UnisonAndDocsAPI)
+type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> UnisonAndDocsAPI) :<|> ("mcp" :> MCPAPI)
 
 type StaticAPI = "static" :> Raw
 
@@ -389,9 +396,10 @@ app ::
   FilePath ->
   Strict.ByteString ->
   Maybe String ->
+  MCPServer ->
   Application
-app env rt codebase uiPath expectedToken allowCorsHost =
-  corsPolicy allowCorsHost $ serve appAPI $ server env rt codebase uiPath expectedToken
+app env rt codebase uiPath expectedToken allowCorsHost mcpServer =
+  corsPolicy allowCorsHost $ serve appAPI $ server env rt codebase uiPath expectedToken mcpServer
 
 data Waiter a = Waiter
   { notify :: a -> IO (),
@@ -448,9 +456,10 @@ startServer ::
   CodebaseServerOpts ->
   Runtime Symbol ->
   Codebase IO Symbol Ann ->
+  MCPServer ->
   (Maybe BaseUrl -> IO a) ->
   IO a
-startServer isTest env opts rt codebase onStart = do
+startServer isTest env opts rt codebase mcpServer onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
@@ -462,7 +471,7 @@ startServer isTest env opts rt codebase onStart = do
         defaultSettings
           & setPort (fromMaybe 5858 $ port opts)
           & (setHost . fromString) (fromMaybe "127.0.0.1" $ host opts)
-  let app' = app env rt codebase envUI token (allowCorsHost opts)
+  let app' = app env rt codebase envUI token (allowCorsHost opts) mcpServer
   case port opts of
     Nothing -> withPort settings baseUrl app' 5858
     Just p -> withPort settings baseUrl app' p
@@ -558,8 +567,9 @@ server ::
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
+  MCPServer ->
   Server AppAPI
-server backendEnv rt codebase uiPath expectedToken =
+server backendEnv rt codebase uiPath expectedToken mcpServer =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> hoistWithAuth serverAPI expectedToken serveServer
   where
@@ -567,6 +577,7 @@ server backendEnv rt codebase uiPath expectedToken =
     serveServer =
       serveUI uiPath
         :<|> serveUnisonAndDocs backendEnv rt codebase
+        :<|> mcpServer
 
 serveUnisonAndDocs :: BackendEnv -> Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
 serveUnisonAndDocs env rt codebase = serveUnisonLocal env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs

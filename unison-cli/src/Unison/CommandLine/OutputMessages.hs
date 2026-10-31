@@ -2265,11 +2265,21 @@ notifyUser dir issueFn = \case
         <> scratchFileNextSteps
           handoff
           [ P.wrap $
-              "The file has conflict markers where the branches disagree. In each, the first part is"
+              "The file has conflict markers where the branches disagree, in git's style. In each, the first part is"
                 <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
-                <> "version, the second is the original, and the third is"
-                <> P.group (prettyMergeSource aliceAndBob.bob <> "'s.")
-                <> "Keep what you want and delete the marker lines."
+                <> "version (after"
+                <> P.group "<<<<<<<),"
+                <> "then the original (after"
+                <> P.group "|||||||),"
+                <> "and then"
+                <> P.group (prettyMergeSource aliceAndBob.bob <> "'s")
+                <> "(after"
+                <> P.group "=======)."
+                <> "Keep what you want and delete the marker lines. The file can be long: search it for"
+                <> P.group "<<<<<<<"
+                <> "and"
+                <> P.group "`-- **`"
+                <> "to find the parts that need attention."
             | conflictMarkers
           ]
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->

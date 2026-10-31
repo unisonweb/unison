@@ -15,6 +15,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import System.FilePath (normalise, takeBaseName, takeDirectory, takeFileName, (</>))
 import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
+import Unison.Codebase.Editor.HandleInput.Load (parseAndTypecheckUnisonFile)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
 import Unison.Codebase.Editor.Input (RelativeToFold (..), RewriteTarget (..), RewritesSpec (..))
 import Unison.Codebase.Path qualified as Path
@@ -67,17 +68,17 @@ handleStructuredFindReplaceI :: RewritesSpec -> Maybe RewriteTarget -> Cli ()
 handleStructuredFindReplaceI spec target = do
   currentBranch <- Cli.getCurrentBranch0
   let branchNames = Branch.toNames currentBranch
-  ruleTerms <- lookupRuleTerms spec
+  (ruleTerms, ruleNames) <- lookupRuleTerms spec
   case target of
     Just (RewriteFile path) -> do
       uf0 <- loadAndParse path
       dest <- newRewritesPath (rewritesDirectoryFor path) (Just (takeBaseName path))
-      applyRewrites False ruleTerms (UFN.toNames uf0 <> branchNames) dest uf0
-    Just (RewriteNamespace path0) -> rewriteDefinitionsIn (Just path0) currentBranch ruleTerms
-    Nothing -> rewriteDefinitionsIn Nothing currentBranch ruleTerms
+      applyRewrites False ruleTerms (UFN.toNames uf0 <> ruleNames <> branchNames) dest uf0
+    Just (RewriteNamespace path0) -> rewriteDefinitionsIn (Just path0) currentBranch ruleTerms ruleNames
+    Nothing -> rewriteDefinitionsIn Nothing currentBranch ruleTerms ruleNames
   where
     -- Rewrite the definitions in the current branch (or in one namespace of it) that the rules match.
-    rewriteDefinitionsIn mpath currentBranch ruleTerms = do
+    rewriteDefinitionsIn mpath currentBranch ruleTerms ruleNames = do
       Cli.Env {codebase} <- ask
       let path = maybe mempty Path.fromPath' mpath
           scope = (if path == mempty then Branch.withoutLib else id) (Branch.getAt0 path currentBranch)
@@ -112,7 +113,7 @@ handleStructuredFindReplaceI spec target = do
             Cli.runTransaction (Parsers.parseFile "rewrites" (Text.unpack text) parsingEnv)
               & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
           dest <- newRewritesPath "rewrites" Nothing
-          applyRewrites True ruleTerms (UFN.toNames uf0 <> branchNames) dest uf0
+          applyRewrites True ruleTerms (UFN.toNames uf0 <> ruleNames <> branchNames) dest uf0
 
 -- | Apply the rewrites to the definitions of a parsed file, and write the result, if anything changed, to a new file.
 applyRewrites ::
@@ -190,10 +191,27 @@ loadAndParse path = do
   Cli.runTransaction (Parsers.parseFile path (Text.unpack text) parsingEnv)
     & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
 
+-- | Parse and typecheck a file, leaving the latest file and the latest typechecked file as they were.
+loadAndTypecheck :: FilePath -> Cli (UF.TypecheckedUnisonFile Symbol Ann)
+loadAndTypecheck path = do
+  env <- ask
+  currentBranch <- Cli.getCurrentBranch0
+  text <-
+    liftIO (env.loadSource (Text.pack path)) >>= \case
+      Cli.InvalidSourceNameError -> Cli.returnEarly $ InvalidSourceName path
+      Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
+      Cli.LoadSuccess text -> pure text
+  latestFile <- use #latestFile
+  latestTypecheckedFile <- use #latestTypecheckedFile
+  tf <- parseAndTypecheckUnisonFile (Branch.toNames currentBranch) (Text.pack path) text
+  #latestFile .= latestFile
+  #latestTypecheckedFile .= latestTypecheckedFile
+  pure tf
+
 handleStructuredFindI :: RewritesSpec -> Cli ()
 handleStructuredFindI spec = do
   Cli.Env {codebase} <- ask
-  ruleTerms <- lookupRuleTerms spec
+  (ruleTerms, _) <- lookupRuleTerms spec
   rules0 <- extractRules InvalidStructuredFind (\_ tm -> tm) ruleTerms
   let rules = snd <$> rules0
   currentBranch <- Cli.getCurrentBranch0
@@ -265,15 +283,20 @@ handleTextFindI allowLib tokens = do
         txtPattern (Pattern.Char _ c) = [Text.pack [c]]
         txtPattern _ = []
 
--- | The terms that the spec names, which should be @\@rewrite@ blocks or functions that return one, each with its name.
-lookupRuleTerms :: RewritesSpec -> Cli [(HQ.HashQualified Name, Term Symbol Ann)]
+-- | The terms that the spec names, which should be @\@rewrite@ blocks or functions that return one, each with its name,
+-- and the names that the spec's file defines (none if the spec has no file). A file is parsed and typechecked when the
+-- command runs, without changing the latest file, so the names in the rules are resolved by type like anywhere else.
+lookupRuleTerms :: RewritesSpec -> Cli ([(HQ.HashQualified Name, Term Symbol Ann)], Names)
 lookupRuleTerms spec = case spec.file of
   Just path -> do
-    uf <- loadAndParse path
-    let bindings = case UF.typecheckingTerm uf of
-          Term.LetRecNamed' bs _ -> bs
-          _ -> []
-    case spec.rewrites of
+    tf <- loadAndTypecheck path
+    let bindings =
+          [ (v, tm)
+          | (v, (_, _, watchKind, tm, _)) <- Map.toList (UF.hashTerms tf),
+            isNothing watchKind
+          ]
+        fileNames = UFN.typecheckedToNames tf
+    rules <- case spec.rewrites of
       [] -> case bindings of
         [(v, tm)] -> pure [(HQ.NameOnly (Name.unsafeParseText (Var.name v)), tm)]
         _ ->
@@ -290,7 +313,8 @@ lookupRuleTerms spec = case spec.file of
         Nothing ->
           Cli.returnEarly . InvalidRewriteSpec $
             "I couldn't find a definition named " <> HQ.toText name <> " in " <> Text.pack path <> "."
-  Nothing -> for spec.rewrites \name -> do
+    pure (rules, fileNames)
+  Nothing -> (,mempty) <$> for spec.rewrites \name -> do
     Cli.Env {codebase} <- ask
     currentBranch <- Cli.getCurrentBranch0
     hqLength <- Cli.runTransaction Codebase.hashLength

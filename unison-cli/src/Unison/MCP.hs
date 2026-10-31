@@ -1,5 +1,5 @@
 -- | The MCP server: tools that run Unison transcripts, which differ in which UCM commands they allow.
-module Unison.MCP (runOnStdIO) where
+module Unison.MCP (runOnStdIO, withMessageHandler) where
 
 import Control.Concurrent.MVar (newMVar, withMVar)
 import CMark qualified
@@ -86,16 +86,23 @@ instance HasInputSchema TranscriptArgs where
 -- | Run the MCP server until we hit EOF.
 runOnStdIO :: Transcript.Runner -> Codebase IO Symbol Ann -> IO ()
 runOnStdIO runner codebase =
+  withMessageHandler runner codebase \handle -> do
+    transport <- newSTDIOTransport
+    handleMessages transport handle
+
+-- | The MCP server as a function from a message to the reply, if there is one, for a transport to call.
+withMessageHandler :: Transcript.Runner -> Codebase IO Symbol Ann -> ((Message -> IO (Maybe Message)) -> IO a) -> IO a
+withMessageHandler runner codebase action =
   withOutputDir \outputDir -> do
     -- Transcripts run one at a time: they share the codebase, and they take over stdout while they run.
     lock <- newMVar ()
     let run tier args = withMVar lock \() -> runTranscript runner codebase outputDir tier args
-    server <- mkServer
+    server <-
+      mkServer
         (Implementation "unison-mcp" "0.0.1")
         (Learn.instructions Learn.embeddedGuide)
         (learnTool : (transcriptTool run <$> [minBound .. maxBound]))
-    transport <- newSTDIOTransport
-    handleMessages transport (fmap (fmap renameAnnotations) . MCP.handleMessage server)
+    action (fmap (fmap renameAnnotations) . MCP.handleMessage server)
 
 -- | hs-mcp writes a tool's annotations as @readOnly@, @destructive@, @idempotent@ and @openWorld@, but the MCP spec calls
 -- them @readOnlyHint@, @destructiveHint@, @idempotentHint@ and @openWorldHint@, and clients only look for those. So

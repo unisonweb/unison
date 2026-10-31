@@ -1056,7 +1056,7 @@ foo = "alices foo"
 foo : Text
 foo = "bobs foo"
 
--- The definitions below are not conflicted, but they each depend on one or more
+-- ** The definitions below are not conflicted, but they each depend on one or more
 -- conflicted definitions above.
 
 qux : Text
@@ -1746,7 +1746,7 @@ unique[o01s0262qu1ks4ssh1cmhg9ccquqohp0] type Foo
 unique[oq0v4am69v0kagaiup424s24fktd08mj] type Foo
   = Bar
 
--- The definitions below are not conflicted, but they each depend on one or more
+-- ** The definitions below are not conflicted, but they each depend on one or more
 -- conflicted definitions above.
 
 alice : Foo -> Nat
@@ -2900,7 +2900,7 @@ baz = "alice"
 baz : Text
 baz = "bob"
 
--- The definitions below are not conflicted, but they each depend on one or more
+-- ** The definitions below are not conflicted, but they each depend on one or more
 -- conflicted definitions above.
 
 bar : Nat
@@ -3290,7 +3290,7 @@ type Foo
 type Foo
   = Bob
 
--- The definitions below are not conflicted, but they each depend on one or more
+-- ** The definitions below are not conflicted, but they each depend on one or more
 -- conflicted definitions above.
 
 type Bar

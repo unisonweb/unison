@@ -356,12 +356,16 @@ main version = do
               let ucmVersion = Version.gitDescribeWithDate version
               let credMan = AuthN.globalCredentialManager
               authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-              Server.startServer
+              -- The codebase server also speaks MCP at /mcp, over HTTP, for clients that connect to a running UCM.
+              Transcript.withRunner jit Transcript.mcpConfig Verbosity.Silent ucmVersion \runner ->
+               MCP.withMessageHandler runner theCodebase \handleMcpMessage ->
+                Server.startServer
                 isTest
                 Backend.BackendEnv
                 codebaseServerOpts
                 sbRuntime
                 theCodebase
+                (liftIO . handleMcpMessage)
                 \mayBaseUrl -> case exitOption of
                   DoNotExit -> case isHeadless of
                     Headless -> whenJust mayBaseUrl \baseUrl -> do

@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Load
     loadUnisonFile,
     EvalMode (..),
     evalUnisonFile,
+    parseAndTypecheckUnisonFile,
   )
 where
 

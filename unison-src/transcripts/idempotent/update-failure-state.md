@@ -529,7 +529,7 @@ foo = 2
 foo : Nat
 foo = 3
 
--- The definitions below are not conflicted, but they each depend on one or more
+-- ** The definitions below are not conflicted, but they each depend on one or more
 -- conflicted definitions above.
 
 user : Nat
