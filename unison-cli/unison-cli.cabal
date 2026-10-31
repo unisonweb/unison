@@ -128,7 +128,6 @@ library
       Unison.CommandLine.BranchRelativePath
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
-      Unison.CommandLine.DocRender
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.FZFResolvers
       Unison.CommandLine.Helpers

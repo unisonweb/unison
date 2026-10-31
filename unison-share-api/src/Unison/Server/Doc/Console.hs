@@ -1,7 +1,7 @@
 -- | Render a doc that the server has evaluated (a 'Doc', the structure Unison Share and the codebase server return) for
 -- the console. This is @syntax.docFormatConsole@ in "Unison.Runtime.IOSource", for the evaluated structure, together
 -- with how each special form shows up on the console.
-module Unison.CommandLine.DocRender
+module Unison.Server.Doc.Console
   ( docToConsole,
   )
 where

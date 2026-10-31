@@ -22,7 +22,7 @@ import Unison.Cli.Share.Ref (SearchFilter, ShareRef (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
-import Unison.CommandLine.DocRender (docToConsole)
+import Unison.Server.Doc.Console (docToConsole)
 import Unison.Server.Doc.Markdown.Render qualified as Doc
 import Unison.Server.Doc.Markdown.Types qualified as Markdown
 import Unison.Util.Pretty qualified as P
