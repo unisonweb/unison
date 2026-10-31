@@ -25,6 +25,8 @@ import Servant.Client qualified as Servant
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Server.Orphans ()
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Cli.Share.Projects (hardCodedBaseUrl)
 import Unison.Cli.Share.Ref
 import Unison.Prelude
@@ -107,15 +109,15 @@ type Project api =
   "users" :> Servant.Capture "handle" Text :> "projects" :> Servant.Capture "slug" Text :> api
 
 type DefinitionByName =
-  "definitions" :> "by-name" :> Servant.Capture "name" Text :> Servant.Get '[Servant.JSON] DefinitionDisplayResults
+  "definitions" :> "by-name" :> Servant.Capture "name" Text :> Servant.QueryParam "renderWidth" Pretty.Width :> Servant.Get '[Servant.JSON] DefinitionDisplayResults
 
 httpSearch :: Maybe Text -> Servant.ClientM SearchHits
 httpSearchDefinitions :: Maybe Text -> Maybe Text -> Maybe Text -> Servant.ClientM DefinitionSearchResults
 httpProjectInfo :: Text -> Text -> Servant.ClientM ProjectInfo
 httpReleases :: Text -> Text -> Maybe Int -> Servant.ClientM ReleasesResponse
 httpReadme :: Text -> Text -> Servant.ClientM ReadmeResponse
-httpBranchDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
-httpReleaseDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
+httpBranchDefinition :: Text -> Text -> Text -> Text -> Maybe Pretty.Width -> Servant.ClientM DefinitionDisplayResults
+httpReleaseDefinition :: Text -> Text -> Text -> Text -> Maybe Pretty.Width -> Servant.ClientM DefinitionDisplayResults
 ( httpSearch
     :<|> httpSearchDefinitions
     :<|> httpProjectInfo
@@ -154,14 +156,16 @@ getReadme ShareRef {handle, slug} =
 
 -- | Look up a definition by name. Names that don't exist are in `missingDefinitions`, not an error.
 getDefinitions :: ShareRef -> Text -> Cli (Either Servant.ClientError DefinitionDisplayResults)
-getDefinitions ShareRef {handle, slug, branch} name =
+getDefinitions ShareRef {handle, slug, branch} name = do
+  Cli.Env {getTerminalWidth} <- ask
+  width <- Just <$> liftIO getTerminalWidth
   case branch of
-    ShareRelease version -> run (httpReleaseDefinition handle slug version name)
-    ShareBranchNamed branchName -> run (httpBranchDefinition handle slug branchName name)
+    ShareRelease version -> run (httpReleaseDefinition handle slug version name width)
+    ShareBranchNamed branchName -> run (httpBranchDefinition handle slug branchName name width)
     ShareLatest ->
       run (httpProjectInfo handle slug) >>= \case
         Left err -> pure (Left err)
         Right ProjectInfo {latestRelease, defaultBranch} ->
           case latestRelease of
-            Just version -> run (httpReleaseDefinition handle slug version name)
-            Nothing -> run (httpBranchDefinition handle slug defaultBranch name)
+            Just version -> run (httpReleaseDefinition handle slug version name width)
+            Nothing -> run (httpBranchDefinition handle slug defaultBranch name width)

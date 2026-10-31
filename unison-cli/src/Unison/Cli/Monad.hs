@@ -180,6 +180,9 @@ data Env = Env
     -- | Whether we're running in a transcript test or not.
     -- Avoid using this except when absolutely necessary.
     isTranscriptTest :: Bool,
+    -- | The width to lay output out at: that of the terminal, or of the virtual one in a transcript. Passed to Share,
+    -- which lays out the code in what it returns.
+    getTerminalWidth :: IO Pretty.Width,
     -- | Whether UCM is being driven by a program (@ucm mcp@) rather than a person at a keyboard. Then it never runs
     -- an external tool for the person to use (like @UCM_MERGETOOL@), and the scratch file of an action that can't finish
     -- (see "Unison.Cli.ScratchFile") is written to disk, and left out of the output, so that the program edits it with

@@ -638,6 +638,8 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = isTest config,
+            -- Transcript manages a 2-space indent for output lines, so the width is shortened by that, as for output.
+            getTerminalWidth = pure (terminalWidth config - 2),
             unattended = unattended config,
             -- Transcripts don't support file watching
             watchState = Nothing
