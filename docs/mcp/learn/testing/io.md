@@ -2,7 +2,7 @@ Tests that use IO, such as reading a file or the clock, are not `test>` lines. T
 
 - An IO test looks like `foo.tests.name = do test.verify do ...`. The `do` before `test.verify` makes the whole test a definition whose type is `'{IO} [Result]`: a computation that hasn't run yet.
 - Inside the `test.verify` block you can use IO as well as the checks, for example `printLine "checking"`.
-- Run it with `io.test foo.tests.name`, or all of them with `io.test.all`. `io.test` needs `transcript-io` (see [transcripts](learn:ucm/transcript)).
+- `test` doesn't run these. Run one with `io.test foo.tests.name`, or all of them with `io.test.all`. `io.test` needs `transcript-io` (see [transcripts](learn:ucm/transcript)).
 - Name it like any other test (see [naming](learn:testing/naming)). Prefer a pure `test>` test unless the thing you are testing has to use IO.
 
 ````

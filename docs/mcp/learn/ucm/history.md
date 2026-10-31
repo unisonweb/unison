@@ -19,10 +19,10 @@ Looking at what changed in a [branch](learn:ucm/branches), and going back.
 
 ````
 ``` ucm
-myproject/main> reflog
-myproject/main> fork #j5ae1dgiq1 oldversion
-myproject/main> ls oldversion
-myproject/main> view oldversion.Cfg.parse oldversion.Cfg.parse.tests.example
+> reflog
+> fork #j5ae1dgiq1 oldversion
+> ls oldversion
+> view oldversion.Cfg.parse oldversion.Cfg.parse.tests.example
 ```
 ````
 

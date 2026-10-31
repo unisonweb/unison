@@ -8,6 +8,7 @@ Running things at the same time, with the `Threads` ability in the base library:
 - `Threads.run do ...` handles `Threads` and leaves `IO` and `Exception`. Put it where the `Threads` computation ends: inside your function if callers shouldn't need to know, or leave `Threads` in its type so the caller decides. A function that uses `IO` has `IO` in its type.
 - IO code can't be run by a `> watch` line or by `test>`. Run it with `run` (see [running code](learn:ucm/run)) and test it with `io.test` (see [IO tests](learn:testing/io)), both of which need `transcript-io`.
 - To test that things really ran at the same time, time the call with `Clock.monotonic()` and check the elapsed time is near that of one task, not the sum of all of them.
+- To time something in a test, `start = Clock.monotonic()`, then `elapsed = Clock.monotonic() Duration.- start` is a `Duration`: `ensure (elapsed Duration.< Duration.seconds +1)`. There is no `Duration.toMilliseconds`.
 
 ## Detail
 
@@ -35,13 +36,15 @@ small = do Threads.run do lengths ["a", "bb", "ccc"]
 ```
 
 ``` ucm
-myproject/main> add
-myproject/main> io.test lengths.tests.concurrent
-myproject/main> run small
+> add
+> io.test lengths.tests.concurrent
+> run small
 ```
 ````
 
 `run small` prints `[1, 2, 3]`, and the ten sleeps of a tenth of a second finish in about a tenth of a second.
+
+**Measuring time.** `Duration.asMilliseconds d` is a `Float`.
 
 **Racing.** `Threads.run do Threads.race (do Threads.sleep (Duration.milliseconds +300); "slow") (do "quick")` is `Right "quick"`.
 

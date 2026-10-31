@@ -20,8 +20,8 @@ addLimit = @rewrite term bullets ==> bulletsLimit maxNat
 ```
 
 ``` ucm
-myproject/main> rewrite.find :addLimit
-myproject/main> rewrite :addLimit
+> rewrite.find :addLimit
+> rewrite :addLimit
 ```
 ````
 

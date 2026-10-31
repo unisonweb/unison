@@ -68,3 +68,17 @@ Every task (the 16 approved ones, 15 more single-function tasks, and the 16 work
 | r12 | `ucm/upgrade` says to upgrade several libraries in one command | `workflow-lib-upgrade-two` passes | the same task, and two library controls, pass |
 
 Sonnet's r9 misses were two network tasks whose worker stopped to wait for a background library install (a harness artifact, fixed in the worker prompt) and `workflow-merge-cancel` (the judge rejected documentation the worker added). Its only r11 miss, `workflow-lib-upgrade-two`, upgraded the two libraries one at a time and passes with one `upgrade` command once the topic said so. Haiku's remaining misses are hand-written list loops where base has the function (`List.map`, `List.filterMap`, `List.filter`, `List.scanLeft`), which vary from run to run.
+
+## Rounds 13 to 16: a qualitative pass, from the MCP traces
+
+Sonnet workers only, all 47 tasks (r16: three tasks). The aim was the path, not the pass count: every worker's calls and replies were read (`trace.jsonl`), and the topics and instructions changed where a run was wasteful. Prompts and judges did not change.
+
+| round | what changed before it | calls | `learn` calls | failed calls | replies sent to a file |
+|---|---|---:|---:|---:|---:|
+| r13 | baseline | 446 | 201 | 85 | 123 |
+| r14 | first edits (24 topics, instructions) | 350 | 166 | 60 | 104 |
+| r15 | second edits | 341 | 163 | 57 | 104 |
+
+r15 was judged: 44 / 47. Of the 3 misses, 2 are literal counts in `workflow-merge-conflict/no-collateral` and `workflow-merge-silent-combine/outcome` that a documentation term and an extra test exceed (the kind of judge problem `workflow-merge-cancel` had), and 1 is a real one, a hand-written recursion in `map-invert`, since addressed in `lang/collections/map`. r13 and r14 weren't judged.
+
+r16 reran `map-invert`, `euler-nth-prime` and `refactor-swap-arguments` on the final topics, judged: 3 / 3, and `map-invert` went from FAIL to GREAT (`Map.fromListWith`). `refactor-swap-arguments` still does the swap by hand (`method` PASS).

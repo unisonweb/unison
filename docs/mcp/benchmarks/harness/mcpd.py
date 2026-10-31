@@ -2,7 +2,7 @@
 """Keeps one MCP server running for a run and answers requests on a local socket. Exits after IDLE_SECONDS (default 900)
 without a request, so that finished runs don't keep memory; ask.py starts it again on demand.
 usage: mcpd.py <unison executable> <run dir>   (the codebase is <run dir>/codebase)"""
-import json, os, socket, subprocess, sys, threading
+import json, os, socket, subprocess, sys, threading, time
 BIN, DIR = sys.argv[1], os.path.abspath(sys.argv[2])
 IDLE = float(os.environ.get("IDLE_SECONDS", "900"))
 os.makedirs(DIR, exist_ok=True)
@@ -45,6 +45,7 @@ while True:
         chunk = c.recv(65536)
         if not chunk: break
         data += chunk
+    started = time.time()
     try:
         req = json.loads(data.decode())
         if "tool" in req:
@@ -60,6 +61,11 @@ while True:
         with open(os.path.join(DIR, "calls.log"), "a") as lg:
             a = req.get("arguments", {}) if isinstance(req, dict) else {}
             lg.write(json.dumps({"tool": req.get("tool", req.get("method")), "learn_path": a.get("path"), "reply_chars": len(out), "isError": out.startswith("[isError]")}) + "\n")
+        # The full trace: what the tool was given and what it replied, for reading a run afterwards (trace.py).
+        with open(os.path.join(DIR, "trace.jsonl"), "a") as tr:
+            a = req.get("arguments", {}) if isinstance(req, dict) else {}
+            input = open(a["transcript-file"]).read() if "transcript-file" in a else None
+            tr.write(json.dumps({"tool": req.get("tool", req.get("method")), "arguments": a, "input": input, "reply": out, "started": started, "seconds": round(time.time() - started, 2)}) + "\n")
     except Exception: pass
     try: c.sendall(out.encode()); c.close()
     except Exception: pass

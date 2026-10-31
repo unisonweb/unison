@@ -18,9 +18,9 @@ Before you write a function, find out whether the base library already has it. F
 
 ````
 ``` ucm
-myproject/main> find.all : (a -> b) -> [a] -> [b]
-myproject/main> find.all parMap
-myproject/main> docs Threads.parMap
+> find.all : (a -> b) -> [a] -> [b]
+> find.all parMap
+> docs Threads.parMap
 ```
 ````
 

@@ -14,13 +14,13 @@ Getting to know a library, or the current project, well enough for the task at h
 
 ````
 ``` ucm
-myproject/main> list lib
-myproject/main> display lib.unison_base_7_13_1.README
+> list lib
+> display lib.unison_base_7_13_1.README
 ```
 
 ``` ucm
-myproject/main> docs lib.unison_base_7_13_1.data.List
-myproject/main> view lib.unison_base_7_13_1.data.List.map
+> docs lib.unison_base_7_13_1.data.List
+> view lib.unison_base_7_13_1.data.List.map
 ```
 ````
 
@@ -32,7 +32,7 @@ All of these work with `transcript-read-only`.
 
 ````
 ``` ucm
-myproject/main> find : Nat -> Nat
+> find : Nat -> Nat
 
   1. quad : Nat -> Nat
   2. double : Nat -> Nat

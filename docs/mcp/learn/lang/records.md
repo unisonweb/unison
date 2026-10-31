@@ -1,6 +1,6 @@
 Two ways to have named fields: anonymous records, written `{ name: "Bob", age: 99 }`, and record types you declare.
 
-- A record value is `{ name: "Bob", age: 99 }`, and its type is `{ name: Text, age: Nat }`. Fields are ordered by name, not by how you wrote them.
+- A record value is `{ name: "Bob", age: 99 }`, with `:`, not `=`, and its type is `{ name: Text, age: Nat }`. Fields are ordered by name, not by how you wrote them.
 - `r@age` reads a field, and chains: `r@a@b`. `(@age)` is the getter as a function.
 - `r@age.set 100` returns a copy with the field changed. `r@{age: @age + 1, name: "Rob"}` changes several: inside the braces `@age` is the field's value before the change.
 - Patterns take fields by name, in any order, and may leave some out: `{ name: n } -> n`. `{ x: x, y: y } = r` destructures in a block.

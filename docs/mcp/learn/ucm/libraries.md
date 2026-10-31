@@ -15,7 +15,7 @@ Installing the libraries your code depends on. A library is a project from [Unis
 
 ````
 ``` ucm
-myproject/main> list lib
+> list lib
 
   1.  ansi_1_0_0.          (6511 terms, 157 types)
   2.  json_1_2_1.          (6651 terms, 162 types)
