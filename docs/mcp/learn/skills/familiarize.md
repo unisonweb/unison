@@ -26,7 +26,7 @@ Getting to know a library, or the current project, well enough for the task at h
 
 All of these work with `transcript-read-only`.
 
-**A command that fails stops the transcript.** `docs` fails for a definition that has no documentation, and so does a type search with no exact match (UCM then falls back to fuzzy matching and reports "I couldn't find exact type matches"). Put such commands in blocks of their own, tagged `:error` when you aren't sure they will succeed (see [transcripts](learn:ucm/transcript)), or use `view`, which works whether or not there is documentation.
+**A command that fails stops the transcript,** and a name that doesn't exist fails (see [transcripts](learn:ucm/transcript)). Finding nothing isn't a failure: `docs` says when a definition has no documentation, and a type search with no exact match falls back to fuzzy matching and reports "I couldn't find exact type matches".
 
 **Searching by type.** `find : Nat -> Nat` lists the definitions in your project whose type is `Nat -> Nat`:
 

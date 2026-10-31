@@ -14,6 +14,7 @@ module Unison.PrettyPrintEnv.Names
     suffixifyByHashWithUnhashedTermsInScope,
 
     -- * Pretty-print env
+    hashQualifyShadowed,
     makePPE,
     makeTermNames,
     makeTypeNames,
@@ -132,6 +133,27 @@ suffixifyByHashWithUnhashedTermsInScope localTermNames namespaceNames =
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env
+
+-- | Hash-qualify the names in a pretty-print env that the given names shadow, unless the reference has another name that
+-- isn't shadowed. This is a cheap alternative to rebuilding a large pretty-print env with 'Names.shadowing'.
+hashQualifyShadowed :: Int -> Names -> PrettyPrintEnv -> PrettyPrintEnv
+hashQualifyShadowed hashLen shadowing ppe =
+  PrettyPrintEnv
+    { termNames = \ref -> go (`Relation.memberDom` Names.terms shadowing) (`HQ'.fromNamedReferent` ref) (termNames ppe ref),
+      typeNames = \ref -> go (`Relation.memberDom` Names.types shadowing) (`HQ'.fromNamedReference` ref) (typeNames ppe ref)
+    }
+  where
+    go ::
+      (Name -> Bool) ->
+      (Name -> HQ'.HashQualified Name) ->
+      [(HQ'.HashQualified Name, HQ'.HashQualified Name)] ->
+      [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+    go isShadowed qualify names =
+      case filter (not . isShadowed . HQ'.toName . fst) names of
+        [] -> map (bimap qualify' qualify') names
+        unshadowed -> unshadowed
+      where
+        qualify' = HQ'.take hashLen . qualify . HQ'.toName
 
 makePPE :: Namer -> Suffixifier -> PrettyPrintEnv
 makePPE namer suffixifier =

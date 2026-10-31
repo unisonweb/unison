@@ -714,6 +714,8 @@ notifyUser dir issueFn = \case
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
+  NoDocumentation name ->
+    pure . P.wrap $ prettyName name <> "has no documentation."
   TermMissingType ref ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
@@ -4259,8 +4261,8 @@ noResults fscope =
       ]
         ++ case fscope of
           Input.FindGlobal -> []
-          Input.FindLocal _ -> [suggestFindAll, "", suggestFindGlobal]
-          Input.FindLocalAndDeps _ -> [suggestFindGlobal]
+          Input.FindLocal _ -> [suggestFindAll]
+          Input.FindLocalAndDeps _ -> []
   where
     suggestFindAll =
       P.wrap $
@@ -4268,10 +4270,6 @@ noResults fscope =
           <> "doesn't search `lib`, where libraries like base are installed:"
           <> IP.makeExample IP.findAll ["<name>"]
           <> "does."
-    suggestFindGlobal =
-      P.wrap $
-        IP.makeExample IP.findGlobal []
-          <> "can be used to search outside the current namespace."
 
 listOfDefinitions' ::
   (Var v) =>

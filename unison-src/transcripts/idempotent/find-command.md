@@ -100,7 +100,4 @@ Finding within a namespace
 
   `find` doesn't search `lib`, where libraries like base are
   installed: `find.all <name>` does.
-
-  `debug.find.global` can be used to search outside the current
-  namespace.
 ```

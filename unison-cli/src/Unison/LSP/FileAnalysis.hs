@@ -582,14 +582,19 @@ ppedForFileHelper uf tf = do
   hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
   pure $ case (uf, tf) of
     (Nothing, Nothing) -> codebasePPED
-    (_, Just tf) ->
-      let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
-       in filePPED `PPED.addFallback` codebasePPED
-    (Just uf, _) ->
-      let fileNames = UF.toNames uf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
-       in filePPED `PPED.addFallback` codebasePPED
+    (_, Just tf) -> withFileNames hashLen codebasePPED (UF.typecheckedToNames tf)
+    (Just uf, _) -> withFileNames hashLen codebasePPED (UF.toNames uf)
+  where
+    withFileNames :: Int -> PPED.PrettyPrintEnvDecl -> Names -> PPED.PrettyPrintEnvDecl
+    withFileNames hashLen codebasePPED fileNames =
+      let filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
+          -- A definition can still mention something the file shadowed. The hash tells it apart from the file's
+          -- definition of that name.
+          hashQualifyShadowed = PPE.hashQualifyShadowed hashLen fileNames
+       in filePPED
+            `PPED.addFallback` PPED.PrettyPrintEnvDecl
+              (hashQualifyShadowed codebasePPED.unsuffixifiedPPE)
+              (hashQualifyShadowed codebasePPED.suffixifiedPPE)
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
 mkTypeSignatureHints parsedFile typecheckedFile = do

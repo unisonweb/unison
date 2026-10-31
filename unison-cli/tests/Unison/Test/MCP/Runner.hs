@@ -37,6 +37,16 @@ test =
       scope "listing an empty namespace is not a failure for the MCP server" do
         result <- runTranscriptWith mcp (ucm ["scratch/main> ls nothing_is_called_this"])
         expect (not (failed result)),
+      scope "docs on a definition with no documentation is not a failure for the MCP server" do
+        result <- runTranscriptWith mcp (undocumented <> ucm ["scratch/main> docs foo", "scratch/main> ls"])
+        expect (not (failed result))
+        either (crash . show) (expectTextContaining ["has no documentation"] . Text.pack . renderOutput) result,
+      scope "docs on a definition with no documentation stops a transcript test" do
+        result <- runTranscriptWith testConfig (undocumented <> ucm ["scratch/main> docs foo"])
+        expect (failed result),
+      scope "docs on a name that doesn't exist is still a failure for the MCP server" do
+        result <- runTranscriptWith mcp (ucm ["scratch/main> docs nothing_is_called_this"])
+        expect (failed result),
       scope "a project that doesn't exist is an error, with the projects that do" do
         result <- runTranscriptWith mcp (ucm ["myproject/main> ls"])
         expectFailureMentioning ["There is no project named `myproject`", "scratch"] result,
@@ -78,6 +88,19 @@ test =
     mcp = const Transcript.mcpConfig
     testConfig = Transcript.testConfig
     failed = isLeft
+
+undocumented :: Text
+undocumented =
+  Text.unlines
+    [ "``` unison",
+      "foo = 1",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/main> add",
+      "```",
+      ""
+    ]
 
 ucm :: [Text] -> Text
 ucm commands = "``` ucm\n" <> Text.unlines commands <> "```\n"

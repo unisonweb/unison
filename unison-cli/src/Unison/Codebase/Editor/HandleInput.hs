@@ -89,7 +89,6 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
-import Unison.Codebase.Editor.HandleInput.Share (handleShareProjectSearch, handleShareDocs, handleShareReleaseDetail, handleShareReleases, handleShareRender, handleShareSearch, handleShareSource)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
@@ -97,6 +96,7 @@ import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Rename (handleRename)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.Share (handleShareDocs, handleShareProjectSearch, handleShareReleaseDetail, handleShareReleases, handleShareRender, handleShareSearch, handleShareSource)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
 import Unison.Codebase.Editor.HandleInput.Signature (handleSignature)
 import Unison.Codebase.Editor.HandleInput.SyncV2 qualified as SyncV2
@@ -1217,8 +1217,8 @@ displayI outputLoc hq = do
 
 docsI :: Name -> Cli ()
 docsI src = do
-  printWhatIsDocumented src
-  findInScratchfileByName
+  isDefined <- printWhatIsDocumented src
+  findInScratchfileByName isDefined
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
@@ -1227,20 +1227,30 @@ docsI src = do
     dotDoc :: HQ.HashQualified Name
     dotDoc = HQ.NameOnly . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
 
-    findInScratchfileByName :: Cli ()
-    findInScratchfileByName = do
+    findInScratchfileByName :: Bool -> Cli ()
+    findInScratchfileByName isDefined = do
+      env <- ask
+      names <- Cli.currentNames
       namesInFile <- Cli.getNamesFromLatestFile
       case Names.lookupHQTerm Names.IncludeSuffixes dotDoc namesInFile of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
           displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
+        s
+          -- A program can't know ahead of time what's documented, so this isn't an error for it, unlike a name that
+          -- doesn't exist.
+          | env.unattended,
+            isDefined,
+            Set.null s,
+            Set.null (Names.lookupHQTerm Names.IncludeSuffixes dotDoc names) ->
+              Cli.respond (NoDocumentation src)
         _ -> displayI ConsoleLocation dotDoc
 
 -- | Print what `docs foo` is about before its documentation: the heading of the type named `foo` if there is one, and
 -- otherwise the type signature of each term named `foo`. This looks in the latest typechecked file as well as the
--- codebase, so it works for definitions that are only in the scratch file.
-printWhatIsDocumented :: Name -> Cli ()
+-- codebase, so it works for definitions that are only in the scratch file. Returns whether there was anything to print.
+printWhatIsDocumented :: Name -> Cli Bool
 printWhatIsDocumented src = do
   Cli.Env {codebase} <- ask
   names <- Cli.currentNames
@@ -1270,8 +1280,9 @@ printWhatIsDocumented src = do
         Nothing -> []
   typeHeadings <-
     for (Set.toList (Names.lookupHQType Names.IncludeSuffixes hq allNames)) \case
-      ref | Just decl <- Map.lookup ref declsInFile ->
-        pure [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
+      ref
+        | Just decl <- Map.lookup ref declsInFile ->
+            pure [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
       Reference.DerivedId refId ->
         Cli.runTransaction (Codebase.getTypeDeclaration codebase refId) <&> \case
           Just decl -> [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
@@ -1279,9 +1290,9 @@ printWhatIsDocumented src = do
       Reference.Builtin _ -> pure []
   -- A type's constructors have its name too (`Thing.Thing`), so when there is a type, just show the type.
   case (concat typeHeadings, concat termSignatures) of
-    ([], []) -> pure ()
-    ([], signatures) -> Cli.respond (DisplayDefinitions (P.lines signatures))
-    (headings, _) -> Cli.respond (DisplayDefinitions (P.lines headings))
+    ([], []) -> pure False
+    ([], signatures) -> True <$ Cli.respond (DisplayDefinitions (P.lines signatures))
+    (headings, _) -> True <$ Cli.respond (DisplayDefinitions (P.lines headings))
 
 lexedSource :: Text -> Text -> Cli (Text, [L.Token L.Lexeme])
 lexedSource name src = do

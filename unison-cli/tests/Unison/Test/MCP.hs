@@ -95,10 +95,14 @@ shareRefTests =
 outputTests :: Test ()
 outputTests =
   scope "output" . tests $
-    [ scope "25 lines are returned as they are" do
+    [ scope "the longest reply is returned as it is" do
         out <- io (withOutputDir \dir -> deliver dir (Text.unlines (replicate maxInlineLines "line")))
         expectEqual (Text.unlines (replicate maxInlineLines "line")) out,
-      scope "26 lines go to a file, and only the path is returned" do
+      scope "blank lines don't count towards the limit" do
+        let spaced = Text.unlines (replicate maxInlineLines "line\n   ")
+        out <- io (withOutputDir \dir -> deliver dir spaced)
+        expectEqual spaced out,
+      scope "one more line goes to a file, and only the path is returned" do
         let long = Text.unlines (replicate (maxInlineLines + 1) "line")
         (message, contents) <-
           io $ withOutputDir \dir -> do

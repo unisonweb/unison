@@ -1,7 +1,7 @@
 Searching for definitions in the [codebase](learn:ucm/codebase), and reading their source, types and documentation.
 
 - `find <name>` lists definitions with a similar name. It leaves out libraries (`lib`, see [libraries](learn:ucm/libraries)), so use `find.all <name>` to include them.
-- `view <name>` (also `source <name>`) shows the source of a definition, with its documentation if it has any, so use it to read code. `docs <name>` fails when there is no documentation, which stops the transcript. `signature <name>` shows its type, and `docs <name>` shows its type signature (or the heading of a type) followed by its documentation. `display <name>` (also `render <name>`) shows the rendered value of a term, such as a README or other `Doc`.
+- `view <name>` (also `source <name>`) shows the source of a definition, with its documentation if it has any, so use it to read code. `docs <name>` says so when there is no documentation, and the transcript carries on. `signature <name>` shows its type, and `docs <name>` shows its type signature (or the heading of a type) followed by its documentation. `display <name>` (also `render <name>`) shows the rendered value of a term, such as a README or other `Doc`.
 - `names <name>` lists all the names a definition has.
 - `dependencies <name>` lists what a definition uses, and `dependents <name>` what uses it.
 - `list [namespace]` (also `ls`) lists one level of a [namespace](learn:ucm/codebase). Write `ls Foo`, not `ls Foo.`.
@@ -10,7 +10,7 @@ Searching for definitions in the [codebase](learn:ucm/codebase), and reading the
 
 ## Detail
 
-**More ways to search.** `find` with no argument lists everything in the current [namespace](learn:ucm/codebase), `find-in <namespace> [names]` searches a sub-namespace, and `find.all` and `find-in.all` include one level of `lib`. When a search says to try `debug.find.global`, don't: it needs `transcript-all` and doesn't help. Try other words or the type instead. `text.find <token>` finds terms with text or number literals containing the token (quote numbers: `"42"`). `view.global <name>` looks across the whole codebase, not just the current branch.
+**More ways to search.** `find` with no argument lists everything in the current [namespace](learn:ucm/codebase), `find-in <namespace> [names]` searches a sub-namespace, and `find.all` and `find-in.all` include one level of `lib`. When a search finds nothing, try other words or the type. `text.find <token>` finds terms with text or number literals containing the token (quote numbers: `"42"`). `view.global <name>` looks across the whole codebase, not just the current branch.
 
 **View several at once.** `view` takes several names and numbers from the last list: `view foo bar`, `view 1-5`. `docs` takes a number too.
 

@@ -120,17 +120,17 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
           let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
           Debug.whenDebug Debug.Tests $
             liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
-          Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
+          respondProgress $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
           tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalUnisonTermE Sandboxed fqnPPE False tm
           case tm' of
             Left e -> do
-              Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
+              respondProgress $ TestIncrementalOutputEnd fqnPPE (n, total) r False
               Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test " <> P.backticked testName <> ":") . P.indentN 2) e
             Right tm' -> do
               -- After evaluation, cache the result of the test
               Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
-              Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r (isTestOk tm')
+              respondProgress $ TestIncrementalOutputEnd fqnPPE (n, total) r (isTestOk tm')
               pure [(r, tm')]
 
     let m = Map.fromList computedTests
@@ -190,11 +190,17 @@ handleAllIOTests = do
     Just neTestRefs -> do
       (fails, oks) <-
         runIOTestsWithProgress
-          (\progress r -> Cli.respond $ TestIncrementalOutputStart suffixifiedPPE progress r)
+          (\progress r -> respondProgress $ TestIncrementalOutputStart suffixifiedPPE progress r)
           (runIOTest suffixifiedPPE)
-          (\progress r isOk -> Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE progress r isOk)
+          (\progress r isOk -> respondProgress $ TestIncrementalOutputEnd suffixifiedPPE progress r isOk)
           (toList neTestRefs)
       Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+
+-- | Report the progress of a test run, which is for a person watching: a program just gets the results.
+respondProgress :: Output -> Cli ()
+respondProgress output = do
+  env <- ask
+  unless env.unattended (Cli.respond output)
 
 -- | Run tests in order and report their progress.
 runIOTestsWithProgress ::

@@ -29,14 +29,14 @@ withOutputDir action =
     (\(OutputDir dir) -> removePathForcibly dir)
     action
 
--- | The most lines a response may have; anything longer is written to a file.
+-- | The most lines a response may have, not counting blank ones; anything longer is written to a file.
 maxInlineLines :: Int
-maxInlineLines = 25
+maxInlineLines = 75
 
 -- | The text to return for some output: the output itself, or if it is long, where it was written.
 deliver :: OutputDir -> Text -> IO Text
 deliver (OutputDir dir) output
-  | lineCount <= maxInlineLines = pure output
+  | length (filter (not . Text.null . Text.strip) outputLines) <= maxInlineLines = pure output
   | otherwise = do
       (path, handle) <- IO.openTempFile dir "output-.md"
       IO.hSetEncoding handle IO.utf8
@@ -49,7 +49,8 @@ deliver (OutputDir dir) output
           <> Text.pack path
           <> ". Read or grep that file for what you need."
   where
-    lineCount = length (Text.lines output)
+    outputLines = Text.lines output
+    lineCount = length outputLines
 
 -- | Capture stdout and stderr for the duration of the action, since the MCP server talks over stdout.
 captureHandles :: IO a -> IO (Text, Text, a)
