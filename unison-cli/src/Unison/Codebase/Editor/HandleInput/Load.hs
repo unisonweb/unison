@@ -414,6 +414,9 @@ parseAndTypecheckUnisonFile names sourceName text = do
                   )
                   ns
               )
+              -- A definition can still mention something the file shadowed. Name it by its name in the codebase, with
+              -- the hash to tell it apart from the file's definition of that name.
+              `PPED.addFallback` PPED.makePPED (PPE.alwaysHqNamer 10 names) (PPE.suffixifyByHash names)
 
   when (not $ null tws) do
     currentPath <- Cli.getCurrentPath

@@ -22,7 +22,7 @@ unique type Foo = Bar Nat Nat
 
 `incrFoo` no longer typechecks, so the reply says you are on a [temporary branch](learn:ucm/temporary-branch), `update-main`, and names a file, like `update-main-90f1b725.u`, that holds the new `Foo` and the `incrFoo` to fix. Fix `incrFoo` in the file, [`load`](learn:ucm/scratch-file) the file until it has no errors, and run `update` again on the temporary branch. That saves everything in the file, merges back into `main`, and deletes the temporary branch.
 
-**`but I expected: #qns7gmlrq1`.** A type error with a hash in it means your block changed a type and also uses a definition from the branch that still has the old type. The hash is the old type. Leave that use out of the block: change the type, `update`, and fix the dependents in the file you get.
+**`but I expected: Shape#qns7gmlrq1`.** A type error where a name has a hash on it means your block changed a type and also uses a definition from the branch that still has the old type. `Shape#qns7gmlrq1` is the old type, and plain `Shape` is yours. Leave that use out of the block: change the type, `update`, and fix the dependents in the file you get.
 
 **Dependents that aren't in the file.** If you change a definition in the file that has a dependent outside the file, `update` can't finish again. It rewrites the file with the dependents that still need fixing, and you stay on the temporary branch.
 

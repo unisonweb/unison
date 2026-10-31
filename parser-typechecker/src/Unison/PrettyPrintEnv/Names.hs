@@ -1,6 +1,7 @@
 module Unison.PrettyPrintEnv.Names
   ( -- * Namer
     Namer (..),
+    alwaysHqNamer,
     hqNamer,
     namer,
 
@@ -61,6 +62,15 @@ hqNamer hashLen names =
   Namer
     { nameTerm = \ref -> Names.termName hashLen ref names,
       nameType = \ref -> Names.typeName hashLen ref names
+    }
+
+-- | Make a "namer" that hash-qualifies every name, conflicted or not. This suits names that may no longer mean what
+-- they say: for instance, a name in the codebase that a Unison file shadows.
+alwaysHqNamer :: Int -> Names -> Namer
+alwaysHqNamer hashLen names =
+  Namer
+    { nameTerm = \ref -> Set.map (\name -> HQ'.take hashLen (HQ'.fromNamedReferent name ref)) (Names.namesForReferent names ref),
+      nameType = \ref -> Set.map (\name -> HQ'.take hashLen (HQ'.fromNamedReference name ref)) (Names.namesForReference names ref)
     }
 
 ------------------------------------------------------------------------------------------------------------------------
