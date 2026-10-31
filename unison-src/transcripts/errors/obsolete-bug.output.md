@@ -6,6 +6,9 @@ This transcript will error, because we’re claiming that the stanza has a bug, 
   edit
   `edit foo` prepends the definition of `foo` to the top of the most recently saved file.
   `edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH.
+
+  See also `edit.to` to send the definitions to a file of your
+  choice.
 ```
 
 🎉
