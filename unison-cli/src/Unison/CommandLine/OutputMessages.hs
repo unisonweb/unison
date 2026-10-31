@@ -1977,6 +1977,7 @@ notifyUser dir issueFn = \case
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
   ShareText text -> pure (P.lines (P.text <$> Text.lines text))
+  ShareDocs docs -> pure docs
   ShareFailed err -> pure (P.fatalCallout (P.wrap (P.text err)))
   ShareDefinitionMatches matches firstRef more ->
     let width = Text.length (tShow (length matches))

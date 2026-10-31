@@ -446,6 +446,8 @@ data Output
   | ServantClientError Servant.ClientError
   | -- | Plain text from a @share.*@ command.
     ShareText Text
+  | -- | Rendered documentation from Share, laid out at the width the output is shown at.
+    ShareDocs (P.Pretty P.ColorText)
   | ShareFailed Text
   | -- | The definitions a search of Share found, numbered, and the reference of the first one (for the tip), and whether
     -- there may be more.
@@ -794,6 +796,7 @@ isFailure o = case o of
   Unauthorized {} -> True
   ServantClientError {} -> True
   ShareText {} -> False
+  ShareDocs {} -> False
   ShareFailed {} -> True
   ShareDefinitionMatches {} -> False
   MarkdownOut {} -> False

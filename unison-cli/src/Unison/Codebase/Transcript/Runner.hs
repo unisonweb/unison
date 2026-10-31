@@ -121,6 +121,8 @@ mcpConfig :: Config
 mcpConfig =
   defaultConfig
     { unattended = True,
+      -- An agent has no terminal, so output is laid out for a virtual one of this width.
+      terminalWidth = 100,
       -- No person is there to answer an interactive search, so a command with no arguments fails instead of opening fzf.
       fzfPath = pure "NONE",
       outputIsFailure = Output.isFailureForMcp,

@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.HandleInput.Share
   )
 where
 
+import Data.List (intersperse)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Network.HTTP.Types (status404)
@@ -175,7 +176,7 @@ handleShareDocs :: ShareRef -> Cli ()
 handleShareDocs ref = do
   DefinitionDisplayResults {termDefinitions, typeDefinitions} <- lookupDefinitions ref
   let render header docs =
-        Text.intercalate "\n\n" (header : if null docs then ["(This definition has no documentation.)"] else docs <&> P.toPlain 80 . docToConsole)
+        P.linesSpaced (P.text header : if null docs then ["(This definition has no documentation.)"] else docs <&> docToConsole)
       terms =
         Map.elems termDefinitions <&> \TermDefinition {bestTermName, signature, termDocs} ->
           render (bestTermName <> " : " <> Syntax.toPlain signature) [doc | (_, _, doc) <- termDocs]
@@ -186,4 +187,4 @@ handleShareDocs ref = do
                 BuiltinObject _ -> "builtin type " <> bestTypeName
                 MissingObject hash -> "<missing definition " <> tShow hash <> ">"
            in render (Text.strip declaration) [doc | (_, _, doc) <- typeDocs]
-  Cli.respond (Output.ShareText (Text.intercalate "\n\n---\n\n" (types ++ terms)))
+  Cli.respond (Output.ShareDocs (P.linesSpaced (intersperse "---" (types ++ terms))))
