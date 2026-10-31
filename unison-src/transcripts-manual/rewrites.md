@@ -36,8 +36,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ``` ucm
-> rewrite :rule1 scratch.u
-> rewrite :eitherToOptional scratch.u
+> rewrite :rule1,eitherToOptional scratch.u
 ```
 
 ``` ucm :hide

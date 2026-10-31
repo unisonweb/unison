@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Share
     handleShareSource,
     handleShareRender,
     handleShareReleases,
+    handleShareDocs,
     handleShareReleaseDetail,
   )
 where
@@ -47,26 +48,33 @@ handleShareSearch query filter_
       results <- searchDefinitions query filter_ & onLeftM (Cli.returnEarly . Output.ServantClientError)
       case results of
         [] -> Cli.respond (Output.ShareText ("No definitions found matching " <> query))
-        _ ->
-          Cli.respond . Output.ShareText . Text.unlines $
-            (results >>= renderMatch)
-              ++ [ "\nThese are the first " <> tShow (length results) <> " matches. To narrow the search, add `in @user` or `in @user/project`."
-                   | length results >= maxMatches
-                 ]
+        firstResult : _ -> do
+          Cli.setNumberedArgs (SA.ShareDefinitionRef . reference <$> results)
+          Cli.respond (Output.ShareDefinitionMatches (renderMatch <$> results) (reference firstResult) (length results >= maxMatches))
   where
     maxMatches = 20
 
-    renderMatch :: DefinitionSearchResult -> [Text]
-    renderMatch DefinitionSearchResult {fqn, summary, project, branchRef} =
-      (into @Text project <> "/" <> into @Text branchRef <> ":" <> Name.toText fqn)
-        : (("  " <>) <$> take 4 (Text.lines source))
+    origin :: DefinitionSearchResult -> Text
+    origin DefinitionSearchResult {project, branchRef} = into @Text project <> "/" <> into @Text branchRef
+
+    reference :: DefinitionSearchResult -> Text
+    reference result@DefinitionSearchResult {fqn} = origin result <> ":" <> Name.toText fqn
+
+    -- The name in its project and its type, like @data.List.take : Nat -> [a] -> [a]@ (with @builtin@ in front of a
+    -- builtin), and where it is from.
+    renderMatch :: DefinitionSearchResult -> Output.ShareMatch
+    renderMatch result@DefinitionSearchResult {fqn, summary} =
+      Output.ShareMatch {heading = prefix <> Name.toText fqn <> typeOf, origin = origin result}
       where
-        source = case summary of
-          ToTTermSummary TermSummary {summary = displayed} -> displayObject displayed
-          ToTTypeSummary TypeSummary {summary = displayed} -> displayObject displayed
-        displayObject = \case
+        (prefix, typeOf) = case summary of
+          ToTTermSummary TermSummary {summary = displayed} -> (builtinPrefix displayed, " : " <> displayText displayed)
+          ToTTypeSummary TypeSummary {summary = displayed} -> (builtinPrefix displayed <> "type ", "")
+        builtinPrefix = \case
+          BuiltinObject _ -> "builtin "
+          _ -> ""
+        displayText = \case
           UserObject text -> Syntax.toPlain text
-          BuiltinObject text -> Syntax.toPlain text <> " (builtin)"
+          BuiltinObject text -> Syntax.toPlain text
           MissingObject hash -> "<missing definition " <> tShow hash <> ">"
 
 searchEntities' :: Text -> Cli ()
@@ -159,3 +167,21 @@ handleShareReleaseDetail ref = do
   if null docs
     then Cli.respond (Output.ShareText "This release has no ReleaseNotes.")
     else Cli.respond . Output.ShareText . Text.intercalate "\n\n---\n\n" $ docs <&> Markdown.toText . Doc.toMarkdown
+
+-- | Print the type signature (or the declaration, for a type) and then the rendered documentation of a definition.
+handleShareDocs :: ShareRef -> Cli ()
+handleShareDocs ref = do
+  DefinitionDisplayResults {termDefinitions, typeDefinitions} <- lookupDefinitions ref
+  let render header docs =
+        Text.intercalate "\n\n" (header : if null docs then ["(This definition has no documentation.)"] else docs <&> Markdown.toText . Doc.toMarkdown)
+      terms =
+        Map.elems termDefinitions <&> \TermDefinition {bestTermName, signature, termDocs} ->
+          render (bestTermName <> " : " <> Syntax.toPlain signature) [doc | (_, _, doc) <- termDocs]
+      types =
+        Map.elems typeDefinitions <&> \TypeDefinition {bestTypeName, typeDefinition, typeDocs} ->
+          let declaration = case typeDefinition of
+                UserObject source -> Text.unlines (take 1 (Text.lines (Syntax.toPlain source)))
+                BuiltinObject _ -> "builtin type " <> bestTypeName
+                MissingObject hash -> "<missing definition " <> tShow hash <> ">"
+           in render (Text.strip declaration) [doc | (_, _, doc) <- typeDocs]
+  Cli.respond (Output.ShareText (Text.intercalate "\n\n---\n\n" (types ++ terms)))

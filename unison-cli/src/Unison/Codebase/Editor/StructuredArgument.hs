@@ -30,4 +30,6 @@ data StructuredArgument
   | FilePath FilePath
   | -- | A release on Share, like @\@unison/base/releases/7.20.0@.
     ShareReleaseRef Text
+  | -- | A definition on Share, like @\@unison/base/releases/7.20.0:data.List.take@.
+    ShareDefinitionRef Text
   deriving (Eq, Generic, Show)

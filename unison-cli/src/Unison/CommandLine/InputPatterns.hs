@@ -116,6 +116,8 @@ module Unison.CommandLine.InputPatterns
     signature,
     sfind,
     sfindReplace,
+    shareDocs,
+    shareSource,
     textfind,
     test,
     testAll,
@@ -271,6 +273,7 @@ formatStructuredArgument schLength = \case
   SA.SearchResult searchRoot searchResult -> HQ.toText $ searchResultToHQ searchRoot searchResult
   SA.FilePath fp -> Text.pack fp
   SA.ShareReleaseRef ref -> ref
+  SA.ShareDefinitionRef ref -> ref
   where
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
@@ -385,6 +388,7 @@ wrongStructuredArgument expected actual =
       SA.SearchResult _ _ -> "a search result"
       SA.FilePath _ -> "a file path"
       SA.ShareReleaseRef _ -> "a release"
+      SA.ShareDefinitionRef _ -> "a definition on Share"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
@@ -3815,6 +3819,11 @@ shareSearch =
 -- | Shared by the @share.source@ and @share.render@ parsers.
 parseShareRefArg :: InputPattern -> Bool -> I.Arguments -> Either (P.Pretty CT.ColorText) ShareRef
 parseShareRefArg pat pathRequired = \case
+  [I.StructuredArg (SA.ShareDefinitionRef ref)] -> do
+    ref <- first (P.wrap . P.text) (parseShareRef ref)
+    when (pathRequired && isNothing ref.path) do
+      Left . P.wrap $ "I expected a definition name after the `:`, like @user/project:some.name"
+    pure ref
   [arg] -> do
     raw <- unsupportedStructuredArgument pat "a reference to a project or definition on Share" arg
     ref <- first (P.wrap . P.text) (parseShareRef (Text.pack raw))
@@ -3834,7 +3843,7 @@ shareSource =
     { patternName = "share.source",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [("definition on Share", noCompletionsArg)] $ Optional [] Nothing,
+      params = Parameters [("definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
       help =
         P.lines
           [ P.wrapColumn2
@@ -3848,13 +3857,45 @@ shareSource =
       parse = fmap Input.ShareSourceI . parseShareRefArg shareSource True
     }
 
+shareDefinitionArg :: ParameterType
+shareDefinitionArg =
+  ParameterType
+    { typeName = "definition on Share",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
+shareDocs :: InputPattern
+shareDocs =
+  InputPattern
+    { patternName = "share.docs",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareDocs ["@user/project:name"],
+                  "prints the type signature of a definition on Share, then its rendered documentation, like `docs` does for your own code."
+                ),
+                ( makeExample shareDocs ["2"],
+                  "does the same for the second result of the last " <> makeExample' shareSearch <> "."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
+          ],
+      parse = fmap Input.ShareDocsI . parseShareRefArg shareDocs True
+    }
+
 shareRender :: InputPattern
 shareRender =
   InputPattern
     { patternName = "share.render",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [("project or definition on Share", noCompletionsArg)] $ Optional [] Nothing,
+      params = Parameters [("project or definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
       help =
         P.lines
           [ P.wrapColumn2
@@ -4336,6 +4377,7 @@ validInputs =
       projectSwitch,
       projectsInputPattern,
       shareProjectSearch,
+      shareDocs,
       shareReleases,
       shareReleaseDetail,
       shareRender,

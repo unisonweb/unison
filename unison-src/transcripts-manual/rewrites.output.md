@@ -38,59 +38,26 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ``` ucm
-> rewrite rule1
-
-  ☝️
-
-  I found and replaced matches in these definitions: ex1
-
-  The rewritten file has been added to the top of scratch.u
-
-> rewrite eitherToOptional
+> rewrite :rule1,eitherToOptional scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions:
   Either.mapRight
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): ex1
-
-ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
-
-eitherToOptional e a =
-  @rewrite
-    term Left e ==> None
-    term Right a ==> Some a
-    case Left e ==> None
-    case Right a ==> Some a
-    signature e a . Either e a ==> Optional a
-
-Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
-Either.mapRight f = cases
-  Left e  -> Left e
-  Right a -> Right (f a)
-
-rule1 f x =
-  use Nat +
-  @rewrite
-    term x + 1 ==> Nat.increment x
-    term a -> f a ==> f
-
-type Optional2 a = None2 | Some2 a
-
-rule2 x = @rewrite signature Optional ==> Optional2
-```
-
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
+-- Rewrote using: rule1, eitherToOptional
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): Either.mapRight
 
-ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+ex1 = List.map (x -> x + 1) [1, 2, 3, 4, 5, 6, 7]
 
 eitherToOptional e a =
   @rewrite
@@ -106,12 +73,13 @@ Either.mapRight f = cases
   Some a -> Some (f a)
 
 rule1 f x =
-  use Nat +
   @rewrite
     term x + 1 ==> Nat.increment x
     term a -> f a ==> f
 
-type Optional2 a = None2 | Some2 a
+type Optional2 a
+  = None2
+  | Some2 a
 
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
@@ -133,7 +101,9 @@ After adding to the codebase, here's the rewritten source:
     Some a -> Some (f a)
 
   ex1 : [Nat]
-  ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+  ex1 =
+    use Nat +
+    List.map (x -> x + 1) [1, 2, 3, 4, 5, 6, 7]
 
   rule1 :
     (i ->{g} o)
@@ -170,17 +140,22 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ``` ucm
-> rewrite woot1to2
+> rewrite :woot1to2 scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: wootEx
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
+-- Rewrote using: woot1to2
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): wootEx
 
 ability Woot1 where
@@ -195,9 +170,9 @@ woot1to2 x =
     term blah ==> blah2
     signature _ . Woot1 ==> Woot2
 
-wootEx : Nat ->{Woot2} Nat
+wootEx : Nat ->{Woot1} Nat
 wootEx a =
-  _ = Woot2.woot2()
+  _ = Woot1.woot1()
   blah2
 
 blah = 123
@@ -216,9 +191,9 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 ``` ucm
 > view wootEx
 
-  wootEx : Nat ->{Woot2} Nat
+  wootEx : Nat ->{Woot1} Nat
   wootEx a =
-    _ = woot2()
+    _ = woot1()
     blah2
 ```
 
@@ -244,7 +219,7 @@ sameFileEx =
 ```
 
 ``` ucm :hide
-> rewrite rule
+> rewrite :rule scratch.u
 
 > load
 
@@ -295,17 +270,22 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: sameFileEx
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
+-- Rewrote using: rule
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): sameFileEx
 
 bar1 =
@@ -331,11 +311,12 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 ``` ucm :error
 > load
 
-  Loading changes detected in scratch.u.
+  Loading changes detected in
+  rewrites/scratch-0000-00-00-00-00-00000000.u.
 
   I couldn't figure out what bar21 refers to here:
 
-     19 |   bar21
+     20 |   bar21
 
   its type could be anything.
 
@@ -359,17 +340,22 @@ rule a = @rewrite
 ```
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: bar2
 
-  The rewritten file has been added to the top of scratch.u
+  The rewritten definitions are in
+  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
+  typecheck that file with
+  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
+  `update` when you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
+``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
+-- Rewrote using: rule
+-- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): bar2
 
 bar2 =
@@ -387,11 +373,12 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 ``` ucm :error
 > load
 
-  Loading changes detected in scratch.u.
+  Loading changes detected in
+  rewrites/scratch-0000-00-00-00-00-00000000.u.
 
   I couldn't figure out what a1 refers to here:
 
-      6 |   a1
+      7 |   a1
 
   its type could be anything.
 

@@ -162,12 +162,12 @@ rewritesDirectoryFor path
     dir = takeDirectory path
 
 -- | @<dir>/[<file>-]<yyyy-mm-dd-hh-mm>-<short-guid>.u@, where @file@ is the file being rewritten, if any, so that all the
--- rewrites of a file sort together. A transcript test gets a fixed name, so that its output doesn't change.
+-- rewrites of a file sort together. A transcript run (a test, or `ucm transcript`, but not the MCP server) gets a fixed name, so that its output doesn't change.
 newRewritesPath :: FilePath -> Maybe String -> Cli FilePath
 newRewritesPath dir mfile = do
   env <- ask
   (time, guid) <-
-    if env.isTranscriptTest
+    if env.isTranscriptTest || (isNothing env.watchState && not env.unattended)
       then pure ("0000-00-00-00-00", "00000000")
       else liftIO do
         now <- getCurrentTime

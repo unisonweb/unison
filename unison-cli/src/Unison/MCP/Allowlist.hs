@@ -114,6 +114,7 @@ commandTiers =
         "share.search",
         "share.source",
         "share.render",
+        "share.docs",
         "share.releases",
         "share.releases.detail"
       ]

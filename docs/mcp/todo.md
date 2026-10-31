@@ -2,7 +2,7 @@
 
 ## `share.search`: numbered results, better layout, and a new `share.docs`
 
-(From Paul, 2026-10-30. Not started.)
+(From Paul, 2026-10-30. Done on 2026-10-30, apart from the last line: `share.docs` is read-only in the MCP allowlist, the topics `ucm/share` mention it, and a transcript test needs the network and was not added.)
 
 Today `share.search take Nat -> [a] -> [a]` prints, for each match, the full reference on one line (`@unison/base/releases/7.20.0:data.List.take`) and the type indented under it. The project and release are in front of the name, which makes the list hard to scan. Changes:
 

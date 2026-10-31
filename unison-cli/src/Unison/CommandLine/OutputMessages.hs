@@ -1978,6 +1978,28 @@ notifyUser dir issueFn = \case
       P.text ("Unauthorized: " <> message)
   ShareText text -> pure (P.lines (P.text <$> Text.lines text))
   ShareFailed err -> pure (P.fatalCallout (P.wrap (P.text err)))
+  ShareDefinitionMatches matches firstRef more ->
+    let width = Text.length (tShow (length matches))
+        renderMatch (n, E.ShareMatch {heading, origin}) =
+          let label = Text.justifyRight width ' ' (tShow n) <> ". "
+              pad = Text.replicate (Text.length label) " "
+              headingLines = Text.lines heading
+           in P.lines $
+                [P.hiBlack (P.text label) <> P.text l | l <- take 1 headingLines]
+                  ++ [P.text (pad <> l) | l <- drop 1 headingLines]
+                  ++ [P.hiBlack (P.text (pad <> "  (in " <> origin <> ")"))]
+     in pure . P.lines $
+          map renderMatch (zip [1 :: Int ..] matches)
+            ++ [ "",
+                 P.wrap $
+                   "To read one of these, use its number or its full path:"
+                     <> IP.makeExample IP.shareDocs ["1"]
+                     <> "shows the signature and documentation, and"
+                     <> IP.makeExample IP.shareSource ["1"]
+                     <> "the source. By path, for the first result:"
+                     <> IP.makeExample IP.shareDocs [P.text firstRef]
+               ]
+            ++ [P.wrap "These are the first matches. Narrow the search with `in @user` or `in @user/project`." | more]
   ServantClientError err ->
     pure case err of
       Servant.ConnectionError exception ->

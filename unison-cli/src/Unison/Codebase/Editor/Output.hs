@@ -14,6 +14,7 @@ module Unison.Codebase.Editor.Output
     MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
+    ShareMatch (..),
     isFailure,
     isFailureForMcp,
     isNumberedFailureForMcp,
@@ -202,6 +203,14 @@ data ScratchFileHandoff = ScratchFileHandoff
     project :: !ProjectName,
     -- | Whether the file has to be @load@ed to be checked: not if UCM is watching it.
     loadFirst :: !Bool
+  }
+
+-- | One definition found by a search of Share.
+data ShareMatch = ShareMatch
+  { -- | Its name in its project, followed by its type for a term, with @builtin@ in front of a builtin.
+    heading :: Text,
+    -- | Where it comes from, like @\@unison/base/releases/7.20.0@.
+    origin :: Text
   }
 
 data Output
@@ -438,6 +447,9 @@ data Output
   | -- | Plain text from a @share.*@ command.
     ShareText Text
   | ShareFailed Text
+  | -- | The definitions a search of Share found, numbered, and the reference of the first one (for the tip), and whether
+    -- there may be more.
+    ShareDefinitionMatches [ShareMatch] Text Bool
   | MarkdownOut Text
   | DownloadedEntities Int
   | UploadedEntities Int
@@ -783,6 +795,7 @@ isFailure o = case o of
   ServantClientError {} -> True
   ShareText {} -> False
   ShareFailed {} -> True
+  ShareDefinitionMatches {} -> False
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
   RemoteProjectBranchIsUpToDate {} -> False

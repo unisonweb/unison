@@ -975,6 +975,21 @@
     as though they were provided at the command line when
     running `mymain` as an executable.
 
+  share.docs
+  `share.docs @user/project:name`  prints the type signature of
+                                   a definition on Share, then
+                                   its rendered documentation,
+                                   like `docs` does for your own
+                                   code.
+  `share.docs 2`                   does the same for the second
+                                   result of the last
+                                   `share.search` .
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
+
   share.project-search
   `share.project-search <query>`  searches Unison Share for
                                   projects and libraries

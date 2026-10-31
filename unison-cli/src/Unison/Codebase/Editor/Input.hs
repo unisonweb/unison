@@ -208,6 +208,7 @@ data Input
   | ShareSearchI Text (Maybe SearchFilter)
   | ShareSourceI ShareRef
   | ShareRenderI ShareRef
+  | ShareDocsI ShareRef
   | ShareReleasesI Text Text -- handle, project slug
   | ShareReleaseDetailI ShareRef
   | PullI !PullSourceTarget !PullMode
