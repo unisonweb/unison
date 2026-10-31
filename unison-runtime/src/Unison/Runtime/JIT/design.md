@@ -56,7 +56,7 @@ The JIT integrates tightly with the existing interpreter and shares state with i
 - **[Exits](#exits-how-native-code-covers-a-subset-of-the-language).** Every compiled function has one C signature. It returns `OK` when it finishes, or an *exit*: an index into a table of [`Exit`](Exits.hs#:~:text=data%20Exit) specifying what the interpreter should do next (resume at a section, run one instruction and re-enter, grow the stack, or just come back later). Native code follows [the core rule](#the-core-rule): before giving control back to Haskell, it ensures the stack is exactly what the interpreter would have produced. Native code can and does use more efficient ways of passing data around, it doesn't have to read and write to the Unison stack everywhere, but when unwinding before an exit back to the interpreter, it makes sure the Unison stack is as expected by the interpreter. 
 - **[Re-entry points](#re-entry-points).** After an exit in the middle of a function, the rest of the function has its own native entry, so one unsupported instruction doesn't make the whole remainder run interpreted.
 - **[Frames](#frames-native-code-records-haskell-builds).** Native code calls native code through the C stack and never builds up Unison continuations directly. Instead, when an exit unwinds through native callers, each writes a three-word *frame record*, and the interpreter builds the [`Push`](../Stack.hs#:~:text=data%20K) frames from them that construct the right `K` continuation. This avoids native code needing to know details of how the Haskell side represents continuations.
-- **[Native code cells](#native-code-cells).** Each supercombinator has a 32-byte cell outside the Haskell heap holding its code pointer, a call counter, a request state and a verdict that says if the function is eligible for compilation (see below). Both the interpreter and native code find compiled code by loading from this cell.
+- **[Native code cells](#native-code-cells).** Each supercombinator has a 40-byte cell outside the Haskell heap holding its code pointer, a call counter, a request state, a verdict that says if the function is eligible for compilation (see below), and a second code pointer for native callers in other modules. Both the interpreter and native code find compiled code by loading from this cell.
 - **[The trampoline](#the-trampoline).** Every transition between the interpreter and native code goes through one piece of Haskell, the trampoline. It fills in the per-thread [`Ctx`](../../../../cbits/jit_rt.h#:~:text=typedef%20struct), makes an `unsafe` foreign call to native code, reads the results back and acts on the status. Neither the C stack nor the interpreter call stack grows across transitions, so the two can interleave indefinitely.
 - **[What gets compiled, and when](#what-gets-compiled-and-when).** A function that has been called a threshold number of times is *hot*; a background thread compiles it in a batch with its neighbours in the call graph, as one LLVM module, and installs the code one pointer write at a time. Because there's some overhead to exiting native code, functions estimated to involve a lot of back and forth between the interpreter and native code are kept interpreted.
 - **[Code generation](#code-generation).** Each supercombinator's MCode is translated to LLVM IR. Stack slots become registers, exit paths write back only the live slots through one runtime call, and each function is compiled as a *worker* that passes arguments and results in registers, with a *wrapper* in the uniform signature for the interpreter and a *fast entry* for base cases.
@@ -367,7 +367,7 @@ Both the interpreter and native code need to answer the same question before cal
 
 #### What a cell is
 
-The mutable part of a supercombinator, 32 bytes outside the Haskell heap. `NativeCell` in `MCode.hs` is an empty data type used only as the pointer's tag; the accessors there read and write the words by offset. As a C struct it would be:
+The mutable part of a supercombinator, 40 bytes outside the Haskell heap. `NativeCell` in `MCode.hs` is an empty data type used only as the pointer's tag; the accessors there read and write the words by offset. As a C struct it would be:
 
 ```c
 struct NativeCell {
@@ -375,6 +375,7 @@ struct NativeCell {
   int64_t count;         // calls made while code was null, from minus the threshold
   int64_t state;         // 0 not requested, 1 queued, 2 taken by the compile thread
   int64_t verdict;       // the JIT's decision on the combinator
+  void *entry;           // the register entry, for native callers in other modules
 };
 ```
 
@@ -382,6 +383,7 @@ struct NativeCell {
 - `count` counts the times the interpreter ran the code itself because `code` was null; it is how a function gets hot. It starts at minus the compilation threshold, so that "hot" is the count reaching zero and the interpreter's test is one comparison with a constant. A count that starts at zero or above never gets there, which is how the JIT is turned off for a cell.
 - `state` is how a definition is asked for exactly once: the interpreter moves it from "not requested" to "queued" when it asks for the supercombinator to be compiled ([`claimNativeCell`](../MCode.hs#:~:text=claimNativeCell%20%3A%3A)), and the compile thread moves it to "taken" when it puts it in a batch ([`takeNativeCell`](../MCode.hs#:~:text=takeNativeCell%20%3A%3A)). It moves forward only, by compare-and-swap.
 - `verdict` is the compile thread's decision on whether the supercombinator is worth compiling, and whether the interpreter should enter its code ([What isn't compiled](#what-isnt-compiled)). Its low two bits are undecided, worth compiling, not worth compiling or too small to enter; the bits above hold the estimated probability of an exit, which callers' estimates read. [`readNativeEntry`](../MCode.hs#:~:text=readNativeEntry%20%3A%3A) applies the verdict when the interpreter asks for the code pointer: a "too small to enter" cell answers null to the interpreter although the code is there for native callers.
+- `entry` is the function native code in other modules calls, with the arguments and the result in registers ([The register entry](#the-register-entry)): null until the supercombinator is compiled, and null when it is compiled without a worker, in which case native callers use `code`.
 - The code pointer is published with an atomic release store and read with an acquire load ([`writeNativeCode`](../MCode.hs#:~:text=writeNativeCode%20%3A%3A), [`readNativeCode`](../MCode.hs#:~:text=readNativeCode%20%3A%3A); generated code loads a cell with `load atomic ... acquire` too), so that a thread which sees a module's code also sees the pool entries and the exit and frame tables the compile thread wrote before installing it, which on arm64 a plain load would not promise (2026-10-24).
 
 #### Shared access to cells from native code and the interpreter
@@ -399,7 +401,7 @@ Cells live outside the Haskell heap, so they never move, the GC ignores them, an
 | Reader | How it finds the cell |
 | --- | --- |
 | The interpreter, at a `Call` or `App` ([`enter`](../Machine.hs#:~:text=enter%20%3A%3A), [`apply`](../Machine.hs#:~:text=apply%20%3A%3A)) | from the `GCombInfo` of the supercombinator it's about to run, which it already has in hand |
-| Native code calling a known function | the cell's address is a constant in the generated code |
+| Native code calling a known function | the cell's address is a constant in the generated code; it reads `entry` first, then `code` |
 | Native code [calling a function value](#calling-function-values) | from the `GCombInfo` inside the closure |
 
 In each case it's one load and a test for null. If the cell is null, the interpreter interprets the function, and native code exits to the interpreter. Calls within a batch don't use cells: the callee is in the same LLVM module, so the call refers to it directly, and LLVM can inline it. Installing compiled code is one pointer write: readers on other threads see either null or the function pointer, and both are valid, so callers never need recompiling when a callee is compiled later.
@@ -551,6 +553,14 @@ Not every supercombinator can be a worker. A worker returns exactly one value, a
 - *Checks.* A worker checks the Unison stack, the poll and the C stack once, at entry, and looks at the allocation budget only if it allocates.
 - *The fast entry.* Many functions start with a test and return at once in the base case. For such a worker a second, tiny function is what callers call ([`genFastEntry`](Codegen.hs#:~:text=genFastEntry%20%3A%3A)): it holds only the paths that can't exit, call or loop, which need nothing checked, and returns from them directly; any other path tail calls the full worker, which starts again from the top (what it repeats is a few instructions without side effects). The fast entry takes the worker's name, `<name>_w`, and the full worker becomes `<name>_wf`. The base case then costs no stack check, no poll, and none of the register saving the full worker does on behalf of its exit paths. Worth 15% on `fib`.
 - *Cold paths.* Every branch to an exit or a slow path carries a branch weight (`!prof`). Without them LLVM kept the values the exit paths need in callee-saved registers, which every call then paid to save and restore; this alone took `fib 20` from 89 to 74 µs before workers existed.
+
+#### The register entry
+
+A call to a known function in another module can only go through the function's cell, and until 2026-10-31 the cell held one pointer, the wrapper, so such a call paid the uniform form on both sides: the caller stored the arguments to the Unison stack and the wrapper loaded them, the wrapper stored the result slots and the caller reloaded them, around a C-convention call. The two "Calls across definitions" benchmark rows (`collatzStep`, `collatzSteps` and `collatzTotal` are compiled in different batches) were that cost.
+
+The cell's second word, `entry`, is the *register entry* ([`genRegisterEntry`](Codegen.hs#:~:text=genRegisterEntry%20%3A%3A), named `<name>_x`): a `tailcc` function with the worker signature at the width every module agrees on for the arity, `(ctx, fp, u1, b1, …, un, bn) -> {status, resultWidth pairs}`. For a worker of that width it is a jump to the worker; for a narrow worker it calls the worker and pads the one result pair to the width, which is what the wrapper does without the stack. A private copy has none, since it is not installed. It is installed just before the code pointer, so a thread that sees the code sees it.
+
+A known call to a function outside the module loads `entry` and tests it for null ([`loadRegisterEntry`](Codegen.hs#:~:text=loadRegisterEntry%20%3A%3A)). With an entry, a non-tail call is made exactly as a call to a worker of this module ([`genCellCall`](Codegen.hs#:~:text=genCellCall%20%3A%3A)), and a tail call from a worker of the agreed width is a `musttail` call of the entry, so the status -2 hand-up is not needed. Without one (the callee is interpreted, or compiled without a worker), the call goes through `code` as before, and the two paths meet before the continuation. Nothing changes for the interpreter or the trampoline, which still enter through `code`, nor for calls to function values, which still go through the closure's cell and `code`. `UNISON_JIT_DISABLE=xcall` turns the register path off.
 
 #### A worked example
 

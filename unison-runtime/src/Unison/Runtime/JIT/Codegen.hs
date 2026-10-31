@@ -264,6 +264,9 @@ data Function = Function
     -- | likewise for the frame table
     fnFrames :: !(Deque Frame),
     fnCell :: !(Ptr NativeCell),
+    -- | the symbol of the register entry, when the function has a worker
+    -- (see 'genRegisterEntry')
+    fnRegisterEntry :: !(Maybe Text),
     -- | the auxiliary functions defined alongside (re-entry points after
     -- call-outs, bodies of Lets inside bindings) and their cells
     fnAux :: !(Deque (Pair Text (Ptr NativeCell))),
@@ -1138,6 +1141,29 @@ loadCallee env cell = do
       pure (Pair fnp skip)
     else pure (Pair fnp isNull)
 
+-- | Loads the callee's register entry from its cell (see
+-- 'genRegisterEntry'). Gives the pointer and an i1 saying there is none:
+-- the callee is not compiled, or has no worker, and the call goes through
+-- the uniform entry instead ('loadCallee'). Under the callee stress mode
+-- the entry is passed over now and then, so that the other path stays
+-- tested.
+loadRegisterEntry :: Env -> Ptr NativeCell -> Gen (Pair Text Text)
+loadRegisterEntry env cell = do
+  let WordPtr addr = ptrToWordPtr cell
+  fnp <- fresh "fx"
+  -- acquire: the entry is installed before the code, after the module's
+  -- tables (see MCode.readNativeCode)
+  emit (fnp <> " = load atomic ptr, ptr inttoptr (i64 " <> tshow (addr + fromIntegral nativeRegisterEntryOffset) <> " to ptr) acquire, align 8")
+  isNull <- fresh "nox"
+  emit (isNull <> " = icmp eq ptr " <> fnp <> ", null")
+  if envStressCallee env
+    then do
+      fire <- stressFire env oStressCalleeLeft oStressCallee
+      skip <- fresh "skip"
+      emit (skip <> " = or i1 " <> isNull <> ", " <> fire)
+      pure (Pair fnp skip)
+    else pure (Pair fnp isNull)
+
 -- | A block that writes the frame back to the Unison stack, records the
 -- stack pointers in @Ctx@, and returns the exit's index. @d@ is the frame
 -- depth at the exit point; every slot 1..d is written back.
@@ -1608,7 +1634,10 @@ runFunction env name cix arity frameSize cell headL base worker body =
         t <- genFunctionText fe body
         f <- if fast then D.singleton <$> genFastEntry fe {feFast = Just sym, feSym = workerName name, feHead = Nothing} body else pure D.empty
         w <- if worker then D.singleton <$> genWrapper fe body else pure D.empty
-        pure (Pair t (f <> w))
+        x <- if exported then D.singleton <$> genRegisterEntry fe else pure D.empty
+        pure (Pair t (f <> w <> x))
+      -- a private copy is not installed, so it has no register entry
+      exported = worker && not (envInternal env)
    in case gsFailed gs of
         _ | gsNotWorker gs -> Left "a worker would return other than one value"
         Just why -> Left why
@@ -1620,6 +1649,7 @@ runFunction env name cix arity frameSize cell headL base worker body =
               (gsExits gs)
               (gsFrames gs)
               cell
+              (if exported then Just (registerEntryName name) else Nothing)
               (gsAuxCells gs)
               (gsDeferred gs)
               (gsAuxMemo gs)
@@ -1889,6 +1919,50 @@ genWrapper fe body = do
             ]
         )
       <> lines ["}"]
+
+-- | The register entry of a function: the function native code in other
+-- modules calls through the cell's second word, with the worker's
+-- signature at the module-independent width ('resultWidth'), so that
+-- every module agrees on it for a given arity. For a worker of that width
+-- it is a jump to the worker; for a narrow worker it calls the worker and
+-- pads its one result pair to the width, as the wrapper does without the
+-- stack. See design.md, "The register entry".
+genRegisterEntry :: FnEnv -> Gen Text
+genRegisterEntry fe = do
+  let name = feName fe
+      arity = feArity fe
+      wd = feWidth fe
+      params = "(ptr %ctx, i64 %fp.in" <> foldMap (\k -> ", i64 %a.u" <> tshow k <> ", ptr %a.b" <> tshow k) [1 .. arity] <> ")"
+      header = "define " <> workerCC <> " " <> workerRet resultWidth <> " @" <> registerEntryName name <> params <> " {"
+      callee = workerCC <> " " <> workerRet wd <> " @" <> workerName name <> params
+      -- a narrow worker's pair goes in every result slot; a field slot
+      -- travels as a double on x86-64
+      slot j =
+        let (tu, tb) = (workerRetTypes resultWidth !! (1 + 2 * j), workerRetTypes resultWidth !! (2 + 2 * j))
+            k = tshow j
+            prev = if j == 0 then "%r0" else "%r" <> tshow j
+         in [ "%u" <> k <> " = " <> (if tu == "i64" then "add i64 %r.u, 0" else "bitcast i64 %r.u to double"),
+              "%b" <> k <> " = " <> (if tb == "ptr" then "getelementptr i8, ptr %r.b, i64 0" else "bitcast i64 %r.bi to double"),
+              "%r" <> k <> ".u = insertvalue " <> workerRet resultWidth <> " " <> prev <> ", " <> tu <> " %u" <> k <> ", " <> tshow (1 + 2 * j),
+              "%r" <> tshow (j + 1) <> " = insertvalue " <> workerRet resultWidth <> " %r" <> k <> ".u, " <> tb <> " %b" <> k <> ", " <> tshow (2 + 2 * j)
+            ]
+  pure . unlinesT . D.fromList $
+    if wd == resultWidth
+      then [header, "  %r = " <> workerTail <> " " <> callee, "  ret " <> workerRet resultWidth <> " %r", "}"]
+      else
+        [ header,
+          "  %r = call " <> callee,
+          "  %st = extractvalue " <> workerRet wd <> " %r, 0",
+          "  %r.u = extractvalue " <> workerRet wd <> " %r, 1",
+          "  %r.b = extractvalue " <> workerRet wd <> " %r, 2",
+          "  %r.bi = ptrtoint ptr %r.b to i64",
+          "  %r0 = insertvalue " <> workerRet resultWidth <> " undef, i64 %st, 0"
+        ]
+          ++ map ("  " <>) (concatMap slot [0 .. resultWidth - 1])
+          ++ ["  ret " <> workerRet resultWidth <> " %r" <> tshow resultWidth, "}"]
+
+registerEntryName :: Text -> Text
+registerEntryName name = name <> "_x"
 
 -- | Generates an auxiliary function in this module: the code for @body@
 -- starting at depth @loaded@ (that many slots are on the stack), entered
@@ -2336,9 +2410,35 @@ genNonTailCall fe d base ccell srcs m sect ownFrame continue
   | m == resultWidth,
     Just wk <- Map.lookup ccell (envWorkers (feEnv fe)),
     wArity wk == D.size srcs =
-      genWorkerCall fe d base wk srcs sect ownFrame continue
+      genWorkerCallTo fe d base ("@" <> wName wk) (workerWidth wk) srcs sect ownFrame continue
+  | m == resultWidth,
+    Map.notMember ccell (envLocal (feEnv fe)),
+    enabled fe "xcall" =
+      genCellCall fe d base ccell srcs m sect ownFrame continue
   | otherwise =
       genNonTailCallWith fe d base (loadCallee (feEnv fe) ccell) (fpPlus (base + D.size srcs)) srcs m sect ownFrame continue
+
+-- | A call to a function outside this module, through its cell: by the
+-- register entry when the cell has one, with the arguments and the result
+-- in registers as for a worker of this module ('genWorkerCallTo'), and
+-- otherwise through the uniform entry and the stack
+-- ('genNonTailCallWith'). Both paths leave the results in their slots and
+-- meet before the continuation. Off under @UNISON_JIT_DISABLE=xcall@.
+genCellCall :: FnEnv -> Int -> Int -> Ptr NativeCell -> Deque Int -> Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
+genCellCall fe d base ccell srcs m sect ownFrame continue = do
+  let env = feEnv fe
+      n = D.size srcs
+  Pair fx noEntry <- loadRegisterEntry env ccell
+  regL <- freshLabel "xreg"
+  uniL <- freshLabel "xuniform"
+  joinL <- freshLabel "xjoin"
+  emit ("br i1 " <> noEntry <> ", label %" <> uniL <> ", label %" <> regL <> unlikely)
+  startBlock regL
+  genWorkerCallTo fe d base fx resultWidth srcs sect ownFrame (emit ("br label %" <> joinL))
+  startBlock uniL
+  genNonTailCallWith fe d base (loadCallee env ccell) (fpPlus (base + n)) srcs m sect ownFrame (emit ("br label %" <> joinL))
+  startBlock joinL
+  continue
 
 -- | 'genNonTailCall' with the callee given by a generator (the code
 -- pointer and an i1 saying the call can't be made), and the callee's
@@ -2417,9 +2517,11 @@ unwindWith fe base live ownFrame r = joinShared fe base live False ownFrame r
 -- itself ('statusTailCall'): its callee's arguments are on the stack
 -- above @base@, and the call is made here, as a plain call through the
 -- stack.
-genWorkerCall :: FnEnv -> Int -> Int -> Worker -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
-genWorkerCall fe d base wk srcs sect ownFrame continue = do
-  let wname = wName wk
+--
+-- @callee@ is the worker's name, or a register holding a register entry of
+-- another module ('genCellCall'), and @width@ the result pairs it returns.
+genWorkerCallTo :: FnEnv -> Int -> Int -> Text -> Int -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
+genWorkerCallTo fe d base callee width srcs sect ownFrame continue = do
   let env = feEnv fe
       n = D.size srcs
   slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -2434,9 +2536,9 @@ genWorkerCall fe d base wk srcs sect ownFrame continue = do
   useK (base + max n resultWidth)
   bp <- fpPlus base
   r <- fresh "r"
-  emit (r <> " = call " <> workerCC <> " " <> workerRet (workerWidth wk) <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
+  emit (r <> " = call " <> workerCC <> " " <> workerRet width <> " " <> callee <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
   -- a narrow callee's one pair fills every result slot
-  (st, results) <- fmap padResults <$> unpackWorkerRet (workerWidth wk) r
+  (st, results) <- fmap padResults <$> unpackWorkerRet width r
   let (ru, rb) = case results of
         Pair u b :<| _ -> (u, b)
         Empty -> ("undef", "undef")
@@ -3103,12 +3205,24 @@ genCall fe d cix comb args sect
                   emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet (feWidth fe) <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
                   emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
             _ -> do
+              -- a worker of the module-independent width tail calls another
+              -- module's register entry directly, when the cell has one
+              vals <- loadSources srcs
+              when (feWorker fe && feWidth fe == resultWidth && Map.notMember cell (envLocal env) && enabled fe "xcall") $ do
+                Pair fx noEntry <- loadRegisterEntry env cell
+                regL <- freshLabel "xreg"
+                uniL <- freshLabel "xuniform"
+                emit ("br i1 " <> noEntry <> ", label %" <> uniL <> ", label %" <> regL <> unlikely)
+                startBlock regL
+                r <- fresh "r"
+                emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet resultWidth <> " " <> fx <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
+                emit ("ret " <> workerRet resultWidth <> " " <> r)
+                startBlock uniL
               Pair fnp isNull <- loadCallee env cell
               slow <- exitBlock fe d (Resume (feCix fe) sect)
               go <- freshLabel "tail"
               emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> go <> unlikely)
               startBlock go
-              vals <- loadSources srcs
               iforM_ vals $ \j (Pair u b) -> do
                 ua <- stackAddrU (base + n - j)
                 emit ("store i64 " <> u <> ", ptr " <> ua)

@@ -22,7 +22,7 @@ Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-t
 
 ```bash
 scripts/jit-test-matrix.sh            # every row, fast build; --opt, --debug, --list, or row names
-``` A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines. The transcripts proof (`scripts/proofs/transcripts.sh`, see the root [development.md](../../../../../development.md)) runs jit-tests.md with the JIT off like every transcript and then again under `UNISON_JIT=on` with `UNISON_JIT_THRESHOLD=5` in a fresh codebase, so a change that breaks native code fails the proof before full CI; it warns, rather than fails, when the log says the JIT didn't activate or compiled nothing (a machine without LLVM), and the CI `jit` job is the one that insists on native code, on every platform.
+``` A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines. Nor does it say that every module compiled: a module whose IR LLVM rejects is reported on stderr (`[jit] unison_<n>: JIT: adding a module: parse: ...`, with or without the log) and its functions stay interpreted, so after a change to the generated text, grep stderr for `[jit]` errors or dump the IR; `scripts/jit-test-matrix.sh` fails a row on one (found the hard way on 2026-10-31, when every module with a full-width worker was failing and the test transcript passed). The transcripts proof (`scripts/proofs/transcripts.sh`, see the root [development.md](../../../../../development.md)) runs jit-tests.md with the JIT off like every transcript and then again under `UNISON_JIT=on` with `UNISON_JIT_THRESHOLD=5` in a fresh codebase, so a change that breaks native code fails the proof before full CI; it warns, rather than fails, when the log says the JIT didn't activate or compiled nothing (a machine without LLVM), and the CI `jit` job is the one that insists on native code, on every platform.
 
 **Benchmark**, on the optimized build, on an idle machine, the two suites:
 
@@ -153,6 +153,7 @@ The interpreter is the specification: every test runs the same program with and 
 | `on`, `THRESHOLD=1`, `install=5`, alone and with the combination | code installed while the program runs |
 | the stress runs with `UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0` | the estimate doesn't hide code from the tests |
 | `UNISON_JIT_DISABLE=worker` | the uniform form everywhere |
+| `UNISON_JIT_DISABLE=xcall` | calls between modules through the uniform entry only, no register entry |
 | `UNISON_JIT_DISABLE=list,text,bytes,name` | the fallback paths of the C helpers |
 | `UNISON_JIT_DISABLE=irhelpers`, `=requests`, `=records`, each under the combination | the C copies of the IR helpers; every request exits; every record instruction exits |
 | `eager` with `UNISON_JIT_STRESS=lists=20000,texts=20000,bytes=200000` | the helper self-tests; after touching either side of a helper, run a few hundred thousand steps, on the debug RTS too (in `on` mode the checks run on the compile thread and may not finish before a short transcript does; use `eager`) |

@@ -233,28 +233,14 @@ Where the gains would come from, and in what order to go after them
 
 - The cross-module cost is not the C convention's. Workers in one module
   already call each other under `tailcc` in registers; a call through a
-  cell takes the uniform entry because the target may be interpreted or a
-  worker of another width. A per-arity register signature agreed across
-  modules, with the stack form kept for interpreted targets, gets that back
-  under `tailcc`, and is a subset of this idea worth doing first. How it
-  would work: the cell gets a second word, the address of a `tailcc`
-  function with the signature every module agrees on for that arity,
-  `(ctx, fp, u1, b1, ..., un, bn) -> {status, wideWidth pairs}`, which is
-  the wide worker itself, or for a narrow worker a thin adapter that pads
-  the return. A known call to a function outside the module loads that
-  word instead of the wrapper's, tests it for null (null means what it
-  means today, an exit to the interpreter), and calls it with the
-  arguments in registers, as a `musttail` call when the call is a tail
-  call, since `tailcc` allows that between different signatures; nothing
-  is stored to the Unison stack on either side unless the callee exits,
-  and the status -2 hand-up for a tail call through a cell goes away. The
-  uniform wrapper stays in the first word for the trampoline and the
-  interpreter. Replacement and deoptimization clear both words. The rows
-  that pay today are the two "Calls across definitions" ones: `collatzStep`,
-  `collatzSteps` and `collatzTotal` are compiled in different batches, so
-  each step is a non-tail call through a cell, two slots stored by the
-  caller, loaded by the wrapper, two stored by the wrapper, two reloaded by
-  the caller, plus the C-convention call with `ap`, `fp` and `sp`.
+  cell took the uniform entry because the target may be interpreted or a
+  worker of another width. Done on 2026-10-31 as a subset of this idea: a
+  per-arity register signature agreed across modules, in a second word of
+  the cell, with the stack form kept for interpreted targets and for
+  functions without a worker (design.md, "The register entry"). What is
+  left of this bullet: calls to function values still go through the
+  closure's cell and the uniform entry, and could take the same second
+  word.
 - Pinned Hp and HpLim save the loads of the context's copy of the free
   pointer on each allocation: L1 hits, small.
 - The structural gain is native code becoming Haskell code to the RTS:

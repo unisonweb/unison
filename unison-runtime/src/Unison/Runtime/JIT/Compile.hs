@@ -34,7 +34,7 @@ import Data.Primitive.PrimArray (sizeofPrimArray)
 import Data.Set qualified as Set
 import Data.Text.IO qualified as TIO
 import Data.Word (Word64)
-import Foreign.Ptr (Ptr, castFunPtrToPtr)
+import Foreign.Ptr (Ptr, castFunPtrToPtr, nullPtr)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
@@ -522,6 +522,14 @@ compileUnits c st numbers modName lazy candidates = do
                 -- stress mode install=N: a module's functions appear one at a time
                 when (stressInstall config > 0) (threadDelay (1000 * stressInstall config))
                 when (stats config) (nameEntry (cExits c) (castFunPtrToPtr fp) (sym ++ maybe "" (" = " ++) (lookup sym described)))
+                -- the register entry goes in before the code, which publishes it
+                when (cell == fnCell f) $
+                  case fnRegisterEntry f of
+                    Nothing -> writeNativeRegisterEntry cell nullPtr
+                    Just xsym ->
+                      lookupSymbol (UT.unpack xsym) >>= \case
+                        Left e -> hPutStrLn stderr ("[jit] " ++ UT.unpack xsym ++ " could not be linked: " ++ e)
+                        Right xp -> writeNativeRegisterEntry cell (castFunPtrToPtr xp)
                 writeNativeCode cell (castFunPtrToPtr fp)
         t1 <- getMonotonicTimeNSec
         let onDemand = length [() | (u, _) <- compiled, uOnDemand u]

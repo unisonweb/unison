@@ -40,6 +40,8 @@ module Unison.Runtime.MCode
     readNativeCount,
     writeNativeCount,
     claimNativeCell,
+    nativeRegisterEntryOffset,
+    writeNativeRegisterEntry,
     releaseNativeCell,
     takeNativeCell,
     nativeCellRequested,
@@ -939,7 +941,7 @@ data GCombInfo comb
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 -- | A native code cell (see unison-runtime/src/Unison/Runtime/JIT/design.md): the mutable part of a
--- combinator, 32 bytes outside the Haskell heap, never moved and never
+-- combinator, 40 bytes outside the Haskell heap, never moved and never
 -- freed, so generated code can refer to it by address. As a C struct:
 --
 -- > struct cell {
@@ -947,14 +949,18 @@ data GCombInfo comb
 -- >   int64_t  count;   // offset 8: calls made while code was NULL
 -- >   int64_t  state;   // offset 16: 0 not yet requested, 1 queued, 2 taken by the compile thread
 -- >   int64_t  verdict; // offset 24: whether it is worth compiling (see readNativeVerdict)
+-- >   void    *entry;   // offset 32: the register entry, for native callers in other modules
 -- > };
 --
 -- The state only moves forward, so a combinator is asked for only once.
 -- The layout is a contract between two readers: this module (the
 -- @ and @ accessors below, at those offsets) and
--- the generated code, which loads @ at offset 0 to call through a
--- cell and writes @ at offset 8 (JIT/Codegen.hs); nothing in the C
--- runtime reads a cell.
+-- the generated code, which loads @ at offset 0 or @ at
+-- offset 32 to call through a cell and writes @ at offset 8
+-- (JIT/Codegen.hs); nothing in the C runtime reads a cell. The register
+-- entry is a function with the signature native code agrees on across
+-- modules for the combinator's arity (design.md, "The register entry"):
+-- null when the combinator is not compiled, or compiled without a worker.
 --
 -- The count starts at minus the JIT's compilation threshold when the JIT
 -- compiles what gets hot, so that "hot" is the count reaching zero: the
@@ -963,7 +969,11 @@ data GCombInfo comb
 data NativeCell
 
 nativeCellSize :: Int
-nativeCellSize = 32
+nativeCellSize = 40
+
+-- | The offset of the register entry in a cell, for the generated code.
+nativeRegisterEntryOffset :: Int
+nativeRegisterEntryOffset = 32
 
 -- | Reads the compiled code pointer of a cell. Null means "interpret".
 -- An atomic (acquire) load: the compile thread writes a module's pool
@@ -996,6 +1006,14 @@ readNativeEntry cell = do
 -- before it (see 'readNativeCode').
 writeNativeCode :: Ptr NativeCell -> Ptr () -> IO ()
 writeNativeCode (Ptr a) code = IO $ \s -> case atomicWriteWordAddr# a w s of s' -> (# s', () #)
+  where
+    !(WordPtr (W# w)) = ptrToWordPtr code
+
+-- | Installs the register entry (null for none), the same way as the
+-- code pointer; written before the code pointer, so that a thread which
+-- sees the code sees the entry.
+writeNativeRegisterEntry :: Ptr NativeCell -> Ptr () -> IO ()
+writeNativeRegisterEntry (Ptr a) code = IO $ \s -> case atomicWriteWordAddr# (plusAddr# a 32#) w s of s' -> (# s', () #)
   where
     !(WordPtr (W# w)) = ptrToWordPtr code
 
