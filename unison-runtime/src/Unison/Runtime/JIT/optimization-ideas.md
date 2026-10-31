@@ -206,6 +206,28 @@ But parsing IR is very fast, about 1% of a module's compile time ([2026-10-09 O0
 - A leaner entry for leaf functions, for the ones the "too small to enter" verdict keeps
   interpreted today.
 
+### `ghccc` for every JIT-compiled function (Paul, 2026-10-31)
+
+Compile every Unison function under GHC's own calling convention (`ghccc`,
+which LLVM has for GHC's LLVM backend: the STG registers, including the
+heap and stack pointers and the allocation limit, are pinned to machine
+registers and arguments travel in the rest) instead of the C convention as
+the lingua franca between Haskell, the uniform entries and the workers. One
+`prim` foreign function, written in Cmm and perhaps one per arity, takes the
+pointer of the JIT-compiled function to call and its arguments (or just how
+many elements to take from the Unison stack) and jumps to it; native code
+then has the GC registers directly, so a call-out need not spill and reload
+them through `Ctx`, allocation is the heap-pointer bump GHC's own code does,
+and cross-module calls can return their values in registers instead of
+through the Unison stack and the uniform entry's store and reload (Collatz
+0.82x and the hot caller 0.80x under the wide convention,
+`benchmarks/2026-10-28-wide-jit.md`, are that cost). What to establish
+first: that `ghccc` and `musttail` agree on each target (the `llc` check
+done for the wide return in delayed-data-construction.local.md is the
+model), how a Cmm `prim` enters a function pointer with the arguments where
+`ghccc` wants them, and what the exits and the write-back become when native
+code holds the STG registers rather than a `Ctx`.
+
 ### Ensure no thunks on the boxed stack
 
 Make the interpreter guarantee that a boxed stack slot only ever holds an
