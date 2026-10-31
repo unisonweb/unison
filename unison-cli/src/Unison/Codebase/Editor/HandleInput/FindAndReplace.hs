@@ -282,7 +282,7 @@ lookupRuleTerms spec = case spec.file of
               <> Text.pack path
               <> " has "
               <> Text.pack (show (length bindings))
-              <> " definitions, so I need to know which of them are rewrites: "
+              <> " definitions, so I need to know which of them are rewrites. Example syntax: "
               <> Text.pack path
               <> ":rule1,rule2"
       names -> for names \name -> case lookup (HQ.toVar name) bindings of

@@ -1238,21 +1238,40 @@ docsI src = do
         _ -> displayI ConsoleLocation dotDoc
 
 -- | Print what `docs foo` is about before its documentation: the heading of the type named `foo` if there is one, and
--- otherwise the type signature of each term named `foo`. Definitions that aren't in the codebase yet (only in the
--- scratch file) are skipped.
+-- otherwise the type signature of each term named `foo`. This looks in the latest typechecked file as well as the
+-- codebase, so it works for definitions that are only in the scratch file.
 printWhatIsDocumented :: Name -> Cli ()
 printWhatIsDocumented src = do
   Cli.Env {codebase} <- ask
   names <- Cli.currentNames
+  namesInFile <- Cli.getNamesFromLatestFile
+  typecheckedFile <- Cli.getLatestTypecheckedFile
+  let allNames = namesInFile <> names
   let hq = HQ.NameOnly src
-  let ppe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names))
+  let ppe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 allNames) (PPE.suffixifyByHash allNames))
+  let typesInFile =
+        case typecheckedFile of
+          Nothing -> Map.empty
+          Just tf -> Map.fromList [(ref, typ) | (_, ref, _, _, typ) <- Map.elems (UF.hashTerms tf)]
+  let declsInFile =
+        case typecheckedFile of
+          Nothing -> Map.empty
+          Just tf ->
+            Map.fromList $
+              [(ref, Right decl) | (ref, decl) <- Map.elems (UF.dataDeclarations' tf)]
+                ++ [(ref, Left decl) | (ref, decl) <- Map.elems (UF.effectDeclarations' tf)]
   termSignatures <-
-    for (Set.toList (Names.lookupHQTerm Names.IncludeSuffixes hq names)) \ref ->
-      Cli.runTransaction (Codebase.getTypeOfReferent codebase ref) <&> \case
+    for (Set.toList (Names.lookupHQTerm Names.IncludeSuffixes hq allNames)) \ref -> do
+      mtyp <- case ref of
+        Referent.Ref r | Just typ <- Map.lookup r typesInFile -> pure (Just typ)
+        _ -> Cli.runTransaction (Codebase.getTypeOfReferent codebase ref)
+      pure case mtyp of
         Just typ -> TypePrinter.prettySignaturesCT ppe [(ref, hq, typ)]
         Nothing -> []
   typeHeadings <-
-    for (Set.toList (Names.lookupHQType Names.IncludeSuffixes hq names)) \case
+    for (Set.toList (Names.lookupHQType Names.IncludeSuffixes hq allNames)) \case
+      ref | Just decl <- Map.lookup ref declsInFile ->
+        pure [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
       Reference.DerivedId refId ->
         Cli.runTransaction (Codebase.getTypeDeclaration codebase refId) <&> \case
           Just decl -> [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]

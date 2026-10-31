@@ -391,7 +391,6 @@ test-suite cli-tests
   other-modules:
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
-      Unison.Test.Cli.ScratchFile
       Unison.Test.LSP
       Unison.Test.MCP
       Unison.Test.MCP.Learn

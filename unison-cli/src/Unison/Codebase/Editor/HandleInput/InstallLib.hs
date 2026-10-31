@@ -70,8 +70,7 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
 
   remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase causalHash)
 
-  -- Installing what is already in `lib` would only make a second copy under a name like `unison_base_7_20_0__2`, and leave the
-  -- code that uses the first copy and the code that uses the second unable to work together.
+  -- This noops if a library with the exact same name is already installed.
   currentBranchObject <- Cli.getCurrentProjectRoot0
   let installedLibdeps =
         case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children_) of

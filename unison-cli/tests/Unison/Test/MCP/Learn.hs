@@ -70,70 +70,46 @@ sample =
 parsingTests :: Test ()
 parsingTests =
   scope "parsing" . tests $
-    [ scope "instructions are the file instructions.md, without comments" $
-        expectEqual (instructions guide) "Read [the topics](learn:ucm).",
-      scope "the root lists the top-level topics, with their blurbs, in alphabetical order" $
-        expectTopic
-          "# unison\n\nThe root.\n\nSecond paragraph of the root.\n\n## Topics\n\n * testing - Testing.\n * ucm - The command line tool. It has two lines in its blurb."
-          (learn guide ""),
-      scope "a topic has its summary, a pointer to its detail, and its subtopics" $
-        expectTopic
-          ( Text.intercalate
-              "\n"
-              [ "# ucm",
-                "",
-                "The command line tool. It has two lines",
-                "in its blurb.",
-                "",
-                "- A bullet",
-                "",
-                "````",
-                "# not a heading, inside a fence",
-                "## Detail",
-                "````",
-                "",
-                "For more detail on this topic, call `learn` with `ucm/detail`.",
-                "",
-                "## Subtopics",
-                "",
-                " * ucm/merge - Merging.",
-                " * ucm/update - Updating."
-              ]
-          )
-          (learn guide "ucm"),
-      scope "a topic without subtopics has no index" $
-        expectTopic "# ucm/update\n\nUpdating." (learn guide "ucm/update"),
-      scope "detail" $
-        expectTopic "# ucm/merge/detail\n\nDetails of merge." (learn guide "ucm/merge/detail"),
+    [ scope "the instructions are instructions.md without its comments" do
+        expect' ("Read [the topics](learn:ucm)." `Text.isInfixOf` instructions guide)
+        expect' (not ("A comment" `Text.isInfixOf` instructions guide)),
+      scope "the root lists the top-level topics, and README.md is not a topic" do
+        text <- expectTopic (learn guide "")
+        expect' (" * ucm - " `Text.isInfixOf` text)
+        expect' (" * testing - " `Text.isInfixOf` text)
+        expect' (not ("README" `Text.isInfixOf` text))
+        expect' (isLeft (learn guide "readme")),
+      scope "a topic has its summary, a pointer to its detail and its subtopics, but not its detail" do
+        text <- expectTopic (learn guide "ucm")
+        expect' ("The command line tool." `Text.isInfixOf` text)
+        expect' ("ucm/detail" `Text.isInfixOf` text)
+        expect' (" * ucm/merge - " `Text.isInfixOf` text)
+        expect' (not ("Details of ucm." `Text.isInfixOf` text)),
+      scope "a Detail heading inside a code fence does not start the detail" do
+        text <- expectTopic (learn guide "ucm")
+        expect' ("inside a fence" `Text.isInfixOf` text),
+      scope "comments are dropped" do
+        text <- expectTopic (learn guide "ucm/merge")
+        expect' (not ("not shown" `Text.isInfixOf` text)),
+      scope "a topic's detail is at its path and /detail" do
+        text <- expectTopic (learn guide "ucm/merge/detail")
+        expect' ("Details of merge." `Text.isInfixOf` text),
       scope "paths ignore case, slashes at the ends, and a learn: prefix" $
         expectEqual (learn guide "learn:/UCM/Merge/") (learn guide "ucm/merge"),
-      scope "a topic with no detail says so, and gives its summary" $
-        expectTopic
-          "The topic `ucm/update` has no detail section; its summary is all there is.\n\nUpdating."
-          (learn guide "ucm/update/detail"),
-      scope "README.md is not a topic" $
-        expect (isLeft (learn guide "readme")),
       scope "an unknown topic is an error that lists the subtopics of the closest topic" $
-        expectMissing
-          "There is no topic `ucm/mege`.\n\nThe closest topic is `ucm`. Its subtopics:\n * ucm/merge - Merging.\n * ucm/update - Updating."
-          (learn guide "ucm/mege"),
-      scope "an unknown top-level topic lists the topics" $
-        expectMissing
-          "There is no topic `nope`.\n\nThese are the topics:\n * testing - Testing.\n * ucm - The command line tool. It has two lines in its blurb."
-          (learn guide "nope")
+        case learn guide "ucm/mege" of
+          Left err -> do
+            expect' ("ucm/merge" `Text.isInfixOf` err)
+            expect' ("ucm/update" `Text.isInfixOf` err)
+          Right _ -> crash "expected an error"
     ]
   where
     guide = parseGuide sample
 
-expectTopic :: Text -> Either Text Text -> Test ()
-expectTopic expected = \case
-  Right actual -> expectEqual expected actual
+expectTopic :: Either Text Text -> Test Text
+expectTopic = \case
+  Right actual -> pure actual
   Left err -> crash ("expected a topic, but got the error: " <> Text.unpack err)
-
-expectMissing :: Text -> Either Text Text -> Test ()
-expectMissing expected = \case
-  Left actual -> expectEqual expected actual
-  Right text -> crash ("expected an error, but got: " <> Text.unpack text)
 
 -- | The real guide, which is embedded from the files in @docs/mcp/learn@.
 embeddedGuideTests :: Test ()

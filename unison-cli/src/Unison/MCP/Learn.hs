@@ -18,6 +18,7 @@ import Data.Char (isSpace)
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
+import Text.Megaparsec qualified as Megaparsec
 import Unison.Prelude
 import Unison.Util.FileEmbed (embedProjectTextDir)
 
@@ -63,7 +64,7 @@ parseGuide :: [(FilePath, Text)] -> Guide
 parseGuide files =
   Guide
     { guideInstructions =
-        maybe "" (trimBlankLines . Text.unlines . stripComments . Text.lines) (List.lookup "instructions.md" files'),
+        maybe "" (trimBlankLines . Text.unlines . stripComments) (List.lookup "instructions.md" files'),
       guideTopics,
       guideChildren
     }
@@ -97,43 +98,96 @@ parseTopic text =
       detail
     }
   where
-    (summaryLines, detailLines) = splitAtDetail (stripComments (Text.lines text))
+    (summaryLines, detailLines) = splitAtDetail (lineItems text)
     summary = trimBlankLines (Text.unlines summaryLines)
     detail = trimBlankLines . Text.unlines <$> detailLines
 
--- | Split at the @Detail@ heading, outside of code fences.
-splitAtDetail :: [Text] -> ([Text], Maybe [Text])
-splitAtDetail = go Nothing
-  where
-    go :: Maybe Fence -> [Text] -> ([Text], Maybe [Text])
-    go _ [] = ([], Nothing)
-    go fence (l : ls) =
-      case fence of
-        Just f -> cons l (go (if closesFence f l then Nothing else fence) ls)
-        Nothing
-          | Just f <- opensFence l -> cons l (go (Just f) ls)
-          | Just (_, "Detail") <- heading l -> ([], Just ls)
-          | otherwise -> cons l (go Nothing ls)
-    cons l (before, after) = (l : before, after)
+-- | Split at the @Detail@ heading (the lines before it, and the lines after it if there is one). A @Detail@ in a code
+-- fence is not a heading, and HTML comments are dropped.
+splitAtDetail :: [Item] -> ([Text], Maybe [Text])
+splitAtDetail = \case
+  [] -> ([], Nothing)
+  Comment : items -> splitAtDetail items
+  Heading _ "Detail" _ : items -> ([], Just (concatMap itemLines items))
+  item : items ->
+    let (before, after) = splitAtDetail items
+     in (itemLines item ++ before, after)
 
--- | Drop HTML comments that start on a line of their own, outside code fences.
-stripComments :: [Text] -> [Text]
-stripComments = go Nothing
+itemLines :: Item -> [Text]
+itemLines = \case
+  Line line -> [line]
+  Heading _ _ line -> [line]
+  Fenced fenceLines -> fenceLines
+  Comment -> []
+
+-- | The lines of a Markdown file: what each is, as far as the guide needs to know.
+data Item
+  = -- | A line of text.
+    Line !Text
+  | -- | A heading, with its level (the number of @#@), its text, and the whole line.
+    Heading !Int !Text !Text
+  | -- | A code fence, with all of its lines (the opening and closing lines too).
+    Fenced [Text]
+  | -- | An HTML comment, which starts on a line of its own and goes on to the line that closes it.
+    Comment
+
+type Parser = Megaparsec.Parsec Void Text
+
+-- | The text split into items. Anything is a line of text, so this can't fail.
+lineItems :: Text -> [Item]
+lineItems text =
+  case Megaparsec.parse (Megaparsec.many item <* Megaparsec.eof) "" text of
+    Left _ -> map Line (Text.lines text)
+    Right items -> items
   where
-    go :: Maybe Fence -> [Text] -> [Text]
-    go _ [] = []
-    go fence (l : ls) =
-      case fence of
-        Just f -> l : go (if closesFence f l then Nothing else fence) ls
-        Nothing
-          | Just f <- opensFence l -> l : go (Just f) ls
-          | "<!--" `Text.isPrefixOf` Text.stripStart l -> go Nothing (dropComment (l : ls))
-          | otherwise -> l : go Nothing ls
-    dropComment :: [Text] -> [Text]
-    dropComment [] = []
-    dropComment (l : ls)
-      | "-->" `Text.isInfixOf` l = ls
-      | otherwise = dropComment ls
+    item :: Parser Item
+    item = Megaparsec.choice [fenced, comment, headingItem, Line <$> anyLine]
+
+    -- A line, without its end (the last line may not have one).
+    anyLine :: Parser Text
+    anyLine = do
+      Megaparsec.notFollowedBy Megaparsec.eof
+      l <- Megaparsec.takeWhileP Nothing (/= '\n')
+      _ <- Megaparsec.optional (Megaparsec.single '\n')
+      pure l
+
+    -- A fence opens with at least three backticks or tildes (after at most three spaces of indentation), and closes
+    -- with a line of at least as many of the same character and nothing else. The info string after a backtick fence
+    -- can't contain a backtick.
+    fenced :: Parser Item
+    fenced = do
+      opening <- Megaparsec.lookAhead anyLine
+      Fence c n <- maybe empty pure (opensFence opening)
+      _ <- anyLine
+      rest <- closing (Fence c n)
+      pure (Fenced (opening : rest))
+
+    closing :: Fence -> Parser [Text]
+    closing fence =
+      Megaparsec.option [] do
+        l <- anyLine
+        if closesFence fence l then pure [l] else (l :) <$> closing fence
+
+    -- An HTML comment on a line of its own: dropped, with the lines up to the one that closes it.
+    comment :: Parser Item
+    comment = do
+      l <- Megaparsec.lookAhead anyLine
+      guard ("<!--" `Text.isPrefixOf` Text.stripStart l)
+      let skip = do
+            l' <- anyLine
+            unless ("-->" `Text.isInfixOf` l') (Megaparsec.option () skip)
+      Comment <$ skip
+
+    headingItem :: Parser Item
+    headingItem = do
+      l <- Megaparsec.lookAhead anyLine
+      (level, title) <- maybe empty pure (heading l)
+      _ <- anyLine
+      pure (Heading level title l)
+
+-- | The lines of the text with the HTML comments (that start on a line of their own, outside code fences) dropped.
+stripComments :: Text -> [Text]
+stripComments = concatMap itemLines . lineItems
 
 heading :: Text -> Maybe (Int, Text)
 heading l = do
@@ -155,7 +209,6 @@ opensFence l = do
   let run = Text.takeWhile (== c) stripped
   let n = Text.length run
   guard (n >= 3)
-  -- An info string after a backtick fence can't contain a backtick.
   guard (c /= '`' || not ('`' `Text.elem` Text.drop n stripped))
   pure (Fence c n)
 

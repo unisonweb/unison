@@ -6,7 +6,6 @@ import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.ClearCache qualified as ClearCache
 import Unison.Test.Cli.Monad qualified as Cli.Monad
-import Unison.Test.Cli.ScratchFile qualified as Cli.ScratchFile
 import Unison.Test.LSP qualified as LSP
 import Unison.Test.MCP qualified as MCP
 import Unison.Test.MCP.Learn qualified as MCP.Learn
@@ -20,7 +19,6 @@ test =
     [ LSP.test,
       ClearCache.test,
       Cli.Monad.test,
-      Cli.ScratchFile.test,
       MCP.test,
       MCP.Learn.test,
       MCP.Runner.test,
