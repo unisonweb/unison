@@ -22,8 +22,10 @@ import Unison.Cli.Share.Ref (SearchFilter, ShareRef (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
+import Unison.CommandLine.DocRender (docToConsole)
 import Unison.Server.Doc.Markdown.Render qualified as Doc
 import Unison.Server.Doc.Markdown.Types qualified as Markdown
+import Unison.Util.Pretty qualified as P
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
   ( DefinitionDisplayResults (..),
@@ -173,7 +175,7 @@ handleShareDocs :: ShareRef -> Cli ()
 handleShareDocs ref = do
   DefinitionDisplayResults {termDefinitions, typeDefinitions} <- lookupDefinitions ref
   let render header docs =
-        Text.intercalate "\n\n" (header : if null docs then ["(This definition has no documentation.)"] else docs <&> Markdown.toText . Doc.toMarkdown)
+        Text.intercalate "\n\n" (header : if null docs then ["(This definition has no documentation.)"] else docs <&> P.toPlain 80 . docToConsole)
       terms =
         Map.elems termDefinitions <&> \TermDefinition {bestTermName, signature, termDocs} ->
           render (bestTermName <> " : " <> Syntax.toPlain signature) [doc | (_, _, doc) <- termDocs]
