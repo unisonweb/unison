@@ -75,7 +75,7 @@ setWide w = do
 
 -- | The number of field slots of a wide variable.
 wideK :: Int
-wideK = 2
+wideK = 1
 
 -- | The number of slots a wide variable occupies: 1 when the convention is
 -- off, so that the layout is unchanged.
