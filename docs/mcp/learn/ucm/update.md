@@ -1,7 +1,7 @@
 Saving code from a `unison` block into the [branch](learn:ucm/branches) with `update`, and what happens when it can't finish.
 
 - A `unison` block is only typechecked (see [the scratch file](learn:ucm/scratch-file)). `update` adds everything in the most recently typechecked block to the branch, replacing definitions of the same name and updating what depends on them. `add` is another name for `update`.
-- With no arguments, `update` uses the most recent block. Run it in a `ucm` block after the `unison` block that defines the code.
+- With no arguments, `update` uses the most recent block. Run it in a `ucm` block after the `unison` block that defines the code, in the same transcript: a later transcript doesn't remember the block, and `update` there says there is nothing to add.
 - **Change what you are changing, and no more.** Send the new definition, run `update`, then `test`. `update` carries a change through everything that depends on it, so don't read all the dependents first or repeat them in your block. What needs your attention will show up: a dependent that no longer typechecks stops the `update`, and a test whose expected value changed fails in `test`.
 - If a definition that depends on your change no longer typechecks, `update` can't finish. It puts you on a [temporary branch](learn:ucm/temporary-branch) with a file of the definitions to fix.
 - `diff.update` shows what `update` would change, without changing anything.

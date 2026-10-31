@@ -4,7 +4,7 @@ A branch must always compile, so these actions either produce a branch that comp
 
 1. Edit the file itself until it should compile, keeping everything that is in it. For a merge, resolve the [conflict markers](learn:ucm/merge/detail). Don't send the fixes as a `unison` block with some of the definitions instead: `update` treats that block as the file, and **deletes every definition of the file that isn't in the block**, such as the tests (the reply marks them `- name`).
 2. Run `load <file>` on the temporary branch (see [the scratch file](learn:ucm/scratch-file)). If it reports errors, fix them and `load` again, until there are none.
-3. Run `update` with no arguments, still on the temporary branch. It saves the definitions in the file into the original branch, merges the temporary branch back, and deletes it.
+3. Run `update` with no arguments, still on the temporary branch, in the same transcript as a `load` that works: `update` saves what was loaded in that transcript, and in a later one it says there is nothing to add. It saves the definitions in the file into the original branch, merges the temporary branch back, and deletes it.
 
 To abandon the action instead, run `cancel`. It puts you back on the original branch.
 
@@ -33,10 +33,11 @@ myproject/merge-bob-into-alice> load merge-bob-into-alice-368151a8.u
 ```
 ````
 
-and when that loads with no errors:
+and when that loads with no errors, send the `load` and `update` together:
 
 ````
 ``` ucm
+myproject/merge-bob-into-alice> load merge-bob-into-alice-368151a8.u
 myproject/merge-bob-into-alice> update
 ```
 ````

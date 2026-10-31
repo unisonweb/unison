@@ -397,6 +397,13 @@ doMerge info = do
 
             case maybeMergetool of
               Nothing -> do
+                let scratchFileContents =
+                      if conflictMarkers
+                        then
+                          lineMergedNote (lineMergedNames mergeblob.conflictTexts)
+                            <> makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
+                        else
+                          (if env.unattended then noConflictsNote else "") <> Pretty.toPlain 80 mergeblob.unparsedFile
                 scratchFilePath <-
                   ScratchFile.writeActionScratchFile
                     info.action
@@ -410,13 +417,7 @@ doMerge info = do
                       into @Text info.bob.causalHash,
                       maybe "" (into @Text) info.lca.causalHash
                     ]
-                    ( if conflictMarkers
-                        then
-                          lineMergedNote (lineMergedNames mergeblob.conflictTexts)
-                            <> makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
-                        else
-                          (if env.unattended then noConflictsNote else "") <> Pretty.toPlain 80 mergeblob.unparsedFile
-                    )
+                    scratchFileContents
                 done
                   ( Output.MergeFailure
                       Output.ScratchFileHandoff
@@ -428,7 +429,13 @@ doMerge info = do
                           loadFirst = isNothing env.watchState
                         }
                       mergeSourceAndTarget
-                      conflictMarkers
+                      ( guard env.unattended
+                          $> let fileLines = Text.lines scratchFileContents
+                              in Output.MergeFileSize
+                                   { lineCount = length fileLines,
+                                     conflictCount = length (filter ("<<<<<<<" `Text.isPrefixOf`) fileLines)
+                                   }
+                      )
                   )
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch

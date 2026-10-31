@@ -64,7 +64,7 @@ Judges named `behavior` run the function on inputs the prompt doesn't show. `ide
 
 Whole UCM workflows rather than single functions; the starting codebase comes from each task's `setup.md`. See `workflows.md` for the ideas and the setup tricks.
 
-- Merges and history: `workflow-merge-clean`, `workflow-merge-conflict`, `workflow-merge-type-break`, `workflow-merge-silent-combine`, `workflow-merge-cancel`, `workflow-undo-update`.
+- Merges and history: `workflow-merge-clean`, `workflow-merge-conflict`, `workflow-merge-type-break`, `workflow-merge-silent-combine`, `workflow-merge-cancel`, `workflow-merge-long` (a 638-line merge file: read how the worker read it with `harness/fileread.py`), `workflow-undo-update`.
 - Updates and deletes: `workflow-update-clean`, `workflow-update-type-conflict`, `workflow-update-multiround`, `workflow-delete-with-dependents`.
 - Libraries: `workflow-lib-install-upgrade`, `workflow-lib-install-fresh` (these two need the network), `workflow-lib-upgrade-conflict`, `workflow-lib-upgrade-two` (offline).
 - Finding libraries and branches: `workflow-http-json-server`, `workflow-json-encode-record` (network), `workflow-feature-branch`.

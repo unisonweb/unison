@@ -82,3 +82,28 @@ Sonnet workers only, all 47 tasks (r16: three tasks). The aim was the path, not 
 r15 was judged: 44 / 47. Of the 3 misses, 2 are literal counts in `workflow-merge-conflict/no-collateral` and `workflow-merge-silent-combine/outcome` that a documentation term and an extra test exceed (the kind of judge problem `workflow-merge-cancel` had), and 1 is a real one, a hand-written recursion in `map-invert`, since addressed in `lang/collections/map`. r13 and r14 weren't judged.
 
 r16 reran `map-invert`, `euler-nth-prime` and `refactor-swap-arguments` on the final topics, judged: 3 / 3, and `map-invert` went from FAIL to GREAT (`Map.fromListWith`). `refactor-swap-arguments` still does the swap by hand (`method` PASS).
+
+## Rounds 17 and 18: `workflow-merge-long`, and how workers read a generated file
+
+The task's merge writes a 638-line file with its 3 conflicts in the first 30 lines. Six runs (r17, judged) passed every judge, GREAT on `approach`. Four more (r18) and four of `workflow-merge-conflict`, whose file is 17 lines, ran after two topic fixes and weren't judged.
+
+| | runs | searched for the markers first | printed the whole file | looked at the size first |
+|---|---:|---:|---:|---:|
+| long file, r17 | 6 | 5 | 1 | 6 |
+| long file, r18 | 4 | 1 | 3 | 1 |
+| short file, r18 | 4 | 0 | 4 | 0 |
+
+A run that searched read about 2K to 6K characters of the file, and one that printed it read 16K. Nothing lost the dependents, however it read the file. r17 against r18 is a large swing with no change that explains it, so treat 6 of 10 as the rate, not either round. Fixed from r17: `update` in a later transcript than the `load` (`ucm/temporary-branch`, `ucm/update`) and a copied `myproject/alice>` prompt (`ucm/merge`). In r18 the only failed call in any run is the merge itself, which reports a conflict as an error.
+
+### Round 19: the merge reply says how long the file is
+
+The reply now says `The file is 638 lines long and has 3 conflicts`, instead of `The file can be long`.
+
+| | runs | searched for the markers first | printed the whole file |
+|---|---:|---:|---:|
+| long file, before (r17, r18) | 10 | 6 | 4 |
+| long file, with the size (r19) | 8 | 8 | 0 |
+| short file, with the size (r19) | 2 | 0 | 2 |
+
+The long runs read 2.4K to 5.8K characters of the 15K file. The short runs still print their 17 lines, which is the right choice. r19 wasn't run through the judges; a direct check of each run's end state is in the log.
+

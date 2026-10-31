@@ -1,9 +1,9 @@
 Merging one [branch](learn:ucm/branches) into another with `merge`, including how conflicts are resolved.
 
-- To merge branch `bob` into branch `alice`, switch to `alice` and run `merge /bob`: `myproject/alice> merge /bob`.
+- To merge branch `bob` into branch `alice`, get on `alice`, then `> merge /bob`. If you aren't on `alice` already, `> switch /alice` first.
 - Changes that don't conflict are merged automatically: definitions only one branch added or changed, renames, and so on.
 - If both branches changed a definition in different ways, or code that depends on the merged definitions no longer typechecks, the merge can't finish. You are put on a [temporary branch](learn:ucm/temporary-branch), `merge-bob-into-alice`, with a file named like `merge-bob-into-alice-368151a8.u`, and that topic says how to finish.
-- The file can be long, because it ends with every definition that depends on a conflicted one. Don't read all of it: search it for `-- **` (the notes that start each part of the file) and for `<<<<<<<` (each conflict), and look at only those places. In a conflict, the markers are git's (see the [detail](learn:ucm/merge/detail)): the version in `alice`, then the original, then the version in `bob`. Keep what you want and delete the marker lines.
+- The file can be long, because it ends with every definition that depends on a conflicted one, and the reply says how many lines and conflicts it has. Unless it is short, don't read all of it: search it for `-- **` (the notes that start each part of the file) and for `<<<<<<<` (each conflict), and look at only those places. In a conflict, the markers are git's (see the [detail](learn:ucm/merge/detail)): the version in `alice`, then the original, then the version in `bob`. Keep what you want and delete the marker lines.
 - The parts, in order: a `-- **` note naming definitions that were merged line by line (if any), the conflicts in name order, a `-- **` note saying that the definitions after it are not conflicted but depend on conflicted ones, and those definitions. When nothing conflicts but dependents no longer typecheck, the file has a `-- **` note saying so and only the dependents.
 
 ## Detail

@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.Output
   ( Output (..),
     AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
+    MergeFileSize (..),
     ScratchFileHandoff (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
@@ -190,6 +191,12 @@ data AmbiguousReset'Argument
 
 -- | What an action (@update@, @delete@, @merge@, @pull@, @upgrade@) that couldn't produce a branch that compiles leaves
 -- behind: a temporary branch, which the user has been switched to, and a scratch file of the definitions to fix up.
+-- | How much is in the file a merge left behind, for someone who can't see it and has to decide how to read it.
+data MergeFileSize = MergeFileSize
+  { lineCount :: !Int,
+    conflictCount :: !Int
+  }
+
 data ScratchFileHandoff = ScratchFileHandoff
   { -- | The action, like @update@ or @merge@.
     action :: !Text,
@@ -483,7 +490,7 @@ data Output
   | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
   | -- | Whether the scratch file has conflict markers.
-    MergeFailure !ScratchFileHandoff !MergeSourceAndTarget !Bool
+    MergeFailure !ScratchFileHandoff !MergeSourceAndTarget !(Maybe MergeFileSize)
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget

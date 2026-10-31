@@ -57,6 +57,7 @@ import Unison.Codebase.Editor.Input (BranchIdG (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
+    MergeFileSize (..),
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
@@ -2252,7 +2253,7 @@ notifyUser dir issueFn = \case
                    )
                  & P.oxfordCommasWith "."
              )
-  MergeFailure handoff aliceAndBob conflictMarkers ->
+  MergeFailure handoff aliceAndBob fileSize ->
     pure $
       P.wrap
         ( "I couldn't automatically"
@@ -2265,24 +2266,33 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> scratchFileNextSteps
           handoff
-          [ P.wrap $
-              "The file has conflict markers where the branches disagree, in git's style. In each, the first part is"
-                <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
-                <> "version (after"
-                <> P.group "<<<<<<<),"
-                <> "then the original (after"
-                <> P.group "|||||||),"
-                <> "and then"
-                <> P.group (prettyMergeSource aliceAndBob.bob <> "'s")
-                <> "(after"
-                <> P.group "=======)."
-                <> "Keep what you want and delete the marker lines. The file can be long: search it for"
-                <> P.group "<<<<<<<"
-                <> "and"
-                <> P.group "`-- **`"
-                <> "to find the parts that need attention."
-            | conflictMarkers
-          ]
+          ( case fileSize of
+              Nothing -> []
+              Just size
+                | size.conflictCount == 0 -> [P.wrap ("The file is" <> mergeFileLines size <> "long.")]
+                | otherwise ->
+                    [ P.wrap $
+                        "The file is"
+                          <> mergeFileLines size
+                          <> "long and has"
+                          <> P.group (P.shown size.conflictCount <> if size.conflictCount == 1 then " conflict," else " conflicts,")
+                          <> "with markers in git's style where the branches disagree. In each, the first part is"
+                          <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
+                          <> "version (after"
+                          <> P.group "<<<<<<<),"
+                          <> "then the original (after"
+                          <> P.group "|||||||),"
+                          <> "and then"
+                          <> P.group (prettyMergeSource aliceAndBob.bob <> "'s")
+                          <> "(after"
+                          <> P.group "=======)."
+                          <> "Keep what you want and delete the marker lines. Search the file for"
+                          <> P.group "<<<<<<<"
+                          <> "and"
+                          <> P.group "`-- **`"
+                          <> "to find the parts that need attention."
+                    ]
+          )
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
@@ -3005,6 +3015,9 @@ notifyUser dir issueFn = \case
   CantUpdateLib names ->
     pure (P.fatalCallout (modifyingLibNotAllowed names))
   where
+    mergeFileLines :: MergeFileSize -> Pretty
+    mergeFileLines size = P.group (P.shown size.lineCount <> if size.lineCount == 1 then " line" else " lines")
+
     -- What an agent (or person) needs to do next after an action left them on a temporary branch with a scratch file.
     scratchFileNextSteps :: ScratchFileHandoff -> [Pretty] -> Pretty
     scratchFileNextSteps handoff extra =

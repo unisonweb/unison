@@ -1,7 +1,10 @@
 -- | How transcripts behave when the MCP server runs them ('Transcript.mcpConfig'), compared with a transcript test.
 module Unison.Test.MCP.Runner (test) where
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Either (isLeft)
+import Data.Foldable (traverse_)
+import Data.List (isPrefixOf, isSuffixOf)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -20,7 +23,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Control.Exception (finally)
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (listDirectory, removeDirectoryRecursive, removeFile)
 
 test :: Test ()
 test =
@@ -54,6 +57,10 @@ test =
             -- The block comes after the file that UCM wrote for the update, and it must get UCM's report of what it
             -- typechecked, like any other unison block.
             expectTextContaining ["I couldn't complete the update", "foo : Text"] (Text.pack (renderOutput output)),
+      scope "the reply to a merge that stops says how long its file is, and how many conflicts it has" do
+        result <- runTranscriptWith mcp conflictingMerge
+        liftIO (listDirectory "." >>= traverse_ removeFile . filter (\file -> "merge-" `isPrefixOf` file && ".u" `isSuffixOf` file))
+        expectFailureMentioning ["lines", "1 conflict,", "Search the file for"] result,
       scope "a definition both branches changed on different lines is named as merged at the line level" do
         let version a c = Text.unlines ["f x =", "  a = " <> a, "  b = 7", "  c = " <> c, "  a + b + c"]
             texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10" "x + 2", Merge.bob = version "x + 1" "x + 20", Merge.lca = version "x + 1" "x + 2"}
@@ -74,6 +81,45 @@ test =
 
 ucm :: [Text] -> Text
 ucm commands = "``` ucm\n" <> Text.unlines commands <> "```\n"
+
+-- | Two branches change the same definition in different ways, and one is merged into the other.
+conflictingMerge :: Text
+conflictingMerge =
+  Text.unlines
+    [ "``` ucm",
+      "scratch/main> builtins.merge lib.builtins",
+      "```",
+      "",
+      "``` unison",
+      "foo : Nat",
+      "foo = 1",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/main> add",
+      "scratch/main> branch alice",
+      "scratch/main> branch bob",
+      "```",
+      "",
+      "``` unison",
+      "foo : Nat",
+      "foo = 2",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/alice> update",
+      "```",
+      "",
+      "``` unison",
+      "foo : Nat",
+      "foo = 3",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/bob> update",
+      "scratch/alice> merge /bob",
+      "```"
+    ]
 
 -- | A definition is added, then changed to a type that its dependent can't use, so the update stops. The transcript goes on (the
 -- failure is expected) with a unison block, which has to be loaded.
