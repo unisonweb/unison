@@ -29,7 +29,7 @@ import Data.IORef
 import Data.List (zip4)
 import Data.Map qualified as Map
 import Data.Map.Strict qualified as MapS
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Primitive.PrimArray (sizeofPrimArray)
 import Data.Set qualified as Set
 import Data.Text.IO qualified as TIO
@@ -54,6 +54,7 @@ import Unison.Runtime.JIT.Layout (Layouts)
 import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize, poolTypes)
 import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
+import Unison.Runtime.MCode.Explode (retIndex)
 import Unison.Runtime.Stack (MCombs, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Util.Deque qualified as D
@@ -188,6 +189,10 @@ data Unit = Unit
     -- | the worker returns one result pair: the code cannot yield a witness
     -- (see Codegen's 'Worker')
     uNarrow :: Bool,
+    -- | a product-return worker (Unison.Runtime.MCode.Explode): the
+    -- worker returns this many result pairs, the leaves of the product,
+    -- and is called only from its module and through its wrapper
+    uStatic :: Maybe Int,
     -- | a private copy of a callee compiled earlier: it exists so that
     -- the module's calls to it are direct (and may be inlined), is not
     -- installed in its cell (the earlier code stays for everyone else),
@@ -327,9 +332,10 @@ groupUnits c sandbox lazy ref grp combs = do
               ++ show f
               ++ "\n"
               ++ unlines (map ("; " ++) (lines (prettySection 4 entry "")))
-          worker = if isEntry i && CG.workerShape entry then Just a else Nothing
+          static = if i == retIndex then CG.staticWidth entry else Nothing
+          worker = if isEntry i && (CG.workerShape entry || isJust static) then Just a else Nothing
           narrow = not (CG.mayYieldWitness entry)
-       in Unit name name cell combs entry describe onDemand worker narrow False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
+       in Unit name name cell combs entry describe onDemand worker narrow static False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
 
 -- | Private copies of a compiled group's entry point and local functions,
 -- for a module that calls them (see 'uCopy'). The group's re-entry points
@@ -339,6 +345,7 @@ copyUnits :: Compiler -> Bool -> Reference -> Word64 -> MCombs -> IO [Unit]
 copyUnits c sandbox ref grp combs = do
   n <- atomicModifyIORef' (cCopyCounter c) (\k -> (k + 1, k))
   (now, _) <- groupUnits c sandbox True ref grp combs
+  -- a product-return worker is called only from its own batch's module
   let copy u =
         u
           { uName = uName u ++ "_c" ++ show n,
@@ -346,7 +353,7 @@ copyUnits c sandbox ref grp combs = do
             uCopy = True,
             uDescribe = "; private copy of " ++ uName u ++ "\n" ++ uDescribe u
           }
-  pure (map copy now)
+  pure (map copy (filter (isNothing . uStatic) now))
 
 -- | The unit for a re-entry function its parent left for later.
 deferredUnit :: Unit -> Deferred -> Unit
@@ -371,6 +378,7 @@ deferredUnit parent d =
     True
     Nothing
     False
+    Nothing
     False
     (uSandboxed parent)
     (\_ env -> first UT.unpack (genDeferred env d))
@@ -411,7 +419,7 @@ compileUnits c st numbers modName lazy candidates = do
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us
         | any (`elem` disabled config) ["direct", "worker"] = Map.empty
-        | otherwise = Map.fromList [(uCell u, CG.Worker (UT.pack (uName u ++ "_w")) a (uNarrow u)) | u <- us, Just a <- [uWorker u]]
+        | otherwise = Map.fromList [(uCell u, CG.Worker (UT.pack (uName u ++ "_w")) a (uNarrow u) (uStatic u)) | u <- us, Just a <- [uWorker u]]
       -- Which functions compile, and in which form. A function that fails
       -- as a worker (it turns out to return other than one value) is
       -- generated in the uniform form instead, and its callers then call it

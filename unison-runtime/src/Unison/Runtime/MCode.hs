@@ -919,12 +919,15 @@ data RefNums = RN
     -- | the specialisations of a combinator of this batch
     -- (Unison.Runtime.MCode.Explode): its call patterns, in worker order
     explode :: Reference -> Maybe [Pattern],
+    -- | the product a combinator of this batch returns on every path
+    -- (Unison.Runtime.MCode.Explode): it has a product-return worker
+    retOf :: Reference -> Maybe Shape,
     -- Map record schemas into their runtime reference
     recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing) (const Nothing) mt
+emptyRNs = RN mt mt (const Nothing) (const Nothing) (const Nothing) mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -1339,15 +1342,17 @@ data Ctx v
 -- than stack positions. With it, what the lambda being emitted knows
 -- about its constructor lets (Unison.Runtime.MCode.Explode): which
 -- constructor each builds, for a call that takes the fields, and which
--- are dead once those calls take them.
+-- are dead once those calls take them; and, for a product-return worker,
+-- the product it yields the leaves of at every tail.
 data RCtx v = RCtx
   { rctxCombs :: M.Map v Word64,
     rctxCons :: ConLets v,
-    rctxDead :: Set v
+    rctxDead :: Set v,
+    rctxReturn :: Maybe Shape
   }
 
 emptyRCtx :: RCtx v
-emptyRCtx = RCtx M.empty (ConLets M.empty M.empty) Set.empty
+emptyRCtx = RCtx M.empty (ConLets M.empty M.empty) Set.empty Nothing
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1530,14 +1535,23 @@ emitCombs ::
   State RecordFieldMappings (EnumMap Word64 Comb)
 emitCombs rns grpr grpn (Rec grp ent) = do
   es <- emitComb rns grpr grpn rec (0, ent)
+  -- a function that returns a product on every path also gets a
+  -- product-return worker: the lambda emitted again with its tails
+  -- yielding the product's leaves (Unison.Runtime.MCode.Explode); the
+  -- entry keeps the original body, as with a specialisation, so that a
+  -- caller that doesn't take the result apart, the function's own
+  -- recursion included, pays nothing
+  ret <- case retOf rns grpr of
+    Just s -> emitComb rns grpr grpn rec {rctxReturn = Just s} (retIndex, ent)
+    Nothing -> pure mempty
   -- a specialisation of the entry point per call pattern its callers in
   -- the batch build (Unison.Runtime.MCode.Explode), each a combinator of
   -- its own
   specs <- case explode rns grpr of
-    Just pats -> foldMapM (\(k, pat) -> emitComb rns grpr grpn rec (specIndex k, specialise pat ent)) (zip [1 ..] pats)
+    Just pats -> foldMapM (\(k, pat) -> emitComb rns grpr grpn rec (specIndex k, specialise (retOf rns) (anum rns) pat ent)) (zip [1 ..] pats)
     Nothing -> pure mempty
   auxEs <- aux
-  pure $ es <> specs <> auxEs
+  pure $ es <> ret <> specs <> auxEs
   where
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
@@ -1680,7 +1694,10 @@ emitComb ::
   (Word64, SuperNormal Reference v) ->
   State RecordFieldMappings (EC.EnumMap Word64 Comb)
 emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
-  | Just k <- resultCount bd,
+  -- a product-return worker's tails yield the product's leaves: the
+  -- analysis that chose it ('returns') is the check on its count
+  | Nothing <- rctxReturn rec0,
+    Just k <- resultCount bd,
     k /= 1 =
       internalBug [] $
         "emitComb: a function body that yields " ++ show k ++ " values: " ++ show bd
@@ -1691,9 +1708,10 @@ emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
   where
     -- the explosion maps variables by name, which shadowing defeats, and
     -- sinks calls into the branches that build their argument
-    bd = if explodeOn then prepare bd0 else bd0
+    bd = if explodeOn then prepare (retOf rns) (anum rns) bd0 else bd0
     cons = conLets bd
-    rec = rec0 {rctxCons = cons, rctxDead = deadCons (explode rns) cons bd}
+    dead = deadCons (explode rns) cons bd <> foldMap (\s -> returnDead cons s bd) (rctxReturn rec0)
+    rec = rec0 {rctxCons = cons, rctxDead = dead}
 
 -- | How many values a term yields when it is in tail position, or Nothing
 -- for a term that never returns (an error call). Every term yields one
@@ -1789,6 +1807,20 @@ emitSection rns grpr grpn rec ctx (TLets _ [u] _ bu bo)
   | isBuiltLet bu,
     Set.member u (rctxDead rec) =
       emitSection rns grpr grpn rec ctx bo
+emitSection rns grpr grpn rec ctx (TLets d@(Indirect w) us ms bu@(TApp (FComb r) args) bo)
+  -- a let of the leaves of a product over a call of a function that has a
+  -- product-return worker (Unison.Runtime.MCode.Explode, 'useReturns'):
+  -- the call goes to the worker, which yields the leaves
+  | length us > 1,
+    Just s <- retOf rns r,
+    shapeLeaves s == length us,
+    anum rns r == Just (length args) =
+      let cixw = CIx r (cnum rns r) retIndex
+          vcs = zip us ms
+          f bnd (w', Lam _ fr bd) = Let bnd (CIx grpr grpn w') fr bd noNativeCell
+       in f
+            <$> emitClosures grpr grpn rec (Block ctx) args (\ctx' as -> countCtx ctx' (Call False cixw cixw as))
+            <*> record ctx vcs w (emitSection rns grpr grpn rec (letCtx d bu vcs ctx) bo)
 emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
   -- An unboxed sum: the primitive pushes a tag over the fields of the case
   -- it took, the let names only the tag, and each arm binds the fields of
@@ -1850,6 +1882,13 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
               <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
+  -- a product-return worker yields the leaves of the product a tail
+  -- returns (Unison.Runtime.MCode.Explode)
+  | Just s <- rctxReturn rec,
+    Just b <- M.lookup v (builtOf (rctxCons rec)),
+    matchesBuilt s b =
+      emitReturnLeaves grpr grpn rec ctx s b
+emitSection _ grpr grpn rec ctx (TVar v)
   | Just (i, _) <- ctxResolve ctx v,
     wideOn,
     ctxIsWide ctx v =
@@ -1877,6 +1916,24 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
       . Yield
       . VArgV
       $ countBlock ctx
+emitSection _ grpr grpn rec ctx (TApp (FCon r t) args)
+  -- a product-return worker yields the leaves of the product a tail builds
+  | Just s <- rctxReturn rec,
+    matchesBuilt s (BuiltCon r t args) =
+      emitReturnLeaves grpr grpn rec ctx s (BuiltCon r t args)
+emitSection _ grpr grpn rec ctx (TApp (FRec rs) args)
+  | Just s <- rctxReturn rec,
+    matchesBuilt s (BuiltRec rs args) =
+      emitReturnLeaves grpr grpn rec ctx s (BuiltRec rs args)
+emitSection rns grpr grpn rec ctx (TApp (FComb r) args)
+  -- a product-return worker's tail call of a function returning the same
+  -- product is a call of that function's worker, which yields the leaves
+  | Just _ <- rctxReturn rec,
+    Just _ <- retOf rns r,
+    anum rns r == Just (length args) =
+      emitClosures grpr grpn rec ctx args $ \ctx as ->
+        let cix = CIx r (cnum rns r) retIndex
+         in countCtx ctx $ Call False cix cix as
 emitSection rns grpr grpn rec ctx (TApp (FComb r) args)
   -- a call of a function of this batch that builds one of its call
   -- patterns goes to that specialisation with the fields of what it built
@@ -2000,13 +2057,13 @@ emitSection rns grpr grpn rec ctx (THnd rs nh ah b) =
           internalBug [] "emitSection: ctxResolve failed without variable"
       Just mj ->
         Ins (Reset (EC.setFromList ws) i (fst <$> mj))
-          <$> emitSection rns grpr grpn rec ctx b
+          <$> emitSection rns grpr grpn rec {rctxReturn = Nothing} ctx b
     _ -> emitSectionVErr nh
   where
     ws = dnum rns <$> rs
 emitSection rns grpr grpn rec ctx (TShift r v e) =
   Ins (Capture $ dnum rns r)
-    <$> emitSection rns grpr grpn rec (Var v BX ctx) e
+    <$> emitSection rns grpr grpn rec {rctxReturn = Nothing} (Var v BX ctx) e
 emitSection _ _ _ _ ctx (TFrc v)
   | Just (i, BX) <- ctxResolve ctx v =
       countCtx ctx $ App False (Stk i) ZArgs
@@ -2136,6 +2193,18 @@ emitFunctionVErr v =
 -- Emit machine code for a let expression. Some expressions do not
 -- require a machine code Let, which uses more complicated stack
 -- manipulation.
+-- | The yield of a product-return worker (Unison.Runtime.MCode.Explode):
+-- the leaves of the product a tail builds, each boxed if it is wide, as
+-- that many values.
+emitReturnLeaves :: (Var v) => Reference -> Word64 -> RCtx v -> Ctx v -> Shape -> Built v -> Emit Section
+emitReturnLeaves grpr grpn rec ctx s b
+  | length leaves == shapeLeaves s =
+      emitClosures grpr grpn rec ctx leaves $ \ctx as -> countCtx ctx (Yield as)
+  | otherwise =
+      internalBug [] $ "emitReturnLeaves: a tail building " ++ show (length leaves) ++ " leaves for a product of " ++ show (shapeLeaves s)
+  where
+    leaves = returnLeaves (rctxCons rec) s b
+
 emitLet ::
   (Var v) =>
   RefNums ->
@@ -2188,7 +2257,9 @@ emitLet rns grpr grpn rec d vcs ctx bnd
   | Indirect w <- d =
       \esect ->
         f
-          <$> emitSection rns grpr grpn rec (Block ctx) bnd
+          -- a binding is not a tail of the combinator: a product-return
+          -- worker packs a product built here (Unison.Runtime.MCode.Explode)
+          <$> emitSection rns grpr grpn rec {rctxReturn = Nothing} (Block ctx) bnd
           <*> record ctx vcs w esect
   where
     f s (w, Lam _ f bd) =

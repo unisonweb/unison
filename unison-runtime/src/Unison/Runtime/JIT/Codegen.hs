@@ -41,6 +41,7 @@ module Unison.Runtime.JIT.Codegen
     switches,
     unitForeign,
     workerShape,
+    staticWidth,
     mayYieldWitness,
     Worker (..),
   )
@@ -55,7 +56,7 @@ import Data.Int (Int64)
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Primitive.PrimArray (primArrayToList)
 import Data.Text qualified as UText
 import Data.Vector qualified as V
@@ -166,7 +167,16 @@ data Env = Env
 -- convention has 'resultWidth': a function whose code cannot yield a
 -- witness, 'mayYieldWitness', needs no field pairs, and the seven-word
 -- return was the cost of every call that LLVM did not inline).
-data Worker = Worker {wName :: !Text, wArity :: !Int, wNarrow :: !Bool}
+data Worker = Worker
+  { wName :: !Text,
+    wArity :: !Int,
+    wNarrow :: !Bool,
+    -- | a product-return worker (Unison.Runtime.MCode.Explode): it
+    -- returns this many pairs, the leaves of the product, whoever calls
+    -- it; it has no register entry, and only its module's lets of that
+    -- many names and its wrapper call it
+    wStatic :: !(Maybe Int)
+  }
 
 -- | The cells for a function's auxiliary functions: counted while the
 -- function is generated (each gets a placeholder, 'countingCell', that
@@ -810,6 +820,8 @@ data FnEnv = FnEnv
     feWorker :: !Bool,
     -- | a worker returning one result pair (see 'Worker')
     feNarrow :: !Bool,
+    -- | a product-return worker, returning this many pairs (see 'Worker')
+    feStatic :: !(Maybe Int),
     -- | Set while generating a worker's /fast entry/: the function its
     -- callers call, which holds only the paths that need nothing checked
     -- (no stack room, no poll: they can't exit, call or loop) and return
@@ -1386,11 +1398,13 @@ workerRet w = "{ " <> intercalateT ", " (D.fromList (workerRetTypes w)) <> " }"
 -- | The result pairs a function's worker returns: one when narrow.
 feWidth :: FnEnv -> Int
 feWidth fe
+  | Just n <- feStatic fe = n
   | feNarrow fe = 1
   | otherwise = resultWidth
 
 workerWidth :: Worker -> Int
 workerWidth w
+  | Just n <- wStatic w = n
   | wNarrow w = 1
   | otherwise = resultWidth
 
@@ -1605,6 +1619,32 @@ workerShape = \case
       TestT d m -> workerShape d && all workerShape (Map.elems m)
       TestY d m -> workerShape d && all workerShape (Map.elems m)
 
+-- | The width of a product-return worker (Unison.Runtime.MCode.Explode):
+-- every return it makes itself yields the same several values, the
+-- product's leaves. Nothing for any other code.
+staticWidth :: MSection -> Maybe Int
+staticWidth sect = case go sect of
+  ws@(Just n : _) | n >= 2, all (== Just n) ws -> Just n
+  _ -> Nothing
+  where
+    go = \case
+      Yield args -> case args of
+        VArg2 _ _ -> [Just 2]
+        VArgN as -> [Just (length (primArrayToList as))]
+        _ -> [Nothing]
+      Ins _ rest -> go rest
+      Match _ br -> branches br
+      DMatch _ _ br -> branches br
+      NMatch _ _ br -> branches br
+      Let _ _ _ body _ -> go body
+      _ -> []
+    branches = \case
+      Test1 _ (Arm _ a) d -> go a ++ go d
+      Test2 _ (Arm _ a) _ (Arm _ b) d -> go a ++ go b ++ go d
+      TestW d m -> go d ++ concatMap (go . armSection . snd) (EC.mapToList m)
+      TestT d m -> go d ++ concatMap go (Map.elems m)
+      TestY d m -> go d ++ concatMap go (Map.elems m)
+
 -- ---------------------------------------------------------------------------
 -- Functions
 
@@ -1626,7 +1666,8 @@ runFunction env name cix arity frameSize cell headL base worker body =
         | worker = workerName name
         | otherwise = name
       narrow = worker && maybe False wNarrow (Map.lookup cell (envWorkers env))
-      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker narrow Nothing sym (envInternal env) Nothing
+      static = if worker then Map.lookup cell (envWorkers env) >>= wStatic else Nothing
+      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker narrow static Nothing sym (envInternal env) Nothing
       gs0 = initialState arity (envCells env) (envKnown env) worker
       -- a worker comes with the function the cell points to, the wrapper,
       -- and maybe with a fast entry
@@ -1636,8 +1677,9 @@ runFunction env name cix arity frameSize cell headL base worker body =
         w <- if worker then D.singleton <$> genWrapper fe body else pure D.empty
         x <- if exported then D.singleton <$> genRegisterEntry fe else pure D.empty
         pure (Pair t (f <> w <> x))
-      -- a private copy is not installed, so it has no register entry
-      exported = worker && not (envInternal env)
+      -- a private copy is not installed, so it has no register entry, and
+      -- a product-return worker's width is its own
+      exported = worker && not (envInternal env) && isNothing static
    in case gsFailed gs of
         _ | gsNotWorker gs -> Left "a worker would return other than one value"
         Just why -> Left why
@@ -1674,7 +1716,7 @@ genFunctionText fe body = do
         | otherwise = (l <> ":") <| fmap ("  " <>) is
       -- the wrapper (or the uniform return) stores the result slots above
       -- the frame base after the body ran, so they are ensured here too
-      maxK = maximum [gsMaxK gs, arity + feFrameSize fe, feBase fe + resultWidth]
+      maxK = maximum [gsMaxK gs, arity + feFrameSize fe, feBase fe + max resultWidth (feWidth fe)]
       entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs) (gsUsesWitness gs)
       -- the grow exit, the first this function added, asks for what the
       -- entry check demanded
@@ -1803,6 +1845,8 @@ genWrapper fe body = do
       name = feName fe
       arity = feArity fe
       wd = feWidth fe
+      -- the slots stored: the result width, or a product-return worker's
+      stored = fromMaybe resultWidth (feStatic fe)
       field reg f = reg <> " = getelementptr i8, ptr %ctx, i64 " <> tshow (f (envCtx env))
       indent = fmap ("  " <>)
       lines = D.fromList
@@ -1859,7 +1903,7 @@ genWrapper fe body = do
           -- a narrow worker's one pair fills every slot
           foldMap
             ( \j ->
-                let k = tshow (resultWidth - j)
+                let k = tshow (stored - j)
                     j' = min j (wd - 1)
                     (tu, tb) = (workerRetTypes wd !! (1 + 2 * j'), workerRetTypes wd !! (2 + 2 * j'))
                     uv = "%r.u" <> tshow j
@@ -1878,9 +1922,9 @@ genWrapper fe body = do
                              ]
                       )
             )
-            [0 .. resultWidth - 1]
+            [0 .. stored - 1]
             <> lines
-              [ "%res = add i64 %fp.in, " <> tshow resultWidth,
+              [ "%res = add i64 %fp.in, " <> tshow stored,
                 field "%ap.a" oAp,
                 "store i64 %ap, ptr %ap.a",
                 field "%fp.a" oFp,
@@ -2407,10 +2451,13 @@ bodyLive fe base m body = liveAt (feEnv fe) (currentBase fe) (base + m) body <+>
 
 genNonTailCall :: FnEnv -> Int -> Int -> Ptr NativeCell -> Deque Int -> Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
 genNonTailCall fe d base ccell srcs m sect ownFrame continue
-  | m == resultWidth,
-    Just wk <- Map.lookup ccell (envWorkers (feEnv fe)),
-    wArity wk == D.size srcs =
-      genWorkerCallTo fe d base ("@" <> wName wk) (workerWidth wk) srcs sect ownFrame continue
+  -- a worker of this module: the callee's result pairs are the slots the
+  -- let binds (a product-return worker's leaves), or it fills the result
+  -- width
+  | Just wk <- Map.lookup ccell (envWorkers (feEnv fe)),
+    wArity wk == D.size srcs,
+    maybe (m == resultWidth) (== m) (wStatic wk) =
+      genWorkerCallTo fe d base ("@" <> wName wk) (workerWidth wk) m srcs sect ownFrame continue
   | m == resultWidth,
     Map.notMember ccell (envLocal (feEnv fe)),
     enabled fe "xcall" =
@@ -2434,7 +2481,7 @@ genCellCall fe d base ccell srcs m sect ownFrame continue = do
   joinL <- freshLabel "xjoin"
   emit ("br i1 " <> noEntry <> ", label %" <> uniL <> ", label %" <> regL <> unlikely)
   startBlock regL
-  genWorkerCallTo fe d base fx resultWidth srcs sect ownFrame (emit ("br label %" <> joinL))
+  genWorkerCallTo fe d base fx resultWidth m srcs sect ownFrame (emit ("br label %" <> joinL))
   startBlock uniL
   genNonTailCallWith fe d base (loadCallee env ccell) (fpPlus (base + n)) srcs m sect ownFrame (emit ("br label %" <> joinL))
   startBlock joinL
@@ -2519,9 +2566,11 @@ unwindWith fe base live ownFrame r = joinShared fe base live False ownFrame r
 -- stack.
 --
 -- @callee@ is the worker's name, or a register holding a register entry of
--- another module ('genCellCall'), and @width@ the result pairs it returns.
-genWorkerCallTo :: FnEnv -> Int -> Int -> Text -> Int -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
-genWorkerCallTo fe d base callee width srcs sect ownFrame continue = do
+-- another module ('genCellCall'), @width@ the result pairs it returns and
+-- @m@ the slots the caller takes: the result width, which a narrow
+-- callee's one pair fills, or a product-return worker's width.
+genWorkerCallTo :: FnEnv -> Int -> Int -> Text -> Int -> Int -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
+genWorkerCallTo fe d base callee width m srcs sect ownFrame continue = do
   let env = feEnv fe
       n = D.size srcs
   slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -2533,16 +2582,16 @@ genWorkerCallTo fe d base callee width srcs sect ownFrame continue = do
     startBlock goL
   cStackGuard fe slow
   vals <- loadSources srcs
-  useK (base + max n resultWidth)
+  useK (base + max n m)
   bp <- fpPlus base
   r <- fresh "r"
   emit (r <> " = call " <> workerCC <> " " <> workerRet width <> " " <> callee <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
   -- a narrow callee's one pair fills every result slot
-  (st, results) <- fmap padResults <$> unpackWorkerRet width r
+  (st, results) <- fmap (if m == resultWidth then padResults else id) <$> unpackWorkerRet width r
   let (ru, rb) = case results of
         Pair u b :<| _ -> (u, b)
         Empty -> ("undef", "undef")
-      w = resultWidth
+      w = m
   ok <- fresh "ok"
   emit (ok <> " = icmp eq i64 " <> st <> ", 0")
   callL <- curLabel
@@ -3123,7 +3172,7 @@ genYield fe d args sect = do
   -- a worker hands its result slots back in registers
   if feWorker fe
     then
-      if n == 1 || n == feWidth fe
+      if n == feWidth fe || (n == 1 && isNothing (feStatic fe))
         then retWorkerSlots fe "0" vals
         else modify' (\s -> s {gsFailed = Just "a worker yields other than one result", gsNotWorker = True})
     else genYieldStack fe base n vals
@@ -3193,6 +3242,7 @@ genCall fe d cix comb args sect
             Just wk
               | feWorker fe,
                 workerWidth wk == feWidth fe,
+                wStatic wk == feStatic fe,
                 let wname = wName wk -> do
                   when (envStressCallee env) $ do
                     fire <- stressFire env oStressCalleeLeft oStressCallee
@@ -3208,7 +3258,7 @@ genCall fe d cix comb args sect
               -- a worker of the module-independent width tail calls another
               -- module's register entry directly, when the cell has one
               vals <- loadSources srcs
-              when (feWorker fe && feWidth fe == resultWidth && Map.notMember cell (envLocal env) && enabled fe "xcall") $ do
+              when (feWorker fe && isNothing (feStatic fe) && feWidth fe == resultWidth && Map.notMember cell (envLocal env) && enabled fe "xcall") $ do
                 Pair fx noEntry <- loadRegisterEntry env cell
                 regL <- freshLabel "xreg"
                 uniL <- freshLabel "xuniform"
@@ -4808,7 +4858,7 @@ boxHelperText :: Env -> Text
 boxHelperText env
   | not wideOn = ""
   | otherwise =
-      let fe = FnEnv env "box" (CIx Ty.unitRef 0 0) 0 0 nullPtr Nothing 0 "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty False False Nothing boxHelperName True Nothing
+      let fe = FnEnv env "box" (CIx Ty.unitRef 0 0) 0 0 nullPtr Nothing 0 "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty False False Nothing Nothing boxHelperName True Nothing
           gs0 = initialState 0 (envCells env) (envKnown env) False
           gs = flip execState gs0 $ do
             failL <- freshLabel "fail"

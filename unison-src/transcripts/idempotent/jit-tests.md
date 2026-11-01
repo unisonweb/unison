@@ -1007,6 +1007,199 @@ exploded =
             )
 ```
 
+## Results exploded
+
+A function whose every tail builds a product gets a worker that yields the
+product's leaves as several values (`Unison.Runtime.MCode.Explode`), and a
+caller of the batch that takes the result apart at once calls that worker
+instead of the entry: a loop and its step function exchange a tuple with
+nothing allocated in either direction. A result that escapes, a function
+value and a later definition get the product from the entry as before.
+
+``` unison
+use Nat + - * == < >
+
+-- a pair, nested as tuples are
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+stateLoop : Nat -> Nat
+stateLoop n =
+  go acc i =
+    if i > n then acc
+    else match step acc i with (acc', i') -> go acc' i'
+  go 0 0
+
+-- a record result, matched and read by field
+type Cursor = { line : Nat, col : Nat }
+
+advance : Cursor -> Nat -> Cursor
+advance c ch = if ch == 10 then Cursor (line c + 1) 0 else Cursor (line c) (col c + 1)
+
+lines : Nat -> Nat
+lines n =
+  go c i =
+    if i == n then line c
+    else match advance c (Nat.mod i 7 + 5) with Cursor l k -> go (Cursor l k) (i + 1)
+  go (Cursor 0 0) 0
+
+cols : Nat -> Nat
+cols n =
+  go c i = if i == n then col c else go (advance c (Nat.mod i 7 + 5)) (i + 1)
+  go (Cursor 0 0) 0
+
+-- a result that escapes keeps the entry
+escaping : Nat -> [(Nat, Nat)]
+escaping n = List.map (i -> step i i) [n, n + 1, n + 2]
+
+-- a result with only a field read, through a function the optimizer inlines
+fst1 : (Nat, Nat) -> Nat
+fst1 = cases (a, _) -> a
+
+firstOnly : Nat -> Nat
+firstOnly n = fst1 (step n n)
+
+-- a result passed straight to a loop whose state is exploded
+loopPair : (Nat, Nat) -> Nat
+loopPair = cases
+  (acc, i) -> if i == 0 then acc else loopPair (acc + i, i - 1)
+
+viaExploded : Nat -> Nat
+viaExploded n = loopPair (step 0 n)
+
+-- a tail call of another function returning the same product
+stepTwice : Nat -> Nat -> (Nat, Nat)
+stepTwice acc i = if i > 1000000 then (acc, i) else step (acc + 2) i
+
+twiceLoop : Nat -> Nat
+twiceLoop n =
+  go acc i = if i > n then acc else match stepTwice acc i with (a, j) -> go (a + 1) j
+  go 0 0
+
+-- a product with a nested product and a unit, taken apart to the leaves,
+-- and with the inner product used as a whole
+nested : Nat -> ((Nat, Nat), Nat)
+nested i = ((i, i + 1), i + 2)
+
+nestedLoop : Nat -> Nat
+nestedLoop n =
+  go acc i =
+    if i > n then acc
+    else match nested i with ((a, b), c) -> go (acc + a + b + c) (i + 1)
+  go 0 0
+
+nestedWhole : Nat -> Nat
+nestedWhole n =
+  go acc i =
+    if i > n then acc
+    else match nested i with (ab, c) -> go (acc + fst1 ab + c) (i + 1)
+  go 0 0
+
+-- a result matched twice, and once without an arm for its constructor shape
+twiceMatched : Nat -> Nat
+twiceMatched n =
+  p = step n n
+  a = match p with (x, _) -> x
+  b = match p with (_, y) -> y
+  a + b
+
+-- different products on different paths keep the entry
+either : Nat -> Either Nat Nat
+either n = if n == 0 then Left n else Right n
+
+eitherLoop : Nat -> Nat
+eitherLoop n =
+  go acc i = if i > n then acc else match either i with
+    Left x -> go (acc + x) (i + 1)
+    Right y -> go (acc + y * 2) (i + 1)
+  go 0 0
+
+-- a function value and a partial application get the product
+applied : Nat -> (Nat, Nat)
+applied = step 5
+
+results =
+  (stateLoop 100,
+   lines 100,
+   cols 100,
+   List.size (escaping 10),
+   firstOnly 7,
+   viaExploded 100,
+   twiceLoop 100,
+   nestedLoop 100,
+   nestedWhole 100,
+   twiceMatched 21,
+   eitherLoop 10,
+   applied 6,
+   List.map (f -> f 10) (List.map step [1, 2]))
+
+> results
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Cursor
+
+  + advance            : Cursor -> Nat -> Cursor
+  + applied            : Nat -> (Nat, Nat)
+  + cols               : Nat -> Nat
+  + Cursor.col         : Cursor -> Nat
+  + Cursor.col.modify  : (Nat ->{g} Nat) -> Cursor ->{g} Cursor
+  + Cursor.col.set     : Nat -> Cursor -> Cursor
+  + Cursor.line        : Cursor -> Nat
+  + Cursor.line.modify : (Nat ->{g} Nat) -> Cursor ->{g} Cursor
+  + Cursor.line.set    : Nat -> Cursor -> Cursor
+  + either             : Nat -> Either Nat Nat
+  + eitherLoop         : Nat -> Nat
+  + escaping           : Nat -> [(Nat, Nat)]
+  + firstOnly          : Nat -> Nat
+  + fst1               : (Nat, Nat) -> Nat
+  + lines              : Nat -> Nat
+  + loopPair           : (Nat, Nat) -> Nat
+  + nested             : Nat -> ((Nat, Nat), Nat)
+  + nestedLoop         : Nat -> Nat
+  + nestedWhole        : Nat -> Nat
+  + results            : ( Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           (Nat, Nat),
+                           [(Nat, Nat)])
+  + stateLoop          : Nat -> Nat
+  + step               : Nat -> Nat -> (Nat, Nat)
+  + stepTwice          : Nat -> Nat -> (Nat, Nat)
+  + twiceLoop          : Nat -> Nat
+  + twiceMatched       : Nat -> Nat
+  + viaExploded        : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    117 | > results
+            ⧩
+            ( 5050
+            , 14
+            , 3
+            , 3
+            , 14
+            , 5251
+            , 5353
+            , 15453
+            , 10302
+            , 64
+            , 110
+            , (11, 7)
+            , [(11, 11), (12, 11)]
+            )
+```
+
 ## Calls to function values
 
 ``` unison

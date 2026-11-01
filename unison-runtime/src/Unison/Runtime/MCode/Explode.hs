@@ -49,18 +49,40 @@
 -- cannot resume it, as with any difference in the optimizer between two
 -- versions.
 --
+-- The return side is the same idea for results ('returns'): a function
+-- whose every return builds a product, through its own tail calls, gets a
+-- /product-return worker/, a combinator of its group at 'retIndex' whose
+-- tails yield the product's leaves as several values instead of packing
+-- them, while the entry keeps the original body. A caller in the batch that takes the result apart at
+-- once calls the worker with a let of the leaves ('useReturns'), so a
+-- loop and its step function exchange a tuple with nothing allocated in
+-- either direction; a result that escapes keeps the entry, and one that
+-- is only passed on to an exploded position of another worker is rebuilt
+-- in the caller and dropped by 'deadCons' like any other product built
+-- for such a call. The worker's own body is the lambda's, emitted in a
+-- mode where a product in tail position yields its leaves
+-- ('returnLeaves', 'returnDead'); the emitter does that and the two calls
+-- (Unison.Runtime.MCode).
+--
 -- @UNISON_EXPLODE=off@ switches it off ('explodeOn'), for measuring and
 -- for a process that has to agree with one that ran without it.
 module Unison.Runtime.MCode.Explode
   ( explodeOn,
     specIndex,
+    retIndex,
     Shape (..),
     Pattern,
     Explosions,
     explosions,
     specialise,
+    Returns,
+    returns,
+    returnLeaves,
+    returnDead,
+    shapeLeaves,
     prepare,
     Built (..),
+    matchesBuilt,
     ConLets (..),
     conLets,
     isBuiltLet,
@@ -107,9 +129,19 @@ explodeOn = unsafePerformIO $ do
 specIndex :: Int -> Word64
 specIndex k = (fromIntegral k `shiftL` 16) .|. 0x8000
 
+-- | The combinator index of a group's product-return worker ('returns'):
+-- the specialisation slot no call pattern takes, since those are numbered
+-- from 1.
+retIndex :: Word64
+retIndex = specIndex 0
+
 -- | The most specialisations a function gets.
 maxSpecs :: Int
 maxSpecs = 8
+
+-- | The most leaves a returned product may have.
+maxLeaves :: Int
+maxLeaves = 8
 
 -- | How an argument position is taken apart: left as one slot, or a
 -- product, a data constructor or a record (@Fields@, its fields in the
@@ -146,6 +178,19 @@ sameProduct _ _ = False
 refines :: Shape -> Shape -> Bool
 refines _ Plain = True
 refines s p = sameProduct s p && and (zipWith refines (subShapes s) (subShapes p))
+
+-- | The values a shape is taken apart into: one for a plain position, the
+-- leaves of its fields for a product.
+shapeLeaves :: Shape -> Int
+shapeLeaves Plain = 1
+shapeLeaves s = sum (map shapeLeaves (subShapes s))
+
+-- | What two shapes agree on: the product where both have the same one,
+-- with the meet of their fields, and plain anywhere else.
+meetShape :: Shape -> Shape -> Shape
+meetShape a b
+  | sameProduct a b = withSubShapes a (zipWith meetShape (subShapes a) (subShapes b))
+  | otherwise = Plain
 
 -- | The specialisations of each function of a batch, by its reference:
 -- the patterns, in the order their workers are numbered ('specIndex').
@@ -219,7 +264,7 @@ siteShape cons depth a
 sites :: (Var v) => (Reference -> Maybe Int) -> ANormal Reference v -> [(Reference, Pattern)]
 sites arityOf bd =
   [ (r, pat)
-  | TApp (FComb r) args <- universe bd,
+  | TApp (FComb r) args <- explodableCalls bd,
     Just n <- [arityOf r],
     n == length args,
     let pat = map (siteShape cons 0) args,
@@ -228,30 +273,202 @@ sites arityOf bd =
   where
     cons = conLets bd
 
+-- | The calls of a body that may go to a specialisation: all but the
+-- binding of a let of several names, which goes to the callee's
+-- product-return worker ('useReturns') with its arguments as they are.
+explodableCalls :: (Var v) => ANormal Reference v -> [ANormal Reference v]
+explodableCalls bd = [tm | tm@(TApp (FComb _) _) <- universe bd, tm `notElem` returnCalls]
+  where
+    returnCalls = [bn | TLets _ (_ : _ : _) _ bn@(TApp (FComb _) _) _ <- universe bd]
+
 -- | The specialisations of a batch of groups: for each group's entry
 -- point, the patterns its callers in the batch build, each narrowed to
 -- what its body consumes, and then the patterns each worker's own body
 -- builds, until there are no new ones.
-explosions :: (Var v) => M.Map Reference (SuperGroup Reference v) -> Explosions
-explosions groups
+explosions :: (Var v) => Returns -> M.Map Reference (SuperGroup Reference v) -> Explosions
+explosions rets groups
   | not explodeOn = M.empty
   | otherwise = close M.empty initial
   where
-    arityOf r = case ANF.arities <$> M.lookup r groups of
-      Just (n : _) -> Just n
-      _ -> Nothing
-    initial = concat [sites arityOf (prepare (lambdaBody lam)) | g <- M.elems groups, lam <- lambdas g]
+    arityOf = groupArity groups
+    prep = prepare (`M.lookup` rets) arityOf
+    initial = concat [sites arityOf (prep (lambdaBody lam)) | g <- M.elems groups, lam <- lambdas g]
     close specs [] = specs
     close specs ((r, site) : rest)
       | Just (Rec _ ent@(Lambda _ (TAbss vs _))) <- M.lookup r groups,
         length vs == length site,
-        let pat = zipWith (\s v -> usable s v (prepare (lambdaBody ent))) site vs,
+        let pat = zipWith (\s v -> usable s v (prep (lambdaBody ent))) site vs,
         not (all isPlain pat),
         let have = M.findWithDefault [] r specs,
         pat `notElem` have,
         length have < maxSpecs =
-          close (M.insert r (have ++ [pat]) specs) (rest ++ sites arityOf (lambdaBody (specialise pat ent)))
+          close (M.insert r (have ++ [pat]) specs) (rest ++ sites arityOf (lambdaBody (specialise (`M.lookup` rets) arityOf pat ent)))
       | otherwise = close specs rest
+
+-- | The arity of a group's entry point.
+groupArity :: M.Map Reference (SuperGroup Reference v) -> Reference -> Maybe Int
+groupArity groups r = case ANF.arities <$> M.lookup r groups of
+  Just (n : _) -> Just n
+  _ -> Nothing
+
+-- | The product each function of a batch returns on every path, by its
+-- reference: the shape every tail of its body builds (a constructor
+-- application or a record literal, or a variable bound to one, its fields
+-- taken apart in turn where they are built for it), met over the tails,
+-- where the other tails are saturated calls of functions of the batch that
+-- return the same product. A closure from the shapes the tails build: a
+-- callee's shape narrows its callers' until nothing changes, and a
+-- function with a tail that returns anything else, or calls a function
+-- that does, is dropped. Products of one leaf are left to the wide
+-- convention and products of none are nothing to return; a function of no
+-- arguments is a value evaluated once when it loads, so it keeps its entry.
+type Returns = M.Map Reference Shape
+
+returns :: (Var v) => M.Map Reference (SuperGroup Reference v) -> Returns
+returns groups
+  | not explodeOn = M.empty
+  | otherwise = M.map fst (settle (M.mapMaybeWithKey candidate groups))
+  where
+    arityOf = groupArity groups
+    candidate r (Rec _ (Lambda _ (TAbss vs bd0)))
+      | null vs = Nothing
+      | Just n <- arityOf r, n /= length vs = Nothing
+      | Just ts <- sequence (tails arityOf cons bd),
+        built@(s0 : _) <- [s | Left s <- ts],
+        let s = foldl' meetShape s0 built,
+        returnable s =
+          Just (s, [r' | Right r' <- ts])
+      | otherwise = Nothing
+      where
+        bd = prepare (const Nothing) arityOf bd0
+        cons = conLets bd
+    settle cs
+      | cs' == cs = cs
+      | otherwise = settle cs'
+      where
+        cs' = M.mapMaybe step cs
+        step (s, calls) = do
+          ss <- traverse (\r -> fst <$> M.lookup r cs) calls
+          let s' = foldl' meetShape s ss
+          if returnable s' then Just (s', calls) else Nothing
+    returnable s = not (isPlain s) && shapeLeaves s >= 2 && shapeLeaves s <= maxLeaves
+
+-- | The tails of a body: the shape each builds (Left), the function of the
+-- batch each calls saturated (Right), or Nothing for any other tail.
+tails :: (Var v) => (Reference -> Maybe Int) -> ConLets v -> ANormal Reference v -> [Maybe (Either Shape Reference)]
+tails arityOf cons = go
+  where
+    go tm = case tm of
+      TLets _ _ _ _ bo -> go bo
+      TName _ _ _ bo -> go bo
+      TLocal _ bo -> go bo
+      TMatch _ bs -> concatMap (\(TAbss _ bo) -> go bo) (toList bs)
+      TVar u | Just _ <- M.lookup u (builtOf cons) -> [Just (Left (siteShape cons 0 u))]
+      TApp (FCon r t) args -> [Just (Left (Con r t (map (siteShape cons 1) args)))]
+      TApp (FRec rs) args -> [Just (Left (Fields rs (map (siteShape cons 1) args)))]
+      TApp (FComb r) args | arityOf r == Just (length args) -> [Just (Right r)]
+      _ -> [Nothing]
+
+-- | The values a product-return worker yields for a tail that builds a
+-- product: the leaves of the shape, a field built for the tail taken apart
+-- in turn, any other field as itself.
+returnLeaves :: (Var v) => ConLets v -> Shape -> Built v -> [v]
+returnLeaves cons s b = concat (zipWith leaf (subShapes s) (builtFields b))
+  where
+    leaf Plain a = [a]
+    leaf sub a
+      | Just b' <- M.lookup a (builtOf cons), matchesBuilt sub b' = returnLeaves cons sub b'
+      | otherwise = [a]
+
+-- | The product lets of a return worker's body that nothing uses but the
+-- tails that yield their leaves: a variable returned in tail position when
+-- that is its only occurrence, and a field the shape takes apart once the
+-- let holding it is dead (or the tail is the constructor application
+-- itself). A fixpoint from no let dead, as 'deadCons'.
+returnDead :: (Var v) => ConLets v -> Shape -> ANormal Reference v -> Set.Set v
+returnDead cons s bd = go Set.empty
+  where
+    go ds
+      | ds' == ds = ds
+      | otherwise = go ds'
+      where
+        counts =
+          M.fromListWith (+) $
+            [(u, 1 :: Int) | u <- tops]
+              ++ [(c, 1) | (parent, c) <- edges, Set.member parent ds]
+              ++ [(c, 1) | c <- direct]
+        ds' = M.keysSet (M.filterWithKey (\u n -> M.member u (builtOf cons) && occurrences u bd == n) counts)
+    -- the variables returned in tail position, built as the shape
+    tops = [u | TVar u <- tailTerms bd, Just b <- [M.lookup u (builtOf cons)], matchesBuilt s b]
+    -- the fields a constructor application in tail position takes apart:
+    -- as the children of a dead parent
+    directArgs = [args | tm <- tailTerms bd, Just args <- [directFields tm]]
+    direct = [c | args <- directArgs, (_, c) <- taken s args]
+    directFields = \case
+      TApp (FCon r t) args | matchesBuilt s (BuiltCon r t args) -> Just args
+      TApp (FRec rs) args | matchesBuilt s (BuiltRec rs args) -> Just args
+      _ -> Nothing
+    edges = concatMap (`under` s) tops ++ concat [under c sub | args <- directArgs, (sub, c) <- taken s args]
+    -- a product let and each field of it the shape takes apart in turn
+    under a sh
+      | Just b <- M.lookup a (builtOf cons), matchesBuilt sh b = concat [(a, c) : under c sub | (sub, c) <- taken sh (builtFields b)]
+      | otherwise = []
+    -- the fields of a product a shape takes apart, with their shapes
+    taken sh fields = [(sub, c) | (sub, c) <- zip (subShapes sh) fields, not (isPlain sub), Just cb <- [M.lookup c (builtOf cons)], matchesBuilt sub cb]
+
+-- | The terms in tail position of a body.
+tailTerms :: (Var v) => ANormal Reference v -> [ANormal Reference v]
+tailTerms tm = case tm of
+  TLets _ _ _ _ bo -> tailTerms bo
+  TName _ _ _ bo -> tailTerms bo
+  TLocal _ bo -> tailTerms bo
+  TMatch _ bs -> concatMap (\(TAbss _ bo) -> tailTerms bo) (toList bs)
+  _ -> [tm]
+
+-- | A body with each let of a saturated call of a function that has a
+-- product-return worker rewritten to a let of the result's leaves over the
+-- call, when the body takes the result apart (every match on it, and on
+-- the fields the shape takes apart, replaced by its arm: 'rewrite') and
+-- what is left of it is only passed to saturated calls of functions of the
+-- batch, where an exploded position may take it; the product, and any
+-- field the body still uses as a whole, is rebuilt from the leaves before
+-- the body ('rebuild'). A result used any other way keeps the call of the
+-- entry.
+useReturns :: (Var v) => (Reference -> Maybe Shape) -> (Reference -> Maybe Int) -> ANormal Reference v -> ANormal Reference v
+useReturns retOf arityOf bd = evalState (go bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)))
+  where
+    go tm = case tm of
+      TLets d [u] [BX] bn@(TApp (FComb r) args) bo
+        | Just s <- retOf r,
+          arityOf r == Just (length args) -> do
+            avoid <- get
+            let (tree0, avoid') = treeOf avoid s
+                tree = renameRoot u tree0
+                bo' = rebuild tree (rewrite u tree bo)
+            put avoid'
+            if occurrences u bo' == callUses u bo'
+              then TLets d (leafNames tree) (map (const BX) (leafNames tree)) bn <$> go bo'
+              else TLets d [u] [BX] bn <$> go bo
+      ABTN.Term _ (ABTN.Abs v b) -> ABTN.TAbs v <$> go b
+      ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse go f
+    callUses u e = length [() | TApp (FComb r) args <- universe e, arityOf r == Just (length args), a <- args, a == u]
+    renameRoot u = \case
+      Node _ sh ts -> Node u sh ts
+      t -> t
+
+-- | A body with a let rebuilding each product of the tree that the body
+-- still names, from its fields, an inner product before the one that
+-- holds it.
+rebuild :: (Var v) => Tree v -> ANormal Reference v -> ANormal Reference v
+rebuild (Leaf _) e = e
+rebuild (Node v sh ts) e = foldr rebuild withNode ts
+  where
+    withNode
+      | occurrences v e > 0 = TLets Direct [v] [BX] (packOf sh (map treeName ts)) e
+      | otherwise = e
+    packOf (Con r t _) fs = TApp (FCon r t) fs
+    packOf (Fields rs _) fs = TApp (FRec rs) fs
+    packOf Plain _ = TVar v
 
 -- | The part of a shape the body consumes: a product node stays when every
 -- occurrence of the variable is a data match with an arm for the
@@ -293,10 +510,10 @@ usable s v bd
 -- arguments and the fields of the exploded ones, each a fresh name, and
 -- its body is the lambda's with the exploded arguments rewritten to their
 -- fields.
-specialise :: (Var v) => Pattern -> SuperNormal Reference v -> SuperNormal Reference v
-specialise pat (Lambda ccs (TAbss vs bd0)) = Lambda (map snd params) (TAbss (map fst params) body)
+specialise :: (Var v) => (Reference -> Maybe Shape) -> (Reference -> Maybe Int) -> Pattern -> SuperNormal Reference v -> SuperNormal Reference v
+specialise retOf arityOf pat (Lambda ccs (TAbss vs bd0)) = Lambda (map snd params) (TAbss (map fst params) body)
   where
-    bd = prepare bd0
+    bd = prepare retOf arityOf bd0
     avoid0 = Set.unions (ABTN.freeVars bd : Set.fromList vs : map boundVars (universe bd))
     (_, trees) = foldl' step (avoid0, []) (zip3 vs ccs pat)
     step (avoid, acc) (v, cc, s) = case s of
@@ -307,20 +524,29 @@ specialise pat (Lambda ccs (TAbss vs bd0)) = Lambda (map snd params) (TAbss (map
     params = concat [leaves tree | (_, _, tree) <- trees]
     body = foldl' (\e (v, _, tree) -> rewrite v tree e) bd trees
 
--- | A tree of fresh names for an exploded argument: a leaf is a worker
--- parameter, a node a product whose fields are below it.
-data Tree v = Leaf v | Node Shape [Tree v]
+-- | A tree of fresh names for an exploded argument or result: a leaf is a
+-- worker parameter (or a yielded value), a node a product whose fields are
+-- below it, named so that a body can refer to the product as a whole
+-- ('rebuild').
+data Tree v = Leaf v | Node v Shape [Tree v]
 
 treeOf :: (Var v) => Set.Set v -> Shape -> (Tree v, Set.Set v)
 treeOf avoid Plain = first Leaf (freshVar avoid)
-treeOf avoid s = first (Node s) (go avoid (subShapes s))
+treeOf avoid s = let (nv, avoid') = freshVar avoid in first (Node nv s) (go avoid' (subShapes s))
   where
     go av [] = ([], av)
     go av (sub : ss) = let (tr, av') = treeOf av sub; (trs, av'') = go av' ss in (tr : trs, av'')
 
+treeName :: Tree v -> v
+treeName (Leaf v) = v
+treeName (Node v _ _) = v
+
 leaves :: Tree v -> [(v, Mem)]
 leaves (Leaf v) = [(v, BX)]
-leaves (Node _ ts) = concatMap leaves ts
+leaves (Node _ _ ts) = concatMap leaves ts
+
+leafNames :: Tree v -> [v]
+leafNames = map fst . leaves
 
 -- | The body with every use of the variable rewritten to its fields: a
 -- match becomes the arm for its product, a leaf field's arm variable
@@ -329,7 +555,7 @@ leaves (Node _ ts) = concatMap leaves ts
 -- one replaced (the fields of an updated record are leaves: 'usable').
 rewrite :: (Var v) => v -> Tree v -> ANormal Reference v -> ANormal Reference v
 rewrite _ (Leaf _) e = e
-rewrite v (Node s ts) e = go e
+rewrite v (Node _ s ts) e = go e
   where
     fields = case s of
       Fields rs _ -> schemaFields rs
@@ -361,10 +587,13 @@ rewrite v (Node s ts) e = go e
             go (ABTN.renames (M.singleton x u) bo)
       ABTN.TAbs u b -> ABTN.TAbs u (go b)
       ABTN.TTm f -> ABTN.TTm (fmap go f)
+    -- an arm's variables take the tree's names, so that a product the
+    -- body still names after the rewrite has one name wherever it was
+    -- matched ('rebuild')
     arm pairs bo =
-      let renaming = M.fromList [(f, l) | (f, Leaf l) <- pairs]
+      let renaming = M.fromList [(f, treeName tr) | (f, tr) <- pairs]
           bo' = ABTN.renames renaming bo
-       in go (foldl' (\acc (f, tr) -> rewrite f tr acc) bo' pairs)
+       in go (foldl' (\acc (_, tr) -> rewrite (treeName tr) tr acc) bo' pairs)
     leafName (Leaf l) = Just l
     leafName _ = Nothing
 
@@ -375,11 +604,13 @@ freshVar avoid = (u, Set.insert u avoid)
 
 -- | A body as the analysis and the emitter see it: every binder with a
 -- name of its own ('uniqueBinders'), then calls sunk into the branches
--- that build their argument ('sinkCalls'). Applied to every lambda while
--- the explosion is on, so that the sites the analysis saw are the sites
+-- that build their argument ('sinkCalls'), then calls of functions with a
+-- product-return worker taking the leaves ('useReturns', given the
+-- batch's 'returns' and arities). Applied to every lambda while the
+-- explosion is on, so that the sites the analysis saw are the sites
 -- emitted.
-prepare :: (Var v) => ANormal Reference v -> ANormal Reference v
-prepare bd = sinkCalls (evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd))))
+prepare :: (Var v) => (Reference -> Maybe Shape) -> (Reference -> Maybe Int) -> ANormal Reference v -> ANormal Reference v
+prepare retOf arityOf bd = useReturns retOf arityOf (sinkCalls (evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)))))
 
 -- | The body with a name of its own for every binder. Normalization reuses
 -- a name under shadowing (the blank variables), and 'ABTN.freshen' gives
@@ -446,7 +677,7 @@ deadCons specsOf cons bd = go Set.empty
     -- is taken apart by
     tops =
       [ (a, s)
-      | TApp (FComb r) args <- universe bd,
+      | TApp (FComb r) args <- explodableCalls bd,
         Just pats <- [specsOf r],
         Just (_, pat) <- [siteSpec cons pats args],
         (s, a) <- zip pat args,

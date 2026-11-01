@@ -30,28 +30,44 @@ natively (the type table holds one enum per type, for the reference), which a
 table by constructor would avoid; rare, since a nullary value that escapes is
 usually built boxed in the first place.
 
-### A static product-return worker (Paul, 2026-10-29)
+### The product-return worker: what is left (Paul's idea, 2026-10-29; built 2026-10-31)
 
-The return-side twin of call-pattern specialisation
-(`Unison.Runtime.MCode.Explode`, design.md "Loop state exploded"). A
-callee whose every return path builds a product (a constructor
-application or a record literal in tail position, through its own tail
-calls) gets an optional worker, a combinator of its group, that yields the
-fields as a multi-value result, the way the unboxed-sum primitives yield
-several values into a let of several names; the entry is the worker
-followed by one pack. A caller in the batch calls the worker when it takes
-the result apart at once (a match on the let-bound variable, a record
-match or field read) or passes it straight to an exploded position of
-another worker, so a loop and its step function exchange a tuple with
-nothing allocated in either direction ("State tuple through a non-tail
-call", 0.7x under the wide convention today); any other use keeps the
-entry. No K, no witness, no runtime convention, any width; the dynamic
-wide return stays for unknown callees. Sums could follow with a tag word
-before the fields. Serialization is untouched as for the specialisations.
-It replaces two items dropped the same day: records returned wide at
-K = 2 (base's loaded code has no record instruction, and the width covers
-only named pairs) and returns wider than K (the census's wider
-constructors are structure nodes that escape anyway).
+Built as design.md "Results exploded". Not done, in the order they are
+likely to matter:
+
+- A tail that never returns (`bug`, `Exception.raise`, an `abort`) makes
+  the whole function keep its entry, since the analysis takes every tail
+  to return something. An error path is common in real code; a tail that
+  is a request or a call of a function that never returns could be
+  allowed as a neutral tail.
+- Sums: a function returning `Optional` or `Either` on every path could
+  yield a tag word before the leaves, one width for all constructors;
+  the wide convention covers the one-field ones today.
+- A function that both takes a call pattern (a specialisation) and
+  returns a product gets the return worker only for its entry's body: a
+  specialisation's body still packs its result. The specialisation
+  could be emitted in return mode too, as a worker per (pattern,
+  result).
+- A tail that calls a function returning the product through a *partial*
+  shape (a wider product at the callee) is dropped rather than met down
+  to what both build.
+- A function gets its worker whether or not any caller takes the result
+  apart (`Tree.insert`'s is never used); the worker could be emitted only
+  when some site of the batch uses it, closed under the tail calls of the
+  workers kept, which is also the rule an in-advance version needs.
+- **Make the rewrite explicit in the ANF.** The three bugs found while
+  building it (2026-10-31) all came from the worker being decided by the
+  emitter's mode and side tables rather than by the term: the tail rules
+  fired inside a let binding, the dead-let fixpoint counted a returned
+  constructor's fields unconditionally, and a let of the leaves still
+  looked like an exploded call site to `deadCons`. The argument side has
+  none of this because `specialise` produces a lambda that *is* the
+  worker. The same shape for the return side would be two ANF forms the
+  emitter maps one to one: a call of a function's return worker (a `Func`
+  constructor, say `FWorker`) and a tail that yields several values; the
+  rewrite would then drop the product lets it unpacks itself, with no
+  parallel deadness analysis and no emitter mode. Worth doing before the
+  mechanism grows (sums, specialisations in return mode).
 
 ### A private convention for specialised workers
 
