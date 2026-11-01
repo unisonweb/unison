@@ -18,7 +18,7 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
 import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.MCode (Args (..), Arm (..), Branch, Comb, CombIx (..), FieldRef (..), FrameLayout, GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode (Args (..), Arm (..), BaseFrame (..), Branch, Comb, CombIx (..), Deopt (..), FieldRef (..), FrameLayout (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, Slot (..), mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
@@ -192,9 +192,22 @@ genComb =
     -- CachedClosure
     ]
 
--- | A slot and a width per wide variable of an indirect let's frame.
+-- | A slot and a width per wide variable of an indirect let's frame, and
+-- sometimes the frames the unoptimized code has there.
 genFrameLayout :: Gen FrameLayout
-genFrameLayout = Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
+genFrameLayout =
+  FrameLayout
+    <$> Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
+    <*> Gen.maybe (Deopt <$> Gen.list (Range.linear 1 3) genBaseFrame)
+  where
+    genBaseFrame = BaseFrame <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genSlot
+    genSlot =
+      Gen.recursive
+        Gen.choice
+        [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10)]
+        [ PackSlot <$> genReference <*> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
+          RecSlot <$> genRecordShape <*> Gen.list (Range.linear 0 3) genSlot
+        ]
 
 genFieldRef :: Gen FieldRef
 genFieldRef = FieldRef <$> genSmallWord64
@@ -223,6 +236,7 @@ genStoredCache =
   SCache
     <$> (genEnumMap genSmallWord64 genCombs)
     <*> (genEnumMap genSmallWord64 genReference)
+    <*> (genEnumMap genSmallWord64 genSmallWord64)
     <*> (genEnumSet genSmallWord64)
     -- don't generate inlining info for reasons below
     <*> pure (mempty, mempty)

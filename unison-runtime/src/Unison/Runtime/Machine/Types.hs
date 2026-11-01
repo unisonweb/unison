@@ -179,6 +179,10 @@ data CCache prof = CCache
     srcCombs :: TVar (EnumMap Word64 Combs),
     combs :: TVar (EnumMap Word64 MCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
+    -- the number of the unoptimized copy of each group the explosion
+    -- rewrote (MCode.emitCombs): what a continuation from another process
+    -- resumes (reifyValue), never compiled, so not in combRefs
+    baseNums :: TVar (EnumMap Word64 Word64),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
@@ -239,6 +243,7 @@ baseCCache jit sandboxed = do
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
     <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinOptInfo
     <*> newTVarIO builtinTypeBackref
@@ -272,7 +277,7 @@ baseCCache jit sandboxed = do
             & traverseWithKey
               ( \k v -> do
                   let r = builtinTermBackref ! k
-                  emitComb @Symbol rns r k emptyRCtx (0, v)
+                  fst <$> emitComb @Symbol rns r k emptyRCtx (0, v)
               )
         )
 
@@ -384,7 +389,7 @@ codeValidate cc tml = do
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (const Nothing) (const Nothing) (recordRefLookup recRefs')
-      combinate (n, (r, g)) = evaluate . fst $ runState (emitCombs rns r n g) rfms
+      combinate (n, (r, g)) = evaluate . fst $ runState (emitCombs rns r n n g) rfms
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->
       let msg = UText.pack perr

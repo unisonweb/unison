@@ -934,7 +934,7 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide) init = do
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide) init = do
   -- The file's replacement mode and calling convention, before anything
   -- decodes a value, consults the foreign function table or lays out a frame
   JIT.setReplacements repl
@@ -961,6 +961,10 @@ data StoredCache
   = SCache
       (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
+      -- the unoptimized copies of the rewritten groups, by the group's
+      -- number (CCache.baseNums): a program's compiled code carries its
+      -- MCode, so it carries these, which a continuation it reads resumes
+      (EnumMap Word64 Word64)
       (EnumSet Word64)
       (OptInfos Reference Symbol)
       (EnumMap Word64 Reference)
@@ -984,9 +988,10 @@ data StoredCache
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide) =
+putStoredCache (SCache cs crs bns cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
+    <> putEnumMap putNat putNat bns
     <> putEnumSet putNat cacheableCombs
     <> putOptInfos oinfo
     <> putEnumMap putNat putReference trs
@@ -1020,6 +1025,7 @@ getStoredCache =
   SCache
     <$> getEnumMap getNat (getEnumMap getNat getComb)
     <*> getEnumMap getNat getReference
+    <*> getEnumMap getNat getNat
     <*> getEnumSet getNat
     <*> getOptInfos
     <*> getEnumMap getNat getReference
@@ -1054,7 +1060,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _) = do
+restoreCache jit sandboxed (SCache cs crs bns cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1076,6 +1082,7 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
+      <*> newTVarIO bns
       <*> newTVarIO cacheableCombs
       <*> newTVarIO (opt <> builtinOptInfo)
       <*> newTVarIO (trs <> builtinTypeBackref)
@@ -1126,7 +1133,7 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
-                  emitComb @Symbol rns (rf k) k emptyRCtx (0, v)
+                  fst <$> emitComb @Symbol rns (rf k) k emptyRCtx (0, v)
               )
         )
     srcCombs :: EnumMap Word64 Combs
@@ -1149,6 +1156,7 @@ traceNeeded init src = go mempty init
 buildSCache ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Combs ->
+  EnumMap Word64 Word64 ->
   EnumSet Word64 ->
   OptInfos Reference Symbol ->
   EnumMap Word64 Reference ->
@@ -1164,10 +1172,11 @@ buildSCache ::
   JIT.Replacements ->
   Bool ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide =
+buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide =
   SCache
     cs
     crs
+    bns
     cacheableCombs
     opt
     trs
@@ -1195,8 +1204,12 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
 
     crs = restrictTmW crsrc
 
+    -- the unoptimized copies of the needed groups come along, under their
+    -- own numbers
+    bns = restrictKeys bnsrc combKeys
+
     cs :: EnumMap Word64 Combs
-    cs = restrictTmW cssrc
+    cs = restrictKeys cssrc (combKeys <> foldMap setSingleton bns)
 
     opt = bimap restrictTmR restrictTmR optsrc
 
@@ -1220,6 +1233,7 @@ standalone cc init =
       Just rinit ->
         buildSCache crs
           <$> readTVarIO (srcCombs cc)
+          <*> readTVarIO (baseNums cc)
           <*> readTVarIO (cacheableCombs cc)
           <*> readTVarIO (optInfos cc)
           <*> readTVarIO (tagRefs cc)

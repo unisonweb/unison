@@ -29,8 +29,12 @@ module Unison.Runtime.MCode
     RSection,
     Section,
     GComb (.., Lam),
-    FrameLayout,
+    FrameLayout (..),
+    emptyLayout,
     layoutPadding,
+    Deopt (..),
+    BaseFrame (..),
+    Slot (..),
     GCombInfo (..),
     NativeCell,
     readNativeCode,
@@ -110,8 +114,9 @@ import Data.Containers.ListUtils (nubOrd)
 import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor ((<&>))
+import Data.List (intersperse)
 import Data.Map.Strict qualified as M
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe, isJust, listToMaybe, mapMaybe)
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
 import Data.Semigroup (Max (..))
@@ -1191,7 +1196,7 @@ pattern Lam ::
   Int -> Int -> GSection comb -> GComb val comb
 pattern Lam a f sect <- Comb (LamI a f sect _) _
   where
-    Lam a f sect = Comb (LamI a f sect noNativeCell) []
+    Lam a f sect = Comb (LamI a f sect noNativeCell) emptyLayout
 
 -- it seems GHC can't figure this out itself
 {-# COMPLETE CachedVal, Lam #-}
@@ -1325,7 +1330,10 @@ mkBranch d m = case EC.mapToList m of
 -- sub-frame.
 data Ctx v
   = ECtx
-  | Block (Ctx v)
+  | -- | The boundary of a let's binding, which runs in a frame of its
+    -- own: the index of the let's body section (the frame below is the
+    -- let's, 'chainOf')
+    Block !Word64 (Ctx v)
   | Tag (Ctx v)
   | Var v Mem (Ctx v)
   | -- | A wide variable (Unison.Runtime.Wide): 'wideWidth' slots, the
@@ -1340,10 +1348,50 @@ data Ctx v
 -- only contain a single recursive binding group. The variables in
 -- this binding group are resolved to numbered combinators rather
 -- than stack positions.
-newtype RCtx v = RCtx {rctxCombs :: M.Map v Word64}
+data RCtx v = RCtx
+  { rctxCombs :: M.Map v Word64,
+    -- | for a lambda the explosion rewrote: its unoptimized form, which
+    -- the frames of a continuation are written out as ('deoptOf')
+    rctxBase :: Maybe (BaseInfo v)
+  }
 
 emptyRCtx :: RCtx v
-emptyRCtx = RCtx M.empty
+emptyRCtx = RCtx M.empty Nothing
+
+-- | What the emitter of a rewritten lambda knows about the unoptimized
+-- lambda it stands for, for 'deoptOf': the unoptimized body's lets by
+-- their binders, with the section index each got; the frames of each
+-- unoptimized section ('chainOf', collected as the unoptimized lambda was
+-- emitted); the products the unoptimized body builds, by variable
+-- ('conLets'); where its variables went and which lets the rewrite
+-- changed ('Prepared'); and the rewritten body's own lets by section
+-- index.
+data BaseInfo v = BaseInfo
+  { baseLets :: M.Map [v] Word64,
+    baseChains :: EC.EnumMap Word64 (Chain v),
+    baseCons :: M.Map v (Built v),
+    baseSources :: Sources v,
+    baseLetOf :: M.Map [v] [v],
+    optLets :: EC.EnumMap Word64 [v]
+  }
+
+-- | The frames a context spans, innermost first, each as the index of
+-- the let whose frame it is (none for the innermost, which is the frame
+-- of the section being recorded) and its narrowed slots from the top: a
+-- variable's, or the tag slot of an unboxed sum.
+type Chain v = [(Maybe Word64, [Entry v])]
+
+data Entry v = EVar v | ETag
+  deriving (Eq, Show)
+
+chainOf :: Ctx v -> Chain v
+chainOf = go Nothing []
+  where
+    go lbl acc ECtx = [(lbl, reverse acc)]
+    go lbl acc (Block w ctx) = (lbl, reverse acc) : go (Just w) [] ctx
+    go lbl acc (Tag ctx) = go lbl (ETag : acc) ctx
+    go lbl acc (Var v _ ctx) = go lbl (EVar v : acc) ctx
+    go lbl acc (Wide v _ _ ctx) = go lbl (EVar v : acc) ctx
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1356,7 +1404,7 @@ ctxResolve :: (Var v) => Ctx v -> v -> Maybe (Int, Mem)
 ctxResolve ctx v = walk 0 ctx
   where
     walk _ ECtx = Nothing
-    walk i (Block ctx) = walk i ctx
+    walk i (Block _ ctx) = walk i ctx
     walk i (Tag ctx) = walk (i + 1) ctx
     walk i (Var x m ctx)
       | v == x = Just (i, m)
@@ -1371,7 +1419,7 @@ ctxIsWide :: (Var v) => Ctx v -> v -> Bool
 ctxIsWide ctx v = wideOn && walk ctx
   where
     walk ECtx = False
-    walk (Block ctx) = walk ctx
+    walk (Block _ ctx) = walk ctx
     walk (Tag ctx) = walk ctx
     walk (Var x _ ctx)
       | v == x = False
@@ -1385,7 +1433,7 @@ ctxIsWide ctx v = wideOn && walk ctx
 markBoxed :: (Var v) => Ctx v -> v -> Ctx v
 markBoxed ctx v = case ctx of
   ECtx -> ECtx
-  Block ctx -> Block (markBoxed ctx v)
+  Block w ctx -> Block w (markBoxed ctx v)
   Tag ctx -> Tag (markBoxed ctx v)
   Var x m ctx
     | v == x -> Var x m ctx
@@ -1398,7 +1446,7 @@ markBoxed ctx v = case ctx of
 -- one gets a 'Box', which boxes it in place, and is marked boxed for the
 -- rest of the section, so a variable that escapes twice on one path is
 -- boxed once. The frame's layout does not change.
-boxEscapes :: (Var v) => Ctx v -> [v] -> (Ctx v -> Emit Section) -> Emit Section
+boxEscapes :: (Var v) => Ctx v -> [v] -> (Ctx v -> Emit v Section) -> Emit v Section
 boxEscapes ctx [] k = k ctx
 boxEscapes ctx (a : as) k
   | Just (i, _) <- ctxResolve ctx a,
@@ -1423,7 +1471,7 @@ pushCtx new old = foldr (uncurry Var) old new
 catCtx :: Ctx v -> Ctx v -> Ctx v
 catCtx ECtx r = r
 catCtx (Tag l) r = Tag $ catCtx l r
-catCtx (Block l) r = Block $ catCtx l r
+catCtx (Block w l) r = Block w $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
 catCtx (Wide v m u l) r = Wide v m u $ catCtx l r
 
@@ -1431,7 +1479,7 @@ catCtx (Wide v m u l) r = Wide v m u $ catCtx l r
 breakAfter :: (Eq v) => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
 breakAfter _ ECtx = (ECtx, ECtx)
 breakAfter p (Tag vs) = first Tag $ breakAfter p vs
-breakAfter p (Block vs) = first Block $ breakAfter p vs
+breakAfter p (Block w vs) = first (Block w) $ breakAfter p vs
 breakAfter p (Var v m vs) = (Var v m lvs, rvs)
   where
     (lvs, rvs)
@@ -1482,22 +1530,57 @@ letYields = \case
 -- to map the frame's variables to its slots (reflectValue0 and reifyValue0
 -- in Machine.hs). Every width is 'wideWidth' today; the table allows a
 -- width per variable.
-wideSlots :: Ctx v -> FrameLayout
+wideSlots :: Ctx v -> [(Int, Int)]
 wideSlots = go 0
   where
     go !_ ECtx = []
-    go i (Block ctx) = go i ctx
+    go i (Block _ ctx) = go i ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i (Var _ _ ctx) = go (i + 1) ctx
     go i (Wide _ _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
 
--- | The wide variables of a frame, each as (the index of its value slot
--- from the top of the frame, its width in slots), in increasing order.
-type FrameLayout = [(Int, Int)]
+-- | What a let body's combinator knows about the frame it is resumed
+-- over: the wide variables of the frame, each as (the index of its value
+-- slot from the top of the frame, its width in slots), in increasing
+-- order; and, for a section the explosion rewrote, the frames the
+-- unoptimized code has at this point, for a continuation written out
+-- ('Deopt').
+data FrameLayout = FrameLayout
+  { wideVars :: [(Int, Int)],
+    baseFrames :: Maybe Deopt
+  }
+  deriving (Show, Eq, Ord)
+
+emptyLayout :: FrameLayout
+emptyLayout = FrameLayout [] Nothing
 
 -- | The slots a frame layout adds over one per variable.
 layoutPadding :: FrameLayout -> Int
-layoutPadding lay = sum [w - 1 | (_, w) <- lay]
+layoutPadding lay = sum [w - 1 | (_, w) <- wideVars lay]
+
+-- | How a continuation's frame for a section the explosion rewrote is
+-- written out as the frames the unoptimized code has at that point
+-- (design.md, "Continuations across processes"; built by 'deoptOf',
+-- applied by 'Unison.Runtime.Machine.deoptCont'). The frames come
+-- innermost first, each as the index of the unoptimized section it
+-- resumes, in the group, and its slots from the top; a let whose binding
+-- the rewrite moved into the enclosing frame ('sinkCalls') gives two, the
+-- binding's and the let's, and the optimized frame's pending arguments go
+-- with the last. A slot is copied from the optimized frames, by frame (0
+-- this one, 1 the enclosing let's, counting the continuation's Push
+-- frames outward) and narrowed index from the top, or is a product the
+-- optimized code no longer holds, packed from such slots.
+data Deopt = Deopt [BaseFrame]
+  deriving (Show, Eq, Ord)
+
+data BaseFrame = BaseFrame !Word64 [Slot]
+  deriving (Show, Eq, Ord)
+
+data Slot
+  = Copy !Int !Int
+  | PackSlot !Reference !PackedTag [Slot]
+  | RecSlot !RecordShape [Slot]
+  deriving (Show, Eq, Ord)
 
 -- Modify the context to contain the variables introduced by an
 -- unboxed sum
@@ -1517,39 +1600,81 @@ type RNormal = ANormal Reference
 -- The provided word refers to the numbering for the overall group,
 -- and intra-group calls are numbered locally, with 0 specifying
 -- the global entry point.
+
+-- | The combinators of a group, under its number, and, when the explosion
+-- rewrote any of its lambdas so that a frame differs, the group as the
+-- unoptimized code has it, under the second number: what a continuation
+-- written out by this process resumes in another, and what one from
+-- another process resumes here (design.md, "Continuations across
+-- processes").
 emitCombs ::
   (Var v) =>
   RefNums ->
   Reference ->
   Word64 ->
+  Word64 ->
   SuperGroup Reference v ->
-  State RecordFieldMappings (EnumMap Word64 Comb)
-emitCombs rns grpr grpn (Rec grp ent) = do
+  State RecordFieldMappings (EnumMap Word64 Comb, Maybe (EnumMap Word64 Comb))
+emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
+  -- the unoptimized form of every lambda first, with its binders named as
+  -- the rewrite names them ('uniqueBody'), for the frames of each of its
+  -- sections, which the rewritten lambdas' sections are written out as
+  bases <- traverse (\(ix, lam) -> (ix,) <$> emitComb rns grpr grpnBase rec (ix, uniqueLambda lam)) lams
+  let baseInfo ix lam p =
+        let Lambda _ (TAbss _ bd) = uniqueLambda lam
+            chains = fromMaybe mempty (Prelude.lookup ix [(i, cs) | (i, (_, cs)) <- bases])
+         in BaseInfo
+              { baseLets = M.fromList [(us, letIndex w ix) | TLets (Indirect w) us _ _ _ <- universe bd],
+                baseChains = chains,
+                baseCons = conLets bd,
+                baseSources = preparedSources p,
+                baseLetOf = preparedLets p,
+                optLets = mempty
+              }
+      recFor ix lam p = rec {rctxBase = Just (baseInfo ix lam p)}
   -- every lambda is rewritten for the batch's workers first
   -- (Unison.Runtime.MCode.Explode, 'prepare'): the emitter sees calls of
   -- workers and yields of several values as forms of their own
-  es <- emitComb rns grpr grpn rec (0, prepare b ent)
+  let pEnt = prepare b ent
+  (es, _) <- emitComb rns grpr grpn (recFor 0 ent pEnt) (0, preparedLambda pEnt)
   -- a function that returns a product on every path also gets a
   -- product-return worker: the lambda with its tails yielding the
   -- product's leaves; the entry keeps the original body, as with a
   -- specialisation, so that a caller that doesn't take the result apart,
   -- the function's own recursion included, pays nothing
   ret <- case retOf rns grpr of
-    Just s -> emitComb rns grpr grpn rec (retIndex, returnWorker b s ent)
+    Just s -> let p = returnWorker b s ent in fst <$> emitComb rns grpr grpn (recFor 0 ent p) (retIndex, preparedLambda p)
     Nothing -> pure mempty
   -- a specialisation of the entry point per call pattern its callers in
   -- the batch build, each a combinator of its own
   specs <- case explode rns grpr of
-    Just pats -> foldMapM (\(k, pat) -> emitComb rns grpr grpn rec (specIndex k, specialise b pat ent)) (zip [1 ..] pats)
+    Just pats -> foldMapM (\(k, pat) -> let p = specialise b pat ent in fst <$> emitComb rns grpr grpn (recFor 0 ent p) (specIndex k, preparedLambda p)) (zip [1 ..] pats)
     Nothing -> pure mempty
-  auxEs <- aux
-  pure $ es <> ret <> specs <> auxEs
+  auxEs <- foldMapM (\(ix, lam) -> let p = prepare b lam in fst <$> emitComb rns grpr grpn (recFor ix lam p) (ix, preparedLambda p)) (zip ixs cmbs)
+  -- the group needs its unoptimized form beside it when a frame of its
+  -- own lambdas (not of the workers, which are extra) differs from the
+  -- unoptimized code's: then a continuation from another process resumes
+  -- in the copy, and this process's recipes name its sections. The copy
+  -- is the unoptimized lambdas emitted as they are; renaming binders
+  -- changes no frame and no section, which is checked.
+  let rewritten = or [isJust (baseFrames lay) | (_, Comb _ lay) <- EC.mapToList (es <> auxEs)]
+      unique = foldMap (fst . snd) bases
+  base <-
+    if rewritten
+      then do
+        raw <- foldMapM (\(ix, lam) -> fst <$> emitComb rns grpr grpnBase rec (ix, lam)) lams
+        if raw == unique
+          then pure (Just unique)
+          else internalBug [] $ "emitCombs: renaming the binders of " ++ show grpr ++ " changed its code"
+      else pure Nothing
+  pure (es <> ret <> specs <> auxEs, base)
   where
     b = batchOf rns
     (rvs, cmbs) = unzip grp
     ixs = map (`shiftL` 16) [1 ..]
+    lams = (0, ent) : zip ixs cmbs
     rec = emptyRCtx {rctxCombs = M.fromList $ zip rvs ixs}
-    aux = foldMapM (emitComb rns grpr grpn rec) (zip ixs (map (prepare b) cmbs))
+    uniqueLambda (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (uniqueBody bd))
 
 -- | What the explosion's rewrites know about the batch
 -- (Unison.Runtime.MCode.Explode): the call patterns, the returned
@@ -1641,19 +1766,23 @@ convertFieldNamesToRefs names = for names \name -> do
       put $ RecordFieldMappings (succ next) (BiMap.insert name next m)
       pure next
 
-newtype Emit a
-  = EM ((ReaderT Word64 (WriterT (EC.EnumMap Word64 Comb, Max Int) (State RecordFieldMappings))) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int), MonadState RecordFieldMappings)
+-- | The emitter of one combinator: the combinator's index, and what it
+-- writes out: the sections recorded as combinators, the frame size
+-- reached, and the frames of each section ('Chain', read when the
+-- unoptimized form of a rewritten lambda is emitted, 'emitCombs').
+newtype Emit v a
+  = EM ((ReaderT Word64 (WriterT (EC.EnumMap Word64 Comb, Max Int, EC.EnumMap Word64 (Chain v)) (State RecordFieldMappings))) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Word64, MonadWriter (EC.EnumMap Word64 Comb, Max Int, EC.EnumMap Word64 (Chain v)), MonadState RecordFieldMappings)
 
-runEmit :: Word64 -> Emit a -> State RecordFieldMappings (EC.EnumMap Word64 Comb)
+runEmit :: Word64 -> Emit v a -> State RecordFieldMappings (EC.EnumMap Word64 Comb, EC.EnumMap Word64 (Chain v))
 runEmit w (EM e) =
   e
     & flip runReaderT w
     & runWriterT
-    <&> \(_a, (ec, _)) -> ec
+    <&> \(_a, (ec, _, chains)) -> (ec, chains)
 
-counted :: Counted a -> Emit a
-counted (C n a) = tell (mempty, Max n) *> pure a
+counted :: Counted a -> Emit v a
+counted (C n a) = tell (mempty, Max n, mempty) *> pure a
 
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
@@ -1661,29 +1790,82 @@ letIndex l c = c .|. fromIntegral l
 -- | Records the body of an indirect let as a combinator of its own: its
 -- arity is the let's frame plus the yielded variables, and its frame layout
 -- is the frame's wide variables, from the context of the let.
-record :: Ctx v -> [(v, Mem)] -> Word16 -> Emit Section -> Emit (Word64, Comb)
-record ctx vcs l (EM es) = EM do
+record :: (Var v) => RefNums -> RCtx v -> Ctx v -> [(v, Mem)] -> Word16 -> Emit v Section -> Emit v (Word64, Comb)
+record rns rec ctx vcs l es = do
   c <- ask
-  (s, (_m, Max sz)) <- listen es
+  (s, (_m, Max sz, _)) <- listen es
   let na = countCtx0 0 (yieldCtx vcs ctx)
       n = letIndex l c
-      comb = Comb (LamI na sz s noNativeCell) (wideSlots ctx)
-  tell (EC.mapSingleton n comb, 0)
+      chain = chainOf ctx
+  base <- case rctxBase rec of
+    Just bi -> deoptOf rns bi n (map fst vcs) chain
+    Nothing -> pure Nothing
+  let comb = Comb (LamI na sz s noNativeCell) (FrameLayout (wideSlots ctx) base)
+  tell (EC.mapSingleton n comb, 0, EC.mapSingleton n chain)
   pure $ (n, comb)
 
-recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
+recordTop :: [v] -> Word16 -> Emit v Section -> Emit v ()
 recordTop vs l (EM e) = EM do
   c <- ask
-  (s, (_m, Max sz)) <- listen e
+  (s, (_m, Max sz, _)) <- listen e
   let na = length vs
       n = letIndex l c
       lam = Lam na sz s
-  tell (EC.mapSingleton n lam, 0)
+  tell (EC.mapSingleton n lam, 0, mempty)
   pure ()
+
+-- | The frames the unoptimized code has where a rewritten section has
+-- its frame ('Deopt'), from the section's index, the let's binders and
+-- the frames of its context, against the unoptimized lambda
+-- ('BaseInfo'); Nothing when they are the same frame, which is when the
+-- section is its own unoptimized form. The unoptimized let is the one
+-- binding the same names, or the let of the product for a let of a
+-- result's leaves; its frames are taken up to the frame of the enclosing
+-- optimized let's unoptimized section, which that let's own frame stands
+-- for. A slot is the variable's own if the optimized frames hold it,
+-- else what its source says ('Sources'), else the product the
+-- unoptimized body built for it ('conLets').
+deoptOf :: (Var v) => RefNums -> BaseInfo v -> Word64 -> [v] -> Chain v -> Emit v (Maybe Deopt)
+deoptOf rns bi n us chain
+  | identity = pure Nothing
+  | otherwise = Just . Deopt <$> traverse frame labelled
+  where
+    bs = M.findWithDefault us us (baseLetOf bi)
+    bidx = fromMaybe (internalBug [] $ "deoptOf: no unoptimized let binds " ++ show bs) (M.lookup bs (baseLets bi))
+    bchain = fromMaybe (internalBug [] $ "deoptOf: no frames for unoptimized section " ++ show bidx) (EC.lookup bidx (baseChains bi))
+    enclosing = case chain of
+      (_ : (Just w1, _) : _) -> case EC.lookup w1 (optLets bi) of
+        Just us1 ->
+          let bs1 = M.findWithDefault us1 us1 (baseLetOf bi)
+           in Just (fromMaybe (internalBug [] $ "deoptOf: no unoptimized let binds " ++ show bs1) (M.lookup bs1 (baseLets bi)))
+        Nothing -> internalBug [] $ "deoptOf: no let has section " ++ show w1
+      _ -> Nothing
+    produced = case enclosing of
+      Nothing -> bchain
+      Just b1
+        | any ((== Just b1) . fst) bchain -> takeWhile ((/= Just b1) . fst) bchain
+        | otherwise -> internalBug [] $ "deoptOf: the enclosing let's unoptimized section " ++ show b1 ++ " is not among the frames of " ++ show bidx
+    labelled = zip (bidx : [fromMaybe (internalBug [] "deoptOf: an outer frame without a let") lbl | (lbl, _) <- drop 1 produced]) (map snd produced)
+    identity = case (produced, chain) of
+      ([(_, bes)], (_, oes) : _) -> bidx == n && length bs == length us && bes == oes
+      _ -> False
+    frame (ix, entries) = BaseFrame ix <$> traverse slot entries
+    slot ETag = internalBug [] "deoptOf: a tag slot in a frame the explosion rewrote"
+    slot (EVar w) = var (0 :: Int) w
+    var depth w
+      | depth > 64 = internalBug [] $ "deoptOf: the source of " ++ show w ++ " refers back to itself"
+      | Just (d, i) <- optSlot w = pure (Copy d i)
+      | Just (Left u) <- M.lookup w (baseSources bi) = var (depth + 1) u
+      | Just (Right b) <- M.lookup w (baseSources bi) = pack depth b
+      | Just b <- M.lookup w (baseCons bi) = pack depth b
+      | otherwise = internalBug [] $ "deoptOf: no source for " ++ show w ++ " in the frames of " ++ show n
+    pack depth (BuiltCon r t fs) = PackSlot r (packTags (toEnum . fromIntegral $ dnum rns r) t) <$> traverse (var (depth + 1)) fs
+    pack depth (BuiltRec rs fs) = RecSlot <$> recordShape (recNum rns rs) rs <*> traverse (var (depth + 1)) fs
+    optSlot w = listToMaybe [(d, i) | (d, (_, es)) <- zip [0 ..] chain, (i, EVar x) <- zip [0 ..] es, x == w]
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
-countCtx :: Ctx v -> a -> Emit a
+countCtx :: Ctx v -> a -> Emit v a
 countCtx ctx = counted . C i
   where
     i = countCtx0 0 ctx
@@ -1692,7 +1874,7 @@ countCtx0 :: Int -> Ctx v -> Int
 countCtx0 !i (Var _ _ ctx) = countCtx0 (i + 1) ctx
 countCtx0 !i (Wide _ _ _ ctx) = countCtx0 (i + wideWidth) ctx
 countCtx0 i (Tag ctx) = countCtx0 (i + 1) ctx
-countCtx0 i (Block ctx) = countCtx0 i ctx
+countCtx0 i (Block _ ctx) = countCtx0 i ctx
 countCtx0 i ECtx = i
 
 emitComb ::
@@ -1702,8 +1884,8 @@ emitComb ::
   Word64 ->
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
-  State RecordFieldMappings (EC.EnumMap Word64 Comb)
-emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
+  State RecordFieldMappings (EC.EnumMap Word64 Comb, EC.EnumMap Word64 (Chain v))
+emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd))
   -- a body yields one value, or the leaves of its product for a
   -- product-return worker (Unison.Runtime.MCode.Explode)
   | Just k <- resultCount (combYields rns) bd,
@@ -1715,6 +1897,10 @@ emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
       runEmit n
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
+  where
+    -- the lambda's own lets by section index, for 'deoptOf' to find the
+    -- let enclosing a section
+    rec = rec0 {rctxBase = fmap (\bi -> bi {optLets = EC.mapFromList [(letIndex w n, us) | TLets (Indirect w) us _ _ _ <- universe bd]}) (rctxBase rec0)}
 
 -- | How many values a term yields when it is in tail position, or Nothing
 -- for a term that never returns (an error call). Every term yields one
@@ -1794,10 +1980,10 @@ recordArity shape n a
       internalBug [] $
         "emitSection: a record literal of " ++ show n ++ " values for a shape of " ++ show (V.length (shapeFields shape)) ++ " fields: " ++ show (shapeFields shape)
 
-addCount :: Int -> Emit a -> Emit a
+addCount :: Int -> Emit v a -> Emit v a
 addCount i (EM m) = EM $ do
-  (a, (_m, Max n)) <- listen m
-  tell (mempty, Max $ n + i)
+  (a, (_m, Max n, _)) <- listen m
+  tell (mempty, Max $ n + i, mempty)
   pure a
 
 -- Emit a machine code section from an ANF term
@@ -1809,7 +1995,7 @@ emitSection ::
   RCtx v ->
   Ctx v ->
   RNormal v ->
-  Emit Section
+  Emit v Section
 emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
   -- An unboxed sum: the primitive pushes a tag over the fields of the case
   -- it took, the let names only the tag, and each arm binds the fields of
@@ -2165,8 +2351,8 @@ emitLet ::
   [(v, Mem)] ->
   Ctx v ->
   RNormal v ->
-  Emit Section ->
-  Emit Section
+  Emit v Section ->
+  Emit v Section
 emitLet _ _ _ _ _ _ _ (TLit l) =
   fmap (Ins $ emitLit l)
 emitLet _ _ _ _ _ _ _ (TBLit l) =
@@ -2205,10 +2391,11 @@ emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
       internalBug [] $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d =
-      \esect ->
+      \esect -> do
+        c <- ask
         f
-          <$> emitSection rns grpr grpn rec (Block ctx) bnd
-          <*> record ctx vcs w esect
+          <$> emitSection rns grpr grpn rec (Block (letIndex w c) ctx) bnd
+          <*> record rns rec ctx vcs w esect
   where
     f s (w, Lam _ f bd) =
       let cix = (CIx grpr grpn w)
@@ -2443,7 +2630,7 @@ emitDataMatching ::
   Ctx v ->
   EnumMap CTag ([Mem], RNormal v) ->
   Maybe (RNormal v) ->
-  Emit Branch
+  Emit v Branch
 emitDataMatching r rns grpr grpn rec ctx cs df =
   mkBranch <$> edf <*> traverse (emitArm rns grpr grpn rec ctx) (coerce cs)
   where
@@ -2469,7 +2656,7 @@ emitSumMatching ::
   v ->
   Int ->
   EnumMap Word64 ([Mem], RNormal v) ->
-  Emit Section
+  Emit v Section
 emitSumMatching rns grpr grpn rec ctx v i cs =
   MatchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
   where
@@ -2484,7 +2671,7 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], RNormal v)) ->
   RNormal v ->
-  Emit (Section, EnumMap Word64 Branch)
+  Emit v (Section, EnumMap Word64 Branch)
 emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
@@ -2505,7 +2692,7 @@ emitLitMatching ::
   Int ->
   f (RNormal v) ->
   Maybe (RNormal v) ->
-  Emit Section
+  Emit v Section
 emitLitMatching con err rns grpr grpn rec ctx i cs df =
   con i <$> edf <*> traverse (emitCase rns grpr grpn rec ctx . ([],)) cs
   where
@@ -2521,7 +2708,7 @@ emitCase ::
   RCtx v ->
   Ctx v ->
   ([Mem], RNormal v) ->
-  Emit Section
+  Emit v Section
 emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (pushCtx (zip vs ccs) ctx) bo
 
@@ -2535,7 +2722,7 @@ emitArm ::
   RCtx v ->
   Ctx v ->
   ([Mem], RNormal v) ->
-  Emit Branch'
+  Emit v Branch'
 emitArm rns grpr grpn rec ctx c@(ccs, TAbss vs _) =
   Arm (length (zip vs ccs)) <$> emitCase rns grpr grpn rec ctx c
 
@@ -2550,7 +2737,7 @@ emitSumCase ::
   Ctx v ->
   v ->
   ([Mem], RNormal v) ->
-  Emit Section
+  Emit v Section
 emitSumCase rns grpr grpn rec ctx v (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (sumCtx ctx v $ zip vs ccs) bo
 
@@ -2581,8 +2768,8 @@ emitClosures ::
   RCtx v ->
   Ctx v ->
   [v] ->
-  (Ctx v -> Args -> Emit Section) ->
-  Emit Section
+  (Ctx v -> Args -> Emit v Section) ->
+  Emit v Section
 emitClosures grpr grpn rec ctx args k =
   allocate ctx args $ \ctx -> k ctx $ emitArgs grpn ctx args
   where
@@ -2683,6 +2870,19 @@ branchTypes (TestY d m) =
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind * 2) ' ')
 
+-- | The frames a section is written out as, when they are not its own
+-- ('Deopt'): one line per frame, the section it resumes and its slots.
+prettyBase :: FrameLayout -> ShowS
+prettyBase lay = case baseFrames lay of
+  Nothing -> id
+  Just (Deopt frames) -> foldr (\(BaseFrame ix slots) r -> showString "  base " . shows ix . showString ": " . showList' slots . showString "\n" . r) id frames
+  where
+    showList' slots = showString "[" . foldr (.) id (intersperse (showString ", ") (map slot slots)) . showString "]"
+    slot = \case
+      Copy d i -> shows d . showString "." . shows i
+      PackSlot _ t ss -> showString "pack " . shows t . showString " " . showList' ss
+      RecSlot sh ss -> showString "record " . shows (shapeRef sh) . showString " " . showList' ss
+
 prettyCombs ::
   Word64 ->
   EnumMap Word64 Comb ->
@@ -2695,13 +2895,14 @@ prettyCombs w es =
 
 prettyComb :: (Show val, Show comb) => Word64 -> Word64 -> GComb val comb -> ShowS
 prettyComb w i = \case
-  (Lam a _ s) ->
+  (Comb (LamI a _ s _) lay) ->
     shows w
       . showString ":"
       . shows i
       . showString ":"
       . shows a
       . showString "\n"
+      . prettyBase lay
       . prettySection 2 s
   (CachedVal a b) ->
     shows w

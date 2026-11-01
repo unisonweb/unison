@@ -2122,7 +2122,9 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       -- These three number things. Numbering is harmless to commit even if the
       -- pool turns out to be too small: the numbers are simply used or skipped.
       rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
-      ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
+      -- two numbers per group: the second for the unoptimized copy of a
+      -- group the explosion rewrote (MCode.emitCombs), unused otherwise
+      ntm <- stateTVar (freshTm cc) $ \i -> (i, i + 2 * sz)
       let newRefTm = M.fromList $ zip rs [ntm ..]
       rtm <- (newRefTm <>) <$> readTVar (refTm cc)
       let newRecSchemas = recSchemas `Set.difference` (BM.keysSetL haveRecSchemas)
@@ -2141,8 +2143,8 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           rets = returns opt
           exploded = explosions rets opt
           rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (flip M.lookup exploded) (flip M.lookup rets) (recordRefLookup rrLookup)
-          combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
-          combinate n (r, g) = (n,) <$> emitCombs rns r n g
+          combinate :: Word64 -> Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings ((Word64, EnumMap Word64 Comb), Maybe (Word64, EnumMap Word64 Comb))
+          combinate n nb (r, g) = (\(o, mb) -> ((n, o), (nb,) <$> mb)) <$> emitCombs rns r n nb g
       let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
       let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
       let newCacheableCombs =
@@ -2155,12 +2157,17 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
                 )
               & EC.setFromList
       let (emittedCombs, newRFMs) =
-            zipWith combinate [ntm ..] (M.toList opt)
+            zipWith3 combinate [ntm ..] [ntm + sz ..] (M.toList opt)
               & sequenceA
               & flip runState oldRfms
+          -- the unoptimized copies, loaded like any group but under no
+          -- reference (not in combRefs), so nothing calls or compiles them:
+          -- a continuation from another process resumes in them
+          -- (reifyValue, JIT/design.md "Continuations across processes")
+          newBaseNums = EC.mapFromList [(n, nb) | ((n, _), Just (nb, _)) <- emittedCombs]
           uncelled =
             sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
-              mapFromList emittedCombs
+              mapFromList (map fst emittedCombs ++ [bc | (_, Just bc) <- emittedCombs])
           (cellCount, _) = attachNativeCells nullPtr uncelled
       pool <- readTVar (nativeCells cc)
       case takeNativeCells cellCount pool of
@@ -2173,6 +2180,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           rtm' <- updateMap newRefTm (refTm cc)
           rrs <- updateMap newRecSchemaMap (recordRefs cc)
           newCombRefs <- updateMap combRefUpdates (combRefs cc)
+          nbn <- updateMap newBaseNums (baseNums cc)
           (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
             let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
                 unresolvedNewCombs = absurdCombs (snd (attachNativeCells cells uncelled))
@@ -2191,7 +2199,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           writeTVar (recordFieldMappings cc) newRFMs
           -- Now that the code cache is primed with everything we need,
           -- we can pre-evaluate the top-level constants.
-          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
+          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` nbn `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>
@@ -2457,7 +2465,12 @@ reflectValue0 cmbs rty rtm = goV0
           -- there), which is what a process without wide frames writes
           Captured k a segs -> do
             slots <- traverseAccumSegToList pure segs
-            ANF.Cont <$> traverse goV (narrowCont layout (boxVal rty) k a slots) <*> goK k
+            for_ (badFrame k) reflExn
+            -- one value per variable ('narrowCont'), then every frame of
+            -- a section the explosion rewrote as the unoptimized code's
+            -- frames ('deoptCont'): what any process can resume
+            let (slots', frames) = deoptCont layout k a (narrowCont layout (boxVal rty) k a slots)
+            ANF.Cont <$> traverse goV slots' <*> goFrames (reverse frames)
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
           BytesC b -> pure (ANF.BLit (ANF.Bytes b))
@@ -2467,21 +2480,23 @@ reflectValue0 cmbs rty rtm = goV0
             reflExn "unknown unboxed value"
           Affine {} -> reflExn "affine info"
 
-    goK (CB _) = reflExn "callback continuation"
-    goK (Local {}) = reflExn "captured Local frame"
-    goK (AMark {}) = reflExn "captured AMark frame"
-    goK (Keep {}) = reflExn "captured Keep frame"
-    goK KE = pure ANF.KE
-    goK (Mark a ps de k) = do
+    badFrame = \case
+      CB _ -> Just "callback continuation"
+      Local {} -> Just "captured Local frame"
+      AMark {} -> Just "captured AMark frame"
+      Keep {} -> Just "captured Keep frame"
+      KE -> Nothing
+      Mark _ _ _ k -> badFrame k
+      Push _ _ _ _ _ _ k -> badFrame k
+
+    -- the frames outermost first, the order a K lists them
+    goFrames [] = pure ANF.KE
+    goFrames (ContMark a ps de : fs) = do
       ps <- traverse (resolveTy rty) (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> resolveTy rty k <*> goV v) (mapToList de)
-      ANF.Mark (fromIntegral a) ps de <$> goK k
-    goK (Push f a cix _ _rsect _ k) =
-      ANF.Push
-        (fromIntegral (f - layoutPadding (layout cix)))
-        (fromIntegral a)
-        <$> goIx cix
-        <*> goK k
+      ANF.Mark (fromIntegral a) ps de <$> goFrames fs
+    goFrames (ContPush f a cix : fs) =
+      ANF.Push (fromIntegral f) (fromIntegral a) <$> goIx cix <*> goFrames fs
 
     goF = \case
       WrapReferent l -> ANF.TmLink <$> canonicalizeReferent l
@@ -2526,24 +2541,25 @@ reifyValue cc val = do
       rtm <- readTVar (refTm cc)
       recRefLookup <- readTVar (recordRefs cc)
       rfms <- readTVar (recordFieldMappings cc)
+      bns <- readTVar (baseNums cc)
       case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
         [] -> do
           newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          pure . Right $ (combs, newTy, rtm, recRefLookup, rfms)
+          pure . Right $ (combs, newTy, rtm, recRefLookup, rfms, bns)
         l -> pure (Left l)
   case erc of
     Left l -> pure (Left l)
     Right rfs -> Right <$> reifyValue1 rfs val
 
 reifyValue1 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0, rrLookup, rfms) (WithRefs tys tms v) = do
+reifyValue1 (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon combs tys tms rty rtm rrLookup rfms v
+  reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -2558,9 +2574,10 @@ reifyValue0Canon ::
   HM.HashMap RefNum Word64 ->
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   RecordFieldMappings ->
+  EnumMap Word64 Word64 ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2592,6 +2609,15 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
       n <- refTm rn
       rf <- ixTm rn
       let cix = (CIx rf n i)
+      pure (cix, rCombSection combs cix)
+
+    -- a continuation's frame is the unoptimized code's (deoptCont), so it
+    -- resumes in the group's unoptimized copy where there is one
+    goPushIx :: ANF.GroupRef RefNum -> IO (CombIx, MComb)
+    goPushIx (ANF.GR rn i) = do
+      n <- refTm rn
+      rf <- ixTm rn
+      let cix = (CIx rf (fromMaybe n (EC.lookup n bns)) i)
       pure (cix, rCombSection combs cix)
 
     goVs :: [ANF.Value RefNum] -> IO Seg
@@ -2660,7 +2686,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
         mrk ps de k =
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
-      goIx gr >>= \case
+      goPushIx gr >>= \case
         (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
             (fromIntegral f + layoutPadding lay)
@@ -2698,10 +2724,10 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
     goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
+reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2714,6 +2740,14 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
     goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
         let cix = (CIx r n i)
+         in (cix, rCombSection combs cix)
+      where
+        r = M.findWithDefault r0 r0 functionReplacements
+
+    goPushIx :: ANF.GroupRef Reference -> IO (CombIx, MComb)
+    goPushIx (ANF.GR r0 i) =
+      refTm r <&> \n ->
+        let cix = (CIx r (fromMaybe n (EC.lookup n bns)) i)
          in (cix, rCombSection combs cix)
       where
         r = M.findWithDefault r0 r0 functionReplacements
@@ -2780,7 +2814,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
         mrk ps de k =
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
-      goIx gr >>= \case
+      goPushIx gr >>= \case
         (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
             (fromIntegral f + layoutPadding lay)
@@ -2845,7 +2879,7 @@ frameLayout cmbs (CIx _ n i)
   | Just group <- EC.lookup n cmbs,
     Just (Comb _ lay) <- EC.lookup i group =
       lay
-  | otherwise = []
+  | otherwise = emptyLayout
 
 -- | The frames of a captured continuation, innermost first, each as its
 -- frame size, its pending argument count and, for a let body, its
@@ -2873,7 +2907,7 @@ narrowCont layout box k a0 vs0 = top ++ go (contFrames k) rest
     go ((f, a, mcix) : fs) vs =
       let (frame, vs') = splitAt f vs
           (args, vs'') = splitAt a vs'
-       in dropFields (maybe [] layout mcix) frame ++ args ++ go fs vs''
+       in dropFields (maybe [] (wideVars . layout) mcix) frame ++ args ++ go fs vs''
     dropFields = walk 0
       where
         walk _ [] xs = xs
@@ -2881,6 +2915,61 @@ narrowCont layout box k a0 vs0 = top ++ go (contFrames k) rest
           | i < w, (pre, post) <- splitAt (w - i) xs = pre ++ walk w ws post
           | x : xs' <- xs = box x (take (width - 1) xs') : walk (w + width) ws' (drop (width - 1) xs')
           | otherwise = []
+
+-- | A frame of a continuation as it is written out: a let's, with the
+-- counts of its slots and its pending arguments and the section it
+-- resumes, or a handler's.
+data ContFrame = ContPush Int Int CombIx | ContMark Int (EnumSet Word64) DEnv
+
+-- | A captured continuation's narrowed slots ('narrowCont') and frames,
+-- innermost first, with every frame of a section the explosion rewrote
+-- replaced by the frames the unoptimized code has there
+-- ('Unison.Runtime.MCode.Deopt', JIT/design.md "Continuations across
+-- processes"), so that the continuation resumes in the unoptimized code
+-- wherever it is read: a slot is copied from the frame it names, or is
+-- a product packed from such slots; the frame's pending arguments go
+-- with the last frame it becomes.
+deoptCont :: (CombIx -> FrameLayout) -> K -> Int -> [Val] -> ([Val], [ContFrame])
+deoptCont layout k a0 vs0 = (top ++ concatMap fst out, concatMap snd out)
+  where
+    (top, rest) = splitAt a0 vs0
+    frames = go [] k
+    go acc (Push f a cix _ _ _ k') = go ((f - layoutPadding (layout cix), a, Right cix) : acc) k'
+    go acc (Mark a ps de k') = go ((0, a, Left (ps, de)) : acc) k'
+    go acc _ = acc
+    split [] _ = []
+    split ((n, a, what) : fs) vs =
+      let (frame, vs') = splitAt n vs
+          (args, vs'') = splitAt a vs'
+       in (frame, args, what) : split fs vs''
+    described = split frames rest
+    -- the Push frames, innermost first, which a slot is copied from
+    pushes = [frame | (frame, _, Right _) <- described]
+    numbered = snd (mapAccumL (\j e@(_, _, what) -> (either (const j) (const (j + 1)) what, (j, e))) (0 :: Int) described)
+    out = map render numbered
+    render (_, (_, args, Left (ps, de))) = (args, [ContMark (length args) ps de])
+    render (j, (frame, args, Right cix@(CIx r g _))) = case baseFrames (layout cix) of
+      Nothing -> (frame ++ args, [ContPush (length frame) (length args) cix])
+      Just (Deopt bfs) ->
+        let n = length bfs
+            one (i, BaseFrame ix sl) =
+              let slots = map (resolve j) sl
+                  as = if i == n - 1 then args else []
+               in (slots ++ as, ContPush (length slots) (length as) (CIx r g ix))
+            rendered = map one (zip [0 ..] bfs)
+         in (concatMap fst rendered, map snd rendered)
+    resolve j = \case
+      Copy d i
+        | Just fr <- index pushes (j + d), Just v <- index fr i -> v
+        | otherwise -> error $ "deoptCont: no slot " ++ show i ++ " in frame " ++ show (j + d)
+      PackSlot r t sl -> BoxedVal (packData r t (map (resolve j) sl))
+      RecSlot shape sl -> BoxedVal (RecordG shape (recordVals (segFromList (map (resolve j) sl))))
+    index xs i = listToMaybe (drop i xs)
+    packData r t = \case
+      [] -> Enum r t
+      [v] -> Data1 r t v
+      [v, w] -> Data2 r t v w
+      vs -> DataG r t (segFromList vs)
 
 -- | The inverse of 'narrowCont' for this process's frames: each wide
 -- variable's value is followed by copies of itself in its field slots,
@@ -2891,10 +2980,10 @@ widenCont layout k vs0 = top ++ go frames rest
   where
     frames = contFrames k
     (top, rest) = splitAt (length vs0 - sum [varsOf f mcix + a | (f, a, mcix) <- frames]) vs0
-    varsOf f mcix = f - layoutPadding (maybe [] layout mcix)
+    varsOf f mcix = f - maybe 0 (layoutPadding . layout) mcix
     go [] vs = vs
     go ((f, a, mcix) : fs) vs =
-      let lay = maybe [] layout mcix
+      let lay = maybe [] (wideVars . layout) mcix
           (frame, vs') = splitAt (varsOf f mcix) vs
           (args, vs'') = splitAt a vs'
        in addFields lay frame ++ args ++ go fs vs''

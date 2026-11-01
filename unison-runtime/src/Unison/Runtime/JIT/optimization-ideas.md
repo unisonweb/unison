@@ -67,6 +67,14 @@ likely to matter:
   its sites; `prepare` is quadratic in the body (`occurrences` per let).
   Load time was not measured after the ANF restructuring (2026-11-01); if
   it shows, a single pass over the body for all the use counts would do.
+- The deoptimization tables (design.md, "Continuations across
+  processes", 2026-11-01) cost load time too: every lambda of every group
+  is emitted twice, once unoptimized for the frames of its sections and
+  once rewritten, and a group with a table three times, for the check
+  that renaming binders changed nothing. The first emission could be
+  skipped when the prepared body is the unoptimized body (compare the
+  terms; most groups have no site of the explosion), and the check could
+  be a debug-mode one. Not measured.
 
 ### A private convention for specialised workers
 

@@ -26,8 +26,10 @@
 -- each batch 'Unison.Runtime.Machine.cacheAdd' loads) and without any
 -- change to how values are represented: a worker's parameters are
 -- ordinary slots, so nothing here depends on the wide convention
--- (Unison.Runtime.Wide) or changes how a frame is written out
--- ('Unison.Runtime.MCode.FrameLayout').
+-- (Unison.Runtime.Wide). A continuation captured in rewritten code is
+-- written out as the unoptimized code's frames, which is what 'Sources'
+-- and 'Prepared' are for ('Unison.Runtime.MCode.FrameLayout', design.md
+-- "Continuations across processes").
 --
 -- A pattern is taken apart only as far as the body consumes it: an
 -- argument the body passes on, stores or returns on some path stays a
@@ -91,10 +93,17 @@ module Unison.Runtime.MCode.Explode
     prepare,
     specialise,
     returnWorker,
+    Prepared (..),
+    Sources,
+    Built (..),
+    conLets,
+    uniqueBody,
+    universe,
   )
 where
 
-import Control.Monad.State.Strict (State, evalState, get, put)
+import Control.Monad (foldM)
+import Control.Monad.State.Strict (State, evalState, get, modify, put, runState)
 import Data.Bifunctor (first)
 import Data.Bits (shiftL, (.|.))
 import Data.Foldable (toList)
@@ -214,6 +223,29 @@ type Explosions = M.Map Reference [Pattern]
 -- | A product a let built: which one, and its field variables, in the
 -- shape's field order.
 data Built v = BuiltCon Reference CTag [v] | BuiltRec RecordSchema [v]
+  deriving (Show)
+
+-- | Where a variable of the unoptimized body went, for the frames of a
+-- continuation captured in the optimized code to be written out as the
+-- unoptimized code's (design.md, "Continuations across processes";
+-- 'Unison.Runtime.MCode.FrameLayout'): renamed to another variable (a
+-- match arm's field variable to the leaf or product that stands for it, a
+-- field read's let to the parameter it reads), or replaced by a product
+-- the optimized body no longer names, given as the product with the
+-- names of its fields in the optimized body (an exploded parameter, a
+-- result the leaves replace, a product of either that a match took
+-- apart in turn). A variable with no entry has the same name in both.
+type Sources v = M.Map v (Either v (Built v))
+
+-- | A lambda as the emitter sees it, with what its rewrite changed: the
+-- sources of the unoptimized body's variables, and the binders of each
+-- let the rewrite changed, mapped to the binders of the unoptimized let
+-- it stands for (a let of a result's leaves, to the let of the result).
+data Prepared v = Prepared
+  { preparedLambda :: SuperNormal Reference v,
+    preparedSources :: Sources v,
+    preparedLets :: M.Map [v] [v]
+  }
 
 builtFields :: Built v -> [v]
 builtFields (BuiltCon _ _ fs) = fs
@@ -295,7 +327,7 @@ explosions rets groups
   | otherwise = close M.empty initial
   where
     b = Batch (const Nothing) (`M.lookup` rets) (groupArity groups)
-    prep = prepareBody b Nothing
+    prep bd = let (bd', _, _) = prepareBody b Nothing bd in bd'
     initial = concat [sites b (prep (lambdaBody lam)) | g <- M.elems groups, lam <- lambdas g]
     close specs [] = specs
     close specs ((r, site) : rest)
@@ -306,7 +338,7 @@ explosions rets groups
         let have = M.findWithDefault [] r specs,
         pat `notElem` have,
         length have < maxSpecs =
-          close (M.insert r (have ++ [pat]) specs) (rest ++ sites b (lambdaBody (specialise b pat ent)))
+          close (M.insert r (have ++ [pat]) specs) (rest ++ sites b (lambdaBody (preparedLambda (specialise b pat ent))))
       | otherwise = close specs rest
 
 -- | The arity of a group's entry point.
@@ -344,7 +376,7 @@ returns groups
           Just (s, [r' | Right r' <- ts])
       | otherwise = Nothing
       where
-        bd = prepareBody b Nothing bd0
+        (bd, _, _) = prepareBody b Nothing bd0
         cons = conLets bd
     settle cs
       | cs' == cs = cs
@@ -422,21 +454,26 @@ yieldLeaves b s bd = go bd
 -- product, and any field the body still uses as a whole, is rebuilt from
 -- the leaves before the body ('rebuild'). A result used any other way
 -- keeps the call of the entry.
-useReturns :: (Var v) => Batch -> ANormal Reference v -> ANormal Reference v
-useReturns b bd = evalState (go bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)))
+useReturns :: (Var v) => Batch -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v])
+useReturns b bd = (bd', srcs, lets)
   where
+    (bd', (_, srcs, lets)) = runState (go bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)), M.empty, M.empty)
     go tm = case tm of
       TLets d [u] [BX] bn@(TApp (FComb r) args) bo
         | Just s <- batchRets b r,
           batchArity b r == Just (length args) -> do
-            avoid <- get
+            (avoid, srcs0, lets0) <- get
             let (tree0, avoid') = treeOf avoid s
                 tree = renameRoot u tree0
-                bo' = rebuild tree (rewrite u tree bo)
-            put avoid'
+                (rewritten, armSrcs) = runState (rewrite u tree bo) M.empty
+                bo' = rebuild tree rewritten
             if occurrences u bo' == callUses u bo'
-              then TLets d (leafNames tree) (map (const BX) (leafNames tree)) (TApp (FWorker r retIndex) args) <$> go bo'
-              else TLets d [u] [BX] bn <$> go bo
+              then do
+                put (avoid', M.unions [srcs0, armSrcs, treeSources u tree], M.insert (leafNames tree) [u] lets0)
+                TLets d (leafNames tree) (map (const BX) (leafNames tree)) (TApp (FWorker r retIndex) args) <$> go bo'
+              else do
+                put (avoid', srcs0, lets0)
+                TLets d [u] [BX] bn <$> go bo
       ABTN.Term _ (ABTN.Abs v e) -> ABTN.TAbs v <$> go e
       ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse go f
     callUses u e = length [() | TApp (FComb r) args <- universe e, batchArity b r == Just (length args), a <- args, a == u]
@@ -533,10 +570,14 @@ usable s v bd
 -- its body is the lambda's with the exploded arguments rewritten to their
 -- fields, prepared again afterwards, since a record update the rewrite
 -- turned into a literal is a product built for whatever it is passed to.
-specialise :: (Var v) => Batch -> Pattern -> SuperNormal Reference v -> SuperNormal Reference v
-specialise b pat (Lambda ccs (TAbss vs bd0)) = Lambda (map snd params) (TAbss (map fst params) body)
+specialise :: (Var v) => Batch -> Pattern -> SuperNormal Reference v -> Prepared v
+specialise b pat (Lambda ccs (TAbss vs bd0)) =
+  Prepared
+    (Lambda (map snd params) (TAbss (map fst params) body))
+    (M.unions [srcs0, M.unions [treeSources v tree | (v, _, tree) <- trees], armSrcs, srcs1])
+    (lets0 <> lets1)
   where
-    bd = prepareBody b Nothing bd0
+    (bd, srcs0, lets0) = prepareBody b Nothing bd0
     avoid0 = Set.unions (ABTN.freeVars bd : Set.fromList vs : map boundVars (universe bd))
     (_, trees) = foldl' step (avoid0, []) (zip3 vs ccs pat)
     step (avoid, acc) (v, cc, s) = case s of
@@ -545,12 +586,18 @@ specialise b pat (Lambda ccs (TAbss vs bd0)) = Lambda (map snd params) (TAbss (m
         let (tree, avoid') = treeOf avoid s
          in (avoid', acc ++ [(v, cc, tree)])
     params = concat [leaves tree | (_, _, tree) <- trees]
-    body = prepareBody b Nothing (foldl' (\e (v, _, tree) -> rewrite v tree e) bd trees)
+    (rewritten, armSrcs) = runState (foldM (\e (v, _, tree) -> rewrite v tree e) bd trees) M.empty
+    -- the second pass rewrites only lets the first left (a let of a
+    -- call of a worker is not a let of a call), so its sources and lets
+    -- add to the first's
+    (body, srcs1, lets1) = prepareBody b Nothing rewritten
 
 -- | The product-return worker of a lambda that returns a product of the
 -- shape on every path: the lambda with its tails yielding the leaves.
-returnWorker :: (Var v) => Batch -> Shape -> SuperNormal Reference v -> SuperNormal Reference v
-returnWorker b s (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (prepareBody b (Just s) bd))
+returnWorker :: (Var v) => Batch -> Shape -> SuperNormal Reference v -> Prepared v
+returnWorker b s (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets
+  where
+    (bd', srcs, lets) = prepareBody b (Just s) bd
 
 -- | A tree of fresh names for an exploded argument or result: a leaf is a
 -- worker parameter (or a yielded value), a node a product whose fields are
@@ -576,13 +623,25 @@ leaves (Node _ _ ts) = concatMap leaves ts
 leafNames :: Tree v -> [v]
 leafNames = map fst . leaves
 
+-- | The sources ('Sources') of a variable a tree replaces and of the
+-- tree's inner products: each is the product of its children's names.
+-- A leaf is a name of its own and needs none.
+treeSources :: (Ord v) => v -> Tree v -> Sources v
+treeSources _ (Leaf _) = M.empty
+treeSources v (Node _ sh ts) =
+  M.insert v (Right (packOf sh (map treeName ts))) (M.unions [treeSources (treeName t) t | t <- ts])
+  where
+    packOf (Con r t _) fs = BuiltCon r t fs
+    packOf (Fields rs _) fs = BuiltRec rs fs
+    packOf Plain _ = internalBug [] "treeSources: a product node of plain shape"
+
 -- | The body with every use of the variable rewritten to its fields: a
 -- match becomes the arm for its product, a leaf field's arm variable
 -- renamed to the parameter and a nested field's arm variable rewritten in
 -- turn; a record update becomes a record literal of the parameters with
 -- one replaced (the fields of an updated record are leaves: 'usable').
-rewrite :: (Var v) => v -> Tree v -> ANormal Reference v -> ANormal Reference v
-rewrite _ (Leaf _) e = e
+rewrite :: (Var v) => v -> Tree v -> ANormal Reference v -> State (Sources v) (ANormal Reference v)
+rewrite _ (Leaf _) e = pure e
 rewrite v (Node _ s ts) e = go e
   where
     fields = case s of
@@ -607,21 +666,26 @@ rewrite v (Node _ s ts) e = go e
           Fields rs _ <- s,
           Just j <- elemIndex f fields,
           Just ls <- traverse leafName ts ->
-            TLets d [u] ms (TApp (FRec rs) (take j ls ++ x : drop (j + 1) ls)) (go bo)
+            TLets d [u] ms (TApp (FRec rs) (take j ls ++ x : drop (j + 1) ls)) <$> go bo
       -- a let whose binding was a field read of the variable binds a
       -- parameter now: its uses take the parameter, with no let to run
-      TLets _ [x] _ bn bo
-        | TVar u <- go bn ->
+      TLets d [x] ms bn bo ->
+        go bn >>= \case
+          TVar u -> do
+            modify (M.insert x (Left u))
             go (ABTN.renames (M.singleton x u) bo)
-      ABTN.TAbs u b -> ABTN.TAbs u (go b)
-      ABTN.TTm f -> ABTN.TTm (fmap go f)
+          bn' -> TLets d [x] ms bn' <$> go bo
+      ABTN.TAbs u b -> ABTN.TAbs u <$> go b
+      ABTN.TTm f -> ABTN.TTm <$> traverse go f
     -- an arm's variables take the tree's names, so that a product the
     -- body still names after the rewrite has one name wherever it was
-    -- matched ('rebuild')
-    arm pairs bo =
+    -- matched ('rebuild'); each is recorded as a source of the tree's
+    -- name
+    arm pairs bo = do
       let renaming = M.fromList [(f, treeName tr) | (f, tr) <- pairs]
-          bo' = ABTN.renames renaming bo
-       in go (foldl' (\acc (_, tr) -> rewrite (treeName tr) tr acc) bo' pairs)
+      modify (M.union (M.map Left renaming))
+      bo' <- foldM (\acc (_, tr) -> rewrite (treeName tr) tr acc) (ABTN.renames renaming bo) pairs
+      go bo'
     leafName (Leaf l) = Just l
     leafName _ = Nothing
 
@@ -633,8 +697,10 @@ freshVar avoid = (u, Set.insert u avoid)
 -- | A lambda as the emitter sees it ('prepareBody' on its body). Applied to
 -- every lambda of a batch, so that the sites the analyses saw are the
 -- sites emitted.
-prepare :: (Var v) => Batch -> SuperNormal Reference v -> SuperNormal Reference v
-prepare b (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (prepareBody b Nothing bd))
+prepare :: (Var v) => Batch -> SuperNormal Reference v -> Prepared v
+prepare b (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets
+  where
+    (bd', srcs, lets) = prepareBody b Nothing bd
 
 -- | A body as the analyses and the emitter see it, or as it is while the
 -- explosion is off: every binder with a name of its own
@@ -648,35 +714,45 @@ prepare b (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (prepareBody b Nothi
 -- with the fields ('useSpecs'); and the product lets nothing uses any
 -- more left out ('dropDead'). The tails go before the calls, so that a
 -- tail call of a function with both kinds of worker takes the one that
--- yields the leaves, which is what the worker's own count needs.
-prepareBody :: (Var v) => Batch -> Maybe Shape -> ANormal Reference v -> ANormal Reference v
+-- yields the leaves, which is what the worker's own count needs. With
+-- the body come the sources of its variables and the lets the rewrite
+-- changed ('Prepared').
+prepareBody :: (Var v) => Batch -> Maybe Shape -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v])
 prepareBody b ms bd
-  | not explodeArgsOn && not explodeReturnsOn = bd
-  | otherwise =
-      dropDead
-        . useSpecs b
-        . maybe id (yieldLeaves b) ms
-        . useReturns b
-        . sinkCalls
-        $ evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)))
+  | not explodeArgsOn && not explodeReturnsOn = (bd, M.empty, M.empty)
+  | otherwise = (dropDead (useSpecs b (maybe id (yieldLeaves b) ms rets)), srcs, lets)
+  where
+    (rets, srcs, lets) = useReturns b (sinkCalls (uniqueBody bd))
 
 -- | The body with a name of its own for every binder. Normalization reuses
 -- a name under shadowing (the blank variables), and 'ABTN.freshen' gives
 -- a name back once the binder's scope is over, while everything here maps
--- variables by name. The state is the names in use.
-uniqueBinders :: (Var v) => M.Map v v -> ANormal Reference v -> State (Set.Set v) (ANormal Reference v)
+-- variables by name. Only a binder already bound elsewhere in the body is
+-- renamed, so that a body whose binders are already unique comes back as
+-- it is: the unoptimized body is renamed the same way, and the names are
+-- what pairs its lets with the optimized body's ('Prepared').
+uniqueBody :: (Var v) => ANormal Reference v -> ANormal Reference v
+uniqueBody bd = evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)), Set.empty)
+
+-- | The state is the names in use, and the binders seen so far.
+uniqueBinders :: (Var v) => M.Map v v -> ANormal Reference v -> State (Set.Set v, Set.Set v) (ANormal Reference v)
 uniqueBinders rn (ABTN.Term _ (ABTN.Abs u body)) = do
   u' <- fresh u
   ABTN.TAbs u' <$> uniqueBinders (M.insert u u' rn) body
 uniqueBinders rn (ABTN.Term _ (ABTN.Tm f)) =
   ABTN.TTm <$> traverse (uniqueBinders rn) (first (\v -> M.findWithDefault v v rn) f)
 
-fresh :: (Var v) => v -> State (Set.Set v) v
+fresh :: (Var v) => v -> State (Set.Set v, Set.Set v) v
 fresh u = do
-  used <- get
-  let u' = Var.freshIn used u
-  put (Set.insert u' used)
-  pure u'
+  (used, seen) <- get
+  if Set.member u seen
+    then do
+      let u' = Var.freshIn used u
+      put (Set.insert u' used, Set.insert u' seen)
+      pure u'
+    else do
+      put (used, Set.insert u seen)
+      pure u
 
 -- | A call whose argument is the value of a match, @let s = match c with
 -- arms in f .. s ..@ with @s@ used nowhere else, moved into the arms, so

@@ -47,7 +47,7 @@ getPackedTag = PackedTag <$> gWord
 putComb :: (clos -> Builder) -> GComb clos comb -> Builder
 putComb pClos = \case
   (Comb (LamI a f body _) lay) ->
-    putTag LamT <> pInt a <> pInt f <> putFoldable (putPair pInt pInt) lay <> putSection body
+    putTag LamT <> pInt a <> pInt f <> putLayout lay <> putSection body
   (CachedVal w v) ->
     putTag CachedClosureT <> putNat w <> pClos v
 
@@ -55,8 +55,29 @@ getComb :: (PrimBase m) => Get m (GComb Void CombIx)
 getComb =
   getTag >>= \case
     LamT ->
-      (\a f lay body -> Comb (LamI a f body noNativeCell) lay) <$> gInt <*> gInt <*> getList (getPair gInt gInt) <*> getSection
+      (\a f lay body -> Comb (LamI a f body noNativeCell) lay) <$> gInt <*> gInt <*> getLayout <*> getSection
     CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
+
+putLayout :: FrameLayout -> Builder
+putLayout (FrameLayout wide base) =
+  putFoldable (putPair pInt pInt) wide <> putMaybe base (\(Deopt frames) -> putFoldable putBaseFrame frames)
+  where
+    putBaseFrame (BaseFrame ix slots) = pWord ix <> putFoldable putSlot slots
+    putSlot = \case
+      Copy d i -> BU.word8 0 <> pInt d <> pInt i
+      PackSlot r t slots -> BU.word8 1 <> putReference r <> putPackedTag t <> putFoldable putSlot slots
+      RecSlot shape slots -> BU.word8 2 <> putRecordShape shape <> putFoldable putSlot slots
+
+getLayout :: (PrimBase m) => Get m FrameLayout
+getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> getList getBaseFrame)
+  where
+    getBaseFrame = BaseFrame <$> gWord <*> getList getSlot
+    getSlot =
+      getWord8 >>= \case
+        0 -> Copy <$> gInt <*> gInt
+        1 -> PackSlot <$> getReference <*> getPackedTag <*> getList getSlot
+        2 -> RecSlot <$> getRecordShape <*> getList getSlot
+        t -> fail $ "getLayout: unknown slot tag: " ++ show t
 
 getMForeignFunc :: (PrimBase m) => Get m ForeignFunc
 getMForeignFunc = do

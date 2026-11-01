@@ -57,7 +57,8 @@ testLift s = case cs of !_ -> ok
       flip State.Strict.evalState emptyRecordFieldMappings
         -- Not `emptyRNs`: every one of its lookups throws, and `emitCombs`
         -- calls them. These stubs are total.
-        . emitCombs (RN (const 0) (const 0) (const Nothing) (const Nothing) (const Nothing) (const (RecordRef 0))) (Builtin "Test") 0
+        . fmap fst
+        . emitCombs (RN (const 0) (const 0) (const Nothing) (const Nothing) (const Nothing) (const (RecordRef 0))) (Builtin "Test") 0 0
         . superNormalize
         . (\(ll, _, _, _, _) -> ll)
         . lamLift mempty
