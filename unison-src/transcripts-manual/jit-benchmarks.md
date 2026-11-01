@@ -186,6 +186,32 @@ collatzTotal n =
   go acc i = if i > n then acc else go (acc + collatzSteps i) (i + 1)
   go 0 1
 
+-- The same shape with the callee made native in a batch of its own before
+-- the caller is compiled (warmSteps runs it hot first): a looping callee
+-- that already has code isn't copied into the caller's batch, so the call
+-- goes through the cell, which is what the register entry is for. The
+-- Collatz rows above compile all three functions in one batch and their
+-- calls are direct.
+stepsAlone : Nat -> Nat
+stepsAlone n =
+  go steps x = if x == 1 then steps else go (steps + 1) (if Nat.mod x 2 == 0 then x / 2 else 3 * x + 1)
+  go 0 n
+
+warmSteps : Nat -> Nat
+warmSteps n =
+  go acc i = if i == 0 then acc else go (acc + stepsAlone 27) (i - 1)
+  go 0 n
+
+totalAlone : Nat -> Nat
+totalAlone n =
+  go acc i = if i > n then acc else go (acc + stepsAlone i) (i + 1)
+  go 0 1
+
+manyAlone : Nat -> Nat
+manyAlone n =
+  go acc i = if i == n then acc else go (acc + stepsAlone 2) (i + 1)
+  go 0 0
+
 -- Text: every operation here is a call-out until native code can work on
 -- the rope directly.
 textAppend : Nat -> Text
@@ -468,6 +494,12 @@ jitSuite = do
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)
   printTime "Calls across definitions: callee first reached once the caller is hot, 100000 iterations" 1 (n -> repeat n do branchCalls 100000)
+  printTime "Calls across definitions: callee native before the caller, Collatz steps for 1 to 1000" 1 let
+    w = warmSteps 100000
+    n -> repeat n do totalAlone (if w == 0 then 999 else 1000)
+  printTime "Calls across definitions: callee native before the caller, 100000 calls of a one-step callee" 1 let
+    w = warmSteps 100000
+    n -> repeat n do manyAlone (if w == 0 then 99999 else 100000)
   printTime "Text: append \"hi\" 10000 times" 1 (n -> repeat n do textAppend 10000)
   printTime "Text: drop 1, 100000 times" 1 let
     t = Text.repeat 100000 "a"
