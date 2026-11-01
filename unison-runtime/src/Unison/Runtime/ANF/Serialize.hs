@@ -380,6 +380,10 @@ putFunc refrep allowFop ctx f = case f of
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
   FRec schema -> putTag FRecT <> putRecordSchema schema
   FRecSet field -> putTag FRecSetT <> putText field
+  -- the two forms the explosion (Unison.Runtime.MCode.Explode) writes
+  -- into a batch's code after it is loaded; nothing stored has them
+  FWorker {} -> exn [] "putFunc: a worker call is never serialized"
+  FYield -> exn [] "putFunc: a yield of several values is never serialized"
 
 getFunc ::
   (PrimBase m, Var v) => [v] -> GDeserial m (Func Reference v)

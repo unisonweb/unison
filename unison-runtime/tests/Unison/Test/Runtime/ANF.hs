@@ -120,6 +120,8 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       -- Handled by the equation above; the `case` can't see that.
       FRec _ -> error "denormalize FRec"
       FRecSet _ -> error "denormalize FRecSet"
+      FWorker {} -> error "denormalize FWorker"
+      FYield -> error "denormalize FYield"
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
 denormalize (TLocal _ _) = error "denormalize TLocal"

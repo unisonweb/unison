@@ -306,6 +306,10 @@ putFunc ctx f = case f of
   FPrim (Right f) -> putTag FForeignT <> putFOp f
   FRec recSchema -> putTag FRecT <> putRecordSchema recSchema
   FRecSet field -> putTag FRecSetT <> putText field
+  -- the two forms the explosion (Unison.Runtime.MCode.Explode) writes
+  -- into a batch's code after it is loaded; nothing stored has them
+  FWorker {} -> exn [] "putFunc: a worker call is never serialized"
+  FYield -> exn [] "putFunc: a yield of several values is never serialized"
 
 getFunc :: (PrimBase m, Var v) => [v] -> Get m (Func RefNum v)
 getFunc ctx =

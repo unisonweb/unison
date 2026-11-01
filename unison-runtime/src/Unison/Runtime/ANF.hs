@@ -1003,6 +1003,9 @@ alignFunc _ (FRec rl) (FRec rr)
   | rl == rr = Just . pure $ FRec rl
 alignFunc _ (FRecSet fl) (FRecSet fr)
   | fl == fr = Just . pure $ FRecSet fl
+alignFunc _ (FWorker rl il) (FWorker rr ir)
+  | rl == rr, il == ir = Just . pure $ FWorker rl il
+alignFunc _ FYield FYield = Just . pure $ FYield
 alignFunc _ _ _ = Nothing
 
 alignBranch ::
@@ -1515,6 +1518,14 @@ data Func ref v
     FRec RecordSchema
   | -- record update: replace one field's value, keeping the record's shape
     FRecSet FieldName
+  | -- a worker of a function's group (Unison.Runtime.MCode.Explode): the
+    -- combinator at this index, called with exactly the arguments it
+    -- takes. Only in a batch's code after it is loaded; never stored.
+    FWorker !ref !Word64
+  | -- a return of the arguments as that many values (the tails of a
+    -- product-return worker, Unison.Runtime.MCode.Explode). Only in a
+    -- batch's code after it is loaded; never stored.
+    FYield
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Lit ref
@@ -2587,6 +2598,8 @@ funcLinks _ (FCont v) = pure $ FCont v
 funcLinks _ (FPrim e) = pure $ FPrim e
 funcLinks _ (FRec rr) = pure $ FRec rr
 funcLinks _ (FRecSet field) = pure $ FRecSet field
+funcLinks f (FWorker r i) = flip FWorker i <$> f False r
+funcLinks _ FYield = pure FYield
 
 expandBindings' ::
   (Var v) =>
@@ -2787,6 +2800,9 @@ prettyFunc (FRec r) =
   showString "REC(" . shows r . showString ") "
 prettyFunc (FRecSet field) =
   showString "RECSET(" . shows field . showString ") "
+prettyFunc (FWorker r i) =
+  showString "WORKER(" . showsShort r . showString "," . shows i . showString ")"
+prettyFunc FYield = showString "YIELD "
 
 showsShort :: Reference -> ShowS
 showsShort =

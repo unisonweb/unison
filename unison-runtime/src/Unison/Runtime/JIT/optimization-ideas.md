@@ -45,9 +45,9 @@ likely to matter:
   the wide convention covers the one-field ones today.
 - A function that both takes a call pattern (a specialisation) and
   returns a product gets the return worker only for its entry's body: a
-  specialisation's body still packs its result. The specialisation
-  could be emitted in return mode too, as a worker per (pattern,
-  result).
+  specialisation's body still packs its result. A specialisation could
+  get the yielding tails too (`yieldLeaves` on its body), as a worker
+  per (pattern, result).
 - A tail that calls a function returning the product through a *partial*
   shape (a wider product at the callee) is dropped rather than met down
   to what both build.
@@ -55,19 +55,18 @@ likely to matter:
   apart (`Tree.insert`'s is never used); the worker could be emitted only
   when some site of the batch uses it, closed under the tail calls of the
   workers kept, which is also the rule an in-advance version needs.
-- **Make the rewrite explicit in the ANF.** The three bugs found while
-  building it (2026-10-31) all came from the worker being decided by the
-  emitter's mode and side tables rather than by the term: the tail rules
-  fired inside a let binding, the dead-let fixpoint counted a returned
-  constructor's fields unconditionally, and a let of the leaves still
-  looked like an exploded call site to `deadCons`. The argument side has
-  none of this because `specialise` produces a lambda that *is* the
-  worker. The same shape for the return side would be two ANF forms the
-  emitter maps one to one: a call of a function's return worker (a `Func`
-  constructor, say `FWorker`) and a tail that yields several values; the
-  rewrite would then drop the product lets it unpacks itself, with no
-  parallel deadness analysis and no emitter mode. Worth doing before the
-  mechanism grows (sums, specialisations in return mode).
+- The workers are combinators at indices of their own (`specIndex`,
+  `retIndex`), produced by `emitCombs` beside the group; they could be
+  bindings of the group instead, so that the emitter saw one ordinary
+  group, but the index scheme (the JIT's `isEntry`, the cells keyed by
+  index) would have to be redone for it. Not worth it until something
+  else needs the workers in the group.
+- `specialise` prepares its body twice (before the argument rewrite, so
+  that it maps variables by name, and after, for the products the rewrite
+  builds), and `explosions` prepares every spec it discovers once more for
+  its sites; `prepare` is quadratic in the body (`occurrences` per let).
+  Load time was not measured after the ANF restructuring (2026-11-01); if
+  it shows, a single pass over the body for all the use counts would do.
 
 ### A private convention for specialised workers
 
