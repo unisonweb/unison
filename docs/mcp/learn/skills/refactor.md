@@ -1,4 +1,4 @@
-Changing a definition that other definitions use (adding or swapping an argument, renaming, changing a type) means changing every use. Let UCM find the uses and rewrite them where it can, and edit by hand only what is left.
+Changing a definition that other definitions use (adding or swapping an argument, changing a type) means changing every use. Let UCM find the uses and rewrite them where it can, and edit by hand only what is left. Renaming is different: uses don't change, so use [`move`](learn:ucm/rename-and-delete) and don't touch them.
 
 - **Find the uses.** `dependents <name>` lists what uses a definition, and `edit.dependents <name>` puts all of them (and everything that uses those) in the scratch file. See [find](learn:ucm/find).
 - **Find uses by shape with `rewrite.find`.** It takes a rewrite, a `@rewrite` block, and lists every definition in the branch that matches the left side of any of its rules. The right side is ignored, so a rule like `x = @rewrite term foo a b ==> ()` finds every call of `foo` with two arguments.

@@ -65,7 +65,6 @@ import Unison.Codebase.Editor.Output
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
     TodoOutput,
-    UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
     todoOutputIsEmpty,
   )
 import Unison.Codebase.Editor.Output qualified as E
@@ -222,6 +221,10 @@ notifyNumbered = \case
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
+  ShowDiffAfterRedo ppe diffOutput ->
+    first
+      (\p -> P.lines ["Here are the changes I redid", "", p])
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
@@ -814,9 +817,16 @@ notifyUser dir issueFn = \case
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
-  CantUndo reason -> case reason of
-    CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
-    CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
+  NothingToUndo ->
+    pure . P.warnCallout . P.wrap $
+      "Nothing more to undo. Use"
+        <> IP.makeExample' IP.branchReflog
+        <> "or"
+        <> IP.makeExample' IP.history
+        <> "to find an earlier state, and"
+        <> IP.makeExample' IP.reset
+        <> "to go back to it."
+  NothingToRedo -> pure . P.warnCallout $ "Nothing more to redo."
   NoMainFunction main ppe ts ->
     pure . P.callout "😶" $
       P.lines

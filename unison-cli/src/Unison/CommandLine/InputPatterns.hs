@@ -123,6 +123,7 @@ module Unison.CommandLine.InputPatterns
     testAll,
     todo,
     ui,
+    redo,
     undo,
     up,
     update,
@@ -1063,9 +1064,20 @@ undo =
     []
     I.Visible
     noParams
-    "`undo` reverts the most recent change to the codebase."
+    "`undo` reverts the most recent change to the current branch. It goes back as far as the last `reset`."
     . const
     $ pure Input.UndoI
+
+redo :: InputPattern
+redo =
+  InputPattern
+    "redo"
+    []
+    I.Visible
+    noParams
+    "`redo` restores what `undo` reverted, until the next change to the branch."
+    . const
+    $ pure Input.RedoI
 
 textfind :: Bool -> InputPattern
 textfind allowLib =
@@ -4409,6 +4421,7 @@ validInputs =
       todo,
       ui,
       undo,
+      redo,
       up,
       update,
       diffUpdate,

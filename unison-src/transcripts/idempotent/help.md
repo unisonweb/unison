@@ -830,6 +830,9 @@
   quit (or exit, :q)
   Exits the Unison command line interface.
 
+  redo
+  `redo` restores what `undo` reverted, until the next change to the branch.
+
   reflog (or reflog.branch, branch.reflog)
   `reflog` lists all the changes that have affected the current branch.
   `reflog /mybranch` lists all the changes that have affected /mybranch.
@@ -1158,7 +1161,7 @@
   `ui` opens the Local UI in the default browser.
 
   undo
-  `undo` reverts the most recent change to the codebase.
+  `undo` reverts the most recent change to the current branch. It goes back as far as the last `reset`.
 
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.

@@ -151,6 +151,7 @@ commandTiers =
         "alias.many",
         "create.author",
         "undo",
+        "redo",
         "history.comment",
         "pull",
         "pull.without-history",

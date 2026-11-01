@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Output
     TodoOutput (..),
     todoOutputIsEmpty,
     MoreEntriesThanShown (..),
-    UndoFailureReason (..),
     ShareError (..),
     ShareMatch (..),
     isFailure,
@@ -121,6 +120,7 @@ type HashLength = Int
 data NumberedOutput
   = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterRedo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -349,7 +349,8 @@ data Output
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
-  | CantUndo UndoFailureReason
+  | NothingToUndo
+  | NothingToRedo
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
@@ -616,8 +617,6 @@ type ShowSuccesses = Bool -- whether to list results or just summarize
 
 type ShowFailures = Bool -- whether to list results or just summarize
 
-data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
-
 type SourceFileContents = Text
 
 outputShouldUsePager :: Output -> Bool
@@ -731,7 +730,8 @@ isFailure o = case o of
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
-  CantUndo {} -> True
+  NothingToUndo -> True
+  NothingToRedo -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
@@ -885,6 +885,7 @@ isNumberedFailure = \case
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
+  ShowDiffAfterRedo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)

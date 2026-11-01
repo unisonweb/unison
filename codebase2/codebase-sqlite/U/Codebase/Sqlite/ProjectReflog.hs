@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.ProjectReflog
     project_,
     branch_,
     projectAndBranch_,
+    resetReasonPrefix,
   )
 where
 
@@ -14,6 +15,11 @@ import Data.Text (Text)
 import Data.Time (UTCTime)
 import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId, ProjectId)
 import Unison.Sqlite (FromRow (..), ToRow (..), field)
+
+-- | Every reflog entry written by @reset@ has a reason that starts with this. @undo@ and @redo@ don't look past such an
+-- entry.
+resetReasonPrefix :: Text
+resetReasonPrefix = "reset "
 
 data Entry project branch causal = Entry
   { project :: project,

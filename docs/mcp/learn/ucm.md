@@ -10,6 +10,6 @@ UCM, the Unison Codebase Manager, is the command-line tool that stores your code
 
 **Where a command runs.** `switch myproject/main` changes the project and branch, and so does starting a command line with `myproject/main>`. A project or branch that doesn't exist yet is created, except with `transcript-read-only`, where it must already exist. [`projects` and `branches`](learn:ucm/branches) list what exists.
 
-**Undoing.** Most changes can be undone with `undo`, or by going back to an earlier state found with `reflog` (see [history](learn:ucm/history)).
+**Undoing.** Changes can be undone with `undo` and restored with `redo`, or by going back to an earlier state found with `reflog` (see [history](learn:ucm/history)).
 
 **Topics.** Start with [transcripts](learn:ucm/transcript) for the format and what the tools allow, and [the codebase](learn:ucm/codebase) for how code is stored.

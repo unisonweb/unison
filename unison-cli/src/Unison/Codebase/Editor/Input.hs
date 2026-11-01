@@ -235,6 +235,7 @@ data Input
   | TodoI
   | UiI Path'
   | UndoI
+  | RedoI
   | UpI
   | Update2I
   | UpdateBuiltinsI

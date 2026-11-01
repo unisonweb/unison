@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.HandleInput (loop) where
 import Control.Arrow ((&&&))
 import Control.Error.Util qualified as ErrorUtil
 import Control.Lens
+import Control.Monad.Extra (findM)
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
@@ -26,6 +27,9 @@ import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.DbId qualified as Db
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
@@ -158,6 +162,7 @@ import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
@@ -188,6 +193,32 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
 import Prelude hiding (unzip)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Undo and redo
+
+-- | Move the current project branch to the newest state in its reflog, back to the last @reset@, that the given test
+-- accepts (it gets the current state and an entry's), or else respond with the given output. Returns the branch before
+-- and after the move. The move gets a reflog entry of its own, with the given reason, like any other change: repeating
+-- an undo or a redo depends on that.
+moveAlongReflog ::
+  (Db.CausalHashId -> Db.CausalHashId -> Sqlite.Transaction Bool) ->
+  Output ->
+  Text ->
+  Cli (Branch0 IO, Branch0 IO)
+moveAlongReflog isTarget nothingToDo description = do
+  env <- ask
+  pb <- getCurrentProjectBranch
+  targetHash <-
+    Cli.runTransaction do
+      headId <- Queries.expectProjectBranchHead pb.projectId pb.branchId
+      entries <- Queries.reflogSinceReset pb.branchId
+      findM (isTarget headId) (filter (/= headId) entries) >>= traverse Queries.expectCausalHash
+  targetHash <- targetHash & onNothing (Cli.returnEarly nothingToDo)
+  current <- Cli.getCurrentProjectRoot
+  target <- liftIO (Codebase.expectBranchForHash env.codebase targetHash)
+  Cli.updateProjectBranchRoot_ pb description (const target)
+  pure (Branch.head current, Branch.head target)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -698,18 +729,15 @@ loop e = do
         TodoI -> handleTodo
         UiI path' -> openUI path'
         UndoI -> do
-          rootBranch <- Cli.getCurrentProjectRoot
-          (_, prev) <-
-            liftIO (Branch.uncons rootBranch) & onNothingM do
-              Cli.returnEarly . CantUndo $
-                if Branch.isOne rootBranch
-                  then CantUndoPastStart
-                  else CantUndoPastMerge
           description <- inputDescription input
-          pb <- getCurrentProjectBranch
-          Cli.updateProjectBranchRoot_ pb description (const prev)
-          (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
+          (current, target) <- moveAlongReflog (\headId entry -> Queries.before entry headId) NothingToUndo description
+          (ppe, diff) <- diffHelper target current
           Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
+        RedoI -> do
+          description <- inputDescription input
+          (current, target) <- moveAlongReflog Queries.before NothingToRedo description
+          (ppe, diff) <- diffHelper current target
+          Cli.respondNumbered (Output.ShowDiffAfterRedo ppe diff)
         UpI -> do
           path0 <- Cli.getCurrentPath
           whenJust (Path.ascend path0) Cli.cd
@@ -802,12 +830,13 @@ inputDescription input =
         Just tgt -> do
           let tgtText = into @Text tgt
           pure (" " <> tgtText)
-      pure ("reset " <> hashTxt <> tgt)
+      pure (ProjectReflog.resetReasonPrefix <> hashTxt <> tgt)
     SyncFromCodebaseI fp srcBranch destBranch -> do
       pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text srcBranch <> " " <> into @Text destBranch
     SyncFromFileI fp pab ->
       pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text pab
     UndoI {} -> pure "undo"
+    RedoI {} -> pure "redo"
     -- wat land
     AliasTypeI {} -> wat
     ApiI -> wat
