@@ -1,6 +1,6 @@
 # Continuations across optimization settings
 
-A continuation captured inside code the explosion rewrote is written out as the frames the unoptimized code has at that point (JIT/design.md, "Continuations across processes"), so that any process can resume it whatever its own settings. This transcript is one side of that: run with `UNISON_CONT_ROLE=send`, it captures a continuation inside each rewritten shape, after 0, 1 and 2 requests, serializes it to `UNISON_CONT_DIR/<shape>-<n>-<UNISON_CONT_LABEL>.bin` and checks its own round trip; run with `UNISON_CONT_ROLE=recv`, it reads every sender's files, resumes each continuation and checks the result against a run without serialization. `scripts/jit-continuation-matrix.sh` runs every sender against every recipient, under each optimization setting (`UNISON_OPTIMIZATIONS`), in the interpreter and under the JIT (senders not under `eager`, where serializing a continuation that spans a call fails with "black hole", a known failure noted in development.md); a line that says `FAIL` is a failure, and so is a transcript that does not finish.
+A continuation captured inside code the explosion rewrote is written out as the frames the unoptimized code has at that point (JIT/design.md, "Continuations across processes"), so that any process can resume it whatever its own settings. This transcript is one side of that: run with `UNISON_CONT_ROLE=send`, it captures a continuation inside each rewritten shape, after 0, 1 and 2 requests, serializes it to `UNISON_CONT_DIR/<shape>-<n>-<UNISON_CONT_LABEL>.bin` and checks its own round trip; run with `UNISON_CONT_ROLE=recv`, it reads every sender's files, resumes each continuation and checks the result against a run without serialization. `scripts/jit-continuation-matrix.sh` runs every sender against every recipient, under each optimization setting (`UNISON_OPTIMIZATIONS`), in the interpreter and under the JIT; a line that says `FAIL` is a failure, and so is a transcript that does not finish.
 
 Run against the `jit` testing codebase (`scripts/testing-codebase.sh jit`), which has base.
 
@@ -139,11 +139,9 @@ answer x = cases
   { Ask.ask -> k } -> handle k x with answer (x + 1)
 
 -- a handler installed inside the rewritten code, with a request to the
--- outer handler under it. Not among the shapes run: a continuation
--- captured under a handler installed inside the computation does not
--- survive serialization today, with or without the explosion
--- ("reifyValue: cannot restore value: a partial application of 1
--- arguments to a function of 1"), which is a separate problem.
+-- outer handler under it: the continuation holds the handled block and
+-- the handler as closures (until 2026-11-01 the loader refused the
+-- block, a closure holding exactly its function's arguments)
 innerHandled : Nat ->{Ask} Nat
 innerHandled n =
   go acc i =
@@ -153,6 +151,24 @@ innerHandled n =
                 x = Ask.ask
                 x + 1
               with answer (i * 7)
+      outer = Ask.ask
+      match step (acc + inner) outer with (acc', i') -> go acc' (i' + i)
+  go 0 0
+
+-- the same with a local recursive handler
+localHandled : Nat ->{Ask} Nat
+localHandled n =
+  go acc i =
+    if i > n then acc
+    else
+      h : Request {Ask} Nat -> Nat
+      h = cases
+        { r } -> r
+        { Ask.ask -> k } -> handle k (i * 7) with h
+      inner = handle
+                x = Ask.ask
+                x + 1
+              with h
       outer = Ask.ask
       match step (acc + inner) outer with (acc', i') -> go acc' (i' + i)
   go 0 0
@@ -184,7 +200,9 @@ shapes =
     ("rec", '(recLoop 5)),
     ("sum", '(sumLoop 5)),
     ("pair", '(pairLoop 5)),
-    ("keep", '(keepState 3)) ]
+    ("keep", '(keepState 3)),
+    ("innerHandled", '(innerHandled 3)),
+    ("localHandled", '(localHandled 3)) ]
 
 each : [a] -> (a ->{IO, Exception} ()) ->{IO, Exception} ()
 each xs f = match xs with

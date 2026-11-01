@@ -2,9 +2,7 @@
 # Continuations serialized under each optimization setting and resumed under
 # each other (JIT/design.md, "Continuations across processes"): runs
 # unison-src/transcripts-manual/jit-continuations.md as a sender under every
-# setting (in the interpreter and with the JIT on; not eager, where
-# serializing a continuation that spans a call is a known failure, see
-# development.md), then as a recipient under every setting, in the
+# setting, then as a recipient under every setting, each in the
 # interpreter, with the JIT on and eager. Prints every result line; exits 1
 # if any says FAIL or a run does not finish. Needs the jit testing codebase
 # (scripts/testing-codebase.sh jit) and a build (stack build; set
@@ -36,7 +34,7 @@ run() {
   if echo "$out" | grep -E "^[A-Za-z]+ [0-9]+ (sent by|from) " | grep -q "FAIL"; then status=1; fi
 }
 for jit in off on eager; do
-  if [ $jit != eager ]; then for s in all none args returns; do run $jit send $s; done; fi
+  for s in all none args returns; do run $jit send $s; done
   for r in all none args returns; do run $jit recv $r; done
 done
 rm -rf "$DIR"

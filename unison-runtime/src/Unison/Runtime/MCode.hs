@@ -1547,12 +1547,21 @@ wideSlots = go 0
 -- ('Deopt').
 data FrameLayout = FrameLayout
   { wideVars :: [(Int, Int)],
-    baseFrames :: Maybe Deopt
+    baseFrames :: Maybe Deopt,
+    -- | the depth of the context at the let, in slots, counting the
+    -- enclosing frames when the let is inside a binding: the frame's slot
+    -- @j@ from the top is offset @frameDepth - j@ in the liveness of the
+    -- body ('Unison.Runtime.MCode.Live', used by the serializer)
+    frameDepth :: Int,
+    -- | how many lets of the same function the let is inside the binding
+    -- of: that many Push frames outward in a continuation are the frames
+    -- of those lets, which this section's code reads into
+    enclosingLets :: Int
   }
   deriving (Show, Eq, Ord)
 
 emptyLayout :: FrameLayout
-emptyLayout = FrameLayout [] Nothing
+emptyLayout = FrameLayout [] Nothing 0 0
 
 -- | The slots a frame layout adds over one per variable.
 layoutPadding :: FrameLayout -> Int
@@ -1800,7 +1809,7 @@ record rns rec ctx vcs l es = do
   base <- case rctxBase rec of
     Just bi -> deoptOf rns bi n (map fst vcs) chain
     Nothing -> pure Nothing
-  let comb = Comb (LamI na sz s noNativeCell) (FrameLayout (wideSlots ctx) base)
+  let comb = Comb (LamI na sz s noNativeCell) (FrameLayout (wideSlots ctx) base (countCtx0 0 ctx) (length (chainOf ctx) - 1))
   tell (EC.mapSingleton n comb, 0, EC.mapSingleton n chain)
   pure $ (n, comb)
 

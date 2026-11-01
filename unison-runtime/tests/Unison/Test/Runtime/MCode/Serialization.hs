@@ -199,6 +199,8 @@ genFrameLayout =
   FrameLayout
     <$> Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
     <*> Gen.maybe (Deopt <$> Gen.list (Range.linear 1 3) genBaseFrame)
+    <*> Gen.int (Range.linear 0 20)
+    <*> Gen.int (Range.linear 0 3)
   where
     genBaseFrame = BaseFrame <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genSlot
     genSlot =

@@ -99,6 +99,7 @@ library
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Explode
+      Unison.Runtime.MCode.Live
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Optimizations
       Unison.Runtime.Pattern

@@ -39,6 +39,7 @@ import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Seq
@@ -110,6 +111,7 @@ import Unison.Runtime.Foreign.Function
   )
 import Unison.Runtime.MCode
 import Unison.Runtime.MCode.Explode (explosions, returns)
+import Unison.Runtime.MCode.Live qualified as Live
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Profiling
@@ -2469,7 +2471,15 @@ reflectValue0 cmbs rty rtm = goV0
             -- one value per variable ('narrowCont'), then every frame of
             -- a section the explosion rewrote as the unoptimized code's
             -- frames ('deoptCont'): what any process can resume
-            let (slots', frames) = deoptCont layout k a (narrowCont layout (boxVal rty) k a slots)
+            -- a frame's dead slots are written out as unit: an exit from
+            -- native code writes back only the slots the resumed code reads
+            -- (JIT/design.md, "Only the live slots are written"), so a dead
+            -- slot holds whatever an earlier frame left there, the stack's
+            -- initial black hole, a foreign value, a handler's record, none
+            -- of which serialize (found 2026-11-01: a continuation captured
+            -- after native code had exited could not be serialized)
+            let narrowed = narrowCont layout (boxVal rty) k a (deadToUnit cmbs k a slots)
+                (slots', frames) = deoptCont layout k a narrowed
             ANF.Cont <$> traverse goV slots' <*> goFrames (reverse frames)
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
@@ -2632,13 +2642,16 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        -- A partial application holds fewer arguments than its function
-        -- takes: the interpreter computes how many are still missing as the
-        -- difference, and a difference of zero or less is a closure it never
-        -- builds itself and has no case for.
+        -- A partial application holds at most as many arguments as its
+        -- function takes: 'apply' enters one holding exactly that many (a
+        -- delayed computation named with its unit, or a handled block with
+        -- its handler, is one) and closes over fewer, and never builds one
+        -- holding more, which it has no case for. (Until 2026-11-01 this
+        -- refused the equal case too, so a continuation captured under a
+        -- handler installed inside the computation did not load back.)
         (cix, RComb (Comb rcomb@(LamI arity _ _ _) _))
-          | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
-          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
+          | length vs <= arity -> boxedVal . PAp cix rcomb <$> goVs vs
+          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity ++ ": " ++ show cix
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -2761,13 +2774,16 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
     goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        -- A partial application holds fewer arguments than its function
-        -- takes: the interpreter computes how many are still missing as the
-        -- difference, and a difference of zero or less is a closure it never
-        -- builds itself and has no case for.
+        -- A partial application holds at most as many arguments as its
+        -- function takes: 'apply' enters one holding exactly that many (a
+        -- delayed computation named with its unit, or a handled block with
+        -- its handler, is one) and closes over fewer, and never builds one
+        -- holding more, which it has no case for. (Until 2026-11-01 this
+        -- refused the equal case too, so a continuation captured under a
+        -- handler installed inside the computation did not load back.)
         (cix, RComb (Comb rcomb@(LamI arity _ _ _) _))
-          | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
-          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
+          | length vs <= arity -> boxedVal . PAp cix rcomb <$> goVs vs
+          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity ++ ": " ++ show cix
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -2915,6 +2931,48 @@ narrowCont layout box k a0 vs0 = top ++ go (contFrames k) rest
           | i < w, (pre, post) <- splitAt (w - i) xs = pre ++ walk w ws post
           | x : xs' <- xs = box x (take (width - 1) xs') : walk (w + width) ws' (drop (width - 1) xs')
           | otherwise = []
+
+-- | The captured slots with every slot the resumed code never reads
+-- replaced by unit ('Live.liveAt' on each let body section, which the
+-- frame's Push holds: the body runs at its combinator's arity over the
+-- yielded values, the frame and, inside a binding, the enclosing frames,
+-- so frame slot @j@ from the top is offset @frameDepth - j@, with the
+-- frame's base just below its @f@ slots). A section inside a binding
+-- reads into the frames of its enclosing lets, the next 'enclosingLets'
+-- Push frames outward, so each frame's live set is its own section's
+-- joined with those of the sections nested in it. A frame whose
+-- liveness cannot be told, or that a nested section with no liveness
+-- reads into, keeps every slot. The slots are the wide ones, before
+-- 'narrowCont'.
+deadToUnit :: EnumMap Word64 MCombs -> K -> Int -> [Val] -> [Val]
+deadToUnit cmbs k a0 vs0 = top ++ go [] (contFrames k) rest
+  where
+    (top, rest) = splitAt a0 vs0
+    -- the contributions of nested sections to the frames outward: each as
+    -- (how many more Push frames it reaches, its live offsets)
+    go _ [] vs = vs
+    go nested ((f, a, mcix) : fs) vs =
+      let (frame, vs') = splitAt f vs
+          (args, vs'') = splitAt a vs'
+          (frame', nested') = case mcix of
+            Nothing -> (frame, nested)
+            Just cix -> clean f cix frame nested
+       in frame' ++ args ++ go nested' fs vs''
+    clean f cix@(CIx _ n _) frame nested
+      | RComb (Comb (LamI na _ sect _) lay) <- rCombSection cmbs cix =
+          let depth = frameDepth lay
+              own = Live.liveAt (arityOf n) (depth - f) na sect
+              live = foldr (\(_, l) acc -> l <+> acc) own nested
+              reaching = [(r - 1, l) | (r, l) <- nested, r > 1] ++ [(enclosingLets lay, own) | enclosingLets lay > 0]
+              frame' = case live of
+                Just l -> [if IS.member (depth - j) l then v else unitValue | (j, v) <- zip [0 ..] frame]
+                Nothing -> frame
+           in (frame', reaching)
+      | otherwise = (frame, nested)
+    arityOf n w = case EC.lookup n cmbs >>= EC.lookup w of
+      Just (Comb (LamI a _ _ _) _) -> Just a
+      _ -> Nothing
+    a <+> b = IS.union <$> a <*> b
 
 -- | A frame of a continuation as it is written out: a let's, with the
 -- counts of its slots and its pending arguments and the section it

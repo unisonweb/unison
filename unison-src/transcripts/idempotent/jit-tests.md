@@ -1688,6 +1688,123 @@ chooseAsk thunk =
             200
 ```
 
+A continuation serialized and loaded back in the same process, captured
+under a handler installed inside the computation with a request to the
+outer handler pending under it: the continuation holds the handled block,
+a closure with exactly its function's arguments, which the loader refused
+until 2026-11-01 ("a partial application of 1 arguments to a function of
+1"). Both a top-level and a local recursive inner handler; the resumed
+result must equal the one without serialization.
+
+``` unison
+use Nat + - * == < >
+
+structural ability Ask where
+  ask : Nat
+
+answer : Nat -> Request {Ask} Nat -> Nat
+answer x = cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k x with answer (x + 1)
+
+innerHandled : Nat ->{Ask} Nat
+innerHandled n =
+  go acc i =
+    if i > n then acc
+    else
+      inner = handle
+                x = Ask.ask
+                x + 1
+              with answer (i * 7)
+      outer = Ask.ask
+      go (acc + inner + outer) (i + 1)
+  go 0 0
+
+localHandled : Nat ->{Ask} Nat
+localHandled n =
+  go acc i =
+    if i > n then acc
+    else
+      h : Request {Ask} Nat -> Nat
+      h = cases
+        { r } -> r
+        { Ask.ask -> k } -> handle k (i * 7) with h
+      inner = handle
+                x = Ask.ask
+                x + 1
+              with h
+      outer = Ask.ask
+      go (acc + inner + outer) (i + 1)
+  go 0 0
+
+structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
+
+suspendAt : Nat -> '{Ask} Nat -> Outcome
+suspendAt m c =
+  h : Nat -> Request {Ask} Nat -> Outcome
+  h j = cases
+    { r } -> Done r
+    { Ask.ask -> k } -> if j == m then Suspended k else handle k (j + 1) with h (j + 1)
+  handle !c with h 0
+
+finish : Outcome -> Nat
+finish = cases
+  Done r -> r
+  Suspended k -> handle k 100 with answer 101
+
+roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+roundTrip m c =
+  direct = finish (suspendAt m c)
+  match suspendAt m c with
+    Done _ -> "no request to suspend at"
+    Suspended k ->
+      match ##Value.deserialize (##Value.serialize (##Value.value k)) with
+        Left err -> "deserialize: " ++ err
+        Right v -> match ##Value.load v with
+          Left _ -> "load: missing dependencies"
+          Right k' ->
+            r = finish (Suspended k')
+            (if r == direct then "same, " else "DIFFERENT, ") ++ Nat.toText r ++ " and " ++ Nat.toText direct
+
+serialTest : '{IO, Exception} [Text]
+serialTest = do
+  [ roundTrip 0 '(innerHandled 3),
+    roundTrip 1 '(innerHandled 3),
+    roundTrip 2 '(innerHandled 3),
+    roundTrip 0 '(localHandled 3),
+    roundTrip 1 '(localHandled 3),
+    roundTrip 2 '(localHandled 3) ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Outcome
+
+  + answer       : Nat -> Request {Ask} Nat -> Nat
+  + finish       : Outcome -> Nat
+  + innerHandled : Nat ->{Ask} Nat
+  + localHandled : Nat ->{Ask} Nat
+  + roundTrip    : Nat -> '{Ask} Nat ->{IO, Exception} Text
+  + serialTest   : '{IO, Exception} [Text]
+  + suspendAt    : Nat -> '{Ask} Nat -> Outcome
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run serialTest
+
+  [ "same, 452 and 452"
+  , "same, 350 and 350"
+  , "same, 250 and 250"
+  , "same, 452 and 452"
+  , "same, 350 and 350"
+  , "same, 250 and 250"
+  ]
+```
+
 ## Preemption
 
 A thread stuck in a loop that never allocates must still be killable. Compiled code polls at

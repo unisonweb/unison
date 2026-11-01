@@ -59,8 +59,8 @@ getComb =
     CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
 
 putLayout :: FrameLayout -> Builder
-putLayout (FrameLayout wide base) =
-  putFoldable (putPair pInt pInt) wide <> putMaybe base (\(Deopt frames) -> putFoldable putBaseFrame frames)
+putLayout (FrameLayout wide base depth encl) =
+  putFoldable (putPair pInt pInt) wide <> putMaybe base (\(Deopt frames) -> putFoldable putBaseFrame frames) <> pInt depth <> pInt encl
   where
     putBaseFrame (BaseFrame ix slots) = pWord ix <> putFoldable putSlot slots
     putSlot = \case
@@ -69,7 +69,7 @@ putLayout (FrameLayout wide base) =
       RecSlot shape slots -> BU.word8 2 <> putRecordShape shape <> putFoldable putSlot slots
 
 getLayout :: (PrimBase m) => Get m FrameLayout
-getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> getList getBaseFrame)
+getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> getList getBaseFrame) <*> gInt <*> gInt
   where
     getBaseFrame = BaseFrame <$> gWord <*> getList getSlot
     getSlot =
