@@ -30,6 +30,11 @@ original body, as a specialisation's does.
 - **Everything else within noise** in both measurements, the library suite
   included: library code returns products rarely in loops the batch can
   see both sides of.
+- **The interpreter gains too, 1.45x on the same row** (1.30 ms to 0.90 ms
+  under `UNISON_JIT=off`, best of three interleaved runs of that row alone,
+  measured 2026-11-01): the rewrite is on the ANF, so the interpreter runs
+  the same worker and yield and allocates no pair either, but it still pays
+  its per-instruction cost on the rest of the round.
 - **What is left**: a function gets its worker whether or not any site
   takes its result apart (`Tree.insert`'s is dead code), error tails keep a
   function from having one, sums, and the restructuring into explicit ANF
