@@ -25,6 +25,7 @@ import System.Environment (lookupEnv)
 import System.IO (hFlush, hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
+import Unison.Runtime.Optimizations (Optimization (..), optimizationSetting)
 
 data Mode
   = -- | never compile
@@ -61,8 +62,9 @@ data ReplacementUse = Always | InterpreterOnly
 -- A compiled program chooses it before any code loads, from the mode it
 -- was compiled under ('setReplacements'; the file carries it, since its
 -- MCode has the replacements of that mode baked in); otherwise the
--- environment decides: @UNISON_REPLACEMENTS@ if set, else it follows
--- @UNISON_JIT@.
+-- environment decides: @UNISON_OPTIMIZATIONS=replacements@ (all of them)
+-- or @-replacements@ (none) if set (Unison.Runtime.Optimizations), else
+-- it follows @UNISON_JIT@.
 replacements :: Replacements
 replacements = unsafePerformIO $ do
   chosen <- readIORef replacementsRef
@@ -75,10 +77,9 @@ replacements = unsafePerformIO $ do
 replacementsFromEnvironment :: IO Replacements
 replacementsFromEnvironment = do
   mode <- lookupEnv "UNISON_JIT"
-  repl <- lookupEnv "UNISON_REPLACEMENTS"
-  pure $ case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
-    (Just "on", _) -> AllReplacements
-    (Just "off", _) -> NoReplacements
+  pure $ case (optimizationSetting Replacements, map toLower (fromMaybe "off" mode)) of
+    (Just True, _) -> AllReplacements
+    (Just False, _) -> NoReplacements
     (_, "on") -> TaggedReplacements
     (_, "eager") -> TaggedReplacements
     _ -> AllReplacements

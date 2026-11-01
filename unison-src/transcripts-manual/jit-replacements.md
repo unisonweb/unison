@@ -7,9 +7,9 @@ be run three ways against the `jit` testing codebase (`scripts/testing-codebase.
 `unison_json`, `printTime` and `repeat` in it), on an optimized build:
 
 ```
-UNISON_JIT=off                            # the interpreter with the replacement, today's default
-UNISON_JIT=on UNISON_REPLACEMENTS=on      # the replacement as a call-out from native code
-UNISON_JIT=on UNISON_REPLACEMENTS=off     # base's own Unison code, compiled
+UNISON_JIT=off                                        # the interpreter with the replacement, today's default
+UNISON_JIT=on UNISON_OPTIMIZATIONS=replacements       # the replacement as a call-out from native code
+UNISON_JIT=on UNISON_OPTIMIZATIONS=-replacements      # base's own Unison code, compiled
 stack exec --work-dir .stack-work-opt unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts-manual/jit-replacements.md
 ```
 

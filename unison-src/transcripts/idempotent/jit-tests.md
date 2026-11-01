@@ -371,7 +371,7 @@ churn k n =
 ## Delayed data construction
 
 Small constructors travel between a return and a match in stack slots
-(`UNISON_WIDE=on`, Unison.Runtime.Wide): a constructor returned by an unknown
+(`UNISON_OPTIMIZATIONS=wide`, Unison.Runtime.Wide): a constructor returned by an unknown
 callee and matched by the caller, a state tuple threaded through calls, and
 every way a value can escape, which boxes it.
 

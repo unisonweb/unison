@@ -12,7 +12,8 @@
 -- replacements mode in JIT/Config.hs. The interpreter alone does not gain
 -- from it (JIT/benchmarks/2026-10-27-wide-interpreter.md), so it is on
 -- exactly when the JIT is (@UNISON_JIT=on@ or @eager@) unless
--- @UNISON_WIDE=on|off@ overrides that, for testing either combination. A
+-- @UNISON_OPTIMIZATIONS=wide@ or @-wide@ (Unison.Runtime.Optimizations)
+-- overrides that, for testing either combination. A
 -- compiled program's MCode has the convention of the mode it was compiled
 -- under baked in (its frames and the instructions that write them), so its
 -- file carries the mode and 'setWide' applies it before anything loads.
@@ -31,6 +32,7 @@ import Data.IORef
 import Data.Maybe (fromMaybe)
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
+import Unison.Runtime.Optimizations (Optimization (..), optimizationSetting)
 
 -- | Whether the process uses the wide calling convention.
 wideOn :: Bool
@@ -44,11 +46,9 @@ wideOn = unsafePerformIO $ do
 
 wideFromEnvironment :: IO Bool
 wideFromEnvironment = do
-  override <- lookupEnv "UNISON_WIDE"
   mode <- lookupEnv "UNISON_JIT"
-  pure $ case (map toLower <$> override, map toLower (fromMaybe "off" mode)) of
-    (Just "on", _) -> True
-    (Just "off", _) -> False
+  pure $ case (optimizationSetting Wide, map toLower (fromMaybe "off" mode)) of
+    (Just w, _) -> w
     (_, "on") -> True
     (_, "eager") -> True
     _ -> False

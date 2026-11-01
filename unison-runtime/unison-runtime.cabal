@@ -100,6 +100,7 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Explode
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.Optimizations
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced

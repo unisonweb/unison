@@ -71,10 +71,13 @@
 -- cannot resume it, as with any difference in the optimizer between two
 -- versions.
 --
--- @UNISON_EXPLODE=off@ switches it off ('explodeOn'), for measuring and
--- for a process that has to agree with one that ran without it.
+-- @UNISON_OPTIMIZATIONS=-explode_args@ and @-explode_returns@ switch the
+-- two sides off ('explodeArgsOn', 'explodeReturnsOn'; Unison.Runtime.Optimizations),
+-- for measuring and for a process that has to agree with one that ran
+-- without them.
 module Unison.Runtime.MCode.Explode
-  ( explodeOn,
+  ( explodeArgsOn,
+    explodeReturnsOn,
     specIndex,
     retIndex,
     Shape (..),
@@ -94,32 +97,33 @@ where
 import Control.Monad.State.Strict (State, evalState, get, put)
 import Data.Bifunctor (first)
 import Data.Bits (shiftL, (.|.))
-import Data.Char (toLower)
 import Data.Foldable (toList)
 import Data.List (elemIndex)
 import Data.Map.Strict qualified as M
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Set qualified as Set
 import Data.Word (Word64)
-import System.Environment (lookupEnv)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Runtime.Optimizations (Optimization (..), optimizationSetting)
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
--- | Whether loop state is exploded in this process: on unless
--- @UNISON_EXPLODE=off@. Read once.
-explodeOn :: Bool
-explodeOn = unsafePerformIO $ do
-  v <- lookupEnv "UNISON_EXPLODE"
-  pure $ (map toLower <$> v) /= Just "off"
-{-# NOINLINE explodeOn #-}
+-- | Whether loop state is exploded in this process (the argument side:
+-- 'explosions', 'specialise'): on unless @UNISON_OPTIMIZATIONS@ says
+-- @-explode_args@.
+explodeArgsOn :: Bool
+explodeArgsOn = fromMaybe True (optimizationSetting ExplodeArgs)
+
+-- | Whether product results are exploded (the return side: 'returns',
+-- 'returnWorker'): on unless @UNISON_OPTIMIZATIONS@ says @-explode_returns@.
+explodeReturnsOn :: Bool
+explodeReturnsOn = fromMaybe True (optimizationSetting ExplodeReturns)
 
 -- | The combinator index of a group's k-th specialisation (k from 1): in
 -- the high bits like a local function's, with a bit no let index reaches
@@ -287,7 +291,7 @@ sites b bd =
 -- builds, until there are no new ones.
 explosions :: (Var v) => Returns -> M.Map Reference (SuperGroup Reference v) -> Explosions
 explosions rets groups
-  | not explodeOn = M.empty
+  | not explodeArgsOn = M.empty
   | otherwise = close M.empty initial
   where
     b = Batch (const Nothing) (`M.lookup` rets) (groupArity groups)
@@ -326,7 +330,7 @@ type Returns = M.Map Reference Shape
 
 returns :: (Var v) => M.Map Reference (SuperGroup Reference v) -> Returns
 returns groups
-  | not explodeOn = M.empty
+  | not explodeReturnsOn = M.empty
   | otherwise = M.map fst (settle (M.mapMaybeWithKey candidate groups))
   where
     b = Batch (const Nothing) (const Nothing) (groupArity groups)
@@ -647,7 +651,7 @@ prepare b (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (prepareBody b Nothi
 -- yields the leaves, which is what the worker's own count needs.
 prepareBody :: (Var v) => Batch -> Maybe Shape -> ANormal Reference v -> ANormal Reference v
 prepareBody b ms bd
-  | not explodeOn = bd
+  | not explodeArgsOn && not explodeReturnsOn = bd
   | otherwise =
       dropDead
         . useSpecs b
