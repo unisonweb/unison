@@ -897,14 +897,25 @@ update =
     { patternName = "update",
       aliases = ["add"],
       visibility = I.Visible,
-      params = noParams,
+      params = Parameters [] $ Optional [("scratch file", filePathArg)] Nothing,
       help =
-        P.wrap $
-          "Adds everything in the most recently typechecked file to the namespace,"
-            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
-            <> "can't be completed automatically, the dependents will be added back to the scratch file"
-            <> "for your review.",
-      parse = const $ pure Input.Update2I
+        P.lines
+          [ P.wrap $
+              makeExample update []
+                <> "adds everything in the most recently typechecked file to the namespace,"
+                <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+                <> "can't be completed automatically, the dependents will be added back to the scratch file"
+                <> "for your review.",
+            "",
+            P.wrap $
+              makeExample update ["foo.u"]
+                <> "typechecks the file first, as"
+                <> makeExample load ["foo.u"]
+                <> "would, and then does the same."
+          ],
+      parse = \case
+        [] -> pure (Input.Update2I Nothing)
+        file : _ -> Input.Update2I . Just <$> unsupportedStructuredArgument update "a file name" file
     }
 
 diffUpdate :: InputPattern
@@ -1186,8 +1197,8 @@ sfindReplace =
       P.lines
         [ P.wrap $
             makeExample sfindReplace ["<rewrites>", "[<target>]"]
-              <> "applies the rewrites to the definitions in the target that match them,"
-              <> "and writes the rewritten definitions to a new file for you to review.",
+              <> "applies the rewrites to the definitions in the target that match them:"
+              <> "a file is rewritten in place, and for the branch the rewritten definitions go to a new file for you to review.",
           "",
           rewritesSpecHelp,
           "",
@@ -1200,12 +1211,11 @@ sfindReplace =
             ],
           "",
           P.wrap $
-            "The rewritten definitions go to a new file, `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`."
-              <> "(For a file target, it is `rewrites/<file>-<yyyy-mm-dd-hh-mm>-<short-guid>.u` in a `rewrites` directory next to the file,"
-              <> "unless the file is already in one, and then the new file goes beside it, so that all the rewrites of a file sort together.)"
-              <> "Nothing is changed in the branch or in the target file until you `update`."
-              <> "When the rules are in the file being rewritten, they go at the end of the new file, below a fold line, where `update` doesn't see them."
-              <> "Review that file, typecheck it with"
+            "For a file target, the file itself is rewritten, and the version before is saved as `rewrites/<yyyy-mm-dd-hh-mm>-<file>-<short-guid>.u`"
+              <> "in a `rewrites` directory next to it (unless the file is already in one, and then beside it)."
+              <> "For the branch or a namespace, the rewritten definitions go to a new file, `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`."
+              <> "Nothing is changed in the branch until you `update`."
+              <> "Review the file, typecheck it with"
               <> makeExample' load
               <> "and run"
               <> makeExample' update
@@ -3189,7 +3199,7 @@ dependents =
     []
     I.Visible
     (Parameters [("definition", definitionQueryArg)] $ Optional [] Nothing)
-    "List the named dependents of the specified definition."
+    "List the named dependents of the specified definition: the definitions that use it directly, not the ones that use those."
     \case
       [thing] -> Input.ListDependentsI <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args

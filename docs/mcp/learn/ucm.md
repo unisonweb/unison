@@ -12,4 +12,4 @@ UCM, the Unison Codebase Manager, is the command-line tool that stores your code
 
 **Undoing.** Changes can be undone with `undo` and restored with `redo`, or by going back to an earlier state found with `reflog` (see [history](learn:ucm/history)).
 
-**Topics.** Start with [transcripts](learn:ucm/transcript) for the format and what the tools allow, and [the codebase](learn:ucm/codebase) for how code is stored.
+**Topics.** Start with [transcripts](learn:ucm/transcript) for the format and what the tools allow, and [the codebase](learn:ucm/codebase) for how code is stored. For changing code that exists, [update](learn:ucm/update), [rewrite](learn:ucm/rewrite) and [refactoring](learn:skills/refactor).

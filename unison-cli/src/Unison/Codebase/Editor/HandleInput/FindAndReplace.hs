@@ -15,6 +15,7 @@ import Data.Text qualified as Text
 import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
+import System.Directory qualified as Directory
 import System.FilePath (normalise, takeBaseName, takeDirectory, takeFileName, (</>))
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
@@ -71,9 +72,11 @@ handleStructuredFindReplaceI spec target = do
   (ruleTerms, ruleNames) <- lookupRuleTerms spec
   case target of
     Just (RewriteFile path) -> do
-      uf0 <- loadAndParse path
-      dest <- newRewritesPath (rewritesDirectoryFor path) (Just (takeBaseName path))
-      applyRewrites False ruleTerms ruleNames branchNames dest uf0
+      (text, uf0) <- loadAndParse path
+      -- The file is rewritten in place, so that its name stays the same through a refactoring, and the version
+      -- before is saved beside it.
+      backup <- newRewritesPath (rewritesDirectoryFor path) (Just (takeBaseName path))
+      applyRewrites False ruleTerms ruleNames branchNames (InPlace path backup text) uf0
     Just (RewriteNamespace path0) -> rewriteDefinitionsIn (Just path0) currentBranch ruleTerms ruleNames
     Nothing -> rewriteDefinitionsIn Nothing currentBranch ruleTerms ruleNames
   where
@@ -106,16 +109,21 @@ handleStructuredFindReplaceI spec target = do
       branchNames <- Branch.toNames <$> Cli.getCurrentBranch0
       pp <- Cli.getCurrentProjectPath
       liftIO (readIORef rendered) >>= \case
-        Nothing -> Cli.respond (OutputRewrittenFile "" [])
+        Nothing -> Cli.respond (OutputRewrittenFile "" Nothing [])
         Just text -> do
           parsingEnv <- Cli.makeParsingEnv pp branchNames
           uf0 <-
             Cli.runTransaction (Parsers.parseFile "rewrites" (Text.unpack text) parsingEnv)
               & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
           dest <- newRewritesPath "rewrites" Nothing
-          applyRewrites True ruleTerms ruleNames branchNames dest uf0
+          applyRewrites True ruleTerms ruleNames branchNames (NewFile dest) uf0
 
--- | Apply the rewrites to the definitions of a parsed file, and write the result, if anything changed, to a new file.
+-- | Where a rewrite's result goes: a new file, or the file that was rewritten, with the text it had saved elsewhere.
+data RewriteDestination
+  = NewFile FilePath
+  | InPlace FilePath FilePath Text
+
+-- | Apply the rewrites to the definitions of a parsed file, and write the result, if anything changed.
 applyRewrites ::
   -- | Whether to leave the definitions that didn't change out of the new file
   Bool ->
@@ -124,10 +132,10 @@ applyRewrites ::
   Names ->
   -- | The names of the branch
   Names ->
-  FilePath ->
+  RewriteDestination ->
   UF.UnisonFile Symbol Ann ->
   Cli ()
-applyRewrites onlyChanged ruleTerms0 ruleNames branchNames dest uf0 = do
+applyRewrites onlyChanged ruleTerms0 ruleNames branchNames destination uf0 = do
   env <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestFile
@@ -171,15 +179,10 @@ applyRewrites onlyChanged ruleTerms0 ruleNames branchNames dest uf0 = do
       leaveAlone = Set.fromList [HQ.toVar rule | (rule, _) <- ruleTerms]
       (vs, uf0') = UF.rewrite leaveAlone (\tm -> go 0 tm rules) uf
       finished = finish uf0'
-      -- The rules, when they are in the file being rewritten, go below a fold line in the new file, so that `update`
-      -- doesn't add them to the branch.
-      (ruleDefinitions, rest) = finished & #terms %%~ Map.partitionWithKey (\v _ -> Set.member v leaveAlone)
-      uf' = (vs, if onlyChanged then rest & #terms %~ (`Map.restrictKeys` Set.fromList vs) else rest)
-      rulesBelowFold
-        | onlyChanged || Map.null ruleDefinitions = ""
-        | otherwise =
-            "\n\n---- The rewrites that were used. Unison ignores everything below this line.\n\n"
-              <> P.toPlain 80 (P.prettyUnisonFile ppe (UF.UnisonFileId Nothing mempty mempty ruleDefinitions mempty))
+      uf' = (vs, if onlyChanged then finished & #terms %~ (`Map.restrictKeys` Set.fromList vs) else finished)
+      (dest, backup) = case destination of
+        NewFile path -> (path, Nothing)
+        InPlace path previous _ -> (path, Just previous)
       header =
         [ "Rewrote using: " <> Text.intercalate ", " (HQ.toText . fst <$> ruleTerms),
           "Review the definitions below, then typecheck this file (`load " <> Text.pack dest <> "`) and run `update` when you are done."
@@ -189,9 +192,21 @@ applyRewrites onlyChanged ruleTerms0 ruleNames branchNames dest uf0 = do
     [] -> pure ()
     _ -> do
       #latestFile ?= (dest, True)
-      let rendered = P.toPlain 80 (renderRewrittenFile ppe header uf') <> rulesBelowFold
-      liftIO $ env.writeSource (Text.pack dest) rendered False
-  Cli.respond $ OutputRewrittenFile dest vs
+      -- A file rewritten in place gets no header: it is the user's own file, and a comment naming the rules would be
+      -- one more thing to strip out (and a trap for a script that looks for the rules by name).
+      let rendered = P.toPlain 80 case destination of
+            NewFile _ -> renderRewrittenFile ppe header uf'
+            InPlace {} -> P.prettyUnisonFile ppe (snd uf')
+      liftIO do
+        case destination of
+          NewFile _ -> pure ()
+          InPlace path previous text -> do
+            env.writeSource (Text.pack previous) text False
+            -- `writeSource` adds to a file that exists; the rewritten file replaces it.
+            exists <- Directory.doesFileExist path
+            when exists (Directory.removeFile path)
+        env.writeSource (Text.pack dest) rendered False
+  Cli.respond $ OutputRewrittenFile dest backup vs
 
 -- | The directory that a file of rewrites goes in, for rewrites of the given file: a @rewrites@ directory beside it, or
 -- the directory it is in if that is a @rewrites@ directory.
@@ -202,8 +217,8 @@ rewritesDirectoryFor path
   where
     dir = takeDirectory path
 
--- | @<dir>/[<file>-]<yyyy-mm-dd-hh-mm>-<short-guid>.u@, where @file@ is the file being rewritten, if any, so that all the
--- rewrites of a file sort together. A transcript run (a test, or `ucm transcript`, but not the MCP server) gets a fixed name, so that its output doesn't change.
+-- | @<dir>/<yyyy-mm-dd-hh-mm>-[<file>-]<short-guid>.u@, where @file@ is the file being rewritten, if any. A transcript run
+-- (a test, or `ucm transcript`, but not the MCP server) gets a fixed name, so that its output doesn't change.
 newRewritesPath :: FilePath -> Maybe String -> Cli FilePath
 newRewritesPath dir mfile = do
   env <- ask
@@ -214,10 +229,12 @@ newRewritesPath dir mfile = do
         now <- getCurrentTime
         uuid <- UUID.nextRandom
         pure (formatTime defaultTimeLocale "%Y-%m-%d-%H-%M" now, take 8 (UUID.toString uuid))
-  pure (dir </> maybe "" (<> "-") mfile <> time <> "-" <> guid <> ".u")
+  let path = dir </> time <> "-" <> maybe "" (<> "-") mfile <> guid <> ".u"
+  -- An agent's own working directory is usually not the server's, so it gets the whole path.
+  if env.unattended then liftIO (Directory.makeAbsolute path) else pure path
 
--- | Parse a file, without typechecking it.
-loadAndParse :: FilePath -> Cli (UF.UnisonFile Symbol Ann)
+-- | Parse a file, without typechecking it: its text, and the parse.
+loadAndParse :: FilePath -> Cli (Text, UF.UnisonFile Symbol Ann)
 loadAndParse path = do
   env <- ask
   currentBranch <- Cli.getCurrentBranch0
@@ -228,8 +245,10 @@ loadAndParse path = do
       Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
       Cli.LoadSuccess text -> pure text
   parsingEnv <- Cli.makeParsingEnv pp (Branch.toNames currentBranch)
-  Cli.runTransaction (Parsers.parseFile path (Text.unpack text) parsingEnv)
-    & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
+  uf <-
+    Cli.runTransaction (Parsers.parseFile path (Text.unpack text) parsingEnv)
+      & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
+  pure (text, uf)
 
 -- | Parse and typecheck a file, leaving the latest file and the latest typechecked file as they were.
 loadAndTypecheck :: FilePath -> Cli (UF.TypecheckedUnisonFile Symbol Ann)

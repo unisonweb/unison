@@ -335,6 +335,8 @@ data Output
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
+  | -- | Definitions of the codebase made part of the file being typechecked, because they use what it redefines.
+    PulledInDependents [Name]
   | Typechecked
       !PPE.PrettyPrintEnv
       !PPE.PrettyPrintEnv
@@ -480,7 +482,7 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile FilePath ([Symbol {- symbols rewritten -}])
+  | OutputRewrittenFile FilePath (Maybe FilePath {- where the version before was saved, for a file rewritten in place -}) ([Symbol {- symbols rewritten -}])
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase
@@ -623,6 +625,7 @@ outputShouldUsePager :: Output -> Bool
 outputShouldUsePager o = case o of
   -- These are typically non-interactive outputs, so we don't page them.
   LoadingFile {} -> False
+  PulledInDependents {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
   Evaluated {} -> False
@@ -723,6 +726,7 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   LoadingFile {} -> False
+  PulledInDependents {} -> False
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False

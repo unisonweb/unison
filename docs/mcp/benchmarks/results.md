@@ -107,3 +107,74 @@ The reply now says `The file is 638 lines long and has 3 conflicts`, instead of 
 
 The long runs read 2.4K to 5.8K characters of the 15K file. The short runs still print their 17 lines, which is the right choice. r19 wasn't run through the judges; a direct check of each run's end state is in the log.
 
+
+## Round 20: the refactoring tasks, after the work-file recipes (2 November 2026)
+
+Sonnet workers run as Claude Code subagents (one per task, in parallel, each with its own server from `wbegin.sh`), Sonnet judges from `jbegin.sh`. The binary has the MCP server writing real files, `rewrite` serving a work file (plain names for the file's own definitions, the rules below a fold), the `ucm/rewrite` topic and the step-by-step `skills/refactor`. Three new tasks: `refactor-rename`, `refactor-change-implementation`, `refactor-constructor-fields`; `method` judges on every refactoring task.
+
+| task | outcome judges | method | what the worker did |
+|---|---|---|---|
+| `refactor-rename` | pass | GREAT | `move Stock.restock Stock.replenish`, `move Sku Item`, `move Item.Sku Item.Item`, as the topic says; 7 calls |
+| `refactor-change-implementation` | pass | GREAT | new `Text.slug` and a test in one block, `update`, `test`; never sent a dependent |
+| `refactor-constructor-fields` | pass | GREAT | the whole recipe: `edit.to` with the dependents, `Reading_v2` with suffixed constructors, one rule block, `rewrite w1.u:rules.r1 w1.u`, read the file, stripped `_v2`, `load`, `update` |
+| `refactor-swap-arguments` | pass | GREAT | the recipe through `rewrite`, but then retyped the rewritten definitions by hand "since I couldn't read that file": the reply named it relative to the server's directory, not the agent's |
+| `refactor-add-argument` | pass | PASS | `edit.to` with the dependents, then edited the six uses in the file by hand, no rule |
+| `refactor-add-constructor` | pass | GREAT | `dependents Shape`, `edit.to work.u Shape 1-12`, cases added by hand (a rewrite can't add one); tried `view work.u` once |
+| `refactor-ability-operation` | pass | PASS | `find.all Journal`, viewed the handlers, one block with everything; lost a test's second check and recovered it from `history` with `fork` |
+
+7 / 7 pass. Changes made from this round: the `rewrite` reply gives the file's absolute path under the MCP server (the swap worker's only miss), `ucm/rewrite` says to read the file rather than retype it, the add-argument recipe says to write the rules even for a few uses, and the `method` judges of the constructor and operation tasks count a `find` of the namespace before the change (the ability worker's `find.all Journal` is a fair way to find the handlers).
+
+## Round 21: the same, after the round 20 changes
+
+Sonnet workers, one run each (two for `add-argument`), judged by Sonnet. The commands come from the workers' transcripts (`agent/*.md`), not their reports.
+
+| run | outcome judges | method | what the worker ran |
+|---|---|---|---|
+| `refactor-add-argument` (a) | pass | GREAT | `edit.to work.u bullets`, `dependents`, `edit.to work.u 1-`; a `load` that failed on a duplicate `bullets.doc` (no `load` between the two `edit.to`s, so nothing was deduplicated); `rewrite work2.u:rules.r1,rules.r2 work2.u`, read the file, stripped `_v2`, `load`, `update`, `test` |
+| `refactor-add-argument` (b) | pass | GREAT | the same recipe with no detour, 5 calls |
+| `refactor-swap-arguments` | pass | GREAT | the recipe, and this time it read the file `rewrite` wrote (absolute path in the reply) |
+| `refactor-add-constructor` | pass | GREAT | `view Shape`, `dependents Shape`, `find-in Shape`; `rules.r1 = @rewrite case Shape.Circle ==> Shape.Circle` and `rewrite.find rules.r1` (listed `area`, `corners`, `hasCurve`, `perimeter`, `scale`); `edit.to work.u` with the type, those, and the wildcard ones and tests too; cases by hand; `update`, `test` |
+| `refactor-ability-operation` | pass | GREAT | `find.all Journal`, `edit.to work.u` with the ability, handlers, `audit` and tests; two `update`s failed because `Inventory.tests.audit` in the file calls `Inventory.receive` of the branch, which uses the old `Journal`; `dependents Journal`, brought `receive` in unchanged; `update`, `test` |
+
+5 / 5, all GREAT. What this round shows: with the one-line nudge, both `add-argument` workers wrote rules instead of editing the uses by hand (0 of 1 in round 20); the absolute path fixed the swap worker's retyping; the `case Shape.Circle ==> Shape.Circle` search was used as described. Two frictions remain: `edit.to` doesn't deduplicate against the target file unless it was `load`ed last (a duplicate `bullets.doc` cost the (a) worker a call), and a work file that holds a caller of a branch function which uses the old type can't typecheck (two failed `update`s for the ability worker); `skills/refactor` now says which definitions belong in the file and which don't (a function that doesn't match on the type needs no change).
+
+## Round 22: call counts, after `edit.to` deduplicates against its target file
+
+The aim of this round was the path, not the pass rate: how many calls each worker made, and how many failed. Changes before it: `edit.to` leaves out the definitions its target file already has (parsed from disk, whether or not it was the last file loaded) and says `Nothing to add` when that is everything; `ucm/rewrite` sends plain "every use" searches to `dependents` and keeps `rewrite.find` for shapes; `skills/refactor` says a function that doesn't match on the type needs no change (and which definitions do belong in the work file) and that `update` takes no argument. Sonnet workers, Sonnet judges; the commands are from the transcripts.
+
+| run | calls (failed) | r21 | method | where the calls went |
+|---|---|---|---|---|
+| `refactor-add-argument` (a) | 8 (1) | 11 (2) | GREAT | explore and `edit.to` in one call; repeated that call once; rules in a `unison` block and `rewrite scratch.u:rules.r1,rules.r2 scratch.u`; `load`, `update`, `test` |
+| `refactor-add-argument` (b) | 11 (1) | 13 (4) | GREAT | the recipe, but `load` and `rewrite` in separate calls, then an `update` in a call with no `load` (failed), then both together |
+| `refactor-ability-operation` | 7 (1) | 8 (2) | GREAT | `dependents Journal`, one `edit.to`, one block, `update`; the old test's expectation then had to change (the prompt makes the collecting handler record `WARN: ...`), one more round |
+| `refactor-constructor-fields` | 11 (2) | 12 (2), r20 | GREAT | thorough exploration (two read-only calls), left `Alert.tests.text` out of the file, so `update` stopped on `update-main`; finished through the temporary-branch flow |
+
+4 / 4, all GREAT, and a quarter fewer calls than the same runs in round 21 (37 against 44 in the comparable four, 5 failures against 10). What remains is the agents' own slips, each costing one call: a `load` in one call and `update` in the next (the topic says to send them together; an `update <file>` that loads and updates in one would remove the trap), the same `edit.to` sent twice, a dependent left out of the work file. The harness rule that workers write only under `agent/` made two of them rebuild the work file instead of editing the one `edit.to` wrote; `wbegin.sh` now lets them edit the files that replies name.
+
+## Round 23: all seven tasks, after `update <file>`, the in-place rewrite and the carried `load`
+
+Sonnet workers and judges, one run per task; commands from the transcripts. Changes before it: `update <file>` (loads and updates in one), a `load` carrying over to the next transcript under the MCP server, `rewrite` rewriting its file target in place with the version before saved under `rewrites/`, `dependents` help saying "direct", a hint when `view` is given a `.u` file, and the topic edits agreed on 2 November (which definitions belong in the work file, tests whose expectations change, docs, `test` needs no IO, a path you can edit for `edit.to`).
+
+| task | judges | method | calls (failed) | what the calls went on |
+|---|---|---|---|---|
+| `refactor-rename` | pass | GREAT | 4 (0) | three `move`s; the fewest calls yet |
+| `refactor-change-implementation` | pass | GREAT | 5 (0) | `edit.to agent/work.u Text.slug`, the new definition, `update agent/work.u` in one call |
+| `refactor-add-constructor` | pass | GREAT | 10 (3) | tried `rewrite.find` with the rule written inline (1 failed call); `rewrite.find :matchesOnCircle` found the five matchers; two `update`s failed because the tests in the file call `totalArea` and `isSquare` of the branch under the old `Shape` |
+| `refactor-ability-operation` | pass | GREAT | 10 (3) | `rewrite.find` on `case Journal.entry`; its own new test had the wrong expectation first, then the old test's expectation |
+| `refactor-add-argument` | pass | GREAT | 11 (2) | the recipe; an `edit.to` sent with no names (1 failed call); its strip script matched `rules.r1` in the header comment of the rewritten file and emptied it, restored from the saved version under `rewrites/` |
+| `refactor-swap-arguments` | pass | GREAT | 10 (0) | the recipe; the same header-comment accident, same recovery |
+| `refactor-constructor-fields` | pass | GREAT | 13 (2) | the recipe; the same header-comment accident; `Alert.text` left out of the file, found through the `Alert#njpksb06el` error |
+
+7 / 7, all GREAT; the rename and change-implementation runs are now 4 and 5 calls. Three workers emptied their own work file with a strip script that looked for `rules.r1`, which the header comment of the rewritten file also mentioned; all three recovered from the saved version, which the in-place design made possible, and the rewritten file now gets no header. Three runs lost calls to the "two types of the same name" error (a branch definition using the old type called from the file); the type and ability mismatch errors now carry a note saying what it is and what to do. One worker wrote the rule inline in `rewrite.find`, which doesn't parse; worth allowing.
+
+## Round 24: the three tasks that hit the "two types of the same name" error, after `load` pulls the affected definitions in
+
+Change before it: when a file redefines something and uses a definition of the codebase that uses the old version, `load` makes that definition part of the file (unchanged, with a line saying so: `Also typechecking, from the codebase: ...`) and `update` saves it rebuilt; `rewrite` writes no header into a file rewritten in place. Sonnet workers and judges; commands from the transcripts.
+
+| task | judges | method | calls (failed) | r23 | what happened |
+|---|---|---|---|---|---|
+| `refactor-add-constructor` | pass | GREAT | 7 (0) | 10 (3) | `rewrite.find` on `case Shape.Circle`, `edit.to` of the type and the five matchers only; `load` pulled `Shape.isSquare` in for the test that calls it; `update work.u`, `test` |
+| `refactor-ability-operation` | pass | GREAT | 8 (2) | 10 (3) | `dependents Journal`, one `edit.to`, `update work.u` (the two failures: an argument-order slip in the first call, and the old test's expectation, fixed in one more call); `Inventory.receive` never needed a thought |
+| `refactor-constructor-fields` | pass | GREAT | 7 (0) | 13 (2) | the recipe end to end, 4 transcript calls; `Alert` and `Alert.text` came along by themselves |
+
+3 / 3, all GREAT, 22 calls against 33 in round 23 for the same tasks, and no call lost to the error the change removes.

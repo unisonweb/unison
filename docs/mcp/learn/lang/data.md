@@ -7,3 +7,4 @@ Declaring your own types with `type`.
 - A type with a single constructor with named fields is a [record](learn:lang/records).
 - A type whose constructors each give their own result type, `type Expr a where ...`, is a [GADT](learn:lang/gadts).
 - Take values apart with [patterns](learn:lang/cases).
+- To add a constructor to a type that exists, or change one's fields, see [refactoring](learn:skills/refactor): `rewrite.find` lists every function that matches on the type, and `rewrite` changes the patterns and constructions.

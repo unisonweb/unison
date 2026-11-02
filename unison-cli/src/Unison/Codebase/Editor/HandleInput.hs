@@ -741,7 +741,9 @@ loop e = do
         UpI -> do
           path0 <- Cli.getCurrentPath
           whenJust (Path.ascend path0) Cli.cd
-        Update2I -> handleUpdate2
+        Update2I maybePath -> do
+          for_ maybePath (handleLoad . Just)
+          handleUpdate2
         DiffUpdateI -> DiffUpdate.handleDiffUpdate
         UpdateBuiltinsI -> Cli.respond NotImplemented
         UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
@@ -918,7 +920,7 @@ inputDescription input =
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
-    Update2I -> wat
+    Update2I {} -> wat
     DiffUpdateI -> wat
     UpdateBuiltinsI -> wat
     UpgradeCommitI {} -> wat

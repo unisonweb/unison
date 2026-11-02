@@ -79,7 +79,7 @@ rules.b1 n t = @rewrite
 ```
 
 The rules refer to `foo_v2` and `Blah_v2`, which only the file defines, and the rewritten code refers to them by name. The
-rules themselves go below a fold line in the new file, where `update` doesn't see them.
+file is rewritten in place, and the version before is saved under `rewrites/`.
 
 ``` ucm
 scratch/main> rewrite work.u:rules.r1,rules.r2,rules.r3,rules.b1 work.u
@@ -89,20 +89,41 @@ scratch/main> rewrite work.u:rules.r1,rules.r2,rules.r3,rules.b1 work.u
   I found and replaced matches in these definitions: mk mk2 un
   useBare useFull usePartial
 
-  The rewritten definitions are in
-  `rewrites/work-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/work-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `work.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-work-00000000.u`. Review the file,
+  typecheck it with `load work.u` and run `update` when you are
+  done.
 
-scratch/main> load rewrites/work-0000-00-00-00-00-00000000.u
+scratch/main> load work.u
 
-  Loading changes detected in
-  rewrites/work-0000-00-00-00-00-00000000.u.
+  Loading changes detected in work.u.
 
   + type Blah_v2
 
-  + foo_v2 : Nat -> Nat -> Nat -> Nat
+  + foo_v2   : Nat -> Nat -> Nat -> Nat
+  + rules.b1 : Nat
+               -> Text
+               -> Rewrites
+                 ( RewriteSignature Blah Blah_v2,
+                   RewriteCase Blah Blah_v2,
+                   RewriteCase Blah Blah_v2,
+                   RewriteTerm Blah Blah_v2,
+                   RewriteTerm
+                   (Nat -> Text -> Blah)
+                   (Nat -> Text -> Blah_v2),
+                   RewriteTerm Blah Blah_v2)
+  + rules.r1 : Nat
+               -> Nat
+               -> Rewrites (Tuple (RewriteTerm Nat Nat) ())
+  + rules.r2 : Nat
+               -> Rewrites
+                 (Tuple
+                   (RewriteTerm (Nat -> Nat) (Nat -> Nat)) ())
+  + rules.r3 : Rewrites
+                 (Tuple
+                   (RewriteTerm
+                     (Nat -> Nat -> Nat) (Nat -> Nat -> Nat))
+                   ())
   ~ mk         : Nat -> Text -> Blah_v2
   ~ mk2        : Nat -> Text -> Blah_v2
   ~ un         : Blah_v2 -> Nat
@@ -115,11 +136,46 @@ scratch/main> load rewrites/work-0000-00-00-00-00-00000000.u
   Run `update` to apply these changes to your codebase.
 ```
 
-``` unison :added-by-ucm rewrites/work-0000-00-00-00-00-00000000.u
--- Rewrote using: rules.r1, rules.r2, rules.r3, rules.b1
--- Review the definitions below, then typecheck this file (`load rewrites/work-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): mk mk2 un useBare useFull usePartial
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-work-00000000.u
+useBare : Nat -> Nat -> Nat
+useBare = foo
 
+useFull : Nat
+useFull = foo 1 2
+
+usePartial : [Nat]
+usePartial = List.map (foo 1) [1, 2]
+
+mk : Nat -> Text -> Blah
+mk n t = C1 n t
+
+mk2 : Nat -> Text -> Blah
+mk2 = C1
+
+un : Blah -> Nat
+un = cases
+  C1 n _ -> n
+  C2 -> 0
+
+foo_v2 : Nat -> Nat -> Nat -> Nat
+foo_v2 x y z = x + y + z
+
+type Blah_v2 = C1_v2 Text Nat | C2_v2
+
+rules.r1 x y = @rewrite term foo x y ==> foo_v2 x y 0
+rules.r2 x = @rewrite term foo x ==> (y -> foo_v2 x y 0)
+rules.r3 = @rewrite term foo ==> (x y -> foo_v2 x y 0)
+
+rules.b1 n t = @rewrite
+  signature Blah ==> Blah_v2
+  case Blah.C1 n t ==> C1_v2 t n
+  case Blah.C2 ==> C2_v2
+  term Blah.C1 n t ==> C1_v2 t n
+  term Blah.C1 ==> (n t -> C1_v2 t n)
+  term Blah.C2 ==> C2_v2
+```
+
+``` unison :added-by-ucm work.u
 useBare : Nat -> Nat -> Nat
 useBare x y = foo_v2 x y 0
 
@@ -143,11 +199,7 @@ un = cases
 foo_v2 : Nat -> Nat -> Nat -> Nat
 foo_v2 x y z = x + y + z
 
-type Blah_v2
-  = C1_v2 Text Nat
-  | C2_v2
-
----- The rewrites that were used. Unison ignores everything below this line.
+type Blah_v2 = C1_v2 Text Nat | C2_v2
 
 rules.r1 x y = @rewrite term foo x y ==> foo_v2 x y 0
 
@@ -156,6 +208,7 @@ rules.r2 x = @rewrite term foo x ==> y -> foo_v2 x y 0
 rules.r3 = @rewrite term foo ==> x y -> foo_v2 x y 0
 
 rules.b1 n t =
+  use Blah_v2 C1_v2 C2_v2
   @rewrite
     signature Blah ==> Blah_v2
     case C1 n t ==> C1_v2 t n
@@ -165,7 +218,8 @@ rules.b1 n t =
     term C2 ==> C2_v2
 ```
 
-Stripping `_v2` from that file gives the final versions, and `update` applies cleanly, since every use is in the file:
+Stripping `_v2` from the file and deleting the rules gives the final versions, and `update` applies cleanly, since every
+use is in the file:
 
 ``` unison
 useBare : Nat -> Nat -> Nat

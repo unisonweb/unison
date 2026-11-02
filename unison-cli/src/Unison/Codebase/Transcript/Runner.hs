@@ -70,6 +70,7 @@ import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
@@ -98,8 +99,14 @@ data Config = Config
     -- | Whether the files UCM writes (for `edit`, `edit.to`, `rewrite` and so on) go to disk, prepended to the file if it exists,
     -- as at the command line, so that they outlive the transcript. A transcript test keeps them in memory, where they last
     -- for the one transcript.
-    writeFiles :: Bool
+    writeFiles :: Bool,
+    -- | Whether the last file loaded (and typechecked) carries over to the next transcript the runner runs, so that a `load`
+    -- in one call and an `update` in the next work as they would at the command line.
+    rememberFiles :: Bool
   }
+
+-- | What carries over between transcripts when 'rememberFiles' is on: the latest file and the latest typechecked file.
+type CarriedFiles = IORef (Maybe (FilePath, Bool), Maybe (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann)))
 
 -- | A reasonable set of defaults to use.
 --
@@ -117,7 +124,8 @@ defaultConfig =
       outputIsFailure = Output.isFailure,
       outputIsNumberedFailure = Output.isNumberedFailure,
       createMissingContexts = True,
-      writeFiles = False
+      writeFiles = False,
+      rememberFiles = False
     }
 
 -- | What the MCP server uses: an agent is driving UCM, so an empty result is not an error that stops the transcript, and a command
@@ -133,8 +141,10 @@ mcpConfig =
       outputIsFailure = Output.isFailureForMcp,
       outputIsNumberedFailure = Output.isNumberedFailureForMcp,
       createMissingContexts = False,
-      -- An agent works across many transcripts, so a file it asks for has to be there for the next one.
-      writeFiles = True
+      -- An agent works across many transcripts, so a file it asks for has to be there for the next one, and a file it
+      -- loaded in one is what `update` saves in the next.
+      writeFiles = True,
+      rememberFiles = True
     }
 
 testConfig :: FilePath -> Config
@@ -166,6 +176,7 @@ withRunner ::
   m r
 withRunner jit config verbosity ucmVersion action = do
   credMan <- liftIO . AuthN.newCredentialManager $ credentialsFile config
+  carried <- liftIO (newIORef (Nothing, Nothing))
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
@@ -188,6 +199,7 @@ withRunner jit config verbosity ucmVersion action = do
                   baseUrlText
                   authenticatedHTTPClient
                   credMan
+                  (if rememberFiles config then Just carried else Nothing)
                   transcript'
                   & catchExceptions
           -- The codebase server is only for `api` blocks, so don't start one (and take a port) for transcripts without them.
@@ -258,9 +270,11 @@ run ::
   Text ->
   AuthN.AuthenticatedHttpClient ->
   AuthN.CredentialManager ->
+  -- | The files carried over from the previous transcript, when 'rememberFiles' is on
+  Maybe CarriedFiles ->
   Transcript ->
   IO (Either Error Transcript)
-run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
+run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan carried transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -662,7 +676,9 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       loop s0 = do
         Cli.runCli env s0 awaitInput >>= \case
           (Cli.Success input, s1) ->
-            let next s = loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
+            let next s = do
+                  for_ carried \ref -> writeIORef ref (s ^. #latestFile, s ^. #latestTypecheckedFile)
+                  loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
              in Cli.runCli env s1 (HandleInput.loop input) >>= \case
                   (Cli.Success (), s2) -> next s2
                   (Cli.Continue, s2) -> next s2
@@ -672,7 +688,9 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         where
           onHalt = readIORef out
 
-  Transcript (frontmatter transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
+  (latestFile, latestTypecheckedFile) <- maybe (pure (Nothing, Nothing)) readIORef carried
+  let state0 = (Cli.loopState0 (PP.toIds initialPP)) {Cli.latestFile, Cli.latestTypecheckedFile}
+  Transcript (frontmatter transcript) . toList <$> loop state0
 
 transcriptFailure :: Aeson.Value -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
 transcriptFailure frontmatter out heading mbody = do

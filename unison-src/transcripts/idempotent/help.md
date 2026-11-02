@@ -224,7 +224,7 @@
   List the dependencies of the specified definition.
 
   dependents
-  List the named dependents of the specified definition.
+  List the named dependents of the specified definition: the definitions that use it directly, not the ones that use those.
 
   deprecated.cd (or deprecated.namespace)
   Moves your perspective to a different namespace. Deprecated for now because too many important things depend on your perspective selection.
@@ -867,8 +867,9 @@
 
   rewrite (or sfind.replace)
   `rewrite <rewrites> [<target>]` applies the rewrites to the
-  definitions in the target that match them, and writes the
-  rewritten definitions to a new file for you to review.
+  definitions in the target that match them: a file is rewritten
+  in place, and for the branch the rewritten definitions go to a
+  new file for you to review.
 
   The `<rewrites>` argument says which `@rewrite` blocks (or
   functions that immediately return one) to use. It is one of:
@@ -883,18 +884,15 @@
     foo.u            the definitions in the file `foo.u`.
     path.to.mymodule the definitions in that namespace of the current branch.
 
-  The rewritten definitions go to a new file,
-  `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`. (For a file
-  target, it is
-  `rewrites/<file>-<yyyy-mm-dd-hh-mm>-<short-guid>.u` in a
-  `rewrites` directory next to the file, unless the file is
-  already in one, and then the new file goes beside it, so that
-  all the rewrites of a file sort together.) Nothing is changed
-  in the branch or in the target file until you `update`. When
-  the rules are in the file being rewritten, they go at the end
-  of the new file, below a fold line, where `update` doesn't see
-  them. Review that file, typecheck it with `load` and run
-  `update` when you are done.
+  For a file target, the file itself is rewritten, and the
+  version before is saved as
+  `rewrites/<yyyy-mm-dd-hh-mm>-<file>-<short-guid>.u` in a
+  `rewrites` directory next to it (unless the file is already in
+  one, and then beside it). For the branch or a namespace, the
+  rewritten definitions go to a new file,
+  `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`. Nothing is
+  changed in the branch until you `update`. Review the file,
+  typecheck it with `load` and run `update` when you are done.
 
   An example of a rewrite:
 
@@ -1176,12 +1174,15 @@
                                        currently watched paths.
 
   update (or add)
-  Adds everything in the most recently typechecked file to the
-  namespace, replacing existing definitions having the same
-  name, and attempts to update all the existing dependents
+  `update` adds everything in the most recently typechecked file
+  to the namespace, replacing existing definitions having the
+  same name, and attempts to update all the existing dependents
   accordingly. If the process can't be completed automatically,
   the dependents will be added back to the scratch file for your
   review.
+
+  `update foo.u` typechecks the file first, as `load foo.u`
+  would, and then does the same.
 
   version
   Print the version of unison you're running

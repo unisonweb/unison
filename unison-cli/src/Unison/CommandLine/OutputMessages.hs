@@ -688,6 +688,8 @@ notifyUser dir issueFn = \case
           $ "The namespaces "
             <> P.commas (either prettySCH prettyProjectPath <$> ps)
             <> " are empty. Was there a typo?"
+  LoadedDefinitionsToSourceFile fp 0 ->
+    pure . P.callout "☝️" . P.wrap $ "Nothing to add: " <> fromString fp <> " already has every definition you asked for."
   LoadedDefinitionsToSourceFile fp numDefinitions ->
     pure $
       P.callout "☝️" $
@@ -700,7 +702,7 @@ notifyUser dir issueFn = \case
                 <> "to replace the definitions currently in this namespace."
           ]
   DisplayDefinitions code -> pure code
-  OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
+  OutputRewrittenFile dest backup vs -> displayOutputRewrittenFile dest backup vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestIncrementalOutputStart ppe (n, total) r -> do
@@ -735,6 +737,14 @@ notifyUser dir issueFn = \case
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+        <> ( if any ((".u" `Text.isSuffixOf`) . HQ.toText) hqs
+               then
+                 P.newline
+                   <> P.newline
+                   <> P.wrap
+                     "It looks like you meant a file. These commands take the names of definitions in the codebase; to see a file, read it, or `load` it to typecheck it."
+               else mempty
+           )
   SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
     pure (missMsg <> hitMsg)
     where
@@ -1109,6 +1119,11 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
+  PulledInDependents names ->
+    pure . P.wrap $
+      "Also typechecking, from the codebase: "
+        <> P.group (P.commas (P.syntaxToColor . prettyName <$> names) <> ".")
+        <> " They use what this file redefines, so they are part of the file now, and `update` saves them rebuilt on the new definition."
   Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
@@ -3427,23 +3442,34 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: (Var v) => FilePath -> [v] -> IO Pretty
-displayOutputRewrittenFile _fp [] =
+displayOutputRewrittenFile :: (Var v) => FilePath -> Maybe FilePath -> [v] -> IO Pretty
+displayOutputRewrittenFile _fp _backup [] =
   pure "😶️ I couldn't find any definitions that these rewrites match."
-displayOutputRewrittenFile fp vs = do
+displayOutputRewrittenFile fp backup vs = do
   let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
   pure $
     P.callout "☝️" . P.lines $
       [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
         "",
-        P.wrap $
-          "The rewritten definitions are in"
-            <> P.backticked' (fromString fp) "."
-            <> "Review them, typecheck that file with"
-            <> IP.makeExample IP.load [fromString fp]
-            <> "and run"
-            <> IP.makeExample' IP.update
-            <> "when you are done."
+        P.wrap case backup of
+          Nothing ->
+            "The rewritten definitions are in"
+              <> P.backticked' (fromString fp) "."
+              <> "Review them, typecheck that file with"
+              <> IP.makeExample IP.load [fromString fp]
+              <> "and run"
+              <> IP.makeExample' IP.update
+              <> "when you are done."
+          Just previous ->
+            "I rewrote"
+              <> P.backticked (fromString fp)
+              <> "in place; the version before is saved as"
+              <> P.backticked' (fromString previous) "."
+              <> "Review the file, typecheck it with"
+              <> IP.makeExample IP.load [fromString fp]
+              <> "and run"
+              <> IP.makeExample' IP.update
+              <> "when you are done."
       ]
 
 displayDefinitions' ::

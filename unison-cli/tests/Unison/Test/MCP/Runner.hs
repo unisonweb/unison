@@ -11,6 +11,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Traversable (for)
 import EasyTest
 import System.Directory (doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.IO.Temp qualified as Temp
@@ -84,6 +85,27 @@ test =
         expect' (Text.length (fst (Text.breakOn "bar" contents)) < Text.length (fst (Text.breakOn "foo" contents)))
         loaded <- runTranscriptWith mcp (ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> load " <> Text.pack file])
         either (crash . show) (expectTextContaining ["bar : Nat", "foo : Nat"] . Text.pack . renderOutput) loaded
+        io (removeDirectoryRecursive dir),
+      scope "edit.to leaves out what the file already has, without a load in between" do
+        (dir, file) <- workFile
+        twice <-
+          runTranscriptWith
+            mcp
+            (definition "foo" <> ucm ["scratch/main> edit.to " <> Text.pack file <> " foo", "scratch/main> edit.to " <> Text.pack file <> " foo"])
+        either (crash . show) (expectTextContaining ["I added 1 definitions", "already has every definition"] . Text.pack . renderOutput) twice
+        contents <- io (Text.readFile file)
+        expect' (length (Text.breakOnAll "foo : Nat" contents) == 1)
+        io (removeDirectoryRecursive dir),
+      scope "a file loaded in one transcript is what update saves in the next, and update takes a file" do
+        (dir, file) <- workFile
+        io (Text.writeFile file "foo : Nat\nfoo = 1\n")
+        -- The runner is one per server, so the two transcripts have to share it.
+        results <- runTranscriptsWith mcp [ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> load " <> Text.pack file], ucm ["scratch/main> update", "scratch/main> view foo"]]
+        traverse_ (either (crash . show) (const (pure ()))) results
+        either (crash . show) (expectTextContaining ["foo = 1"] . Text.pack . renderOutput) (last results)
+        io (Text.writeFile file "foo : Nat\nfoo = 2\n")
+        byFile <- runTranscriptsWith mcp [ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> update " <> Text.pack file, "scratch/main> view foo"]]
+        either (crash . show) (expectTextContaining ["foo = 2"] . Text.pack . renderOutput) (last byFile)
         io (removeDirectoryRecursive dir),
       scope "a transcript test keeps the files UCM writes in memory" do
         (dir, file) <- workFile
@@ -227,16 +249,20 @@ updateThatCannotFinish =
     ]
 
 runTranscriptWith :: (FilePath -> Transcript.Config) -> Text -> Test (Either Transcript.Error Transcript)
-runTranscriptWith config source = io do
+runTranscriptWith config source = head <$> runTranscriptsWith config [source]
+
+-- | Runs the transcripts one after another on one runner and one codebase, as the MCP server does with an agent's calls.
+runTranscriptsWith :: (FilePath -> Transcript.Config) -> [Text] -> Test [Either Transcript.Error Transcript]
+runTranscriptsWith config sources = io do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-mcp-runner-test"
   ( do
       jit <- JIT.newJIT =<< JIT.readConfig
       Transcript.withRunner jit (config tmp) Verbosity.Silent "Unison.Test.MCP.Runner" \runner -> do
-        result <-
+        results <-
           Codebase.Init.withCreatedCodebase SC.init "ucm-mcp-runner-test" tmp SC.DoLock \codebase -> do
             Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
-            runner "transcript" (Text.encodeUtf8 source) codebase
-        either (fail . show) pure result
+            for sources \source -> runner "transcript" (Text.encodeUtf8 source) codebase
+        either (fail . show) pure results
     )
     `finally` removeDirectoryRecursive tmp
 

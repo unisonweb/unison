@@ -2,9 +2,10 @@ The scratch file is the file UCM typechecks your code in before it is saved to t
 
 - Code you write in a `unison` block is typechecked against the current branch. UCM reports what is new, and any type errors, in a generated block right after yours.
 - `update` saves the most recently typechecked block into the branch.
-- `load <file>` typechecks a file on disk instead, so that `update` then saves what is in that file. You need it for the files UCM writes when an action [can't finish](learn:ucm/temporary-branch).
+- `load <file>` typechecks a file on disk instead, so that `update` then saves what is in that file, and `update <file>` does both. You need it for the files UCM writes when an action [can't finish](learn:ucm/temporary-branch).
 - [`edit <name>`](learn:ucm/find) puts the source of a definition in the scratch file, so that you can change it, and `edit.to <file> <name>` puts it in a file of your own. After a search that numbers its results, `edit 1-3` brings those results in.
-- **The files UCM writes are real files**, in the directory the server was started in (or at the path you give): the file of `edit` and `edit.to`, the file [`rewrite`](learn:skills/refactor) produces, and the file of an action that [can't finish](learn:ucm/temporary-branch). They stay there for your next calls. `edit.to` adds to the top of a file that exists, so one file can collect the definitions of several commands. The reply shows what was added, not the whole file: read the file itself.
+- **The files UCM writes are real files**, in the directory the server was started in, or at the path you give (give `edit.to` a path in a directory you are allowed to edit): the file of `edit` and `edit.to`, the file [`rewrite`](learn:ucm/rewrite) rewrites, and the file of an action that [can't finish](learn:ucm/temporary-branch). They stay there for your next calls. `edit.to` adds to the top of a file that exists, leaving out what it already has, so one file can collect the definitions of several commands. The reply shows what was added, not the whole file: read the file itself.
+- **A `load` carries over to your next call:** `update` with no arguments saves what the last `load` typechecked, even in a later transcript, and `update work.u` loads the file and updates in one.
 
 ## Detail
 

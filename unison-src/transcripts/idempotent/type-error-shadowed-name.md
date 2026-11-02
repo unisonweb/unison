@@ -1,5 +1,8 @@
-When a file shadows a name in the codebase, a type error can still mention the codebase's definition. It's shown by its
-name, hash-qualified to tell it apart from the file's definition. It used to be shown as a bare hash.
+When a file redefines a type and uses a definition of the codebase that uses the old one (`area`, here), that definition
+is made part of the file, so that there is one `Shape` in play, and it is typechecked against the new type: here that
+shows `area` no longer covers every constructor. (Before this, the error was a mismatch between `Shape` and
+`Shape#oebc8v8v9l`, the codebase's, hash-qualified to tell it apart; a definition that still mentions the codebase's
+version is shown that way.)
 
 ``` ucm :hide
 > builtins.merge lib.builtin
@@ -40,12 +43,14 @@ type Shape = Circle Nat | Square Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  The 1st argument to `area`
+  Also typechecking, from the codebase: area. They use what this
+  file redefines, so they are part of the file now, and `update`
+  saves them rebuilt on the new definition.
 
-            has type:  Shape
-      but I expected:  Shape#oebc8v8v9l
+  Pattern match doesn't cover all possible cases:
+        7 | area = cases Circle n -> n
+    
 
-      1 | type Shape = Circle Nat | Square Nat
-      2 | 
-      3 | > area (Square 1)
+  Patterns not matched:
+   * Square _
 ```

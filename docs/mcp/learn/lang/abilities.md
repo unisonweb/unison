@@ -11,6 +11,7 @@ An ability is Unison's way to describe an effect a function can have, such as fa
 - **Return a delayed computation only for a computation that is itself the value,** like a `Stream` or a coroutine: take and return thunks, `'{g, Stream a} r -> '{g, Stream b} r`. For anything else, run the effects and put the abilities on the final arrow, `Nat ->{IO, Exception} Text`. The caller can write `do f x` to delay it.
 - The common abilities are `IO`, `Exception`, `Abort`, `Throw`, `Random`, `Each`, `Stream` and `Label` (see [errors](learn:lang/errors) and [the testing abilities](learn:testing/abilities)).
 - To run an ability's operation for each element, `List.foreach (x -> emit x) xs`: the function comes first.
+- To add an operation to an ability that exists, every handler needs a case for it: see [refactoring](learn:skills/refactor), which finds the handlers with `rewrite.find`.
 
 ## Detail
 

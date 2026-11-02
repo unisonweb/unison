@@ -25,7 +25,7 @@ This is git's `diff3` style. The first part is the version in the branch you are
 
 **The merge is line by line.** The file is a three-way merge of the text of the definitions, so if both branches changed one definition but on different lines, the changes combine with no markers. Look at those definitions too, since the result is a combination neither branch wrote.
 
-**After the markers are gone,** run [`load <file>`](learn:ucm/scratch-file) until it has no errors, then `update`, as in [temporary branches](learn:ucm/temporary-branch). To give up on the merge, run `cancel`.
+**After the markers are gone,** run [`load <file>`](learn:ucm/scratch-file) until it has no errors, then `update`, as in [temporary branches](learn:ucm/temporary-branch). If the dependents after the conflicts all need the same change, a [structural rewrite](learn:ucm/rewrite) of the file can make it. To give up on the merge, run `cancel`.
 
 **Merging from Unison Share.** `pull` is `merge` for a branch on [Unison Share](learn:ucm/share). It leaves you in the same situation when it can't finish.
 

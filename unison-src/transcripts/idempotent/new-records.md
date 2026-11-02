@@ -1178,26 +1178,29 @@ scratch/main> rewrite :litRule scratch.u
 
   I found and replaced matches in these definitions: targetLit
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: litRule
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): targetLit
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+litRule = @rewrite
+  case {x: 0} ==> {x: 1}
+
+targetLit : {x: Nat} -> Nat
+targetLit = cases
+  {x: 0} -> 100
+  {x: n} -> n
+```
+
+``` unison :added-by-ucm scratch.u
+litRule = @rewrite case {x: 0} ==> {x: 1}
 
 targetLit : {x: Nat} -> Nat
 targetLit = cases
   {x: 1} -> 100
   {x: n} -> n
-
----- The rewrites that were used. Unison ignores everything below this line.
-
-litRule = @rewrite case {x: 0} ==> {x: 1}
 ```
 
 ``` ucm :hide
@@ -1240,24 +1243,26 @@ scratch/main> rewrite :swapRule scratch.u
 
   I found and replaced matches in these definitions: targetSwap
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: swapRule
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): targetSwap
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+swapRule a b = @rewrite
+  case {x: a, y: b} ==> {x: b, y: a}
+
+targetSwap : {x: Nat, y: Nat} -> Nat
+targetSwap = cases
+  {x: p, y: q} -> p Nat.+ (q Nat.* 2)
+```
+
+``` unison :added-by-ucm scratch.u
+swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
 
 targetSwap : {x: Nat, y: Nat} -> Nat
 targetSwap = cases {x: q, y: p} -> p Nat.+ q Nat.* 2
-
----- The rewrites that were used. Unison ignores everything below this line.
-
-swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
 ```
 
 ``` ucm :hide
@@ -1297,24 +1302,26 @@ scratch/main> rewrite :wildRule scratch.u
 
   I found and replaced matches in these definitions: targetWild
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: wildRule
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): targetWild
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+wildRule _w = @rewrite
+  case {w: _w} ==> {w: 0}
+
+targetWild : {w: Nat} -> Nat
+targetWild = cases
+  {w: _} -> 7
+```
+
+``` unison :added-by-ucm scratch.u
+wildRule _w = @rewrite case {w: _w} ==> {w: 0}
 
 targetWild : {w: Nat} -> Nat
 targetWild = cases {w: 0} -> 7
-
----- The rewrites that were used. Unison ignores everything below this line.
-
-wildRule _w = @rewrite case {w: _w} ==> {w: 0}
 ```
 
 ## Rows

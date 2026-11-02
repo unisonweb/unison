@@ -4,12 +4,14 @@ module Unison.Codebase.Editor.HandleInput.Load
     EvalMode (..),
     evalUnisonFile,
     parseAndTypecheckUnisonFile,
+    pulledInDefinitions,
   )
 where
 
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -17,6 +19,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import System.Environment (withArgs)
+import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -30,8 +33,11 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..), modeProfSpec)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
+import Unison.Codebase.Editor.Input (RelativeToFold (AboveFold))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.SlurpResult (TermSlurp (..), TypeSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
@@ -71,6 +77,7 @@ import Unison.Typed (Typed (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -359,6 +366,89 @@ getTermAliases existingTerms slurpTerms =
               Just aliases -> Map.insert ref aliases acc
    in Set.foldl' step Map.empty changedRefs
 
+-- | A definition of the codebase that the file uses, and that itself uses something the file redefines, is made part of
+-- the file, unchanged (its source is added at the end), so that the file typechecks against one version of what it
+-- redefines and `update` saves that definition rebuilt. Without this, the file sees two types of the same name: its own,
+-- and the codebase's through that definition. The same goes for what those definitions use, transitively, as long as
+-- it depends on the redefinition.
+pullInDependentsOfRedefinitions ::
+  Codebase IO Symbol Ann ->
+  Names ->
+  Parser.ParsingEnv Sqlite.Transaction ->
+  Text ->
+  Text ->
+  UF.UnisonFile Symbol Ann ->
+  Cli (Text, UF.UnisonFile Symbol Ann)
+pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text uf =
+  liftIO (pulledInDefinitions codebase names uf) >>= \case
+    Nothing -> pure (text, uf)
+    Just (pulledNames, source) -> do
+      let text' = text <> "\n\n" <> source
+      uf' <-
+        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text') parsingEnv)
+          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text' [err])
+      Cli.respond (Output.PulledInDependents pulledNames)
+      pure (text', uf')
+
+-- | The definitions of the codebase to make part of a parsed file (see 'pullInDependentsOfRedefinitions'): their names,
+-- and their source, rendered with the given names. The LSP uses this too, on the file as it is being edited.
+pulledInDefinitions :: Codebase IO Symbol Ann -> Names -> UF.UnisonFile Symbol Ann -> IO (Maybe ([Name], Text))
+pulledInDefinitions codebase names uf = do
+  let fileTermNames = Set.map Name.unsafeParseVar (UFN.toTermAndWatchNames uf)
+      fileTypeNames = Set.map Name.unsafeParseVar (Map.keysSet (UF.dataDeclarationsId uf) <> Map.keysSet (UF.effectDeclarationsId uf))
+      redefined =
+        Defns
+          { terms = foldMap (Names.refTermsNamed names) fileTermNames,
+            types = foldMap (Names.typesNamed names) fileTypeNames
+          }
+  if Set.null redefined.terms && Set.null redefined.types
+    then pure Nothing
+    else do
+      let scope =
+            Defns
+              (Set.fromList [id | Referent.Ref ref <- Set.toList (Relation.ran names.terms), Just id <- [Reference.toId ref]])
+              (Set.fromList (mapMaybe Reference.toId (Set.toList (Relation.ran names.types))))
+      (pulledNames, types, terms) <-
+        Codebase.runTransaction codebase do
+          dependents <- Operations.transitiveDependentsWithinScope scope redefined
+          let -- The dependents that the file doesn't define itself (its own version of a dependent is the one to use).
+              affected :: Defns (Set TermReference) (Set TypeReference)
+              affected =
+                Defns
+                  (Set.map Reference.fromId dependents.terms `Set.difference` redefined.terms)
+                  (Set.map Reference.fromId dependents.types `Set.difference` redefined.types)
+              used = UF.dependencies uf
+              start = Defns (Set.intersection used.terms affected.terms) (Set.intersection used.types affected.types)
+              -- What the pulled-in definitions use, as long as it is affected too.
+              close acc = do
+                termDeps <- for (Set.toList acc.terms) \ref ->
+                  maybe mempty Term.dependencies <$> maybe (pure Nothing) (Codebase.getTerm codebase) (Reference.toId ref)
+                typeDeps <- for (Set.toList acc.types) \ref ->
+                  maybe mempty (Defns Set.empty . DataDeclaration.typeDependencies . DataDeclaration.asDataDecl)
+                    <$> maybe (pure Nothing) (Codebase.getTypeDeclaration codebase) (Reference.toId ref)
+                let more = fold termDeps <> fold typeDeps
+                    acc' =
+                      Defns
+                        (Set.union acc.terms (Set.intersection more.terms affected.terms))
+                        (Set.union acc.types (Set.intersection more.types affected.types))
+                if acc' == acc then pure acc else close acc'
+          pulled <- close start
+          let pulledNames =
+                Names
+                  { terms = Relation.restrictDom (Set.map Referent.Ref pulled.terms) (Relation.swap names.terms) & Relation.swap,
+                    types = Relation.restrictDom pulled.types (Relation.swap names.types) & Relation.swap
+                  }
+          (types, terms) <- getNamesForEdit codebase ppe pulledNames
+          pure (Set.toList (Relation.dom pulledNames.terms <> Relation.dom pulledNames.types), types, terms)
+      if null pulledNames
+        then pure Nothing
+        else do
+          rendered <- newIORef Nothing
+          _ <- renderToFile codebase (const True) (\_ txt _ -> writeIORef rendered (Just txt)) Nothing "pulled" AboveFold ppe terms types
+          fmap (pulledNames,) <$> readIORef rendered
+  where
+    ppe = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHashName names)
+
 parseAndTypecheckUnisonFile ::
   Names ->
   Text ->
@@ -380,9 +470,10 @@ parseAndTypecheckUnisonFile names sourceName text = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  unisonFile <-
+  unisonFile0 <-
     Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+  (text, unisonFile) <- pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text unisonFile0
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
   typecheckingEnv <-

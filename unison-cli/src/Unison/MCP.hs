@@ -15,6 +15,8 @@ import Data.Text.Encoding.Error qualified as Text
 import Network.MCP.Server qualified as MCP
 import Network.MCP.Transport.StdIO (newSTDIOTransport)
 import Network.MCP.Transport.Types (Message (..), Response (..), Transport (..))
+import System.Directory qualified as Directory
+import System.FilePath qualified as FilePath
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
@@ -42,12 +44,15 @@ data TranscriptArgs = TranscriptArgs
   { transcript :: Maybe Text,
     transcriptFile :: Maybe FilePath,
     -- | Repeat the long `unison` blocks in the reply too.
-    echo :: Bool
+    echo :: Bool,
+    -- | Where relative file names in the transcript are taken from, and where UCM writes files. Without it, the
+    -- directory the server was started in, which a client may not know.
+    directory :: Maybe FilePath
   }
 
 instance FromJSON TranscriptArgs where
   parseJSON = Aeson.withObject "TranscriptArgs" \o ->
-    TranscriptArgs <$> o .:? "transcript" <*> o .:? "transcript-file" <*> (fromMaybe False <$> o .:? "echo")
+    TranscriptArgs <$> o .:? "transcript" <*> o .:? "transcript-file" <*> (fromMaybe False <$> o .:? "echo") <*> o .:? "directory"
 
 instance HasInputSchema TranscriptArgs where
   toInputSchema _ =
@@ -66,7 +71,7 @@ instance HasInputSchema TranscriptArgs where
                   [ ("type", Aeson.String "string"),
                     ( "description",
                       Aeson.String
-                        "The path of a file containing a Unison transcript, relative to the server's working directory. Preferred for anything long: when something goes wrong you can edit just the part that needs fixing and run the file again, without sending the whole transcript each time. The file is not changed."
+                        "The path of a file containing a Unison transcript (relative to `directory`, if given). Preferred for anything long: when something goes wrong you can edit just the part that needs fixing and run the file again, without sending the whole transcript each time. The file is not changed."
                     )
                   ]
               ),
@@ -76,6 +81,15 @@ instance HasInputSchema TranscriptArgs where
                     ( "description",
                       Aeson.String
                         "Include the code of long unison blocks (more than 10 lines) in the reply. By default they are left out, since you just wrote them; the reply says which lines of the transcript they are."
+                    )
+                  ]
+              ),
+              ( "directory",
+                Aeson.object
+                  [ ("type", Aeson.String "string"),
+                    ( "description",
+                      Aeson.String
+                        "The directory that relative file names are taken from: a relative `transcript-file`, the files that `load`, `edit.to` and `rewrite` name, and the files UCM writes. Give a directory you can read and edit. Without it, relative names are taken from the directory the server was started in."
                     )
                   ]
               )
@@ -237,10 +251,11 @@ howToGiveTheTranscript :: Text
 howToGiveTheTranscript =
   "New to this? The `learn` tool explains the transcript format and how to use UCM and Unison. "
     <> "Give the transcript as `transcript` (its text) or, preferably for anything long, as `transcript-file` (the path of "
-    <> "a file that has it), so that when something goes wrong you can edit just the part that needs fixing and run it again."
+    <> "a file that has it), so that when something goes wrong you can edit just the part that needs fixing and run it again. "
+    <> "`directory` says where relative file names (in the transcript, and the files UCM writes) are taken from."
 
 runTranscript :: Transcript.Runner -> Codebase IO Symbol Ann -> OutputDir -> Tier -> TranscriptArgs -> IO CallToolResult
-runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcriptFile, echo} =
+runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcriptFile = transcriptFile0, echo, directory} =
   loadTranscript >>= \case
     Left problem -> pure (errorToolResult problem)
     Right (name, source, hint) -> do
@@ -263,7 +278,9 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
           case validate tier parsed ++ missing of
             violations@(_ : _) -> failed (renderViolations tier violations)
             [] -> do
-              (stdout, stderr, result) <- captureHandles (runner name source codebase)
+              -- Relative file names in the transcript are resolved by UCM against the process's working directory, so the
+              -- transcript runs in the directory asked for. Calls are handled one at a time, so this doesn't race.
+              (stdout, stderr, result) <- captureHandles (inDirectory (runner name source codebase))
               let withProgramOutput rendered =
                     rendered
                       <> section "Standard output" stdout
@@ -280,6 +297,12 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
                 Left Transcript.PortBindingFailure -> failed "The codebase server failed to start: no port was available."
                 Left (Transcript.Exception err) -> failed ("The transcript failed with an exception: " <> tShow err)
   where
+    inDirectory :: IO a -> IO a
+    inDirectory = maybe id Directory.withCurrentDirectory directory
+    -- A relative transcript file is relative to the directory asked for.
+    transcriptFile = case (directory, transcriptFile0) of
+      (Just dir, Just path) | FilePath.isRelative path -> Just (dir FilePath.</> path)
+      _ -> transcriptFile0
     -- The transcript's name (for error messages), its contents, and what to add to the reply.
     loadTranscript :: IO (Either Text (String, ByteString, Text))
     loadTranscript =

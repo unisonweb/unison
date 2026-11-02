@@ -41,6 +41,7 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Load (pulledInDefinitions)
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
@@ -120,8 +121,19 @@ checkFileContents fileUri sourceName fileVersion contents = do
           }
   (localBindingInfo, notes, parsedFile, typecheckedFile) <- do
     liftIO do
+      parseResult <- Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv)
+      -- As at `load`: a definition of the codebase that the file uses, and that uses what the file redefines, is
+      -- typechecked as part of the file, so that the editor reports what UCM would.
+      parseResult <- case Result.fromParsing parseResult of
+        Result.Result _ (Just parsedFile0) ->
+          pulledInDefinitions cb parseNames parsedFile0 >>= \case
+            Nothing -> pure parseResult
+            Just (_, source) ->
+              Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack (srcText <> "\n\n" <> source)) parsingEnv) <&> \case
+                Left _ -> parseResult
+                withPulled -> withPulled
+        _ -> pure parseResult
       Codebase.runTransaction cb do
-        parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
         case Result.fromParsing parseResult of
           Result.Result parsingNotes Nothing -> pure (mempty, parsingNotes, Nothing, Nothing)
           Result.Result _ (Just parsedFile) -> do

@@ -237,7 +237,7 @@ data Input
   | UndoI
   | RedoI
   | UpI
-  | Update2I
+  | Update2I (Maybe FilePath) -- a file to load first, as `load` would
   | UpdateBuiltinsI
   | UpgradeCommitI
   | UpgradeI ![NameSegment]
