@@ -53,7 +53,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText, toVar)
-import Unison.Syntax.Name qualified as Name (unsafeParseText)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
@@ -73,7 +73,7 @@ handleStructuredFindReplaceI spec target = do
     Just (RewriteFile path) -> do
       uf0 <- loadAndParse path
       dest <- newRewritesPath (rewritesDirectoryFor path) (Just (takeBaseName path))
-      applyRewrites False ruleTerms (UFN.toNames uf0 <> ruleNames <> branchNames) dest uf0
+      applyRewrites False ruleTerms ruleNames branchNames dest uf0
     Just (RewriteNamespace path0) -> rewriteDefinitionsIn (Just path0) currentBranch ruleTerms ruleNames
     Nothing -> rewriteDefinitionsIn Nothing currentBranch ruleTerms ruleNames
   where
@@ -113,24 +113,56 @@ handleStructuredFindReplaceI spec target = do
             Cli.runTransaction (Parsers.parseFile "rewrites" (Text.unpack text) parsingEnv)
               & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
           dest <- newRewritesPath "rewrites" Nothing
-          applyRewrites True ruleTerms (UFN.toNames uf0 <> ruleNames <> branchNames) dest uf0
+          applyRewrites True ruleTerms ruleNames branchNames dest uf0
 
 -- | Apply the rewrites to the definitions of a parsed file, and write the result, if anything changed, to a new file.
 applyRewrites ::
   -- | Whether to leave the definitions that didn't change out of the new file
   Bool ->
   [(HQ.HashQualified Name, Term Symbol Ann)] ->
+  -- | The names the rules' file defines, if they came from a file
+  Names ->
+  -- | The names of the branch
   Names ->
   FilePath ->
   UF.UnisonFile Symbol Ann ->
   Cli ()
-applyRewrites onlyChanged ruleTerms names dest uf0 = do
+applyRewrites onlyChanged ruleTerms0 ruleNames branchNames dest uf0 = do
   env <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestFile
   let (prepare, uf, finish) = UF.prepareRewrite uf0
+      -- The rules may name definitions that the target file defines too, as when the rules are in the target file itself,
+      -- with the new version of a definition they rewrite uses of. Typechecking the rules' file gave those definitions
+      -- hashes of their own, but the rewritten code has to refer to the target's: so a rule's reference to such a term
+      -- becomes the term's name, which the file binds, and a reference to such a type or constructor becomes the target's.
+      targetDeclNames = UFN.toNames uf0
+      targetTermNames = Set.map Name.unsafeParseVar (UFN.toTermAndWatchNames uf0)
+      termVars =
+        Map.fromList
+          [(ref, Name.toVar name) | (name, Referent.Ref ref) <- Relation.toList ruleNames.terms, Set.member name targetTermNames]
+      conUpdates =
+        Map.fromList
+          [ (con, con')
+          | (name, con@Referent.Con {}) <- Relation.toList ruleNames.terms,
+            con' <- Set.toList (Relation.lookupDom name targetDeclNames.terms),
+            con /= con'
+          ]
+      typeUpdates =
+        Map.fromList
+          [ (ref, ref')
+          | (name, ref) <- Relation.toList ruleNames.types,
+            ref' <- Set.toList (Relation.lookupDom name targetDeclNames.types),
+            ref /= ref'
+          ]
+      retarget =
+        Term.updateDependencies conUpdates typeUpdates . ABT.rebuildUp' \case
+          tm@(Term.Ref' ref) | Just v <- Map.lookup ref termVars -> Term.var (ABT.annotation tm) v
+          tm -> tm
+      ruleTerms = second retarget <$> ruleTerms0
   rules <- extractRules InvalidStructuredFindReplace prepare ruleTerms
-  let allNames = fileNames <> names
+  let -- For a name the target file defines, its definition is the one to show, not the rules' file's or the latest file's.
+      allNames = targetDeclNames `Names.shadowing` (fileNames <> ruleNames <> branchNames)
       ppe = PPED.makePPED (PPE.hqNamer hqLength allNames) (PPE.suffixifyByHash allNames)
       go n tm [] = if n == (0 :: Int) then Nothing else Just tm
       go n tm ((r, _) : rules) = case r tm of
@@ -139,7 +171,15 @@ applyRewrites onlyChanged ruleTerms names dest uf0 = do
       leaveAlone = Set.fromList [HQ.toVar rule | (rule, _) <- ruleTerms]
       (vs, uf0') = UF.rewrite leaveAlone (\tm -> go 0 tm rules) uf
       finished = finish uf0'
-      uf' = (vs, if onlyChanged then finished & #terms %~ (`Map.restrictKeys` Set.fromList vs) else finished)
+      -- The rules, when they are in the file being rewritten, go below a fold line in the new file, so that `update`
+      -- doesn't add them to the branch.
+      (ruleDefinitions, rest) = finished & #terms %%~ Map.partitionWithKey (\v _ -> Set.member v leaveAlone)
+      uf' = (vs, if onlyChanged then rest & #terms %~ (`Map.restrictKeys` Set.fromList vs) else rest)
+      rulesBelowFold
+        | onlyChanged || Map.null ruleDefinitions = ""
+        | otherwise =
+            "\n\n---- The rewrites that were used. Unison ignores everything below this line.\n\n"
+              <> P.toPlain 80 (P.prettyUnisonFile ppe (UF.UnisonFileId Nothing mempty mempty ruleDefinitions mempty))
       header =
         [ "Rewrote using: " <> Text.intercalate ", " (HQ.toText . fst <$> ruleTerms),
           "Review the definitions below, then typecheck this file (`load " <> Text.pack dest <> "`) and run `update` when you are done."
@@ -149,8 +189,8 @@ applyRewrites onlyChanged ruleTerms names dest uf0 = do
     [] -> pure ()
     _ -> do
       #latestFile ?= (dest, True)
-      let rendered = P.toPlain 80 $ renderRewrittenFile ppe header uf'
-      liftIO $ env.writeSource (Text.pack dest) rendered True
+      let rendered = P.toPlain 80 (renderRewrittenFile ppe header uf') <> rulesBelowFold
+      liftIO $ env.writeSource (Text.pack dest) rendered False
   Cli.respond $ OutputRewrittenFile dest vs
 
 -- | The directory that a file of rewrites goes in, for rewrites of the given file: a @rewrites@ directory beside it, or

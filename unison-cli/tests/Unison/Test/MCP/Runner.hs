@@ -10,8 +10,9 @@ import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import EasyTest
-import System.Directory (listDirectory, removeDirectoryRecursive, removeFile)
+import System.Directory (doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.IO.Temp qualified as Temp
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.Merge2 (lineMergedNames, lineMergedNote)
@@ -71,6 +72,26 @@ test =
         result <- runTranscriptWith mcp conflictingMerge
         liftIO (listDirectory "." >>= traverse_ removeFile . filter (\file -> "merge-" `isPrefixOf` file && ".u" `isSuffixOf` file))
         expectFailureMentioning ["lines", "1 conflict,", "Search the file for"] result,
+      scope "a file UCM writes for the MCP server is on disk, added to across transcripts, and loadable" do
+        (dir, file) <- workFile
+        first <- runTranscriptWith mcp (definition "foo" <> ucm ["scratch/main> edit.to " <> Text.pack file <> " foo"])
+        either (crash . show) (const (pure ())) first
+        second <- runTranscriptWith mcp (definition "bar" <> ucm ["scratch/main> edit.to " <> Text.pack file <> " bar"])
+        expect (not (failed second))
+        contents <- io (Text.readFile file)
+        expectTextContaining ["bar : Nat", "foo : Nat"] contents
+        -- The newer definition goes above the older one, as at the command line.
+        expect' (Text.length (fst (Text.breakOn "bar" contents)) < Text.length (fst (Text.breakOn "foo" contents)))
+        loaded <- runTranscriptWith mcp (ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> load " <> Text.pack file])
+        either (crash . show) (expectTextContaining ["bar : Nat", "foo : Nat"] . Text.pack . renderOutput) loaded
+        io (removeDirectoryRecursive dir),
+      scope "a transcript test keeps the files UCM writes in memory" do
+        (dir, file) <- workFile
+        result <- runTranscriptWith testConfig (definition "foo" <> ucm ["scratch/main> edit.to " <> Text.pack file <> " foo"])
+        either (crash . show) (const (pure ())) result
+        exists <- io (doesFileExist file)
+        expect (not exists)
+        io (removeDirectoryRecursive dir),
       scope "a definition both branches changed on different lines is named as merged at the line level" do
         let version a c = Text.unlines ["f x =", "  a = " <> a, "  b = 7", "  c = " <> c, "  a + b + c"]
             texts = Map.singleton (Name.unsafeParseText "f") <$> Merge.ThreeWay {Merge.alice = version "x + 10" "x + 2", Merge.bob = version "x + 1" "x + 20", Merge.lca = version "x + 1" "x + 2"}
@@ -87,6 +108,29 @@ test =
     mcp = const Transcript.mcpConfig
     testConfig = Transcript.testConfig
     failed = isLeft
+    -- A fresh temporary directory and a `.u` file in it, for the files UCM writes.
+    workFile = io do
+      dir <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-mcp-runner-files"
+      pure (dir, dir <> "/work.u")
+
+-- | A transcript that adds a definition of the given name to the codebase.
+definition :: Text -> Text
+definition name =
+  Text.unlines
+    [ "``` ucm",
+      "scratch/main> builtins.merge lib.builtins",
+      "```",
+      "",
+      "``` unison",
+      name <> " : Nat",
+      name <> " = 1",
+      "```",
+      "",
+      "``` ucm",
+      "scratch/main> add",
+      "```",
+      ""
+    ]
 
 undocumented :: Text
 undocumented =

@@ -94,7 +94,11 @@ data Config = Config
     outputIsNumberedFailure :: Output.NumberedOutput -> Bool,
     -- | Whether a command's context (like @myproject/main>@) that names a project or branch that doesn't exist creates it, which
     -- transcript tests rely on. When it's off, the transcript stops with an error that lists what does exist.
-    createMissingContexts :: Bool
+    createMissingContexts :: Bool,
+    -- | Whether the files UCM writes (for `edit`, `edit.to`, `rewrite` and so on) go to disk, prepended to the file if it exists,
+    -- as at the command line, so that they outlive the transcript. A transcript test keeps them in memory, where they last
+    -- for the one transcript.
+    writeFiles :: Bool
   }
 
 -- | A reasonable set of defaults to use.
@@ -112,7 +116,8 @@ defaultConfig =
       unattended = False,
       outputIsFailure = Output.isFailure,
       outputIsNumberedFailure = Output.isNumberedFailure,
-      createMissingContexts = True
+      createMissingContexts = True,
+      writeFiles = False
     }
 
 -- | What the MCP server uses: an agent is driving UCM, so an empty result is not an error that stops the transcript, and a command
@@ -127,7 +132,9 @@ mcpConfig =
       fzfPath = pure "NONE",
       outputIsFailure = Output.isFailureForMcp,
       outputIsNumberedFailure = Output.isNumberedFailureForMcp,
-      createMissingContexts = False
+      createMissingContexts = False,
+      -- An agent works across many transcripts, so a file it asks for has to be there for the next one.
+      writeFiles = True
     }
 
 testConfig :: FilePath -> Config
@@ -554,10 +561,15 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
           =<< readIORef unisonFiles
 
       writeSource :: ScratchFileName -> Text -> Bool -> IO ()
-      writeSource fp contents _addFold = do
+      writeSource fp contents addFold = do
         shouldShowSourceChanges <- (== Shown) <$> readIORef isHidden
         when shouldShowSourceChanges . atomically $ Q.enqueue ucmScratchFileUpdatesQueue (fp, contents)
-        updateVirtualFile fp contents
+        if writeFiles config
+          then do
+            defaultWriteSourceFile fp contents addFold
+            -- The file on disk is now the one to load, not a block of this transcript with the same name.
+            modifyIORef' unisonFiles (Map.delete fp)
+          else updateVirtualFile fp contents
 
       updateVirtualFile :: ScratchFileName -> Text -> IO ()
       updateVirtualFile fp = modifyIORef' unisonFiles . Map.insert fp

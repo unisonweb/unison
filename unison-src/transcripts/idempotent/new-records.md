@@ -1190,12 +1190,14 @@ scratch/main> rewrite :litRule scratch.u
 -- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetLit
 
-litRule = @rewrite case {x: 0} ==> {x: 1}
-
 targetLit : {x: Nat} -> Nat
 targetLit = cases
   {x: 1} -> 100
   {x: n} -> n
+
+---- The rewrites that were used. Unison ignores everything below this line.
+
+litRule = @rewrite case {x: 0} ==> {x: 1}
 ```
 
 ``` ucm :hide
@@ -1250,10 +1252,12 @@ scratch/main> rewrite :swapRule scratch.u
 -- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetSwap
 
-swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
-
 targetSwap : {x: Nat, y: Nat} -> Nat
 targetSwap = cases {x: q, y: p} -> p Nat.+ q Nat.* 2
+
+---- The rewrites that were used. Unison ignores everything below this line.
+
+swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
 ```
 
 ``` ucm :hide
@@ -1305,10 +1309,12 @@ scratch/main> rewrite :wildRule scratch.u
 -- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
 -- | Modified definition(s): targetWild
 
-wildRule _w = @rewrite case {w: _w} ==> {w: 0}
-
 targetWild : {w: Nat} -> Nat
 targetWild = cases {w: 0} -> 7
+
+---- The rewrites that were used. Unison ignores everything below this line.
+
+wildRule _w = @rewrite case {w: _w} ==> {w: 0}
 ```
 
 ## Rows

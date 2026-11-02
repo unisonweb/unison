@@ -1204,6 +1204,7 @@ sfindReplace =
               <> "(For a file target, it is `rewrites/<file>-<yyyy-mm-dd-hh-mm>-<short-guid>.u` in a `rewrites` directory next to the file,"
               <> "unless the file is already in one, and then the new file goes beside it, so that all the rewrites of a file sort together.)"
               <> "Nothing is changed in the branch or in the target file until you `update`."
+              <> "When the rules are in the file being rewritten, they go at the end of the new file, below a fold line, where `update` doesn't see them."
               <> "Review that file, typecheck it with"
               <> makeExample' load
               <> "and run"
