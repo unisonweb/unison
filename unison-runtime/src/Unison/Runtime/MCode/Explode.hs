@@ -103,7 +103,7 @@ module Unison.Runtime.MCode.Explode
 where
 
 import Control.Monad (foldM)
-import Control.Monad.State.Strict (State, evalState, get, modify, put, runState)
+import Control.Monad.State.Strict (State, evalState, get, modify, put, runState, state)
 import Data.Bifunctor (first)
 import Data.Bits (shiftL, (.|.))
 import Data.Foldable (toList)
@@ -111,7 +111,7 @@ import Data.List (elemIndex)
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Set qualified as Set
-import Data.Word (Word64)
+import Data.Word (Word16, Word64)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Reference (Reference)
@@ -719,20 +719,39 @@ prepare b (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs
 -- changed ('Prepared').
 prepareBody :: (Var v) => Batch -> Maybe Shape -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v])
 prepareBody b ms bd
-  | not explodeArgsOn && not explodeReturnsOn = (bd, M.empty, M.empty)
+  | not explodeArgsOn && not explodeReturnsOn = (uniqueBody bd, M.empty, M.empty)
   | otherwise = (dropDead (useSpecs b (maybe id (yieldLeaves b) ms rets)), srcs, lets)
   where
     (rets, srcs, lets) = useReturns b (sinkCalls (uniqueBody bd))
 
--- | The body with a name of its own for every binder. Normalization reuses
--- a name under shadowing (the blank variables), and 'ABTN.freshen' gives
--- a name back once the binder's scope is over, while everything here maps
--- variables by name. Only a binder already bound elsewhere in the body is
--- renamed, so that a body whose binders are already unique comes back as
--- it is: the unoptimized body is renamed the same way, and the names are
--- what pairs its lets with the optimized body's ('Prepared').
+-- | The body with a name of its own for every binder and an index of its
+-- own for every indirect let. Normalization reuses a name under
+-- shadowing (the blank variables), and 'ABTN.freshen' gives a name back
+-- once the binder's scope is over, while everything here maps variables
+-- by name. Only a binder already bound elsewhere in the body is renamed,
+-- so that a body whose binders are already unique comes back as it is:
+-- the unoptimized body is renamed the same way, and the names are what
+-- pairs its lets with the optimized body's ('Prepared'). The let indices
+-- number the sections of the emitted combinator, and the ones
+-- normalization assigned repeat once the ANF optimizer has inlined a
+-- body whose lets carry their own ('uniqueLets'), which is also why the
+-- renaming is applied with every rewrite off.
 uniqueBody :: (Var v) => ANormal Reference v -> ANormal Reference v
-uniqueBody bd = evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)), Set.empty)
+uniqueBody bd = uniqueLets (evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)), Set.empty))
+
+-- | The indirect lets numbered 1, 2, .. in the order they appear, binding
+-- before body, so that the same body always gets the same numbers: a
+-- continuation names the sections it resumes by them, in this process
+-- and in any other.
+uniqueLets :: (Var v) => ANormal Reference v -> ANormal Reference v
+uniqueLets bd = evalState (go bd) (1 :: Word16)
+  where
+    go (ABTN.Term _ (ABTN.Abs u b)) = ABTN.TAbs u <$> go b
+    go (ABTN.Term _ (ABTN.Tm f)) = case f of
+      ALet (Indirect _) ccs bn bo -> do
+        w <- state (\n -> (n, n + 1))
+        ABTN.TTm <$> (ALet (Indirect w) ccs <$> go bn <*> go bo)
+      _ -> ABTN.TTm <$> traverse go f
 
 -- | The state is the names in use, and the binders seen so far.
 uniqueBinders :: (Var v) => M.Map v v -> ANormal Reference v -> State (Set.Set v, Set.Set v) (ANormal Reference v)

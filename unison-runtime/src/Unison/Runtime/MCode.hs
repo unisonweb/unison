@@ -1660,22 +1660,16 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
     Just pats -> foldMapM (\(k, pat) -> let p = specialise b pat ent in fst <$> emitComb rns grpr grpn (recFor 0 ent p) (specIndex k, preparedLambda p)) (zip [1 ..] pats)
     Nothing -> pure mempty
   auxEs <- foldMapM (\(ix, lam) -> let p = prepare b lam in fst <$> emitComb rns grpr grpn (recFor ix lam p) (ix, preparedLambda p)) (zip ixs cmbs)
-  -- the group needs its unoptimized form beside it when a frame of its
-  -- own lambdas (not of the workers, which are extra) differs from the
-  -- unoptimized code's: then a continuation from another process resumes
-  -- in the copy, and this process's recipes name its sections. The copy
-  -- is the unoptimized lambdas emitted as they are; renaming binders
-  -- changes no frame and no section, which is checked.
+  -- the group needs its unoptimized form beside it when a frame or a
+  -- section number of its own lambdas (not of the workers, which are
+  -- extra) differs from the unoptimized code's: then a continuation from
+  -- another process resumes in the copy, and this process's recipes name
+  -- its sections. The copy is the unoptimized lambdas as emitted above,
+  -- their binders renamed and their lets numbered as 'uniqueBody' does,
+  -- which is what a process with every rewrite off emits for the group
+  -- ('prepareBody'), so the two agree on every section's number.
   let rewritten = or [isJust (baseFrames lay) | (_, Comb _ lay) <- EC.mapToList (es <> auxEs)]
-      unique = foldMap (fst . snd) bases
-  base <-
-    if rewritten
-      then do
-        raw <- foldMapM (\(ix, lam) -> fst <$> emitComb rns grpr grpnBase rec (ix, lam)) lams
-        if raw == unique
-          then pure (Just unique)
-          else internalBug [] $ "emitCombs: renaming the binders of " ++ show grpr ++ " changed its code"
-      else pure Nothing
+      base = if rewritten then Just (foldMap (fst . snd) bases) else Nothing
   pure (es <> ret <> specs <> auxEs, base)
   where
     b = batchOf rns
@@ -1855,9 +1849,7 @@ deoptOf rns bi n us chain
         | any ((== Just b1) . fst) bchain -> takeWhile ((/= Just b1) . fst) bchain
         | otherwise -> internalBug [] $ "deoptOf: the enclosing let's unoptimized section " ++ show b1 ++ " is not among the frames of " ++ show bidx
     labelled = zip (bidx : [fromMaybe (internalBug [] "deoptOf: an outer frame without a let") lbl | (lbl, _) <- drop 1 produced]) (map snd produced)
-    identity = case (produced, chain) of
-      ([(_, bes)], (_, oes) : _) -> bidx == n && length bs == length us && bes == oes
-      _ -> False
+    identity = bidx == n && length bs == length us && produced == chain
     frame (ix, entries) = BaseFrame ix <$> traverse slot entries
     slot ETag = internalBug [] "deoptOf: a tag slot in a frame the explosion rewrote"
     slot (EVar w) = var (0 :: Int) w
@@ -1867,7 +1859,22 @@ deoptOf rns bi n us chain
       | Just (Left u) <- M.lookup w (baseSources bi) = var (depth + 1) u
       | Just (Right b) <- M.lookup w (baseSources bi) = pack depth b
       | Just b <- M.lookup w (baseCons bi) = pack depth b
-      | otherwise = internalBug [] $ "deoptOf: no source for " ++ show w ++ " in the frames of " ++ show n
+      | otherwise =
+          internalBug [] $
+            "deoptOf: no source for "
+              ++ show w
+              ++ " in the frames of "
+              ++ show n
+              ++ "; unoptimized let "
+              ++ show bs
+              ++ " (section "
+              ++ show bidx
+              ++ ") with frames "
+              ++ show produced
+              ++ "; optimized let "
+              ++ show us
+              ++ " with frames "
+              ++ show chain
     pack depth (BuiltCon r t fs) = PackSlot r (packTags (toEnum . fromIntegral $ dnum rns r) t) <$> traverse (var (depth + 1)) fs
     pack depth (BuiltRec rs fs) = RecSlot <$> recordShape (recNum rns rs) rs <*> traverse (var (depth + 1)) fs
     optSlot w = listToMaybe [(d, i) | (d, (_, es)) <- zip [0 ..] chain, (i, EVar x) <- zip [0 ..] es, x == w]

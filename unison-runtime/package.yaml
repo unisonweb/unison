@@ -80,9 +80,7 @@ library:
     - asn1-encoding
     - asn1-types
     - atomic-primops
-    - avro
     - base
-    - binary
     - bytes
     - bytestring
     - clock

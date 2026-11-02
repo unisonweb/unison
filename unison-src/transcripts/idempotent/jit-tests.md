@@ -1805,6 +1805,147 @@ scratch/main> run serialTest
   ]
 ```
 
+A handler shaped like base's `Random.splitmix`: a local recursive handler
+whose every arm installs itself again around the continuation. The
+normalizer floats each such arm out and the optimizer inlines it back, so
+the arms' indirect lets come numbered alike (the `split` arm's 1 and 2, the
+`bytes` arm's 1 again), and until 2026-11-01 the emitter numbered sections
+by those numbers: a `Let` instruction holds its own section, so the
+interpreter ran, but the section table that a serialized continuation and
+the deoptimization tables look sections up in kept one of the two, and
+loading such a handler stopped on `deoptOf: no source for seed''`. Lets are
+numbered per lambda now. The handler is run under an outer handler that
+captures and serializes a continuation at each request; the third, made
+inside the function the `split` arm returns, has nine slots in its frame,
+which the loader miscounted until 2026-11-01 (every loaded continuation got
+1 minus its frame size as its pending-argument count, since a segment is a
+pair of arrays and `length` of a pair is 1), so resuming it ran off the
+stack.
+
+``` unison
+use Nat + * - ==
+
+structural ability Ask where
+  ask : Nat
+
+answer : Nat -> Request {Ask} Nat -> Nat
+answer x = cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k x with answer (x + 1)
+
+structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
+
+suspendAt : Nat -> '{Ask} Nat -> Outcome
+suspendAt m c =
+  h : Nat -> Request {Ask} Nat -> Outcome
+  h j = cases
+    { r } -> Done r
+    { Ask.ask -> k } -> if j == m then Suspended k else handle k (j + 1) with h (j + 1)
+  handle !c with h 0
+
+finish : Outcome -> Nat
+finish = cases
+  Done r -> r
+  Suspended k -> handle k 100 with answer 101
+
+roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+roundTrip m c =
+  direct = finish (suspendAt m c)
+  match suspendAt m c with
+    Done _ -> "no request to suspend at"
+    Suspended k ->
+      match ##Value.deserialize (##Value.serialize (##Value.value k)) with
+        Left err -> "deserialize: " ++ err
+        Right v -> match ##Value.load v with
+          Left _ -> "load: missing dependencies"
+          Right k' ->
+            r = finish (Suspended k')
+            (if r == direct then "same, " else "DIFFERENT, ") ++ Nat.toText r ++ " and " ++ Nat.toText direct
+
+structural ability Gen where
+  bytes : Nat ->{Gen} [Nat]
+  next : {Gen} Nat
+  split : {Gen} (∀ g a. '{g, Gen} a ->{g} a)
+
+natsFrom : '{g} Nat -> Nat ->{g} [Nat]
+natsFrom g n = if n == 0 then [] else !g +: natsFrom g (n - 1)
+
+total : [Nat] -> Nat
+total = cases
+  [] -> 0
+  x +: rest -> x + total rest
+
+mix : Nat -> Nat
+mix x = if Nat.mod x 2 == 0 then x * 31 + 7 else x * 17 + 3
+
+-- base's Random.splitmix handler: each arm installs the handler again
+-- around the continuation, which the normalizer floats and the optimizer
+-- inlines back, so the arms' lets come numbered alike
+gen : Nat -> Nat -> Request {Gen} a -> a
+gen seed gamma =
+  go : ∀ x. Nat -> Nat -> Request {Gen} x -> x
+  go seed gamma = cases
+    { r } -> r
+    { Gen.split -> k } ->
+      seed' = seed + gamma
+      seed'' = seed' + gamma
+      handle k (c -> (handle c() with go seed'' gamma))
+      with go (mix seed') (mix seed'')
+    { Gen.next -> k } ->
+      seed' = seed + gamma
+      handle k (mix seed') with go seed' gamma
+    { Gen.bytes n -> k } ->
+      handle k (natsFrom (do Gen.next) n) with go seed gamma
+  go seed gamma
+
+genUse : Nat ->{Ask} Nat
+genUse n =
+  handle
+    a = Gen.next
+    b = Gen.split '(Gen.next + Ask.ask)
+    xs = Gen.bytes n
+    x = Ask.ask
+    y = Gen.split '(Ask.ask)
+    a + b + x + y + total xs
+  with gen 1 2
+
+genTest : '{IO, Exception} [Text]
+genTest = do
+  [ roundTrip 0 '(genUse 3),
+    roundTrip 1 '(genUse 3),
+    roundTrip 2 '(genUse 3) ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural ability Gen
+  + structural type Outcome
+
+  + answer    : Nat -> Request {Ask} Nat -> Nat
+  + finish    : Outcome -> Nat
+  + gen       : Nat -> Nat -> Request {Gen} a -> a
+  + genTest   : '{IO, Exception} [Text]
+  + genUse    : Nat ->{Ask} Nat
+  + mix       : Nat -> Nat
+  + natsFrom  : '{g} Nat -> Nat ->{g} [Nat]
+  + roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+  + suspendAt : Nat -> '{Ask} Nat -> Outcome
+  + total     : [Nat] -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run genTest
+
+  [ "same, 31410 and 31410"
+  , "same, 31309 and 31309"
+  , "same, 31210 and 31210"
+  ]
+```
+
 ## Preemption
 
 A thread stuck in a loop that never allocates must still be killable. Compiled code polls at

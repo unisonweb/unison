@@ -248,7 +248,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (951 terms, 138 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (856 terms, 116 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -878,7 +878,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#nvv8j656nn\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#0v8ve6aqdp\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#nvv8j656nn\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
+                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#ufmmjhnk01\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#e7cl88rrs5\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#ufmmjhnk01\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
                   "type": "text"
               }
           ],
@@ -916,7 +916,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #0v8ve6aqdp\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #nvv8j656nn (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #e7cl88rrs5\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #ufmmjhnk01 (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],

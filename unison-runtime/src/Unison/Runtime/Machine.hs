@@ -2318,7 +2318,14 @@ reflectValue env val = do
   cmbs <- readTVarIO (combs env)
   tyr <- readTVarIO (tagRefs env)
   tmr <- readTVarIO (combRefs env)
-  reflectValue0 cmbs tyr tmr val
+  -- a continuation loaded from another process resumes in a group's
+  -- unoptimized copy (reifyValue's goPushIx), whose number is not a
+  -- combinator reference of its own, so a frame naming one reflects as
+  -- the group's reference (found 2026-11-01: random-deserial, which
+  -- loads and serializes every stored continuation, could not name them)
+  bns <- readTVarIO (baseNums env)
+  let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
+  reflectValue0 cmbs tyr tmr' val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -2683,10 +2690,14 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
       vs' <- goVs (widenCont (frameLayout combs) k' vs)
       pure . boxedVal $ cv k' vs'
       where
+        -- the pending arguments: the slots beyond what the frames hold
+        -- (a segment is a pair of arrays, so 'length' of one is 1, which
+        -- until 2026-11-01 gave every loaded continuation 1 - ksz pending
+        -- arguments: right only when its frames held a single slot)
         cv k s = Captured k a s
           where
             ksz = frameDataSize k
-            a = fromIntegral $ length s - ksz
+            a = scount s - ksz
     goV (ANF.BLit l) = goL l
 
     goK ANF.KE = pure KE
@@ -2814,10 +2825,14 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
       vs' <- goVs (widenCont (frameLayout combs) k' vs)
       pure . boxedVal $ cv k' vs'
       where
+        -- the pending arguments: the slots beyond what the frames hold
+        -- (a segment is a pair of arrays, so 'length' of one is 1, which
+        -- until 2026-11-01 gave every loaded continuation 1 - ksz pending
+        -- arguments: right only when its frames held a single slot)
         cv k s = Captured k a s
           where
             ksz = frameDataSize k
-            a = fromIntegral $ length s - ksz
+            a = scount s - ksz
     goV (ANF.BLit l) = goL l
 
     goK ANF.KE = pure KE

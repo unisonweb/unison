@@ -15,8 +15,7 @@ stack exec --work-dir .stack-work-opt unison -- -C "$(scripts/testing-codebase.s
 
 Each row does 100000 operations (or builds, sorts or walks 100000 elements in all), so a time
 in milliseconds times ten is nanoseconds per operation; the JSON rows say their own counts. The results and the tags they decided are in
-`unison-runtime/src/Unison/Runtime/JIT/benchmarks/2026-10-11-replacements.md`. The
-`Avro.decodeBinary` replacement is not here: the codebase has no Avro library.
+`unison-runtime/src/Unison/Runtime/JIT/benchmarks/2026-10-11-replacements.md`.
 
 ``` unison
 -- keys in a scrambled order, so that the balancing runs
