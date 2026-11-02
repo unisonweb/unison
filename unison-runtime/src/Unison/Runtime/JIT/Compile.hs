@@ -54,7 +54,7 @@ import Unison.Runtime.JIT.Layout (Layouts)
 import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize, poolTypes)
 import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
-import Unison.Runtime.MCode.Explode (retIndex)
+import Unison.Runtime.MCode.Explode (isJoinIndex, retIndex)
 import Unison.Runtime.Stack (MCombs, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Util.Deque qualified as D
@@ -300,8 +300,8 @@ compileTotals c = do
 -- when a second runtime (with a code cache of its own) is started: the
 -- names of a group whose number has been seen with different cells get a
 -- suffix.
-groupUnits :: Compiler -> Bool -> Bool -> Reference -> Word64 -> MCombs -> IO ([Unit], [Unit])
-groupUnits c sandbox lazy ref grp combs = do
+groupUnits :: Compiler -> Bool -> Bool -> Bool -> Reference -> Word64 -> MCombs -> IO ([Unit], [Unit])
+groupUnits c sandbox lazy copying ref grp combs = do
   suffix <- case [cell | (_, _, _, _, cell) <- every] of
     [] -> pure ""
     first : _ -> atomicModifyIORef' (cGroupCells c) $ \m ->
@@ -313,7 +313,9 @@ groupUnits c sandbox lazy ref grp combs = do
   pure (map (unit suffix False) now, map (unit suffix True) later)
   where
     letCells = Set.fromList [c | Comb (LamI _ _ s _) _ <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
-    candidates = [c | c@(i, _, _, _, cell) <- every, isEntry i || Set.member cell letCells]
+    -- a join point (Explode's 'joinIndex') is called only from its own
+    -- group, so a copy for another module has no caller
+    candidates = [c | c@(i, _, _, _, cell) <- every, (isEntry i && not (copying && isJoinIndex i)) || Set.member cell letCells]
     every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell) _) <- EC.mapToList combs, cell /= noNativeCell]
     isEntry i = i .&. 0x7FFF == 0
     now = [c | c@(i, _, _, _, _) <- candidates, isEntry i || not lazy]
@@ -344,7 +346,7 @@ groupUnits c sandbox lazy ref grp combs = do
 copyUnits :: Compiler -> Bool -> Reference -> Word64 -> MCombs -> IO [Unit]
 copyUnits c sandbox ref grp combs = do
   n <- atomicModifyIORef' (cCopyCounter c) (\k -> (k + 1, k))
-  (now, _) <- groupUnits c sandbox True ref grp combs
+  (now, _) <- groupUnits c sandbox True True ref grp combs
   -- a product-return worker is called only from its own batch's module
   let copy u =
         u

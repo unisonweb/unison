@@ -20,6 +20,7 @@ setting() {
     none) echo "none" ;;
     args) echo "-explode_returns" ;;
     returns) echo "-explode_args" ;;
+    known) echo "-known_constructor" ;;
   esac
 }
 run() {
@@ -34,8 +35,8 @@ run() {
   if echo "$out" | grep -E "^[A-Za-z]+ [0-9]+ (sent by|from) " | grep -q "FAIL"; then status=1; fi
 }
 for jit in off on eager; do
-  for s in all none args returns; do run $jit send $s; done
-  for r in all none args returns; do run $jit recv $r; done
+  for s in all none args returns known; do run $jit send $s; done
+  for r in all none args returns known; do run $jit recv $r; done
 done
 rm -rf "$DIR"
 if [ $status = 0 ]; then echo "=== all combinations passed"; else echo "=== FAILURES"; fi

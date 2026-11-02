@@ -1200,6 +1200,224 @@ results =
             )
 ```
 
+## Known constructors and case of case
+
+A product or sum built and matched in the same body is matched where it is
+built (`Unison.Runtime.MCode.Explode`, design.md "Known constructors and
+case of case"): the let is dropped and the arm's variables are the fields,
+so a match on several arguments at once, which builds a tuple, allocates
+nothing and tests no tag. A match on the value of a match whose every tail
+builds a constructor is moved into those tails, each outer arm as a join
+point of the group that the tails call with the fields; an arm that is a
+single expression is copied instead. Every optimization setting computes
+the same results.
+
+``` unison
+use Nat + - * == < >
+
+-- a match on two arguments at once, with a guard and a default row
+classify : Nat -> Nat -> Text
+classify a b = match (a, b) with
+  (0, _) -> "zero first"
+  (_, 0) -> "zero second"
+  (x, y) | x == y -> "equal"
+  _ -> "other"
+
+countPairs : Nat -> Nat
+countPairs n =
+  go acc i =
+    if i == n then acc
+    else match (Nat.mod i 3, Nat.mod i 5) with
+      (0, 0) -> go (acc + 3) (i + 1)
+      (0, _) -> go (acc + 1) (i + 1)
+      (_, 0) -> go (acc + 2) (i + 1)
+      _ -> go acc (i + 1)
+  go 0 0
+
+-- a sum built and matched at once, and one whose constructor has no arm
+knownSum : Nat -> Nat
+knownSum i =
+  e = if i > 2 then Left i else Right (i + 1)
+  match e with
+    Left a -> a * 2
+    Right b -> b * 3
+
+defaultOnly : Nat -> Nat
+defaultOnly i =
+  p = Some i
+  match p with
+    None -> 0
+    _ -> i + 1
+
+-- the product still used after the match keeps its let
+keepPair : Nat -> (Nat, Nat)
+keepPair n =
+  p = (n, n + 1)
+  match p with (a, b) -> if a + b > 10 then p else (b, a)
+
+-- an Optional built in the branches of a match and matched at once: the
+-- outer arms become join points, called from the branch that builds each
+-- constructor
+optLoop : Nat -> Nat
+optLoop n =
+  go acc i =
+    if i == n then acc
+    else
+      p = if Nat.mod i 2 == 0 then Some i else None
+      match p with
+        Some k -> go (acc + k) (i + 1)
+        None -> go acc (i + 1)
+  go 0 0
+
+-- a tail that names a product built earlier
+viaVar : Nat -> Nat
+viaVar i =
+  some = Some (i + 2)
+  p = if i > 2 then some else None
+  match p with
+    Some k -> k * 2
+    None -> 1
+
+-- arms with lets of their own, a leaf arm that is copied, and a default
+-- arm shared by two constructors
+structural type Shape = Circle Nat | Rect Nat Nat | Tri Nat Nat Nat
+
+area : Nat -> Nat
+area i =
+  s = if Nat.mod i 3 == 0 then Circle i
+      else if Nat.mod i 3 == 1 then Rect i (i + 1)
+      else Tri i i i
+  match s with
+    Circle r ->
+      sq = r * r
+      sq * 3
+    Rect w h -> w * h
+    _ ->
+      t = i * 2
+      t + 1
+
+areaSum : Nat -> Nat
+areaSum n =
+  go acc i = if i == n then acc else go (acc + area i) (i + 1)
+  go 0 0
+
+-- a site inside an arm of another site
+nestedCase : Nat -> Nat
+nestedCase i =
+  p = if i > 5 then Some i else None
+  match p with
+    Some k ->
+      q = if k > 7 then Left k else Right (k + 1)
+      match q with
+        Left a -> a * 2
+        Right b ->
+          c = b + 3
+          c * 4
+    None -> 0
+
+-- a site inside a let's binding
+inBinding : Nat -> Nat
+inBinding i =
+  r =
+    p = if i > 3 then Some (i + 1) else None
+    match p with
+      Some k ->
+        m = k * 2
+        m + 1
+      None -> 7
+  r + i
+
+-- a record literal matched, and one updated and then matched
+type Point = { px : Nat, py : Nat }
+
+recMatch : Nat -> Nat
+recMatch i =
+  c = Point i (i + 1)
+  match c with Point x y -> x + y
+
+anonMatch : Nat -> Nat
+anonMatch i =
+  c = { x: i, y: i + 1 }
+  d = c@x.set (i * 10)
+  d@x + d@y
+
+results =
+  ( List.map (cases (a, b) -> classify a b) [(0, 5), (5, 0), (4, 4), (1, 2)],
+    countPairs 100,
+    List.map knownSum [1, 5],
+    defaultOnly 3,
+    keepPair 7,
+    keepPair 3,
+    optLoop 100,
+    List.map viaVar [1, 9],
+    areaSum 30,
+    List.map nestedCase [2, 6, 9],
+    List.map inBinding [2, 5],
+    recMatch 4,
+    anonMatch 4 )
+
+> results
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Point
+  + structural type Shape
+
+  + anonMatch       : Nat -> Nat
+  + area            : Nat -> Nat
+  + areaSum         : Nat -> Nat
+  + classify        : Nat -> Nat -> Text
+  + countPairs      : Nat -> Nat
+  + defaultOnly     : Nat -> Nat
+  + inBinding       : Nat -> Nat
+  + keepPair        : Nat -> (Nat, Nat)
+  + knownSum        : Nat -> Nat
+  + nestedCase      : Nat -> Nat
+  + optLoop         : Nat -> Nat
+  + Point.px        : Point -> Nat
+  + Point.px.modify : (Nat ->{g} Nat) -> Point ->{g} Point
+  + Point.px.set    : Nat -> Point -> Point
+  + Point.py        : Point -> Nat
+  + Point.py.modify : (Nat ->{g} Nat) -> Point ->{g} Point
+  + Point.py.set    : Nat -> Point -> Point
+  + recMatch        : Nat -> Nat
+  + results         : ( [Text],
+                        Nat,
+                        [Nat],
+                        Nat,
+                        (Nat, Nat),
+                        (Nat, Nat),
+                        Nat,
+                        [Nat],
+                        Nat,
+                        [Nat],
+                        [Nat],
+                        Nat,
+                        Nat)
+  + viaVar          : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    144 | > results
+            ⧩
+            ( ["zero first", "zero second", "equal", "other"]
+            , 74
+            , [6, 10]
+            , 4
+            , (7, 8)
+            , (4, 3)
+            , 2450
+            , [1, 22]
+            , 11005
+            , [0, 40, 18]
+            , [9, 18]
+            , 9
+            , 45
+            )
+```
+
 ## Calls to function values
 
 ``` unison
@@ -1637,7 +1855,7 @@ chooseAsk thunk =
 
   + boundedStore  : Nat -> '{g, Store Nat} a ->{g, Exception} a
   + catchE        : '{Exception} a -> Either Text a
-  + chooseAsk     : '{g, Ask} a ->{g, Ask, Choose} a
+  + chooseAsk     : '{g, Ask} a ->{g, Choose, Ask} a
   + constAsk      : Nat -> '{g, Ask} a ->{g} a
   + counted       : '{Counter} (Nat, Nat)
   + countingStore : s

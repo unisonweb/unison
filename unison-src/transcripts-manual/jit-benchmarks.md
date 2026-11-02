@@ -116,6 +116,31 @@ sumLoop n =
     Right acc -> go (Left (acc + 1))
   go (Left 0)
 
+-- Known constructors and case of case (design.md): a match on two arguments
+-- at once builds a tuple and takes it apart; an Optional built in the
+-- branches of a match and matched at once, whose arms are join points.
+pairMatch : Nat -> Nat
+pairMatch n =
+  go acc i =
+    if i == n then acc
+    else match (Nat.mod i 3, Nat.mod i 5) with
+      (0, 0) -> go (acc + 3) (i + 1)
+      (0, _) -> go (acc + 1) (i + 1)
+      (_, 0) -> go (acc + 2) (i + 1)
+      _ -> go acc (i + 1)
+  go 0 0
+
+optMatch : Nat -> Nat
+optMatch n =
+  go acc i =
+    if i == n then acc
+    else
+      p = if Nat.mod i 2 == 0 then Some (i + acc) else None
+      match p with
+        Some k -> go (acc + Nat.mod k 7) (i + 1)
+        None -> go (acc + 1) (i + 1)
+  go 0 0
+
 structural type Tree = Leaf | Node Tree Nat Nat Tree
 
 Tree.insert : Nat -> Nat -> Tree -> Tree
@@ -490,6 +515,8 @@ jitSuite = do
   printTime "Loop state: a three-field constructor rebuilt each round, 100000 rounds" 1 (n -> repeat n do posLoop 100000)
   printTime "Loop state: a record updated each round, 100000 rounds" 1 (n -> repeat n do recLoop 100000)
   printTime "Loop state: an Either alternating each round, 100000 rounds" 1 (n -> repeat n do sumLoop 100000)
+  printTime "Known constructor: a match on two arguments at once, 100000 rounds" 1 (n -> repeat n do pairMatch 100000)
+  printTime "Case of case: an Optional built in branches and matched, 100000 rounds" 1 (n -> repeat n do optMatch 100000)
   printTime "Apply a function argument 10000 times" 1 (n -> repeat n do applyN 10000 (x -> x + 3) 0)
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)

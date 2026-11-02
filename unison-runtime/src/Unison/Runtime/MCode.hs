@@ -32,6 +32,7 @@ module Unison.Runtime.MCode
     FrameLayout (..),
     emptyLayout,
     layoutPadding,
+    widePadding,
     Deopt (..),
     BaseFrame (..),
     Slot (..),
@@ -1364,15 +1365,23 @@ emptyRCtx = RCtx M.empty Nothing
 -- unoptimized section ('chainOf', collected as the unoptimized lambda was
 -- emitted); the products the unoptimized body builds, by variable
 -- ('conLets'); where its variables went and which lets the rewrite
--- changed ('Prepared'); and the rewritten body's own lets by section
--- index.
+-- changed ('Prepared'); the rewritten body's own lets by section index;
+-- and, for a join point (Unison.Runtime.MCode.Explode, 'Join'), the
+-- binders of the unoptimized let whose binding its site was in, where
+-- its frames stop, and the flag, since a variable a join point's frame
+-- cannot rebuild is one the unoptimized code never reads there; and the
+-- variables the rewrite found dead wherever a frame holds them
+-- ('preparedDead').
 data BaseInfo v = BaseInfo
   { baseLets :: M.Map [v] Word64,
     baseChains :: EC.EnumMap Word64 (Chain v),
     baseCons :: M.Map v (Built v),
     baseSources :: Sources v,
     baseLetOf :: M.Map [v] [v],
-    optLets :: EC.EnumMap Word64 [v]
+    optLets :: EC.EnumMap Word64 [v],
+    baseCut :: Maybe [v],
+    baseJoin :: Bool,
+    baseDead :: Set v
   }
 
 -- | The frames a context spans, innermost first, each as the index of
@@ -1563,9 +1572,23 @@ data FrameLayout = FrameLayout
 emptyLayout :: FrameLayout
 emptyLayout = FrameLayout [] Nothing 0 0
 
--- | The slots a frame layout adds over one per variable.
-layoutPadding :: FrameLayout -> Int
-layoutPadding lay = sum [w - 1 | (_, w) <- wideVars lay]
+-- | The slots a frame layout adds over one per variable, for a frame
+-- that holds n variables. A section inside a let's binding lists the
+-- wide variables of the enclosing frames too, below its own slots
+-- ('wideSlots' walks the whole context), and those are not this frame's:
+-- a wide variable at wide index i is the frame's when its narrow index,
+-- i less the padding of the wide variables above it, is below n. (Until
+-- 2026-11-02 every listed variable counted, so a frame inside a binding
+-- with a wide variable in the enclosing frame came up short.)
+layoutPadding :: Int -> FrameLayout -> Int
+layoutPadding n lay = go 0 (wideVars lay)
+  where
+    go pad ((i, w) : ws) | i - pad < n = go (pad + w - 1) ws
+    go pad _ = pad
+
+-- | The same for a frame of f slots, wide.
+widePadding :: Int -> FrameLayout -> Int
+widePadding f lay = sum [w - 1 | (i, w) <- wideVars lay, i < f]
 
 -- | How a continuation's frame for a section the explosion rewrote is
 -- written out as the frames the unoptimized code has at that point
@@ -1578,7 +1601,8 @@ layoutPadding lay = sum [w - 1 | (_, w) <- wideVars lay]
 -- with the last. A slot is copied from the optimized frames, by frame (0
 -- this one, 1 the enclosing let's, counting the continuation's Push
 -- frames outward) and narrowed index from the top, or is a product the
--- optimized code no longer holds, packed from such slots.
+-- optimized code no longer holds, packed from such slots, or is dead, a
+-- slot the unoptimized code never reads there, written as unit.
 data Deopt = Deopt [BaseFrame]
   deriving (Show, Eq, Ord)
 
@@ -1589,6 +1613,7 @@ data Slot
   = Copy !Int !Int
   | PackSlot !Reference !PackedTag [Slot]
   | RecSlot !RecordShape [Slot]
+  | Dead
   deriving (Show, Eq, Ord)
 
 -- Modify the context to contain the variables introduced by an
@@ -1638,14 +1663,32 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
                 baseCons = conLets bd,
                 baseSources = preparedSources p,
                 baseLetOf = preparedLets p,
-                optLets = mempty
+                optLets = mempty,
+                baseCut = Nothing,
+                baseJoin = False,
+                baseDead = preparedDead p
               }
       recFor ix lam p = rec {rctxBase = Just (baseInfo ix lam p)}
+      recJoin ix lam p jn =
+        rec
+          { rctxBase =
+              Just
+                (baseInfo ix lam p)
+                  { baseSources = preparedSources p <> joinSources jn,
+                    baseCut = joinCut jn,
+                    baseJoin = True
+                  }
+          }
+      -- a prepared form of the lambda at index bix, emitted at index ix
+      -- (its own, or a worker's), and its join points at theirs
+      emitPrepared bix ix lam p = do
+        (es, _) <- emitComb rns grpr grpn (recFor bix lam p) (ix, preparedLambda p)
+        joins <- foldMapM (\(k, jn) -> fst <$> emitComb rns grpr grpn (recJoin bix lam p jn) (joinIndex ix k, joinLambda jn)) (zip [1 ..] (preparedJoins p))
+        pure (es <> joins)
   -- every lambda is rewritten for the batch's workers first
   -- (Unison.Runtime.MCode.Explode, 'prepare'): the emitter sees calls of
   -- workers and yields of several values as forms of their own
-  let pEnt = prepare b ent
-  (es, _) <- emitComb rns grpr grpn (recFor 0 ent pEnt) (0, preparedLambda pEnt)
+  es <- emitPrepared 0 0 ent (prepare b (setting 0) ent)
   -- a function that returns a product on every path also gets a
   -- product-return worker: the lambda with its tails yielding the
   -- product's leaves; the entry keeps the original body, as with a
@@ -1657,9 +1700,9 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
   -- a specialisation of the entry point per call pattern its callers in
   -- the batch build, each a combinator of its own
   specs <- case explode rns grpr of
-    Just pats -> foldMapM (\(k, pat) -> let p = specialise b pat ent in fst <$> emitComb rns grpr grpn (recFor 0 ent p) (specIndex k, preparedLambda p)) (zip [1 ..] pats)
+    Just pats -> foldMapM (\(k, pat) -> emitPrepared 0 (specIndex k) ent (specialise b (setting (specIndex k)) pat ent)) (zip [1 ..] pats)
     Nothing -> pure mempty
-  auxEs <- foldMapM (\(ix, lam) -> let p = prepare b lam in fst <$> emitComb rns grpr grpn (recFor ix lam p) (ix, preparedLambda p)) (zip ixs cmbs)
+  auxEs <- foldMapM (\(ix, lam) -> emitPrepared ix ix lam (prepare b (setting ix) lam)) (zip ixs cmbs)
   -- the group needs its unoptimized form beside it when a frame or a
   -- section number of its own lambdas (not of the workers, which are
   -- extra) differs from the unoptimized code's: then a continuation from
@@ -1678,6 +1721,8 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
     lams = (0, ent) : zip ixs cmbs
     rec = emptyRCtx {rctxCombs = M.fromList $ zip rvs ixs}
     uniqueLambda (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (uniqueBody bd))
+    -- where a lambda's join points go (Unison.Runtime.MCode.Explode)
+    setting ix = Just (JoinSetting ix grpr (Set.fromList rvs))
 
 -- | What the explosion's rewrites know about the batch
 -- (Unison.Runtime.MCode.Explode): the call patterns, the returned
@@ -1825,9 +1870,13 @@ recordTop vs l (EM e) = EM do
 -- binding the same names, or the let of the product for a let of a
 -- result's leaves; its frames are taken up to the frame of the enclosing
 -- optimized let's unoptimized section, which that let's own frame stands
--- for. A slot is the variable's own if the optimized frames hold it,
--- else what its source says ('Sources'), else the product the
--- unoptimized body built for it ('conLets').
+-- for (for a join point, whose lambda has no enclosing let, up to the
+-- frame of the let its site was in). A slot is the variable's own if the
+-- optimized frames hold it, else what its source says ('Sources'), else
+-- the product the unoptimized body built for it ('conLets'); in a join
+-- point a variable that is none of these is dead where the unoptimized
+-- code resumes, since a join point's parameters cover every variable the
+-- unoptimized arm reads (Explode's 'caseSites'), and is written as unit.
 deoptOf :: (Var v) => RefNums -> BaseInfo v -> Word64 -> [v] -> Chain v -> Emit v (Maybe Deopt)
 deoptOf rns bi n us chain
   | identity = pure Nothing
@@ -1836,13 +1885,14 @@ deoptOf rns bi n us chain
     bs = M.findWithDefault us us (baseLetOf bi)
     bidx = fromMaybe (internalBug [] $ "deoptOf: no unoptimized let binds " ++ show bs) (M.lookup bs (baseLets bi))
     bchain = fromMaybe (internalBug [] $ "deoptOf: no frames for unoptimized section " ++ show bidx) (EC.lookup bidx (baseChains bi))
+    baseOf us1 =
+      let bs1 = M.findWithDefault us1 us1 (baseLetOf bi)
+       in fromMaybe (internalBug [] $ "deoptOf: no unoptimized let binds " ++ show bs1) (M.lookup bs1 (baseLets bi))
     enclosing = case chain of
       (_ : (Just w1, _) : _) -> case EC.lookup w1 (optLets bi) of
-        Just us1 ->
-          let bs1 = M.findWithDefault us1 us1 (baseLetOf bi)
-           in Just (fromMaybe (internalBug [] $ "deoptOf: no unoptimized let binds " ++ show bs1) (M.lookup bs1 (baseLets bi)))
+        Just us1 -> Just (baseOf us1)
         Nothing -> internalBug [] $ "deoptOf: no let has section " ++ show w1
-      _ -> Nothing
+      _ -> baseOf <$> baseCut bi
     produced = case enclosing of
       Nothing -> bchain
       Just b1
@@ -1852,7 +1902,17 @@ deoptOf rns bi n us chain
     identity = bidx == n && length bs == length us && produced == chain
     frame (ix, entries) = BaseFrame ix <$> traverse slot entries
     slot ETag = internalBug [] "deoptOf: a tag slot in a frame the explosion rewrote"
-    slot (EVar w) = var (0 :: Int) w
+    slot (EVar w)
+      | Set.member w (baseDead bi) = pure Dead
+      | baseJoin bi, not (known (0 :: Int) w) = pure Dead
+      | otherwise = var (0 :: Int) w
+    known depth w
+      | depth > 64 = False
+      | Just _ <- optSlot w = True
+      | Just (Left u) <- M.lookup w (baseSources bi) = known (depth + 1) u
+      | Just (Right b) <- M.lookup w (baseSources bi) = all (known (depth + 1)) (builtFields b)
+      | Just b <- M.lookup w (baseCons bi) = all (known (depth + 1)) (builtFields b)
+      | otherwise = False
     var depth w
       | depth > 64 = internalBug [] $ "deoptOf: the source of " ++ show w ++ " refers back to itself"
       | Just (d, i) <- optSlot w = pure (Copy d i)
@@ -2898,6 +2958,7 @@ prettyBase lay = case baseFrames lay of
       Copy d i -> shows d . showString "." . shows i
       PackSlot _ t ss -> showString "pack " . shows t . showString " " . showList' ss
       RecSlot sh ss -> showString "record " . shows (shapeRef sh) . showString " " . showList' ss
+      Dead -> showString "dead"
 
 prettyCombs ::
   Word64 ->

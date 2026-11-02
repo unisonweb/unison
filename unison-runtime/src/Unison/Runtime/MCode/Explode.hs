@@ -73,15 +73,40 @@
 -- cannot resume it, as with any difference in the optimizer between two
 -- versions.
 --
+-- Two rewrites of a body on its own come first ('knownCons',
+-- 'splitJoins'; design.md "Known constructors and case of case"): a let
+-- binding a constructor application or a record literal has every match
+-- on it replaced by the arm, the arm's variables renamed to the fields
+-- (the argument side's 'rewrite'), so that @match (a, b) with ..@, which
+-- builds the tuple and takes it apart at once, allocates nothing and
+-- tests no tag; and a let whose binding is a match (or anything whose
+-- every tail builds a constructor of the matched type) and whose body is
+-- a match on it (the let's body, or the binding of the next let) has
+-- the outer match moved into those tails, where the constructor is
+-- known, an outer arm that several tails reach becoming a /join point/,
+-- a combinator of the group at 'joinIndex' that the tails call with the
+-- arm's fields and the variables the arm uses, so that an arm's code is
+-- not copied into every tail (an arm that is a single expression, or
+-- that one tail reaches, is copied instead), and so does the rest of the
+-- body when the match's value was let-bound. The join points of a lambda are made last,
+-- after the other rewrites, with their parameters taken from the
+-- unoptimized arm ('caseSites'), so that every variable the unoptimized
+-- arm reads is in the join point's frame and a continuation captured
+-- inside it can be written out ('Join').
+--
 -- @UNISON_OPTIMIZATIONS=-explode_args@ and @-explode_returns@ switch the
--- two sides off ('explodeArgsOn', 'explodeReturnsOn'; Unison.Runtime.Optimizations),
--- for measuring and for a process that has to agree with one that ran
--- without them.
+-- two sides off, and @-known_constructor@ the two rewrites above
+-- ('explodeArgsOn', 'explodeReturnsOn', 'knownConstructorOn';
+-- Unison.Runtime.Optimizations), for measuring and for a process that has
+-- to agree with one that ran without them.
 module Unison.Runtime.MCode.Explode
   ( explodeArgsOn,
     explodeReturnsOn,
+    knownConstructorOn,
     specIndex,
     retIndex,
+    joinIndex,
+    isJoinIndex,
     Shape (..),
     Pattern,
     shapeLeaves,
@@ -94,8 +119,11 @@ module Unison.Runtime.MCode.Explode
     specialise,
     returnWorker,
     Prepared (..),
+    Join (..),
+    JoinSetting (..),
     Sources,
     Built (..),
+    builtFields,
     conLets,
     uniqueBody,
     universe,
@@ -105,11 +133,12 @@ where
 import Control.Monad (foldM)
 import Control.Monad.State.Strict (State, evalState, get, modify, put, runState, state)
 import Data.Bifunctor (first)
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (shiftL, shiftR, (.|.))
+import Data.Containers.ListUtils (nubOrd)
 import Data.Foldable (toList)
 import Data.List (elemIndex)
 import Data.Map.Strict qualified as M
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe, isJust, listToMaybe)
 import Data.Set qualified as Set
 import Data.Word (Word16, Word64)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -134,6 +163,13 @@ explodeArgsOn = fromMaybe True (optimizationSetting ExplodeArgs)
 explodeReturnsOn :: Bool
 explodeReturnsOn = fromMaybe True (optimizationSetting ExplodeReturns)
 
+-- | Whether a product or sum built and matched in the same body is
+-- matched where it is built, and a match on the value of a match moved
+-- into its tails ('knownCons', 'splitJoins'): on unless
+-- @UNISON_OPTIMIZATIONS@ says @-known_constructor@.
+knownConstructorOn :: Bool
+knownConstructorOn = fromMaybe True (optimizationSetting KnownConstructor)
+
 -- | The combinator index of a group's k-th specialisation (k from 1): in
 -- the high bits like a local function's, with a bit no let index reaches
 -- (the lets of a combinator are numbered from 1 in its low sixteen bits)
@@ -148,9 +184,26 @@ specIndex k = (fromIntegral k `shiftL` 16) .|. 0x8000
 retIndex :: Word64
 retIndex = specIndex 0
 
+-- | The combinator index of the k-th join point (k from 1) of the lambda
+-- at an index of the group ('splitJoins'): the lambda's index with k in
+-- the bits above any a local function's or a specialisation's number
+-- uses, so that the low fifteen bits are the owner's and the JIT compiles
+-- it as it does a worker (Compile's @isEntry@), and the lets of the join
+-- point are numbered under it like any combinator's.
+joinIndex :: Word64 -> Int -> Word64
+joinIndex owner k = owner .|. (fromIntegral k `shiftL` 48)
+
+isJoinIndex :: Word64 -> Bool
+isJoinIndex i = i `shiftR` 48 /= 0
+
 -- | The most specialisations a function gets.
 maxSpecs :: Int
 maxSpecs = 8
+
+-- | The most join points a lambda gets (what 'joinIndex' has bits for,
+-- with room to spare).
+maxJoins :: Int
+maxJoins = 15
 
 -- | The most leaves a returned product may have.
 maxLeaves :: Int
@@ -238,14 +291,48 @@ data Built v = BuiltCon Reference CTag [v] | BuiltRec RecordSchema [v]
 type Sources v = M.Map v (Either v (Built v))
 
 -- | A lambda as the emitter sees it, with what its rewrite changed: the
--- sources of the unoptimized body's variables, and the binders of each
--- let the rewrite changed, mapped to the binders of the unoptimized let
--- it stands for (a let of a result's leaves, to the let of the result).
+-- sources of the unoptimized body's variables, the binders of each let
+-- the rewrite changed, mapped to the binders of the unoptimized let it
+-- stands for (a let of a result's leaves, to the let of the result), and
+-- the variables the rewrite found dead wherever a frame could hold them
+-- (the let of a site 'splitJoins' rewrote, used only by the match that
+-- is gone), and its join points, the k-th at 'joinIndex' k of the
+-- lambda's index.
 data Prepared v = Prepared
   { preparedLambda :: SuperNormal Reference v,
     preparedSources :: Sources v,
-    preparedLets :: M.Map [v] [v]
+    preparedLets :: M.Map [v] [v],
+    preparedDead :: Set.Set v,
+    preparedJoins :: [Join v]
   }
+
+-- | A join point of a lambda ('splitJoins'): an arm of a match on the
+-- value of a match, as a combinator of the group whose parameters are
+-- the arm's variables and then the variables the arm uses; the binders
+-- of the unoptimized let whose binding the match was in, if any, which is
+-- where the unoptimized frames of a continuation captured inside the
+-- join point stop (the emitter's 'deoptOf'); and the source of the
+-- match's variable, the constructor this arm is for over the arm's
+-- variables (none for the default arm, whose frames never read it).
+data Join v = Join
+  { joinLambda :: SuperNormal Reference v,
+    joinCut :: Maybe [v],
+    joinSources :: Sources v
+  }
+
+-- | Where a lambda's join points go: the lambda's index in its group,
+-- the group's reference, and the names of the group's local functions,
+-- which a body refers to as variables but which no frame holds.
+data JoinSetting v = JoinSetting
+  { jsOwner :: Word64,
+    jsGroup :: Reference,
+    jsLocals :: Set.Set v
+  }
+
+-- | What 'splitJoins' knows of the unoptimized body: the setting, its
+-- sites ('caseSites'), the products it built ('conLets'), and the
+-- sources the rewrites before it recorded.
+data Joining v = Joining (JoinSetting v) (Sites v) (ConLets v) (Sources v)
 
 builtFields :: Built v -> [v]
 builtFields (BuiltCon _ _ fs) = fs
@@ -327,7 +414,7 @@ explosions rets groups
   | otherwise = close M.empty initial
   where
     b = Batch (const Nothing) (`M.lookup` rets) (groupArity groups)
-    prep bd = let (bd', _, _) = prepareBody b Nothing bd in bd'
+    prep bd = let (bd', _, _, _, _) = prepareBody b Nothing Nothing bd in bd'
     initial = concat [sites b (prep (lambdaBody lam)) | g <- M.elems groups, lam <- lambdas g]
     close specs [] = specs
     close specs ((r, site) : rest)
@@ -338,7 +425,7 @@ explosions rets groups
         let have = M.findWithDefault [] r specs,
         pat `notElem` have,
         length have < maxSpecs =
-          close (M.insert r (have ++ [pat]) specs) (rest ++ sites b (lambdaBody (preparedLambda (specialise b pat ent))))
+          close (M.insert r (have ++ [pat]) specs) (rest ++ sites b (lambdaBody (preparedLambda (specialise b Nothing pat ent))))
       | otherwise = close specs rest
 
 -- | The arity of a group's entry point.
@@ -376,7 +463,7 @@ returns groups
           Just (s, [r' | Right r' <- ts])
       | otherwise = Nothing
       where
-        (bd, _, _) = prepareBody b Nothing bd0
+        (bd, _, _, _, _) = prepareBody b Nothing Nothing bd0
         cons = conLets bd
     settle cs
       | cs' == cs = cs
@@ -570,14 +657,19 @@ usable s v bd
 -- its body is the lambda's with the exploded arguments rewritten to their
 -- fields, prepared again afterwards, since a record update the rewrite
 -- turned into a literal is a product built for whatever it is passed to.
-specialise :: (Var v) => Batch -> Pattern -> SuperNormal Reference v -> Prepared v
-specialise b pat (Lambda ccs (TAbss vs bd0)) =
+-- The join points are made by the second pass, from the sites of the
+-- unoptimized body.
+specialise :: (Var v) => Batch -> Maybe (JoinSetting v) -> Pattern -> SuperNormal Reference v -> Prepared v
+specialise b js pat (Lambda ccs (TAbss vs bd0)) =
   Prepared
     (Lambda (map snd params) (TAbss (map fst params) body))
-    (M.unions [srcs0, M.unions [treeSources v tree | (v, _, tree) <- trees], armSrcs, srcs1])
+    (M.unions [srcs0, treeSrcs, armSrcs, srcs1])
     (lets0 <> lets1)
+    dead
+    joins
   where
-    (bd, srcs0, lets0) = prepareBody b Nothing bd0
+    (bd, srcs0, lets0, _, _) = prepareBody b Nothing Nothing bd0
+    treeSrcs = M.unions [treeSources v tree | (v, _, tree) <- trees]
     avoid0 = Set.unions (ABTN.freeVars bd : Set.fromList vs : map boundVars (universe bd))
     (_, trees) = foldl' step (avoid0, []) (zip3 vs ccs pat)
     step (avoid, acc) (v, cc, s) = case s of
@@ -590,14 +682,15 @@ specialise b pat (Lambda ccs (TAbss vs bd0)) =
     -- the second pass rewrites only lets the first left (a let of a
     -- call of a worker is not a let of a call), so its sources and lets
     -- add to the first's
-    (body, srcs1, lets1) = prepareBody b Nothing rewritten
+    (body, srcs1, lets1, dead, joins) = prepareBody b Nothing (joiningOf js bd0 (M.unions [srcs0, treeSrcs, armSrcs])) rewritten
 
 -- | The product-return worker of a lambda that returns a product of the
--- shape on every path: the lambda with its tails yielding the leaves.
+-- shape on every path: the lambda with its tails yielding the leaves. It
+-- gets no join points: its tails are what yield the leaves.
 returnWorker :: (Var v) => Batch -> Shape -> SuperNormal Reference v -> Prepared v
-returnWorker b s (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets
+returnWorker b s (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets Set.empty []
   where
-    (bd', srcs, lets) = prepareBody b (Just s) bd
+    (bd', srcs, lets, _, _) = prepareBody b (Just s) Nothing bd
 
 -- | A tree of fresh names for an exploded argument or result: a leaf is a
 -- worker parameter (or a yielded value), a node a product whose fields are
@@ -696,33 +789,322 @@ freshVar avoid = (u, Set.insert u avoid)
 
 -- | A lambda as the emitter sees it ('prepareBody' on its body). Applied to
 -- every lambda of a batch, so that the sites the analyses saw are the
--- sites emitted.
-prepare :: (Var v) => Batch -> SuperNormal Reference v -> Prepared v
-prepare b (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets
+-- sites emitted; the analyses pass no setting and get no join points.
+prepare :: (Var v) => Batch -> Maybe (JoinSetting v) -> SuperNormal Reference v -> Prepared v
+prepare b js (Lambda ccs (TAbss vs bd)) = Prepared (Lambda ccs (TAbss vs bd')) srcs lets dead joins
   where
-    (bd', srcs, lets) = prepareBody b Nothing bd
+    (bd', srcs, lets, dead, joins) = prepareBody b Nothing (joiningOf js bd M.empty) bd
 
--- | A body as the analyses and the emitter see it, or as it is while the
--- explosion is off: every binder with a name of its own
--- ('uniqueBinders'); calls sunk into the branches that build their
--- argument ('sinkCalls'); each let of a call of a function with a
+-- | What 'splitJoins' needs of an unoptimized body, given the setting and
+-- the sources recorded before the body is prepared again (the second
+-- pass of 'specialise').
+joiningOf :: (Var v) => Maybe (JoinSetting v) -> ANormal Reference v -> Sources v -> Maybe (Joining v)
+joiningOf js bd srcs = (\setting -> Joining setting (caseSites cons (jsLocals setting) base) cons srcs) <$> js
+  where
+    base = uniqueBody bd
+    cons = conLets base
+
+-- | A body as the analyses and the emitter see it, or as it is while
+-- every rewrite is off: every binder with a name of its own
+-- ('uniqueBinders'); each match on a product or sum built in the body
+-- made its arm ('knownCons'); calls sunk into the branches that build
+-- their argument ('sinkCalls'); each let of a call of a function with a
 -- product-return worker that takes the result apart made a let of the
 -- leaves over a call of the worker ('useReturns'); for the body of a
 -- product-return worker, given its shape, each tail that builds the
 -- product made a yield of the leaves ('yieldLeaves'); each call that
 -- builds one of its callee's patterns made a call of that specialisation
--- with the fields ('useSpecs'); and the product lets nothing uses any
--- more left out ('dropDead'). The tails go before the calls, so that a
--- tail call of a function with both kinds of worker takes the one that
--- yields the leaves, which is what the worker's own count needs. With
--- the body come the sources of its variables and the lets the rewrite
--- changed ('Prepared').
-prepareBody :: (Var v) => Batch -> Maybe Shape -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v])
-prepareBody b ms bd
-  | not explodeArgsOn && not explodeReturnsOn = (uniqueBody bd, M.empty, M.empty)
-  | otherwise = (dropDead (useSpecs b (maybe id (yieldLeaves b) ms rets)), srcs, lets)
+-- with the fields ('useSpecs'); the product lets nothing uses any more
+-- left out ('dropDead'); and last, given a setting, each match on the
+-- value of a match moved into its tails, with its arms as join points
+-- ('splitJoins'). The tails go before the calls, so that a tail call of a
+-- function with both kinds of worker takes the one that yields the
+-- leaves, which is what the worker's own count needs; the join points go
+-- last so that every other rewrite sees one body. With the body come the
+-- sources of its variables, the lets the rewrite changed ('Prepared')
+-- and the join points.
+prepareBody :: (Var v) => Batch -> Maybe Shape -> Maybe (Joining v) -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v], Set.Set v, [Join v])
+prepareBody b ms mj bd
+  | not explodeArgsOn && not explodeReturnsOn && not knownConstructorOn = (uniqueBody bd, M.empty, M.empty, Set.empty, [])
+  | otherwise = (freshLets main, M.unions [srcsK, srcs, srcsJ], lets, dead, map freshJoin joins)
   where
-    (rets, srcs, lets) = useReturns b (sinkCalls (uniqueBody bd))
+    (known, srcsK)
+      | knownConstructorOn = runState (knownCons (uniqueBody bd)) M.empty
+      | otherwise = (uniqueBody bd, M.empty)
+    (rets, srcs, lets) = useReturns b (sinkCalls known)
+    body = dropDead (useSpecs b (maybe id (yieldLeaves b) ms rets))
+    (main, joins, srcsJ, dead) = case mj of
+      Just j | knownConstructorOn, Nothing <- ms -> splitJoins j (srcsK <> srcs) body
+      _ -> (body, [], M.empty, Set.empty)
+
+-- | The body with a number of its own for every indirect let: a let
+-- 'splitJoins' copied into several tails carries its number into each
+-- copy, and two sections of a combinator cannot share one, so every copy
+-- after the first gets a number above the body's. The first keeps the
+-- unoptimized number, which is what pairs sections when nothing else
+-- changed ('deoptOf').
+freshLets :: (Var v) => ANormal Reference v -> ANormal Reference v
+freshLets bd = evalState (go bd) (Set.empty, top + 1)
+  where
+    top = maximum (0 : [w | TLets (Indirect w) _ _ _ _ <- universe bd])
+    go (ABTN.Term _ (ABTN.Abs u b)) = ABTN.TAbs u <$> go b
+    go (ABTN.Term _ (ABTN.Tm f)) = case f of
+      ALet (Indirect w) ccs bn bo -> do
+        (seen, next) <- get
+        w' <-
+          if Set.member w seen
+            then next <$ put (seen, next + 1)
+            else w <$ put (Set.insert w seen, next)
+        ABTN.TTm <$> (ALet (Indirect w') ccs <$> go bn <*> go bo)
+      _ -> ABTN.TTm <$> traverse go f
+
+freshJoin :: (Var v) => Join v -> Join v
+freshJoin (Join (Lambda ccs (TAbss vs bd)) cut srcs) = Join (Lambda ccs (TAbss vs (freshLets bd))) cut srcs
+
+-- | The body with every match on a variable bound to a constructor
+-- application or a record literal replaced by its arm, the arm's
+-- variables renamed to the fields and recorded as their sources (the
+-- argument side's 'rewrite', over a tree whose leaves are the fields);
+-- a record update of such a record becomes a literal. The let stays
+-- until 'dropDead' finds nothing else uses it. A match whose arms do not
+-- include the constructor (a default arm would take it) is left as it is.
+-- The body of a let is done before the let, since the arm of a later
+-- product's match is what names an earlier product's variable (the
+-- pair inside a tuple).
+knownCons :: (Var v) => ANormal Reference v -> State (Sources v) (ANormal Reference v)
+knownCons = go
+  where
+    go tm = case tm of
+      TLets d [u] ms bn bo
+        | TApp (FCon r t) args <- bn -> TLets d [u] ms bn <$> (rewrite u (Node u (Con r t (Plain <$ args)) (map Leaf args)) =<< go bo)
+        | TApp (FRec rs) args <- bn -> TLets d [u] ms bn <$> (rewrite u (Node u (Fields rs (Plain <$ args)) (map Leaf args)) =<< go bo)
+      ABTN.Term _ (ABTN.Abs v e) -> ABTN.TAbs v <$> go e
+      ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse go f
+
+-- | The sites of a body where a match on the value of a match can be
+-- moved into the tails that build the value ('site'), by the let's
+-- binder: for each arm of the outer match (by constructor number, Nothing
+-- for the default arm), the variables its body uses that are bound
+-- outside it, and the same for what follows the match when its value is
+-- let-bound, the group's local functions aside. Recorded on the
+-- unoptimized body, so that a join point's parameters cover every
+-- variable the unoptimized code reads, which is what lets a continuation
+-- captured inside the join point be written out as the unoptimized
+-- frames: a variable the join point's frame cannot rebuild is then one
+-- the unoptimized code never reads there ('splitJoins', 'deoptOf').
+type Sites v = M.Map v (M.Map (Maybe Int) (Set.Set v), Set.Set v)
+
+caseSites :: (Var v) => ConLets v -> Set.Set v -> ANormal Reference v -> Sites v
+caseSites cons locals bd = M.fromList [(p, (arms cs df, restFree kont)) | Just (Site p _ _ cs df kont) <- map (site cons) (universe bd)]
+  where
+    arms cs df =
+      M.fromList $
+        [(Just (EC.keyToInt t), free fs bo) | (t, (_, TAbss fs bo)) <- EC.mapToList cs]
+          ++ [(Nothing, free [] d) | Just d <- [df]]
+    restFree = maybe Set.empty (\(_, x, _, rest) -> free [x] rest)
+    free fs bo = (ABTN.freeVars bo `Set.difference` Set.fromList fs) `Set.difference` locals
+
+-- | A let whose binding's every tail builds a constructor of one type
+-- ('tailCon') and whose body is a data match on the let's variable, used
+-- nowhere else: the variable, the binding, the type, the arms and the
+-- default arm, and what takes the match's value: nothing when the match
+-- is the let's body, so its value is the enclosing section's, or the let
+-- binding it (its direction, variable and convention) and the rest of
+-- the body, which is how normalization leaves a block whose last
+-- expression is the match.
+data Site v = Site v (ANormal Reference v) Reference (EC.EnumMap CTag ([Mem], ANormal Reference v)) (Maybe (ANormal Reference v)) (Maybe (Direction Word16, v, [Mem], ANormal Reference v))
+
+site :: (Var v) => ConLets v -> ANormal Reference v -> Maybe (Site v)
+site cons tm = case tm of
+  TLets _ [p] _ bn bo
+    | Just (r, cs, df, kont) <- outer p bo,
+      occurrences p bo == 1,
+      all (isJust . tailCon cons r) (tailsOf bn) ->
+        Just (Site p bn r cs df kont)
+  _ -> Nothing
+  where
+    outer p = \case
+      TMatch p' (MatchData r cs df) | p' == p -> Just (r, cs, df, Nothing)
+      TLets d [x] ms (TMatch p' (MatchData r cs df)) rest | p' == p -> Just (r, cs, df, Just (d, x, ms, rest))
+      _ -> Nothing
+
+-- | The tails of a binding, through lets, names and the arms of matches
+-- (what 'sinkCalls' sees through too).
+tailsOf :: (Var v) => ANormal Reference v -> [ANormal Reference v]
+tailsOf = \case
+  TMatch _ bs -> concatMap tailsOf (toList bs)
+  TLets _ _ _ _ bo -> tailsOf bo
+  TName _ _ _ bo -> tailsOf bo
+  ABTN.Term _ (ABTN.Abs _ b) -> tailsOf b
+  tm -> [tm]
+
+-- | The body with a function applied at each tail.
+sinkTails :: (Var v) => (ANormal Reference v -> ANormal Reference v) -> ANormal Reference v -> ANormal Reference v
+sinkTails k = \case
+  TMatch v bs -> TMatch v (fmap (sinkTails k) bs)
+  TLets d us ms bn bo -> TLets d us ms bn (sinkTails k bo)
+  TName v f as bo -> TName v f as (sinkTails k bo)
+  ABTN.Term _ (ABTN.Abs u b) -> ABTN.TAbs u (sinkTails k b)
+  tm -> k tm
+
+-- | A tail that builds a constructor of the type, or names a variable
+-- bound to one: its tag and its fields.
+tailCon :: (Var v) => ConLets v -> Reference -> ANormal Reference v -> Maybe (CTag, [v])
+tailCon cons r = \case
+  TApp (FCon r' t) args | r' == r -> Just (t, args)
+  TVar u | Just (BuiltCon r' t fs) <- M.lookup u cons, r' == r -> Just (t, fs)
+  _ -> Nothing
+
+-- | The body with each site ('site') that the unoptimized body had
+-- ('caseSites') rewritten: the let is gone, and each tail of its binding
+-- becomes the outer arm for the constructor it builds, with the arm's
+-- variables bound to the fields, followed, when the match's value was
+-- let-bound, by a let of that variable over the rest of the body. An arm
+-- that is a single expression, or that only one tail builds the
+-- constructor of, is copied into the tail (the argument side's 'rewrite'
+-- does the renaming and records the arm's variables' sources, as for an
+-- exploded parameter); any other arm, and the rest when it is more than
+-- a single expression, becomes a join point, made once, that the tail
+-- calls with the fields (the match's value, for the rest) and the other
+-- variables it uses: the variables the unoptimized code used there, each
+-- as what stands for it now (renamed, or the fields of a product the body
+-- no longer names, through the sources and the unoptimized products), and
+-- the variables it uses now. The let's variable is dead everywhere its
+-- frame could hold it, and is recorded so. A site whose tails would need
+-- more join points than the lambda has room for is left as it is. The
+-- join points come out in the order they are made, the k-th at
+-- 'joinIndex' k; a site inside an arm or the rest makes its join points
+-- before the arm does. With the body come the sources the copied arms
+-- recorded and the dead variables.
+splitJoins :: (Var v) => Joining v -> Sources v -> ANormal Reference v -> (ANormal Reference v, [Join v], Sources v, Set.Set v)
+splitJoins (Joining (JoinSetting owner grpr locals) sites bcons srcs0) srcs1 bd = (bd', reverse joins, srcsOut, dead)
+  where
+    cons = conLets bd
+    srcs = srcs0 <> srcs1
+    inScope = Set.unions (ABTN.freeVars bd : map boundVars (universe bd))
+    (bd', (joins, srcsOut, dead)) = runState (go Nothing bd) ([], M.empty, Set.empty)
+    go cut tm = case tm of
+      TLets d [p] ms bn bo
+        | Just (Site _ _ r cs df kont) <- site cons tm,
+          Just (arms, restFree) <- M.lookup p sites,
+          let built = [t | tl <- tailsOf bn, Just (t, _) <- [tailCon cons r tl]]
+              tags = nubOrd built
+              armOf t = case EC.lookup t cs of
+                Just (_, TAbss fs ab) -> Just (Just (EC.keyToInt t), fs, ab)
+                Nothing -> (\ab -> (Nothing, [], ab)) <$> df
+              -- an arm is copied when it is a leaf, or when one tail
+              -- reaches it (the default arm is reached by every
+              -- constructor without an arm of its own)
+              tailsTo k = length [() | t <- built, Just (k', _, _) <- [armOf t], k' == k]
+              copied k ab = leaf ab || tailsTo k == 1
+              -- the arms of the outer match are inside the let that takes
+              -- its value, when there is one
+              armCut = maybe cut (\(_, x, _, _) -> Just [x]) kont
+              restJoin = case kont of
+                Just (_, _, _, rest) | not (leaf rest) -> 1
+                _ -> 0,
+          Just targets <- traverse armOf tags -> do
+            (made, _, _) <- get
+            let needed = length (nubOrd [k | (k, _, ab) <- targets, not (copied k ab)]) + restJoin
+            if length made + needed > maxJoins
+              then fallback
+              else do
+                modify (\(js, ss, ds) -> (js, ss, Set.insert p ds))
+                -- the rest of the body as a join point taking the match's
+                -- value, unless it is a single expression, copied
+                restCode <- case kont of
+                  Just (_, x, _, rest)
+                    | not (leaf rest) -> do
+                        rest' <- go cut rest
+                        j <- newJoin cut M.empty [x] restFree rest'
+                        pure (Just (TApp (FWorker grpr (joinIndex owner (fst j))) (x : snd j)))
+                    | otherwise -> pure (Just rest)
+                  Nothing -> pure Nothing
+                -- one join point per arm that is neither a leaf nor built
+                -- by one tail only
+                numbered <- foldM (joinFor p r arms armCut) M.empty [tg | tg@(k, _, ab) <- targets, not (copied k ab)]
+                -- an arm copied into its one tail, renamed by 'rewrite'
+                -- (the default arm binds nothing and is copied as it is)
+                let copyArm t args = \case
+                      Just _ -> do
+                        let (code, armSrcs) = runState (rewrite p (Node p (Con r t (Plain <$ args)) (map Leaf args)) (TMatch p (MatchData r cs df))) M.empty
+                        modify (\(js, ss, ds) -> (js, ss <> armSrcs, ds))
+                        pure code
+                      Nothing -> pure (fromMaybe (internalBug [] "splitJoins: no default arm") df)
+                onceCodes <-
+                  M.fromList
+                    <$> sequence
+                      [ (,) t <$> copyArm t args k
+                      | (t, (k, _, ab)) <- zip tags targets,
+                        copied k ab,
+                        not (leaf ab),
+                        tl <- take 1 [tl | tl <- tailsOf bn, Just (t', _) <- [tailCon cons r tl], t' == t],
+                        Just (_, args) <- [tailCon cons r tl]
+                      ]
+                let at tl
+                      | Just (t, args) <- tailCon cons r tl,
+                        Just (k, fs, ab) <- armOf t =
+                          let arm
+                                | leaf ab = ABTN.renames (M.fromList (zip fs args)) ab
+                                | copied k ab = fromMaybe (internalBug [] "splitJoins: an arm without its copy") (M.lookup t onceCodes)
+                                | otherwise = case M.lookup k numbered of
+                                    Just (j, extra) -> TApp (FWorker grpr (joinIndex owner j)) (args ++ extra)
+                                    Nothing -> internalBug [] "splitJoins: an arm without a join point"
+                           in case (kont, restCode) of
+                                (Just (d', x, ms', _), Just rest) -> TLets d' [x] ms' arm rest
+                                _ -> arm
+                      | otherwise = tl
+                -- the binding takes the let's place, so its lets are inside
+                -- whatever the let was inside, and the arms it now ends in
+                -- are walked for their own sites
+                go cut (sinkTails at bn)
+        where
+          fallback = TLets d [p] ms <$> go (cutFor d [p] cut) bn <*> go cut bo
+      TLets d us ms bn bo -> TLets d us ms <$> go (cutFor d us cut) bn <*> go cut bo
+      TShift {} -> pure tm
+      ABTN.Term _ (ABTN.Abs u e) -> ABTN.TAbs u <$> go cut e
+      ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse (go cut) f
+    -- the binding of an indirect let has the let's frame around it
+    cutFor d us cut = case d of
+      Indirect _ -> Just us
+      Direct -> cut
+    leaf ab = null (children ab)
+    -- the join point for an arm, unless already made: numbered when its
+    -- body, with the join points of the sites inside it, is done
+    joinFor p r arms cut acc (k, fs, ab)
+      | M.member k acc = pure acc
+      | otherwise = do
+          ab' <- go cut ab
+          let psrcs = case k of
+                Just t -> M.singleton p (Right (BuiltCon r (EC.intToKey t) fs))
+                Nothing -> M.empty
+          j <- newJoin cut psrcs fs (M.findWithDefault Set.empty k arms) ab'
+          pure (M.insert k j acc)
+    -- a join point whose parameters are the given variables and then what
+    -- stands for the unoptimized variables and what the body uses now
+    newJoin cut psrcs fs base body = do
+      let extra =
+            Set.toAscList $
+              (Set.unions (map expand (Set.toList base)) <> ABTN.freeVars body)
+                `Set.difference` Set.fromList fs
+                `Set.difference` locals
+          params = fs ++ extra
+      (js, ss, ds) <- get
+      put (Join (Lambda (map (const BX) params) (TAbss params body)) cut psrcs : js, ss, ds)
+      pure (length js + 1, extra)
+    -- what stands for a variable of the unoptimized code: itself, what it
+    -- was renamed to, or the fields of the product it was
+    expand w = Set.fromList (ex (0 :: Int) w)
+    ex depth w
+      | depth > 64 = internalBug [] $ "splitJoins: the source of " ++ show w ++ " refers back to itself"
+      | Set.member w dead0 = []
+      | Just (Left u) <- M.lookup w srcs = ex (depth + 1) u
+      | Just (Right b) <- M.lookup w srcs = concatMap (ex (depth + 1)) (builtFields b)
+      | Just b <- M.lookup w bcons = [w | Set.member w inScope] ++ concatMap (ex (depth + 1)) (builtFields b)
+      | Set.member w inScope = [w]
+      | otherwise = internalBug [] $ "splitJoins: nothing stands for " ++ show w ++ " of the unoptimized code"
+    -- the variables of sites, dead wherever a frame could hold them
+    dead0 = M.keysSet sites
 
 -- | The body with a name of its own for every binder and an index of its
 -- own for every indirect let. Normalization reuses a name under

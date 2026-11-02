@@ -302,7 +302,7 @@ jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
       Nothing -> pure ()
       Just st -> do
         numbers <- readIORef (jitTypeNumbers jit)
-        (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
+        (now, _) <- groupUnits (jitCompiler jit) sandbox False False ref grp cmbs
         guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st numbers ("unison_" ++ show grp) False now)
   _ -> pure ()
 
@@ -523,7 +523,7 @@ compileThread jit = do
               (now, later) <-
                 unzip
                   <$> sequence
-                    [ groupUnits c sandbox True ref g cmbs
+                    [ groupUnits c sandbox True False ref g cmbs
                     | g <- members,
                       Just cmbs <- [EC.lookup g cache],
                       Just ref <- [EC.lookup g refs]

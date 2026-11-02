@@ -35,6 +35,13 @@ data Optimization
     -- several values, by a product-return worker (design.md "Results
     -- exploded")
     ExplodeReturns
+  | -- | @known_constructor@: a product or sum built and matched in the
+    -- same body is matched where it is built, the let dropped and the
+    -- arm's variables renamed to the fields; a match on the value of a
+    -- match whose every tail builds a constructor is moved into those
+    -- tails, as a call of a join point per arm (Unison.Runtime.MCode.Explode,
+    -- design.md "Known constructors and case of case")
+    KnownConstructor
   | -- | @wide@: the wide calling convention, small constructors in stack
     -- slots between a return and a match (Unison.Runtime.Wide); on by
     -- default exactly when the JIT is
@@ -50,6 +57,7 @@ optimizationName :: Optimization -> String
 optimizationName = \case
   ExplodeArgs -> "explode_args"
   ExplodeReturns -> "explode_returns"
+  KnownConstructor -> "known_constructor"
   Wide -> "wide"
   Replacements -> "replacements"
 

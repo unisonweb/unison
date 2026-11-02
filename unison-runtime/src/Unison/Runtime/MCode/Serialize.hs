@@ -67,6 +67,7 @@ putLayout (FrameLayout wide base depth encl) =
       Copy d i -> BU.word8 0 <> pInt d <> pInt i
       PackSlot r t slots -> BU.word8 1 <> putReference r <> putPackedTag t <> putFoldable putSlot slots
       RecSlot shape slots -> BU.word8 2 <> putRecordShape shape <> putFoldable putSlot slots
+      Dead -> BU.word8 3
 
 getLayout :: (PrimBase m) => Get m FrameLayout
 getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> getList getBaseFrame) <*> gInt <*> gInt
@@ -77,6 +78,7 @@ getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> 
         0 -> Copy <$> gInt <*> gInt
         1 -> PackSlot <$> getReference <*> getPackedTag <*> getList getSlot
         2 -> RecSlot <$> getRecordShape <*> getList getSlot
+        3 -> pure Dead
         t -> fail $ "getLayout: unknown slot tag: " ++ show t
 
 getMForeignFunc :: (PrimBase m) => Get m ForeignFunc

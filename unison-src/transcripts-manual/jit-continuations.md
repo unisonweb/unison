@@ -173,6 +173,69 @@ localHandled n =
       match step (acc + inner) outer with (acc', i') -> go acc' (i' + i)
   go 0 0
 
+-- a match on the value of a match (design.md "Known constructors and case
+-- of case"): a request inside the binding, whose lets lose the let's frame
+-- and get it back as an unoptimized frame, and one inside the arm, which
+-- is a join point of the group, with the loop's variables as parameters
+joinArm : Nat ->{Ask} Nat
+joinArm n =
+  go acc i =
+    if i > n then acc
+    else
+      p = if Nat.mod i 2 == 0 then Some (Ask.ask + i) else None
+      match p with
+        Some k ->
+          y = Ask.ask
+          go (acc + k + y) (i + 1)
+        None -> go acc (i + 1)
+  go 0 0
+
+-- the site inside a let's binding: the join point's unoptimized frames
+-- stop at that let's
+joinInBinding : Nat ->{Ask} Nat
+joinInBinding n =
+  go acc i =
+    if i > n then acc
+    else
+      r =
+        p = if i > 1 then Some i else None
+        match p with
+          Some k ->
+            y = Ask.ask
+            k + y
+          None -> Ask.ask
+      go (acc + r) (i + 1)
+  go 0 0
+
+-- the default arm as a join point, which never reads the matched value
+joinDefault : Nat ->{Ask} Nat
+joinDefault n =
+  go acc i =
+    if i > n then acc
+    else
+      s = if Nat.mod i 3 == 0 then Left i else Right (i + 1)
+      match s with
+        Left a ->
+          x = Ask.ask
+          go (acc + a + x) (i + 1)
+        _ ->
+          y = Ask.ask
+          go (acc + y) (i + 1)
+  go 0 0
+
+-- a tuple built and matched at once, with a request after the match: the
+-- unoptimized frame holds the pair, packed from the fields
+knownPair : Nat ->{Ask} Nat
+knownPair n =
+  go acc i =
+    if i > n then acc
+    else match (i, acc) with
+      (0, _) -> go (acc + Ask.ask) (i + 1)
+      (a, b) ->
+        x = Ask.ask
+        go (a + b + x) (i + 1)
+  go 0 0
+
 structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
 
 -- answers the first m requests with 1, 2, ... and stops at the next with its continuation
@@ -202,7 +265,11 @@ shapes =
     ("pair", '(pairLoop 5)),
     ("keep", '(keepState 3)),
     ("innerHandled", '(innerHandled 3)),
-    ("localHandled", '(localHandled 3)) ]
+    ("localHandled", '(localHandled 3)),
+    ("joinArm", '(joinArm 5)),
+    ("joinInBinding", '(joinInBinding 5)),
+    ("joinDefault", '(joinDefault 5)),
+    ("knownPair", '(knownPair 5)) ]
 
 each : [a] -> (a ->{IO, Exception} ()) ->{IO, Exception} ()
 each xs f = match xs with
@@ -238,7 +305,7 @@ main = do
               bs = ##Value.serialize (##Value.value k)
               writeFile (path name m label) bs
               printLine (name ++ " " ++ Nat.toText m ++ " sent by " ++ label ++ ", own round trip " ++ verdict (resumeBytes bs) direct)
-        else each ["all", "none", "args", "returns"] fromSender
+        else each ["all", "none", "args", "returns", "known"] fromSender
       each [0, 1, 2] runCase
   each shapes runShape
 ```

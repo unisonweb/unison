@@ -2713,7 +2713,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
       goPushIx gr >>= \case
         (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
-            (fromIntegral f + layoutPadding lay)
+            (fromIntegral f + layoutPadding (fromIntegral f) lay)
             (fromIntegral a)
             cix
             fr
@@ -2848,7 +2848,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
       goPushIx gr >>= \case
         (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
-            (fromIntegral f + layoutPadding lay)
+            (fromIntegral f + layoutPadding (fromIntegral f) lay)
             (fromIntegral a)
             cix
             fr
@@ -3007,7 +3007,7 @@ deoptCont layout k a0 vs0 = (top ++ concatMap fst out, concatMap snd out)
   where
     (top, rest) = splitAt a0 vs0
     frames = go [] k
-    go acc (Push f a cix _ _ _ k') = go ((f - layoutPadding (layout cix), a, Right cix) : acc) k'
+    go acc (Push f a cix _ _ _ k') = go ((f - widePadding f (layout cix), a, Right cix) : acc) k'
     go acc (Mark a ps de k') = go ((0, a, Left (ps, de)) : acc) k'
     go acc _ = acc
     split [] _ = []
@@ -3037,6 +3037,7 @@ deoptCont layout k a0 vs0 = (top ++ concatMap fst out, concatMap snd out)
         | otherwise -> error $ "deoptCont: no slot " ++ show i ++ " in frame " ++ show (j + d)
       PackSlot r t sl -> BoxedVal (packData r t (map (resolve j) sl))
       RecSlot shape sl -> BoxedVal (RecordG shape (recordVals (segFromList (map (resolve j) sl))))
+      Dead -> unitValue
     index xs i = listToMaybe (drop i xs)
     packData r t = \case
       [] -> Enum r t
@@ -3053,7 +3054,7 @@ widenCont layout k vs0 = top ++ go frames rest
   where
     frames = contFrames k
     (top, rest) = splitAt (length vs0 - sum [varsOf f mcix + a | (f, a, mcix) <- frames]) vs0
-    varsOf f mcix = f - maybe 0 (layoutPadding . layout) mcix
+    varsOf f mcix = f - maybe 0 (widePadding f . layout) mcix
     go [] vs = vs
     go ((f, a, mcix) : fs) vs =
       let lay = maybe [] (wideVars . layout) mcix

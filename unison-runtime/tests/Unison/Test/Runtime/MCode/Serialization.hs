@@ -206,7 +206,7 @@ genFrameLayout =
     genSlot =
       Gen.recursive
         Gen.choice
-        [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10)]
+        [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10), pure Dead]
         [ PackSlot <$> genReference <*> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
           RecSlot <$> genRecordShape <*> Gen.list (Range.linear 0 3) genSlot
         ]
