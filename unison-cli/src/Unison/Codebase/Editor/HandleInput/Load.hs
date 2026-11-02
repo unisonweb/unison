@@ -5,10 +5,14 @@ module Unison.Codebase.Editor.HandleInput.Load
     evalUnisonFile,
     parseAndTypecheckUnisonFile,
     pulledInDefinitions,
+    pulledInStarts,
+    PulledIn (..),
+    insertAboveFold,
+    pulledInHeader,
   )
 where
 
-import Control.Lens ((.=))
+import Control.Lens ((.=), (?=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -18,11 +22,13 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
+import System.Directory qualified as Directory
 import System.Environment (withArgs)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -73,6 +79,8 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typechecker.Context qualified as Context
+import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.Typed (Typed (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
@@ -378,21 +386,108 @@ pullInDependentsOfRedefinitions ::
   Text ->
   Text ->
   UF.UnisonFile Symbol Ann ->
-  Cli (Text, UF.UnisonFile Symbol Ann)
+  -- | The text and the file as typechecked, and what was pulled in
+  Cli (Text, UF.UnisonFile Symbol Ann, Maybe PulledIn)
 pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text uf =
   liftIO (pulledInDefinitions codebase names uf) >>= \case
-    Nothing -> pure (text, uf)
-    Just (pulledNames, source) -> do
-      let text' = text <> "\n\n" <> source
+    Nothing -> pure (text, uf, Nothing)
+    Just (pulledNames, redefinedNames, source) -> do
+      let (text', firstLine, lastLine) = insertAboveFold text (pulledInHeader redefinedNames <> source)
       uf' <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text') parsingEnv)
           & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text' [err])
-      Cli.respond (Output.PulledInDependents pulledNames)
-      pure (text', uf')
+      -- When the source is a real file, the definitions go into it, so that errors point at lines the user can see and
+      -- the user edits them like the rest. A `unison` block of a transcript has no file to write.
+      env <- ask
+      let path = Text.unpack sourceName
+      written <- liftIO (Directory.doesFileExist path)
+      when written do
+        liftIO do
+          Directory.removeFile path
+          env.writeSource sourceName text' False
+        -- The file watcher will report this write; it isn't a change of the user's.
+        #latestFile ?= (path, True)
+      Cli.respond (Output.PulledInDependents pulledNames written)
+      pure (text', uf', Just PulledIn {names = pulledNames, starts = pulledInStarts pulledNames uf', firstLine, lastLine, written})
+
+-- | The comment that goes above pulled-in definitions in a file, naming what the file redefines.
+pulledInHeader :: [Name] -> Text
+pulledInHeader redefined =
+  Text.unlines
+    [ "-- The definitions below are from the codebase. `load` added them here because they use "
+        <> Text.intercalate ", " (map (\n -> "`" <> Name.toText n <> "`") redefined)
+        <> ", which this file",
+      "-- redefines, so they are typechecked with the file and `update` saves them rebuilt. Change them if the new definition",
+      "-- doesn't fit the way they use it; they are yours to edit, like the rest of the file.",
+      ""
+    ]
+
+-- | What 'pullInDependentsOfRedefinitions' added to a file: the names, where each starts in the text as typechecked
+-- (1-based lines), and the first and last line of the added region.
+data PulledIn = PulledIn
+  { names :: [Name],
+    starts :: [(Int, Name)],
+    firstLine :: Int,
+    lastLine :: Int,
+    -- | Whether the definitions were written into the file, so that its lines are the typechecked text's
+    written :: Bool
+  }
+
+-- | The file's text with source added where Unison still reads it: before the first fold line (a line starting with
+-- `---`, which hides the rest of the file), or else at the end. Also the first and last line (1-based) of the added
+-- source in the result.
+insertAboveFold :: Text -> Text -> (Text, Int, Int)
+insertAboveFold text source =
+  let (above, below) = break (Text.isPrefixOf "---" . Text.stripStart) (Text.lines text)
+      firstLine = length above + 2
+      sourceLines = Text.lines source
+   in ( Text.unlines (above ++ [""] ++ sourceLines ++ [""] ++ below),
+        firstLine,
+        firstLine + max 0 (length sourceLines - 1)
+      )
+
+-- | The line (1-based) on which each of the named definitions starts in a parsed file, in order. For the definitions
+-- 'pulledInDefinitions' added, which come after the file's own lines, this says which definition an error line is in.
+pulledInStarts :: [Name] -> UF.UnisonFile Symbol Ann -> [(Int, Name)]
+pulledInStarts names uf =
+  sortOn fst [(line, name) | name <- names, Just line <- [start (Name.toVar name)]]
+  where
+    start v =
+      (Map.lookup v (UF.terms uf) >>= Ann.startingLine . fst)
+        <|> (Map.lookup v (UF.dataDeclarationsId uf) >>= Ann.startingLine . DataDeclaration.annotation . snd)
+        <|> (Map.lookup v (UF.effectDeclarationsId uf) >>= Ann.startingLine . DataDeclaration.annotation . DataDeclaration.toDataDecl . snd)
+
+-- | The name of the pulled-in definition that a line of the typechecked text is in, if it is in the pulled-in region.
+pulledInDefinitionAt :: PulledIn -> Int -> Maybe Name
+pulledInDefinitionAt pulled line
+  | line < pulled.firstLine || line > pulled.lastLine = Nothing
+  | otherwise = snd <$> lastMay (takeWhile ((<= line) . fst) pulled.starts)
+
+-- | The line a type error points at, when it points somewhere.
+typeErrorLine :: Context.ErrorNote Symbol Ann -> Maybe Int
+typeErrorLine note =
+  site (TypeError.typeErrorFromNote note) >>= Ann.startingLine
+  where
+    site = \case
+      TypeError.Mismatch {mismatchSite} -> Just (ABT.annotation mismatchSite)
+      TypeError.BooleanMismatch {mismatchSite} -> Just (ABT.annotation mismatchSite)
+      TypeError.ExistentialMismatch {mismatchSite} -> Just (ABT.annotation mismatchSite)
+      TypeError.ActionRestrictionFailure {mismatchSite} -> Just (ABT.annotation mismatchSite)
+      TypeError.FunctionUnderApplied {mismatchSite} -> Just (ABT.annotation mismatchSite)
+      TypeError.FunctionApplication {f} -> Just (ABT.annotation f)
+      TypeError.NotFunctionApplication {f} -> Just (ABT.annotation f)
+      TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> Just abilityCheckFailureSite
+      TypeError.AbilitySubtypeFailure {abilityCheckFailureSite} -> Just abilityCheckFailureSite
+      TypeError.AbilityEqFailure {abilityCheckFailureSite} -> Just abilityCheckFailureSite
+      TypeError.UnknownType {typeSite} -> Just typeSite
+      TypeError.UnknownTerm {termSite} -> Just termSite
+      TypeError.RedundantPattern loc -> Just loc
+      TypeError.UncoveredPatterns loc _ -> Just loc
+      _ -> Nothing
 
 -- | The definitions of the codebase to make part of a parsed file (see 'pullInDependentsOfRedefinitions'): their names,
 -- and their source, rendered with the given names. The LSP uses this too, on the file as it is being edited.
-pulledInDefinitions :: Codebase IO Symbol Ann -> Names -> UF.UnisonFile Symbol Ann -> IO (Maybe ([Name], Text))
+pulledInDefinitions :: Codebase IO Symbol Ann -> Names -> UF.UnisonFile Symbol Ann -> IO (Maybe ([Name], [Name], Text))
 pulledInDefinitions codebase names uf = do
   let fileTermNames = Set.map Name.unsafeParseVar (UFN.toTermAndWatchNames uf)
       fileTypeNames = Set.map Name.unsafeParseVar (Map.keysSet (UF.dataDeclarationsId uf) <> Map.keysSet (UF.effectDeclarationsId uf))
@@ -445,7 +540,10 @@ pulledInDefinitions codebase names uf = do
         else do
           rendered <- newIORef Nothing
           _ <- renderToFile codebase (const True) (\_ txt _ -> writeIORef rendered (Just txt)) Nothing "pulled" AboveFold ppe terms types
-          fmap (pulledNames,) <$> readIORef rendered
+          let redefinedNames =
+                Set.toList (Set.filter (not . Set.null . Names.refTermsNamed names) fileTermNames)
+                  <> Set.toList (Set.filter (not . Set.null . Names.typesNamed names) fileTypeNames)
+          fmap (pulledNames,redefinedNames,) <$> readIORef rendered
   where
     ppe = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHashName names)
 
@@ -454,7 +552,8 @@ parseAndTypecheckUnisonFile ::
   Text ->
   Text ->
   Cli (TypecheckedUnisonFile Symbol Ann)
-parseAndTypecheckUnisonFile names sourceName text = do
+parseAndTypecheckUnisonFile names sourceName text0 = do
+  let text = text0
   pp <- Cli.getCurrentProjectPath
   State.modify' \loopState ->
     loopState
@@ -473,7 +572,7 @@ parseAndTypecheckUnisonFile names sourceName text = do
   unisonFile0 <-
     Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
       & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-  (text, unisonFile) <- pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text unisonFile0
+  (text, unisonFile, pulledIn) <- pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text unisonFile0
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
   typecheckingEnv <-
@@ -525,6 +624,11 @@ parseAndTypecheckUnisonFile names sourceName text = do
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
       Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+      -- An error in a definition that was pulled in is in code the user didn't write: say which definition it is in.
+      for_ pulledIn \pulled -> when (not pulled.written) do
+        let inPulledIn = Set.toList (Set.fromList (mapMaybe (typeErrorLine >=> pulledInDefinitionAt pulled) tes))
+        when (not (null inPulledIn)) do
+          Cli.respond (Output.TypeErrorsInPulledIn pulled.firstLine pulled.lastLine inPulledIn)
     when (not (null cbs)) do
       Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
     Cli.returnEarlyWithoutOutput

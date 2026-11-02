@@ -98,3 +98,44 @@ scratch/main> view Shape.totalArea Shape.isSquare
           ⧩
           (7.0, false)
 ```
+
+A fold line (`---`) hides the rest of a file. The pulled-in definitions go above it, so they are still read, and what
+is below the fold stays ignored:
+
+``` unison
+type Shape = Square Float | Circle Float | Triangle Float Float | Hexagon Float
+
+Shape.area : Shape -> Float
+Shape.area = cases
+  Square s -> s * s
+  Circle r -> 3.0 * r * r
+  Triangle b h -> 0.5 * b * h
+  Hexagon s -> 2.6 * s * s
+
+Shape.check : (Float, Boolean)
+Shape.check = (Shape.totalArea [Hexagon 1.0], Shape.isSquare (Hexagon 1.0))
+
+---- Anything below this line is ignored by Unison.
+
+Shape.ignored = "not read"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  Also typechecking, from the codebase:
+  Shape.isSquare, Shape.totalArea. They use what this file
+  redefines, so they are part of the file now, and `update`
+  saves them rebuilt on the new definition.
+
+  ~ type Shape
+
+  ~ Shape.area      : Shape -> Float
+  ~ Shape.check     : (Float, Boolean)
+  ~ Shape.isSquare  : Shape -> Boolean
+  ~ Shape.totalArea : [Shape] -> Float
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```

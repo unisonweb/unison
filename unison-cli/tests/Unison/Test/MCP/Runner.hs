@@ -82,7 +82,7 @@ test =
         contents <- io (Text.readFile file)
         expectTextContaining ["bar : Nat", "foo : Nat"] contents
         -- The newer definition goes above the older one, as at the command line.
-        expect' (Text.length (fst (Text.breakOn "bar" contents)) < Text.length (fst (Text.breakOn "foo" contents)))
+        expect (Text.length (fst (Text.breakOn "bar" contents)) < Text.length (fst (Text.breakOn "foo" contents)))
         loaded <- runTranscriptWith mcp (ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> load " <> Text.pack file])
         either (crash . show) (expectTextContaining ["bar : Nat", "foo : Nat"] . Text.pack . renderOutput) loaded
         io (removeDirectoryRecursive dir),
@@ -94,7 +94,7 @@ test =
             (definition "foo" <> ucm ["scratch/main> edit.to " <> Text.pack file <> " foo", "scratch/main> edit.to " <> Text.pack file <> " foo"])
         either (crash . show) (expectTextContaining ["I added 1 definitions", "already has every definition"] . Text.pack . renderOutput) twice
         contents <- io (Text.readFile file)
-        expect' (length (Text.breakOnAll "foo : Nat" contents) == 1)
+        expect (length (Text.breakOnAll "foo : Nat" contents) == 1)
         io (removeDirectoryRecursive dir),
       scope "a file loaded in one transcript is what update saves in the next, and update takes a file" do
         (dir, file) <- workFile
@@ -106,6 +106,37 @@ test =
         io (Text.writeFile file "foo : Nat\nfoo = 2\n")
         byFile <- runTranscriptsWith mcp [ucm ["scratch/main> builtins.merge lib.builtins", "scratch/main> update " <> Text.pack file, "scratch/main> view foo"]]
         either (crash . show) (expectTextContaining ["foo = 2"] . Text.pack . renderOutput) (last byFile)
+        io (removeDirectoryRecursive dir),
+      scope "load writes the definitions it pulls in into the file, above the fold" do
+        (dir, file) <- workFile
+        let setup =
+              Text.unlines
+                [ "``` ucm",
+                  "scratch/main> builtins.merge lib.builtins",
+                  "```",
+                  "",
+                  "``` unison",
+                  "type Shape = Square Nat | Circle Nat",
+                  "Shape.area : Shape -> Nat",
+                  "Shape.area = cases",
+                  "  Square s -> s * s",
+                  "  Circle r -> 3 * r * r",
+                  "Shape.twice : Shape -> Nat",
+                  "Shape.twice s = 2 * Shape.area s",
+                  "```",
+                  "",
+                  "``` ucm",
+                  "scratch/main> add",
+                  "```"
+                ]
+        io (Text.writeFile file "type Shape = Square Nat | Circle Nat | Dot\n\nShape.area : Shape -> Nat\nShape.area = cases\n  Square s -> s * s\n  Circle r -> 3 * r * r\n  Dot -> 0\n\nShape.check = Shape.twice Dot\n\n---- below the fold\n\nShape.ignored = 1\n")
+        results <- runTranscriptsWith mcp [setup <> ucm ["scratch/main> load " <> Text.pack file]]
+        either (crash . show) (expectTextContaining ["Added to the file, from the codebase: Shape.twice"] . Text.pack . renderOutput) (last results)
+        contents <- io (Text.readFile file)
+        expectTextContaining ["-- The definitions below are from the codebase", "Shape.twice", "---- below the fold", "Shape.ignored = 1"] contents
+        -- Above the fold, after the user's own definitions.
+        expect (Text.length (fst (Text.breakOn "Shape.check" contents)) < Text.length (fst (Text.breakOn "Shape.twice : " contents)))
+        expect (Text.length (fst (Text.breakOn "Shape.twice : " contents)) < Text.length (fst (Text.breakOn "---- below" contents)))
         io (removeDirectoryRecursive dir),
       scope "a transcript test keeps the files UCM writes in memory" do
         (dir, file) <- workFile
@@ -274,7 +305,7 @@ expectFailureMentioning needles = \case
 
 expectTextContaining :: [Text] -> Text -> Test ()
 expectTextContaining needles haystack =
-  tests [expect' (needle `Text.isInfixOf` haystack) | needle <- needles]
+  tests [expect (needle `Text.isInfixOf` haystack) | needle <- needles]
 
 renderOutput :: Transcript -> String
 renderOutput = Text.unpack . Transcript.format

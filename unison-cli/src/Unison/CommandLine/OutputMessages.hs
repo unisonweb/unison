@@ -1119,11 +1119,22 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  PulledInDependents names ->
+  TypeErrorsInPulledIn firstLine lastLine names ->
+    pure . P.callout "☝️" . P.wrap $
+      "Lines "
+        <> P.shown firstLine
+        <> " to "
+        <> P.shown lastLine
+        <> " are not in your file: they are "
+        <> P.group (P.commas (P.syntaxToColor . prettyName <$> names) <> ",")
+        <> "pulled in from the codebase because they use what the file redefines. An error there means the new definition"
+        <> "doesn't fit the way they use it: add the definition to your file and change it too, or change the file so that it fits."
+  PulledInDependents names written ->
     pure . P.wrap $
-      "Also typechecking, from the codebase: "
+      (if written then "Added to the file, from the codebase: " else "Also typechecking, from the codebase: ")
         <> P.group (P.commas (P.syntaxToColor . prettyName <$> names) <> ".")
         <> " They use what this file redefines, so they are part of the file now, and `update` saves them rebuilt on the new definition."
+        <> (if written then " A comment above them in the file says so; change them if the new definition doesn't fit the way they use it." else "")
   Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]

@@ -32,8 +32,8 @@ import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasIsPreferred (i
 import Language.LSP.Protocol.Lens qualified as LSPTypes
 import Language.LSP.Protocol.Types
   ( Diagnostic,
-    Position,
-    Range,
+    Position (Position),
+    Range (Range),
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
@@ -41,7 +41,7 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.HandleInput.Load (pulledInDefinitions)
+import Unison.Codebase.Editor.HandleInput.Load (insertAboveFold, pulledInDefinitions, pulledInHeader, pulledInStarts)
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
@@ -119,21 +119,22 @@ checkFileContents fileUri sourceName fileVersion contents = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  (localBindingInfo, notes, parsedFile, typecheckedFile) <- do
+  (localBindingInfo, notes, parsedFile, typecheckedFile, pulledIn) <- do
     liftIO do
       parseResult <- Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv)
       -- As at `load`: a definition of the codebase that the file uses, and that uses what the file redefines, is
       -- typechecked as part of the file, so that the editor reports what UCM would.
-      parseResult <- case Result.fromParsing parseResult of
+      (parseResult, pulledIn) <- case Result.fromParsing parseResult of
         Result.Result _ (Just parsedFile0) ->
           pulledInDefinitions cb parseNames parsedFile0 >>= \case
-            Nothing -> pure parseResult
-            Just (_, source) ->
-              Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack (srcText <> "\n\n" <> source)) parsingEnv) <&> \case
-                Left _ -> parseResult
-                withPulled -> withPulled
-        _ -> pure parseResult
-      Codebase.runTransaction cb do
+            Nothing -> pure (parseResult, Nothing)
+            Just (names, redefined, source) -> do
+              let (srcText', firstLine, lastLine) = insertAboveFold srcText (pulledInHeader redefined <> source)
+              Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText') parsingEnv) <&> \case
+                Left _ -> (parseResult, Nothing)
+                withPulled -> (withPulled, Just (names, firstLine, lastLine))
+        _ -> pure (parseResult, Nothing)
+      fmap (\(a, b, c, d) -> (a, b, c, d, pulledIn)) $ Codebase.runTransaction cb do
         case Result.fromParsing parseResult of
           Result.Result parsingNotes Nothing -> pure (mempty, parsingNotes, Nothing, Nothing)
           Result.Result _ (Just parsedFile) -> do
@@ -169,7 +170,25 @@ checkFileContents fileUri sourceName fileVersion contents = do
             pure (localBindingInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- ppedForFileHelper parsedFile typecheckedFile
-  (errDiagnostics, codeActions) <- analyseFile fileUri srcText filePPED notes
+  (errDiagnostics0, codeActions) <- analyseFile fileUri srcText filePPED notes
+  -- A diagnostic in a pulled-in definition points at lines the document doesn't have. Put it on the line above the
+  -- pulled-in region (the last line of the user's own text there), and say which definition it is in.
+  let pulledStarts = case (pulledIn, parsedFile) of
+        (Just (names, _, _), Just file) -> pulledInStarts names file
+        _ -> []
+      relocate d = case pulledIn of
+        Just (_, firstLine, lastLine)
+          | line >= firstLine,
+            line <= lastLine,
+            Just name <- snd <$> lastMay (takeWhile ((<= line) . fst) pulledStarts) ->
+              let anchor = Position (fromIntegral (max 0 (firstLine - 3))) 0
+               in d
+                    & range .~ Range anchor anchor
+                    & LSPTypes.message %~ (("In " <> Name.toText name <> ", pulled in from the codebase because it uses what this file redefines: ") <>)
+        _ -> d
+        where
+          line = fromIntegral (d ^. range . LSPTypes.start . LSPTypes.line) + 1
+      errDiagnostics = relocate <$> errDiagnostics0
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)

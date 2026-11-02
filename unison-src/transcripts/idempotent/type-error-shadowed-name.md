@@ -48,9 +48,17 @@ type Shape = Circle Nat | Square Nat
   saves them rebuilt on the new definition.
 
   Pattern match doesn't cover all possible cases:
-        7 | area = cases Circle n -> n
+       10 | area = cases Circle n -> n
     
 
   Patterns not matched:
    * Square _
+
+  ☝️
+
+  Lines 5 to 10 are not in your file: they are area, pulled in
+  from the codebase because they use what the file redefines. An
+  error there means the new definition doesn't fit the way they
+  use it: add the definition to your file and change it too, or
+  change the file so that it fits.
 ```

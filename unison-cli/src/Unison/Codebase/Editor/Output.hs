@@ -335,8 +335,12 @@ data Output
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
-  | -- | Definitions of the codebase made part of the file being typechecked, because they use what it redefines.
-    PulledInDependents [Name]
+  | -- | Definitions of the codebase made part of the file being typechecked, because they use what it redefines, and
+    -- whether they were written into the file (a real file) or only typechecked with it (a transcript's block).
+    PulledInDependents [Name] Bool
+  | -- | Some of the type errors just reported are in pulled-in definitions, which occupy the given lines (first and
+    -- last) of the text as typechecked; these are the definitions.
+    TypeErrorsInPulledIn Int Int [Name]
   | Typechecked
       !PPE.PrettyPrintEnv
       !PPE.PrettyPrintEnv
@@ -626,6 +630,7 @@ outputShouldUsePager o = case o of
   -- These are typically non-interactive outputs, so we don't page them.
   LoadingFile {} -> False
   PulledInDependents {} -> False
+  TypeErrorsInPulledIn {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
   Evaluated {} -> False
@@ -727,6 +732,7 @@ isFailure o = case o of
   Evaluated {} -> False
   LoadingFile {} -> False
   PulledInDependents {} -> False
+  TypeErrorsInPulledIn {} -> False
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
