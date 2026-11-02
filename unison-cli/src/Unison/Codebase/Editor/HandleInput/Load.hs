@@ -410,17 +410,27 @@ pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text uf =
       Cli.respond (Output.PulledInDependents pulledNames written)
       pure (text', uf', Just PulledIn {names = pulledNames, starts = pulledInStarts pulledNames uf', firstLine, lastLine, written})
 
--- | The comment that goes above pulled-in definitions in a file, naming what the file redefines.
+-- | The comment that goes above pulled-in definitions in a file, naming what the file changes. Lines of at most 70
+-- characters.
 pulledInHeader :: [Name] -> Text
-pulledInHeader redefined =
-  Text.unlines
-    [ "-- The definitions below are from the codebase. `load` added them here because they use "
-        <> Text.intercalate ", " (map (\n -> "`" <> Name.toText n <> "`") redefined)
-        <> ", which this file",
-      "-- redefines, so they are typechecked with the file and `update` saves them rebuilt. Change them if the new definition",
-      "-- doesn't fit the way they use it; they are yours to edit, like the rest of the file.",
-      ""
-    ]
+pulledInHeader changed =
+  Text.unlines (wrapComment 70 sentence) <> "\n"
+  where
+    sentence =
+      "Added these definitions from the branch, since they depend on "
+        <> Text.intercalate ", " (map (\n -> "`" <> Name.toText n <> "`") changed)
+        <> ", which this file changes. Edit them here if they no longer typecheck, and `update` will save them with the rest."
+
+-- | A sentence as comment lines (`-- ` and the words), none longer than the width unless a word is.
+wrapComment :: Int -> Text -> [Text]
+wrapComment width = go [] . Text.words
+  where
+    go line [] = [render line | not (null line)]
+    go line (w : ws)
+      | null line = go [w] ws
+      | Text.length (render (line ++ [w])) <= width = go (line ++ [w]) ws
+      | otherwise = render line : go [w] ws
+    render ws = "-- " <> Text.unwords ws
 
 -- | What 'pullInDependentsOfRedefinitions' added to a file: the names, where each starts in the text as typechecked
 -- (1-based lines), and the first and last line of the added region.

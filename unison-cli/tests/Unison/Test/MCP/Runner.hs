@@ -133,7 +133,8 @@ test =
         results <- runTranscriptsWith mcp [setup <> ucm ["scratch/main> load " <> Text.pack file]]
         either (crash . show) (expectTextContaining ["Added to the file, from the codebase: Shape.twice"] . Text.pack . renderOutput) (last results)
         contents <- io (Text.readFile file)
-        expectTextContaining ["-- The definitions below are from the codebase", "Shape.twice", "---- below the fold", "Shape.ignored = 1"] contents
+        expectTextContaining ["-- Added these definitions from the branch, since they depend on", "Shape.twice", "---- below the fold", "Shape.ignored = 1"] contents
+        expect (all ((<= 70) . Text.length) (filter (Text.isPrefixOf "-- ") (Text.lines contents)))
         -- Above the fold, after the user's own definitions.
         expect (Text.length (fst (Text.breakOn "Shape.check" contents)) < Text.length (fst (Text.breakOn "Shape.twice : " contents)))
         expect (Text.length (fst (Text.breakOn "Shape.twice : " contents)) < Text.length (fst (Text.breakOn "---- below" contents)))
