@@ -1138,6 +1138,10 @@ declareForeigns = do
 
   declareForeign Tracked 1 IO_getFileSize_impl_v3
 
+  declareForeign Tracked 1 IO_getFilePermissions_impl_v1
+
+  declareForeign Tracked 2 IO_setFilePermissions_impl_v1
+
   declareForeign Tracked 2 IO_serverSocket_impl_v3
 
   declareForeign Tracked 1 Socket_toText

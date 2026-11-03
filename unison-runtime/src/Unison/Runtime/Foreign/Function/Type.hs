@@ -64,6 +64,8 @@ data ForeignFunc
   | IO_renameFile_impl_v3
   | IO_getFileTimestamp_impl_v3
   | IO_getFileSize_impl_v3
+  | IO_getFilePermissions_impl_v1
+  | IO_setFilePermissions_impl_v1
   | IO_serverSocket_impl_v3
   | Socket_toText
   | Handle_toText
@@ -539,6 +541,8 @@ foreignFuncBuiltinName = \case
   IO_removeFile_impl_v3 -> "IO.removeFile.impl.v3"
   IO_renameFile_impl_v3 -> "IO.renameFile.impl.v3"
   IO_getFileTimestamp_impl_v3 -> "IO.getFileTimestamp.impl.v3"
+  IO_getFilePermissions_impl_v1 -> "IO.getFilePermissions.impl.v1"
+  IO_setFilePermissions_impl_v1 -> "IO.setFilePermissions.impl.v1"
   IO_getFileSize_impl_v3 -> "IO.getFileSize.impl.v3"
   IO_serverSocket_impl_v3 -> "IO.serverSocket.impl.v3"
   Socket_toText -> "Socket.toText"
