@@ -833,8 +833,27 @@ joiningOf js bd srcs = (\setting -> Joining setting (caseSites cons (jsLocals se
 prepareBody :: (Var v) => Batch -> Maybe Shape -> Maybe (Joining v) -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v], Set.Set v, [Join v])
 prepareBody b ms mj bd
   | not rewritesOn = (uniqueBody bd, M.empty, M.empty, Set.empty, [])
+  | not (null loose) =
+      internalBug [] $
+        "prepareBody: the rewrites left "
+          ++ show loose
+          ++ " unbound; unoptimized body:\n"
+          ++ show (uniqueBody bd)
+          ++ "\nrewritten body:\n"
+          ++ show main
+          ++ concat ["\njoin point:\n" ++ show (joinLambda jn) | jn <- joins]
   | otherwise = (freshLets main, M.unions [srcsK, srcs, srcsJ], lets, dead, map freshJoin joins)
   where
+    -- a rewritten body, or a join point under its parameters, is closed
+    -- where the unoptimized body is
+    scope = ABTN.freeVars bd
+    loose =
+      Set.toList . Set.unions $
+        (ABTN.freeVars main `Set.difference` scope)
+          : [ ABTN.freeVars jb `Set.difference` (scope <> Set.fromList js)
+            | jn <- joins,
+              Lambda _ (TAbss js jb) <- [joinLambda jn]
+            ]
     (known, srcsK)
       | knownConstructorOn = runState (knownCons (uniqueBody bd)) M.empty
       | otherwise = (uniqueBody bd, M.empty)
@@ -1090,24 +1109,27 @@ splitJoins (Joining (JoinSetting owner grpr locals) sites bcons srcs0) srcs1 bd 
     -- a join point whose parameters are the given variables and then what
     -- stands for the unoptimized variables and what the body uses now
     newJoin cut psrcs fs base body = do
+      (js, ss, ds) <- get
       let extra =
             Set.toAscList $
-              (Set.unions (map expand (Set.toList base)) <> ABTN.freeVars body)
+              (Set.unions (map (expand (srcs <> ss)) (Set.toList base)) <> ABTN.freeVars body)
                 `Set.difference` Set.fromList fs
                 `Set.difference` locals
           params = fs ++ extra
-      (js, ss, ds) <- get
       put (Join (Lambda (map (const BX) params) (TAbss params body)) cut psrcs : js, ss, ds)
       pure (length js + 1, extra)
     -- what stands for a variable of the unoptimized code: itself, what it
-    -- was renamed to, or the fields of the product it was
-    expand w = Set.fromList (ex (0 :: Int) w)
-    ex depth w
+    -- was renamed to, or the fields of the product it was; through the
+    -- sources given and those recorded so far, since an arm copied into
+    -- its one tail at an enclosing site renames its variables, and a
+    -- site inside it is reached after
+    expand ss w = Set.fromList (ex ss (0 :: Int) w)
+    ex ss depth w
       | depth > 64 = internalBug [] $ "splitJoins: the source of " ++ show w ++ " refers back to itself"
       | Set.member w dead0 = []
-      | Just (Left u) <- M.lookup w srcs = ex (depth + 1) u
-      | Just (Right b) <- M.lookup w srcs = concatMap (ex (depth + 1)) (builtFields b)
-      | Just b <- M.lookup w bcons = [w | Set.member w inScope] ++ concatMap (ex (depth + 1)) (builtFields b)
+      | Just (Left u) <- M.lookup w ss = ex ss (depth + 1) u
+      | Just (Right b) <- M.lookup w ss = concatMap (ex ss (depth + 1)) (builtFields b)
+      | Just b <- M.lookup w bcons = [w | Set.member w inScope] ++ concatMap (ex ss (depth + 1)) (builtFields b)
       | Set.member w inScope = [w]
       | otherwise = internalBug [] $ "splitJoins: nothing stands for " ++ show w ++ " of the unoptimized code"
     -- the variables of sites, dead wherever a frame could hold them

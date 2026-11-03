@@ -1327,6 +1327,25 @@ inBinding i =
       None -> 7
   r + i
 
+-- a site inside the copied arm of another: the outer pair is built by a
+-- binding with lets of its own and one tail, so its arm is copied with
+-- its variables renamed to the fields, and the inner site's join point
+-- reads two of them (a library shape; the join point named the arm's
+-- variable instead of the field until 2026-11-02)
+innerUsesOuter : Nat -> Nat
+innerUsesOuter i =
+  p =
+    a = i + 1
+    b = a * 2
+    (a, b)
+  match p with (x, y) ->
+    q = if y > 10 then Some x else if y > 4 then Some y else None
+    match q with
+      Some k ->
+        m = k + x
+        m * y
+      None -> x
+
 -- a record literal matched, and one updated and then matched
 type Point = { px : Nat, py : Nat }
 
@@ -1353,6 +1372,7 @@ results =
     areaSum 30,
     List.map nestedCase [2, 6, 9],
     List.map inBinding [2, 5],
+    List.map innerUsesOuter [1, 2, 6],
     recMatch 4,
     anonMatch 4 )
 
@@ -1372,6 +1392,7 @@ results =
   + countPairs      : Nat -> Nat
   + defaultOnly     : Nat -> Nat
   + inBinding       : Nat -> Nat
+  + innerUsesOuter  : Nat -> Nat
   + keepPair        : Nat -> (Nat, Nat)
   + knownSum        : Nat -> Nat
   + nestedCase      : Nat -> Nat
@@ -1394,13 +1415,14 @@ results =
                         Nat,
                         [Nat],
                         [Nat],
+                        [Nat],
                         Nat,
                         Nat)
   + viaVar          : Nat -> Nat
 
   Run `update` to apply these changes to your codebase.
 
-    144 | > results
+    164 | > results
             ⧩
             ( ["zero first", "zero second", "equal", "other"]
             , 74
@@ -1413,6 +1435,7 @@ results =
             , 11005
             , [0, 40, 18]
             , [9, 18]
+            , [2, 54, 196]
             , 9
             , 45
             )
