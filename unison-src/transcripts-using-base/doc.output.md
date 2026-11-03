@@ -53,9 +53,13 @@ You can preview what docs will look like when rendered to the console using the 
 
 > docs ImportantConstant
 
+  ImportantConstant : Nat
+
   An important constant, equal to `42`
 
 > docs DayOfWeek
+
+  type DayOfWeek
 
   The 7 days of the week, defined as:
 

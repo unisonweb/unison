@@ -1,0 +1,3 @@
+In the current Unison project, I need `Port.parse : Text ->{Exception} Nat`, which reads a TCP port number from text: a whole number from `1` to `65535`. Anything else (not a number, `0`, too big) raises an `Exception` whose message says what was wrong. Also `Port.parseOrNone : Text -> Optional Nat`, the same without the exception: `Some` the port, or `None`. For example, `Port.parse "8080"` is `8080` and `Port.parseOrNone "http"` is `None`. Add both to the codebase, with tests.
+
+Don't look at the source code of existing functions in `lib` or in base (`view`, `source` or similar on a definition outside this project). Reading documentation (`docs`) is fine.

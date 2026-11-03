@@ -36,8 +36,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ``` ucm
-> rewrite rule1
-> rewrite eitherToOptional
+> rewrite :rule1,eitherToOptional scratch.u
 ```
 
 ``` ucm :hide
@@ -74,7 +73,7 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ``` ucm
-> rewrite woot1to2
+> rewrite :woot1to2 scratch.u
 ```
 
 ``` ucm :hide
@@ -110,7 +109,7 @@ sameFileEx =
 ```
 
 ``` ucm :hide
-> rewrite rule
+> rewrite :rule scratch.u
 > load
 > add
 ```
@@ -144,7 +143,7 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 ```
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
@@ -166,7 +165,7 @@ rule a = @rewrite
 ```
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 ```
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:

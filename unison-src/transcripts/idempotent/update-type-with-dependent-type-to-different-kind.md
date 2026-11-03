@@ -50,15 +50,27 @@ unique type Foo a = Bar Nat a
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, update-main, and the
+  definitions to fix are in update-main-554e4a59.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      scratch/update-main> load update-main-554e4a59.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      scratch/update-main> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the update instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm update-main-554e4a59.u
 type Foo a = Bar Nat a
 
 -- The definitions below no longer typecheck with the changes above.

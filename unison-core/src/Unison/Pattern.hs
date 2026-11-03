@@ -70,8 +70,19 @@ updateDependencies tms p = case p of
 hasSubpattern :: Pattern loc -> Pattern loc -> Bool
 hasSubpattern (Unbound {}) _ = True
 hasSubpattern (Var {}) _ = True
-hasSubpattern needle haystack = needle == haystack || go haystack
+hasSubpattern needle haystack = needle == haystack || partiallyApplied || go haystack
   where
+    -- A constructor or ability request given fewer arguments than it takes, like `Left` or `Stream.emit`, stands for
+    -- any use of it: the arguments it does have must match, and the rest (and the continuation of a request, if the
+    -- needle doesn't say what it is) can be anything.
+    partiallyApplied = case (needle, haystack) of
+      (Constructor _ r ps, Constructor _ r' qs) -> r == r' && prefixMatches ps qs
+      (EffectBind _ r ps k, EffectBind _ r' qs k') -> r == r' && prefixMatches ps qs && (isUnbound k || k == k')
+      _ -> False
+    prefixMatches ps qs = length ps <= length qs && and (zipWith (==) ps qs)
+    isUnbound = \case
+      Unbound {} -> True
+      _ -> False
     go Unbound {} = False
     go Var {} = False
     go Int {} = False

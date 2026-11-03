@@ -92,6 +92,8 @@ We can view it with `docs`, which shows the `Doc` value that is associated with 
 ``` ucm
 > docs List.take
 
+  List.take : Nat -> [a] -> [a]
+
   `List.take n xs` returns the first `n` elements of `xs`. (No
   need to add line breaks manually. The display command will do
   wrapping of text for you. Indent any lines where you don't

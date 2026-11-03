@@ -1,0 +1,1 @@
+In the current Unison project, I need `shuffleSeeded : Nat -> [a] -> [a]`, which takes a seed and returns a random but deterministic permutation of the input list. Add it to the codebase, with tests and documentation.

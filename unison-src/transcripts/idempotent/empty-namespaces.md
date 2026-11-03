@@ -31,8 +31,8 @@ The deleted namespace shouldn't appear in `ls` output.
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
 
-  `debug.find.global` can be used to search outside the current
-  namespace.
+  `find` doesn't search `lib`, where libraries like base are
+  installed: `find.all <name>` does.
 ```
 
 ``` ucm :error
@@ -48,8 +48,8 @@ The deleted namespace shouldn't appear in `ls` output.
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
 
-  `debug.find.global` can be used to search outside the current
-  namespace.
+  `find` doesn't search `lib`, where libraries like base are
+  installed: `find.all <name>` does.
 ```
 
 ## history

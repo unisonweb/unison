@@ -21,6 +21,8 @@ module Unison.Codebase.Editor.Input
     Insistence (..),
     PullMode (..),
     FindScope (..),
+    RewritesSpec (..),
+    RewriteTarget (..),
     ShowDefinitionScope (..),
     IsGlobal,
     DeleteTarget (..),
@@ -35,6 +37,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.Config (ConfigKey)
+import Unison.Cli.Share.Ref (SearchFilter, ShareRef)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -159,8 +162,8 @@ data Input
   | DocToMarkdownI Name
   | DocsI (NonEmpty Name)
   | DocsToHtmlI BranchRelativePath FilePath
-  | EditDependentsI !(HQ.HashQualified Name)
-  | EditNamespaceI [Path.Path']
+  | EditDependentsI OutputLocation !(HQ.HashQualified Name)
+  | EditNamespaceI OutputLocation [Path.Path']
   | ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
   | FindI Bool FindScope [String] -- isVerbose, findScope, query
   | FindShallowI Path'
@@ -201,6 +204,13 @@ data Input
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
+  | ShareProjectSearchI Text
+  | ShareSearchI Text (Maybe SearchFilter)
+  | ShareSourceI ShareRef
+  | ShareRenderI ShareRef
+  | ShareDocsI ShareRef
+  | ShareReleasesI Text Text -- handle, project slug
+  | ShareReleaseDetailI ShareRef
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | QuitI
@@ -213,8 +223,8 @@ data Input
   | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
   | ShowProjectReflogI (Maybe ProjectName)
   | ShowRootReflogI {- Deprecated -}
-  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
-  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | StructuredFindI RewritesSpec -- rewrite.find rewrites
+  | StructuredFindReplaceI RewritesSpec (Maybe RewriteTarget) -- rewrite rewrites target
   | SwitchBranchI Path'
   | -- | Sync from a codebase project branch to this codebase's project branch
     SyncFromCodebaseI FilePath (ProjectAndBranch ProjectName ProjectBranchName) UnresolvedProjectBranch
@@ -225,8 +235,9 @@ data Input
   | TodoI
   | UiI Path'
   | UndoI
+  | RedoI
   | UpI
-  | Update2I
+  | Update2I (Maybe FilePath) -- a file to load first, as `load` would
   | UpdateBuiltinsI
   | UpgradeCommitI
   | UpgradeI ![NameSegment]
@@ -300,6 +311,21 @@ data OutputLocation
 data RelativeToFold
   = AboveFold
   | WithinFold
+  deriving stock (Eq, Show)
+
+-- | Where the rules of @rewrite.find@ and @rewrite@ come from: the names of @\@rewrite@ blocks (or functions that return
+-- one), looked up in the file, if there is one, else in the latest file or the branch. A file with no names must have
+-- exactly one definition, and that is the rule.
+data RewritesSpec = RewritesSpec
+  { file :: Maybe FilePath,
+    rewrites :: [HQ.HashQualified Name]
+  }
+  deriving stock (Eq, Show)
+
+-- | What @rewrite@ rewrites, other than the current branch.
+data RewriteTarget
+  = RewriteFile FilePath
+  | RewriteNamespace Path'
   deriving stock (Eq, Show)
 
 data FindScope

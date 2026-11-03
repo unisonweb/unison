@@ -2,6 +2,8 @@ module Unison.Codebase.Editor.Output
   ( Output (..),
     AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
+    MergeFileSize (..),
+    ScratchFileHandoff (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
@@ -11,9 +13,11 @@ module Unison.Codebase.Editor.Output
     TodoOutput (..),
     todoOutputIsEmpty,
     MoreEntriesThanShown (..),
-    UndoFailureReason (..),
     ShareError (..),
+    ShareMatch (..),
     isFailure,
+    isFailureForMcp,
+    isNumberedFailureForMcp,
     isNumberedFailure,
     outputShouldUsePager,
   )
@@ -116,6 +120,7 @@ type HashLength = Int
 data NumberedOutput
   = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterRedo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -183,6 +188,37 @@ data AmbiguousReset'Argument
   | AmbiguousReset'Target
 
 --  | ShowDiff
+
+-- | What an action (@update@, @delete@, @merge@, @pull@, @upgrade@) that couldn't produce a branch that compiles leaves
+-- behind: a temporary branch, which the user has been switched to, and a scratch file of the definitions to fix up.
+-- | How much is in the file a merge left behind, for someone who can't see it and has to decide how to read it.
+data MergeFileSize = MergeFileSize
+  { lineCount :: !Int,
+    conflictCount :: !Int
+  }
+
+data ScratchFileHandoff = ScratchFileHandoff
+  { -- | The action, like @update@ or @merge@.
+    action :: !Text,
+    -- | The scratch file to get compiling.
+    scratchFile :: !FilePath,
+    -- | The temporary branch the user is now on.
+    temporaryBranch :: !ProjectBranchName,
+    -- | The branch the action was run on, which @update@ will get back to.
+    baseBranch :: !ProjectBranchName,
+    -- | The project, for the prompt in the instructions.
+    project :: !ProjectName,
+    -- | Whether the file has to be @load@ed to be checked: not if UCM is watching it.
+    loadFirst :: !Bool
+  }
+
+-- | One definition found by a search of Share.
+data ShareMatch = ShareMatch
+  { -- | Its name in its project, followed by its type for a term, with @builtin@ in front of a builtin.
+    heading :: Text,
+    -- | Where it comes from, like @\@unison/base/releases/7.20.0@.
+    origin :: Text
+  }
 
 data Output
   = -- Generic Success response; we might consider deleting this.
@@ -299,6 +335,12 @@ data Output
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
+  | -- | Definitions of the codebase made part of the file being typechecked, because they use what it redefines, and
+    -- whether they were written into the file (a real file) or only typechecked with it (a transcript's block).
+    PulledInDependents [Name] Bool
+  | -- | Some of the type errors just reported are in pulled-in definitions, which occupy the given lines (first and
+    -- last) of the text as typechecked; these are the definitions.
+    TypeErrorsInPulledIn Int Int [Name]
   | Typechecked
       !PPE.PrettyPrintEnv
       !PPE.PrettyPrintEnv
@@ -308,10 +350,13 @@ data Output
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
+  | -- | `docs` on a definition with no documentation, when a program is driving UCM.
+    NoDocumentation Name
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
-  | CantUndo UndoFailureReason
+  | NothingToUndo
+  | NothingToRedo
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
@@ -391,6 +436,9 @@ data Output
   | InvalidProjectBranchName Text
   | InvalidStructuredFindReplace (HQ.HashQualified Name)
   | InvalidStructuredFind (HQ.HashQualified Name)
+  | InvalidRewriteSpec Text
+  | -- | An edit command was asked to write to an existing file that isn't a `.u` file.
+    EditDestinationNotUnisonFile FilePath
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -412,6 +460,14 @@ data Output
     RemoteProjectBranchHeadMismatch URI (ProjectAndBranch ProjectName ProjectBranchName)
   | Unauthorized Text
   | ServantClientError Servant.ClientError
+  | -- | Plain text from a @share.*@ command.
+    ShareText Text
+  | -- | Rendered documentation from Share, laid out at the width the output is shown at.
+    ShareDocs (P.Pretty P.ColorText)
+  | ShareFailed Text
+  | -- | The definitions a search of Share found, numbered, and the reference of the first one (for the tip), and whether
+    -- there may be more.
+    ShareDefinitionMatches [ShareMatch] Text Bool
   | MarkdownOut Text
   | DownloadedEntities Int
   | UploadedEntities Int
@@ -430,19 +486,20 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile FilePath ([Symbol {- symbols rewritten -}])
+  | OutputRewrittenFile FilePath (Maybe FilePath {- where the version before was saved, for a file rewritten in place -}) ([Symbol {- symbols rewritten -}])
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
-  | DeleteFailure !FilePath !ProjectBranchName
-  | UpdateTypecheckingFailure
-  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName
-  | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
+  | DeleteFailure !ScratchFileHandoff
+  | UpdateTypecheckingFailure !ScratchFileHandoff
+  | UpdateTypecheckingFailure2 !ScratchFileHandoff
+  | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
-  | MergeFailure !FilePath !MergeSourceAndTarget
+  | -- | Whether the scratch file has conflict markers.
+    MergeFailure !ScratchFileHandoff !MergeSourceAndTarget !(Maybe MergeFileSize)
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
@@ -450,6 +507,8 @@ data Output
   | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
+  | -- | The library, at this release, was already installed under this name in @lib@, so nothing was installed.
+    LibdepAlreadyInstalled !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
@@ -564,19 +623,44 @@ type ShowSuccesses = Bool -- whether to list results or just summarize
 
 type ShowFailures = Bool -- whether to list results or just summarize
 
-data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
-
 type SourceFileContents = Text
 
 outputShouldUsePager :: Output -> Bool
 outputShouldUsePager o = case o of
   -- These are typically non-interactive outputs, so we don't page them.
   LoadingFile {} -> False
+  PulledInDependents {} -> False
+  TypeErrorsInPulledIn {} -> False
   Typechecked {} -> False
   TypeErrors {} -> False
   Evaluated {} -> False
   EvaluationFailure {} -> False
   _ -> True
+
+-- | Like 'isFailure', except that an output that is only an empty result (a search that found nothing, a listing of an empty
+-- namespace) is not a failure. A transcript test wants those to stop it, since an empty result usually means the test is
+-- wrong, but an agent driving UCM through the MCP server needs the rest of its transcript to run.
+isFailureForMcp :: Output -> Bool
+isFailureForMcp o = isFailure o && not (isEmptyResult o)
+  where
+    isEmptyResult = \case
+      ListNames _ _ tys tms -> null tms && null tys
+      ListOfDefinitions _ _ _ ds -> null ds
+      ListStructuredFind tms -> null tms
+      ListTextFind _ tms -> null tms
+      ListShallow _ es -> null es
+      NoExactTypeMatches -> True
+      BranchEmpty {} -> True
+      NamespaceEmpty {} -> True
+      _ -> False
+
+-- | 'isFailureForMcp' for numbered outputs: a diff of two identical namespaces is just an empty result.
+isNumberedFailureForMcp :: NumberedOutput -> Bool
+isNumberedFailureForMcp o = isNumberedFailure o && not (isEmptyDiff o)
+  where
+    isEmptyDiff = \case
+      ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
+      _ -> False
 
 isFailure :: Output -> Bool
 isFailure o = case o of
@@ -647,13 +731,17 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   LoadingFile {} -> False
+  PulledInDependents {} -> False
+  TypeErrorsInPulledIn {} -> False
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
+  NoDocumentation {} -> False
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
-  CantUndo {} -> True
+  NothingToUndo -> True
+  NothingToRedo -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
@@ -708,6 +796,8 @@ isFailure o = case o of
   InvalidProjectBranchName {} -> True
   InvalidStructuredFindReplace {} -> True
   InvalidStructuredFind {} -> True
+  InvalidRewriteSpec {} -> True
+  EditDestinationNotUnisonFile {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True
@@ -725,6 +815,10 @@ isFailure o = case o of
   RemoteProjectBranchHeadMismatch {} -> True
   Unauthorized {} -> True
   ServantClientError {} -> True
+  ShareText {} -> False
+  ShareDocs {} -> False
+  ShareFailed {} -> True
+  ShareDefinitionMatches {} -> False
   MarkdownOut {} -> False
   NotImplementedYet {} -> True
   RemoteProjectBranchIsUpToDate {} -> False
@@ -750,6 +844,7 @@ isFailure o = case o of
   MergeConflictInvolvingBuiltin {} -> True
   MergeDefnsInLib {} -> True
   InstalledLibdep {} -> False
+  LibdepAlreadyInstalled {} -> False
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
@@ -800,6 +895,7 @@ isNumberedFailure = \case
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
+  ShowDiffAfterRedo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
