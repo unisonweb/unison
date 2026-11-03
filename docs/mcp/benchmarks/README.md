@@ -71,3 +71,9 @@ Whole UCM workflows rather than single functions; the starting codebase comes fr
 - Refactorings: `refactor-rename` (`move`, with the doc, tests and constructor following), `refactor-change-implementation` (a type-preserving change: send the new definition and `update`, touch nothing else), `refactor-add-argument`, `refactor-swap-arguments`, `refactor-constructor-fields` (value-first constructors: `signature`, `case` and `term` rules), `refactor-ability-operation`, `refactor-add-constructor`. Every one has a `method` judge that reads the worker's submitted transcripts: GREAT for the route `skills/refactor` teaches (a structural `rewrite`; `move`; only the changed definition sent; `rewrite.find` or `dependents` to find the matchers or handlers before adding a constructor or an operation), PASS for reaching the right state another way; the other judges check the outcome only.
 
 Each folder also has `about.md` (what it tests, traps, topics, reliability) and `validation/` (`good*.md` and `bad-*.md` solutions for checking the judges).
+
+### Held-out tasks
+
+Added on 3 November 2026, after the topics had been tuned against every task above for 25 rounds (several topics carried a task's own solution as their example, since fixed). Never edit a topic because one of these failed; they measure whether the topics carry over to problems they weren't written for. Each has a `behavior` and a `tests` judge, plus the one named here.
+
+- `list-chunks` (`List.chunk`; `reuses-existing`), `map-merge-max` (`Map.unionWith`; `reuses-existing`), `random-sample` (a seeded choice without repetition; `reuses-existing`), `mutable-word-ids` (numbering by first appearance; `state-use`), `threads-timed-pair` (two waits at once; `reuses-existing`), `text-parse-kv` (`key=value;...` with `Pattern`; `reuses-existing`), `abilities-counter` (an ability with a stateful handler; `ability-polymorphic`), `errors-parse-port` (a failing parser and its `Optional` twin; `errors`).

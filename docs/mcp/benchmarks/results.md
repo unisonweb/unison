@@ -257,3 +257,86 @@ Against round 15 (the same 47 tasks): 363 calls against 341, 181 `learn` calls a
 Also in the harness: three workers misread the client's `transcript <tool> <file>` usage line and lost a call to it; `wbegin.sh` now gives an example.
 
 **Ideas not done.** (1) When a name isn't found and its expected type is known (`Int.fromNat : Nat -> Int`), the error could list the terms in the codebase with that type, as `find.all : Nat -> Int` would: the typechecker only looks at similar names, so this would go in the output layer with a codebase query. (2) `view` of a namespace (`view Report.render.tests`) could say it is a namespace and suggest `ls`. (3) `workflow-merge-cancel`: the judge wants Bob's test at its own hash; a worker that reads it with `view` and types it back in is one edit away from changing it, and nothing in `ucm/merge` says to bring it over unchanged.
+
+## Round 26: the give-away examples replaced, and eight held-out tasks (3 November 2026)
+
+Before this round, a read of the topics against the tasks found that rounds 1 to 15 had put several tasks' own solutions into the topics as examples: `List.xf = List.map` and the `find.all : (a -> b) -> [a] -> [b]` search, a list of base functions each glossed in its task's words (`slidingPairs`, `groupConsecutive`, `scanLeft`, `filterMap`, `groupBy`), the `Tree.label` helper signature in `lang/mutable`, `pickTwo` (a seeded shuffle and `take`) in `lang/random`, `findOrNone x = Either.toOptional (Exception.catch do find x)` in `lang/errors`, the `parMap`-with-a-sleep example in `lang/concurrency`, "or a coroutine" in `lang/abilities`, and `List.pick` as the `docExample`. Each lesson was kept and its instance changed to one no task asks for: a search by type that finds `List.chunk` and `List.slidingWindow`, a loop-finding method ("say what the loop does in a word and search by it, then by type") with `List.partition` as the example and `List.len = List.size` as the alias, a JSON walk as the `Ref` helper, dice rolls as the seeded function, a `Throw` parser with an `Either` twin, `Threads.both` on two slow texts, and `List.take` in the `docExample`. The README says to keep tasks out of the tuning loop, and none had been, so eight held-out tasks were added in the same areas (see the README): they were written before this round and never tuned against.
+
+Sonnet workers and judges, one run per task, 59 tasks. 57 / 59 pass. The two misses: `abilities-coro` (the worker read the whole reply stream with `Stream.toList` before feeding, so the lazy-pull check fails; it passed in round 25, and the topic edit that touched it only dropped the words "or a coroutine") and `workflow-merge-cancel/outcome` (the worker again added an assertion to Bob's test while typing it back in; there is no way to copy a definition from another branch by name, since `view /bob:Text.slug` and `alias.term /bob:Text.slug` both reject the branch prefix).
+
+**The held-out tasks**, which measure whether the topics carry over to problems they weren't written for:
+
+| task | judges | notes | calls (failed) | round 25 |
+|---|---|---|---|---|
+| `list-chunks` | pass | reuses-existing GREAT | 8 (0) |  |
+| `map-merge-max` | pass | reuses-existing GREAT | 8 (0) |  |
+| `random-sample` | pass | reuses-existing GREAT | 8 (2) |  |
+| `mutable-word-ids` | pass | state-use GREAT | 7 (0) |  |
+| `threads-timed-pair` | pass | reuses-existing GREAT | 4 (0) |  |
+| `text-parse-kv` | pass | reuses-existing GREAT | 9 (0) |  |
+| `abilities-counter` | pass |  | 7 (0) |  |
+| `errors-parse-port` | pass | errors GREAT | 10 (4) |  |
+
+8 / 8 pass, and six of the eight are GREAT on the judge that rates the method. `abilities-counter` has no GREAT grade (its `ability-polymorphic` judge is pass or fail), and `mutable-word-ids` used a single `List.foldLeft` with the `Map` as the accumulator, which the judge's rules rate GREAT although the judge wrote PASS and asked. So the lessons transfer: the workers found `List.chunk` and `Map.unionWith` by searching, composed `Random.splitmix` with `Random.shuffle` and `List.take` for a sample (the example that used to be in the topic, now reinvented from the topic's description of the parts), used `Threads.both`, wrote the key-value grammar as a `Pattern`, wrote a stateful handler with the abilities passing through, and derived `parseOrNone` from `parse` with a handler.
+
+**The 51 tasks of round 25**, on the rewritten topics:
+
+| task | judges | notes | calls (failed) | round 25 |
+|---|---|---|---|---|
+| `abilities-collect-log` | pass |  | 8 (1) | 6 (0) |
+| `abilities-coro` | fail: ability-polymorphic, behavior |  | 7 (1) | 9 (0) |
+| `abilities-random-seeded` | pass | reuses-existing GREAT | 10 (3) | 10 (2) |
+| `abilities-store-label` | pass |  | 10 (3) | 7 (1) |
+| `errors-parse-all` | pass | reuses-existing GREAT | 6 (0) | 4 (0) |
+| `errors-safe-average` | pass | reuses-existing GREAT | 10 (4) | 6 (1) |
+| `euler-factorial-digits` | pass |  | 6 (0) | 8 (0) |
+| `euler-nth-prime` | pass |  | 8 (1) | 8 (0) |
+| `list-merge-sorted` | pass |  | 8 (1) | 9 (1) |
+| `list-neighbors` | pass | reuses-existing GREAT | 9 (0) | 7 (1) |
+| `list-pick` | pass |  | 7 (0) | 6 (0) |
+| `list-run-lengths` | pass | reuses-existing GREAT | 11 (2) | 8 (0) |
+| `list-running-totals` | pass | reuses-existing GREAT | 7 (0) | 9 (0) |
+| `list-sift` | pass | reuses-existing GREAT | 7 (0) | 8 (0) |
+| `list-xf` | pass | reuses-existing GREAT | 7 (1) | 7 (1) |
+| `list-xf-keep` | pass | reuses-existing GREAT | 5 (1) | 7 (1) |
+| `map-add-counts` | pass | reuses-existing GREAT | 8 (0) | 6 (0) |
+| `map-group-by-length` | pass | reuses-existing GREAT | 9 (0) | 8 (1) |
+| `map-invert` | pass | reuses-existing GREAT | 7 (0) | 8 (0) |
+| `map-word-counts` | pass | reuses-existing GREAT | 9 (0) | 9 (0) |
+| `refactor-ability-operation` | pass | method GREAT | 9 (3) | 5 (0) |
+| `refactor-add-argument` | pass | method GREAT | 11 (2) | 11 (2) |
+| `refactor-add-constructor` | pass | method GREAT | 9 (1) | 7 (0) |
+| `refactor-change-implementation` | pass | method GREAT | 8 (2) | 7 (0) |
+| `refactor-constructor-fields` | pass | method GREAT | 7 (0) | 8 (1) |
+| `refactor-rename` | pass | method GREAT | 4 (0) | 3 (0) |
+| `refactor-swap-arguments` | pass | method GREAT | 8 (0) | 8 (0) |
+| `text-extract-numbers` | pass | reuses-existing GREAT | 7 (0) | 8 (0) |
+| `text-parse-log-line` | pass | reuses-existing GREAT | 12 (2) | 8 (1) |
+| `threads-first-done` | pass | reuses-existing GREAT | 12 (2) | 10 (3) |
+| `threads-slow-squares` | pass | reuses-existing GREAT | 6 (1) | 8 (3) |
+| `types-person-record` | pass | record-style GREAT | 13 (4) | 15 (5) |
+| `types-shape-area` | pass |  | 9 (0) | 6 (0) |
+| `workflow-delete-with-dependents` | pass |  | 7 (2) | 9 (0) |
+| `workflow-feature-branch` | pass |  | 10 (1) | 10 (1) |
+| `workflow-http-json-server` | pass | library-choice GREAT | 29 (13) | 18 (3) |
+| `workflow-json-encode-record` | pass | library-choice GREAT | 10 (0) | 10 (0) |
+| `workflow-lib-install-fresh` | pass | library GREAT, tests-and-docs GREAT | 12 (1) | 10 (1) |
+| `workflow-lib-install-upgrade` | pass |  | 7 (0) | 5 (0) |
+| `workflow-lib-upgrade-conflict` | pass |  | 9 (2) | 7 (1) |
+| `workflow-lib-upgrade-two` | pass |  | 10 (3) | 7 (1) |
+| `workflow-merge-cancel` | fail: outcome |  | 13 (3) | 8 (1) |
+| `workflow-merge-clean` | pass |  | 3 (0) | 3 (0) |
+| `workflow-merge-conflict` | pass | approach GREAT | 3 (1) | 4 (1) |
+| `workflow-merge-long` | pass | approach GREAT | 5 (1) | 7 (1) |
+| `workflow-merge-silent-combine` | pass | approach GREAT | 4 (1) | 6 (2) |
+| `workflow-merge-type-break` | pass | approach GREAT | 5 (1) | 4 (1) |
+| `workflow-undo-update` | pass |  | 4 (0) | 6 (2) |
+| `workflow-update-clean` | pass |  | 4 (0) | 4 (0) |
+| `workflow-update-multiround` | pass |  | 8 (1) | 6 (0) |
+| `workflow-update-type-conflict` | pass |  | 6 (0) | 10 (0) |
+
+49 / 51 against 48 / 51 in round 25, with different misses (the two above, against the log-line tests, the slow-squares doc and the same merge-cancel). The refactoring tasks are 7 / 7 GREAT on `method` (6 / 7 in round 25: the constructor-fields worker used the rewrite this time). The three alias tasks (`list-xf`, `list-sift`, `list-xf-keep`) and `map-add-counts` are GREAT on `reuses-existing` where round 25 had four PASS wrappers: the reuse topic's "with no parameters" wording did that, and it did it with the `List.map` example gone.
+
+Calls: 484 in all (8.2 per run), 242 `learn` calls, 71 failed calls, of which 15 are the same transcript sent again unchanged within seconds of its failure (a worker habit, not a harness retry: `ask.py` has none). On the 47 tasks that have a round 15 baseline: 423 calls against 394 in round 25 and 341 in round 15, 65 failed calls against 40 and 57. The extra failures sit in a few runs: the HTTP service (13, a hallucinated `Route.pickStatus` sent four times, then library type errors), `errors-safe-average` (4: a doc example of a raising function without `catch`, `{Exception}` for `{type Exception}`, then `->{type Exception}` in a signature, sent twice), `abilities-store-label` and `abilities-random-seeded` (a `docExample` without `do`, each sent twice), `refactor-ability-operation` (3: an anonymous `{{ }}` doc placed before a `test>` line binds to `>`, sent twice, then the changed test's old expectation), `types-person-record` and `text-parse-log-line` (`Person { name = "Ann" }` with `=`, each sent twice; the error says only that a `}` has no `{`). None of these is a topic that lost its example: `docExample`'s `do`, the record `:`, `{type X}` and `catch do` in doc examples are all in `lang/documentation` and `lang/records` already, and were in round 25.
+
+**What to take from it.** The transfer result is the point of the round: the rewritten topics teach the same things without naming the answers, and the held-out tasks pass at the same rate as the tuned ones. The failed-call rate is noisier than the pass rate (a worker that resends an identical transcript doubles its own count), and the biggest single sinks are two syntax points that the topics state but workers miss on the first try: `docExample`'s `do` and the record constructor's `:`. Both have unhelpful errors ("1st argument has type Unit", "closing } without a matching {"), so the fix that would generalize is in the parser's messages, not in the topics. Also noted: the merge-cancel miss repeats because the only way to bring one definition over from another branch is to retype it, and the topic doesn't say to bring it over unchanged.

@@ -16,33 +16,34 @@ Running things at the same time, with the `Threads` ability in the base library:
 
 ````
 ``` unison
-lengths : [Text] ->{IO, Exception, Threads} [Nat]
-lengths texts =
-  slowLength t =
-    Threads.sleep (Duration.milliseconds +100)
-    Text.size t
-  Threads.parMap slowLength texts
+slowly : Text ->{IO, Exception, Threads} Text
+slowly t =
+  Threads.sleep (Duration.milliseconds +100)
+  Text.toUppercase t
 
-lengths.tests.concurrent : '{IO, Exception} [Result]
-lengths.tests.concurrent = do test.verify do
+shout : Text -> Text ->{IO, Exception} (Text, Text)
+shout a b = Threads.run do Threads.both (do slowly a) (do slowly b)
+
+shout.tests.concurrent : '{IO, Exception} [Result]
+shout.tests.concurrent = do test.verify do
   start = Clock.monotonic()
-  result = Threads.run do lengths (List.fill 10 "ab")
+  result = shout "hello" "world"
   elapsed = Clock.monotonic() - start
-  ensureEqual result (List.fill 10 2)
-  ensure (elapsed < Duration.seconds +1)
+  ensureEqual result ("HELLO", "WORLD")
+  ensure (elapsed < Duration.milliseconds +180)
 
-small : '{IO, Exception} [Nat]
-small = do Threads.run do lengths ["a", "bb", "ccc"]
+small : '{IO, Exception} (Text, Text)
+small = do shout "a" "b"
 ```
 
 ``` ucm
 > add
-> io.test lengths.tests.concurrent
+> io.test shout.tests.concurrent
 > run small
 ```
 ````
 
-`run small` prints `[1, 2, 3]`, and the ten sleeps of a tenth of a second finish in about a tenth of a second.
+`run small` prints `("A", "B")`, and the two sleeps of a tenth of a second finish in about a tenth of a second, not two: `both` runs them at the same time, and `parMap` does the same for a whole list.
 
 **Measuring time.** `Duration.asMilliseconds d` is a `Float`.
 

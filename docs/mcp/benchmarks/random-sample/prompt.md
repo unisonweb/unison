@@ -1,0 +1,3 @@
+In the current Unison project, I need `sampleSeeded : Nat -> Nat -> [a] -> [a]`, which picks `n` elements of a list at random without repeating a position, from a seed, so that the same seed and list always give the same answer. If `n` is at least the length of the list, every element is picked. The order of the result doesn't matter. For example, `sampleSeeded 7 2 [10, 20, 30, 40]` is two different elements of the list, and `sampleSeeded 7 2 [10, 20, 30, 40]` again is the same two. Add it to the codebase, with tests.
+
+Don't look at the source code of existing functions in `lib` or in base (`view`, `source` or similar on a definition outside this project). Reading documentation (`docs`) is fine.
