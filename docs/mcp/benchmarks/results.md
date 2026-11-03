@@ -362,3 +362,7 @@ Calls: 484 in all (8.2 per run), 242 `learn` calls, 71 failed calls, of which 15
 | refactor-swap-arguments | GREAT, outcome FAIL | GREAT, all PASS |
 
 **To take from it.** Seven of seven are now GREAT with every outcome PASS. That says the topics teach the method well enough for Sonnet to follow, and that the earlier rating did not depend on a leaked example. It does not say a worker would find a rewrite unaided, since the topics point to it. Round 27's agents used only file reads and the shell, with no other MCP tools.
+
+**Repeats of swap-arguments** (rounds 29 and 30, same binary as round 28): both passed every judge with method GREAT, so three runs in a row after the topic change, against one failed run before it. Run 30 left one cosmetic leftover that no judge checks (the doc example's lambda parameters in the old order).
+
+**`etaReduce` as a cleanup.** The rule in base, `reflection.Rewrites.examples.etaReduce`, applied with `rewrite :etaReduce scratch.u`, reduces `x -> f x` shapes (`List.map (y -> f 5 "INFO" y)` becomes `List.map (f 5 "INFO")`), but leaves a lambda applied directly to an argument, `(b -> f b "INFO") 7`, because that needs beta reduction, which a rule can't express. It also rewrites the whole file, including definitions the refactoring didn't touch, so it is not in the topic; hand reduction stays.
