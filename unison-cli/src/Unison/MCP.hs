@@ -350,7 +350,7 @@ missingContexts codebase transcript =
       Queries.loadProjectByName projectName >>= \case
         Nothing -> pure False
         Just project -> isJust <$> Queries.loadProjectBranchByName project.projectId branchName
-    pure if exists then Nothing else Just (Violation location command Local)
+    pure if exists then Nothing else Just (Violation location command Local False)
   where
     contexts =
       [ ("code block " <> tShow n <> ", line " <> tShow i, command, projectAndBranch)

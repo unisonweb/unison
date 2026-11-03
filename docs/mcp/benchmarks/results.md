@@ -178,3 +178,82 @@ Change before it: when a file redefines something and uses a definition of the c
 | `refactor-constructor-fields` | pass | GREAT | 7 (0) | 13 (2) | the recipe end to end, 4 transcript calls; `Alert` and `Alert.text` came along by themselves |
 
 3 / 3, all GREAT, 22 calls against 33 in round 23 for the same tasks, and no call lost to the error the change removes.
+
+## Round 25: all 51 tasks, on the branch as of `7449c6275` (2 November 2026)
+
+Sonnet workers and judges, one run per task, every task in the set (the 47 of round 15 plus the four refactoring tasks added since). Changes since round 15 that these runs exercise: the MCP server writing real files, `update <file>`, the carried `load`, `rewrite` in place, `load` pulling in the affected definitions, and the refactoring topics. The traces of every run were read for the failed calls (`compare.py r15 r25`, and the failed calls' inputs and replies).
+
+48 / 51 pass. The three misses are each one judge: `text-parse-log-line/tests` (no test with punctuation in the message), `threads-slow-squares/docs-quality` (the doc's example is `run slowSquares [1, 2, 3]`, which `run` rejects: it takes a delayed computation), and `workflow-merge-cancel/outcome` (the worker added an assertion to Bob's test while bringing it over, so its hash changed). Six of the seven refactoring tasks are GREAT on `method`; `refactor-constructor-fields` is PASS, the worker having read the recipe and then made the eleven edits by hand (8 calls, against 7 with the rewrite in round 24).
+
+Against round 15 (the same 47 tasks): 363 calls against 341, 181 `learn` calls against 163, 37 failed calls against 57, and 21 replies written to a file against 104 (the longer replies are now short enough to return inline).
+
+| task | judges | notes | calls (failed) | `learn` |
+|---|---|---|---|---|
+| `abilities-collect-log` | pass |  | 6 (0) | 4 |
+| `abilities-coro` | pass |  | 9 (0) | 5 |
+| `abilities-random-seeded` | pass | reuses-existing GREAT | 10 (2) | 6 |
+| `abilities-store-label` | pass | ability-use GREAT | 7 (1) | 5 |
+| `errors-parse-all` | pass | reuses-existing GREAT | 4 (0) | 2 |
+| `errors-safe-average` | pass | reuses-existing GREAT | 6 (1) | 4 |
+| `euler-factorial-digits` | pass |  | 8 (0) | 5 |
+| `euler-nth-prime` | pass |  | 8 (0) | 6 |
+| `list-merge-sorted` | pass |  | 9 (1) | 5 |
+| `list-neighbors` | pass | reuses-existing GREAT | 7 (1) | 3 |
+| `list-pick` | pass |  | 6 (0) | 4 |
+| `list-run-lengths` | pass | reuses-existing GREAT | 8 (0) | 4 |
+| `list-running-totals` | pass | reuses-existing GREAT | 9 (0) | 6 |
+| `list-sift` | pass |  | 8 (0) | 6 |
+| `list-xf` | pass |  | 7 (1) | 4 |
+| `list-xf-keep` | pass |  | 7 (1) | 4 |
+| `map-add-counts` | pass |  | 6 (0) | 5 |
+| `map-group-by-length` | pass | reuses-existing GREAT | 8 (1) | 4 |
+| `map-invert` | pass | reuses-existing GREAT | 8 (0) | 5 |
+| `map-word-counts` | pass | reuses-existing GREAT | 9 (0) | 6 |
+| `refactor-ability-operation` | pass | method GREAT | 5 (0) | 2 |
+| `refactor-add-argument` | pass | method GREAT | 11 (2) | 3 |
+| `refactor-add-constructor` | pass | method GREAT | 7 (0) | 2 |
+| `refactor-change-implementation` | pass | method GREAT | 7 (0) | 3 |
+| `refactor-constructor-fields` | pass | method PASS | 8 (1) | 3 |
+| `refactor-rename` | pass | method GREAT | 3 (0) | 1 |
+| `refactor-swap-arguments` | pass | method GREAT | 8 (0) | 4 |
+| `text-extract-numbers` | pass | reuses-existing GREAT | 8 (0) | 7 |
+| `text-parse-log-line` | fail: tests | reuses-existing GREAT | 8 (1) | 6 |
+| `threads-first-done` | pass | reuses-existing GREAT | 10 (3) | 5 |
+| `threads-slow-squares` | fail: docs-quality | reuses-existing GREAT | 8 (3) | 4 |
+| `types-person-record` | pass | record-style GREAT | 15 (5) | 6 |
+| `types-shape-area` | pass |  | 6 (0) | 5 |
+| `workflow-delete-with-dependents` | pass |  | 9 (0) | 3 |
+| `workflow-feature-branch` | pass |  | 10 (1) | 6 |
+| `workflow-http-json-server` | pass | library-choice GREAT | 18 (3) | 2 |
+| `workflow-json-encode-record` | pass | library-choice GREAT | 10 (0) | 4 |
+| `workflow-lib-install-fresh` | pass | library GREAT, tests-and-docs GREAT | 10 (1) | 3 |
+| `workflow-lib-install-upgrade` | pass |  | 5 (0) | 2 |
+| `workflow-lib-upgrade-conflict` | pass |  | 7 (1) | 2 |
+| `workflow-lib-upgrade-two` | pass |  | 7 (1) | 2 |
+| `workflow-merge-cancel` | fail: outcome |  | 8 (1) | 4 |
+| `workflow-merge-clean` | pass |  | 3 (0) | 1 |
+| `workflow-merge-conflict` | pass | approach GREAT | 4 (1) | 2 |
+| `workflow-merge-long` | pass | approach GREAT | 7 (1) | 3 |
+| `workflow-merge-silent-combine` | pass | approach GREAT | 6 (2) | 2 |
+| `workflow-merge-type-break` | pass | approach GREAT | 4 (1) | 2 |
+| `workflow-undo-update` | pass |  | 6 (2) | 1 |
+| `workflow-update-clean` | pass |  | 4 (0) | 1 |
+| `workflow-update-multiround` | pass |  | 6 (0) | 3 |
+| `workflow-update-type-conflict` | pass |  | 10 (0) | 4 |
+
+**What the failed calls went on,** by cause, with what changed because of it:
+
+- *A doc with a `{` in its prose* (`map-group-by-length`, `list-neighbors`): a map shown as `{1 -> [...]}` in a doc is read as a link, and the error ("I was surprised to find a newline here") doesn't say so. `lang/documentation` now says that a brace in prose starts a link.
+- *A wrapper instead of an alias* (`list-xf`, `list-xf-keep`, `list-sift`, `map-add-counts`): all four reuse tasks ended PASS, not GREAT, on `reuses-existing`, because the worker wrote `List.xf f xs = List.map f xs`. `skills/reuse` offered that form in a parenthesis; it now says to define the name with no parameters, so that it is the same definition.
+- *`Int.fromNat`* (`errors-safe-average`, `threads-first-done`, 3 calls): the right name is `Nat.toInt`, which `lang/numbers` has, and the error's "similar names" list (`Int.fromText`, `Nat.fromInt`) doesn't include it, although `find.all : Nat -> Int` does. Not changed: see the ideas below.
+- *An ambiguous operator in a helper with no signature* (`threads-slow-squares`, 2 calls, `n * n` in a local `square n`) and *`<` on a type variable* (`list-merge-sorted`): both are in `lang/operators`, which no worker in the round read. `lang/collections`, which they do read, now points at `Universal.lt` and `Universal.ordering` for generic comparison.
+- *The record type's field accessor* (`types-person-record`, 5 calls in all): `Person.age` doesn't exist for a `type Person = Person { ... }`, and `compare` is ambiguous (`Universal.compare` gives an `Int`; `Universal.ordering` is the `Ordering` one, found by `find.all : a -> a -> Ordering`). `lang/records` now says the new form generates no accessors.
+- *A `docExample` without `do`* (`abilities-random-seeded`, 2 calls): already covered by `lang/documentation`, which the worker had read.
+- *The new doc written before the `_v2` strip* (`refactor-add-argument`, 2 calls): a `bullets.doc` calling `bullets` with the new argument, while `bullets` in the file was still the old version. `skills/refactor` step 5 now says to write the doc after the strip.
+- *`project.current`* (`list-xf`, and two judges): not a UCM command, and the reply was that it "needs `transcript-all`". The reply now says the command doesn't exist.
+- *Guessed names* (`workflow-undo-update`, `workflow-merge-silent-combine`, `workflow-http-json-server`): `view` of a name that isn't there, three or four calls across the round. Not changed.
+- *The rest*: library-use type errors in the HTTP service (2), a char written `'a'` (1), `open` for `use` (1), `List.foreach` with the list first (1), and the eight merge and upgrade conflicts, which are errors by design.
+
+Also in the harness: three workers misread the client's `transcript <tool> <file>` usage line and lost a call to it; `wbegin.sh` now gives an example.
+
+**Ideas not done.** (1) When a name isn't found and its expected type is known (`Int.fromNat : Nat -> Int`), the error could list the terms in the codebase with that type, as `find.all : Nat -> Int` would: the typechecker only looks at similar names, so this would go in the output layer with a codebase query. (2) `view` of a namespace (`view Report.render.tests`) could say it is a namespace and suggest `ls`. (3) `workflow-merge-cancel`: the judge wants Bob's test at its own hash; a worker that reads it with `view` and types it back in is one edit away from changing it, and nothing in `ucm/merge` says to bring it over unchanged.

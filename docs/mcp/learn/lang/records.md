@@ -6,7 +6,7 @@ Two ways to have named fields: anonymous records, written `{ name: "Bob", age: 9
 - Patterns take fields by name, in any order, and may leave some out: `{ name: n } -> n`. `{ x: x, y: y } = r` destructures in a block.
 - A function that takes `{ x: Nat }` accepts a record with more fields. Name the leftover fields with `{ x: Nat | r }` to return them too.
 - **To declare a record type, give a type a constructor that takes a record:** `type Pet = Pet { name: Text, weight: Nat }`. It is built as `Pet { name: "Tom", weight: 4 }`. Take it apart by matching on the constructor: `cases Pet r -> r@weight`, or `cases Pet { weight: w } -> w`. Change a field with the block syntax on the record inside: `Pet.feed = cases Pet r -> Pet r@{weight: @weight + 1}`.
-- The older form `type Volunteer = { preferredName : Text, age : Nat }` still works but is deprecated: it generates constructor and accessor functions (`Volunteer "Ann" 40`, `Volunteer.age`). Don't use it in new code.
+- The older form `type Volunteer = { preferredName : Text, age : Nat }` still works but is deprecated: it generates constructor and accessor functions (`Volunteer "Ann" 40`, `Volunteer.age`). Don't use it in new code. The form above generates no accessors: there is no `Pet.weight`, so a function of the field is `cases Pet r -> r@weight`.
 ## Detail
 
 **Rows.** `{ x: Nat | r }` means "a record with the field `x`, and other fields called `r`". A function that returns its argument with the same extra fields needs it: `pass : { x: Nat | r } -> { x: Nat | r }`. Without `r`, `{ x: Nat } -> { x: Nat }` returns exactly `{ x: Nat }`, and a record with extra fields is an error there. A parameter alone, `{ x: Nat } -> Nat`, accepts extra fields.

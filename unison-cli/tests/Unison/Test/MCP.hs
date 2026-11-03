@@ -54,6 +54,12 @@ allowlistTests =
       rejects IO "push" (ucm ["p/b> push"]) [("code block 1, line 1", All)],
       allows All "push" (ucm ["p/b> push"]),
       rejects Local "an unknown command" (ucm ["p/b> nonsense"]) [("code block 1, line 1", All)],
+      scope "says when the command doesn't exist, instead of naming a tool" do
+        transcript <- parse (ucm ["p/b> project.current", "p/b> push"])
+        expectEqual [True, False] [unknownCommand | Violation {unknownCommand} <- validate Local transcript]
+        expectEqual
+          "Nothing was run: `transcript` doesn't allow everything in this transcript.\n\n  code block 1, line 1: `project.current` isn't a UCM command (`help` lists them)\n  code block 1, line 2: `push` needs `transcript-all`\n"
+          (renderViolations Local (validate Local transcript)),
       allows ReadOnly "unison blocks" "``` unison\nx = 1\n```\n",
       allows ReadOnly "api GET" "``` api\nGET /api/projects\n```\n",
       rejects Local "api POST" "``` api\nPOST /api/foo\nBODY:\n  {}\n```\n" [("code block 1", All)],

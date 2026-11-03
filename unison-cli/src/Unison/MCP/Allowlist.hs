@@ -189,7 +189,9 @@ commandTier name =
 data Violation = Violation
   { location :: Text,
     offender :: Text,
-    requires :: Tier
+    requires :: Tier,
+    -- | The offender isn't a UCM command at all, so no tool runs it.
+    unknownCommand :: Bool
   }
   deriving stock (Eq, Show)
 
@@ -202,18 +204,19 @@ validate allowed transcript =
   ]
   where
     frontmatterViolations =
-      [Violation "frontmatter" "autoupdate" Local | Just True <- [autoupdate (behaviors (settings transcript))]]
+      [Violation "frontmatter" "autoupdate" Local False | Just True <- [autoupdate (behaviors (settings transcript))]]
     blocks = [block | Right block <- stanzas transcript]
     blockViolations = concat (zipWith blockViolations' [1 :: Int ..] blocks)
     blockViolations' n = \case
       Unison {} -> []
       Ucm _ lines ->
-        [ Violation (blockLocation n <> ", line " <> tShow i) command (commandTier (Text.unpack name))
+        [ Violation (blockLocation n <> ", line " <> tShow i) command (commandTier name') (Map.notMember name' canonicalNames)
         | (i, UcmCommand _ command) <- zip [1 :: Int ..] lines,
-          name : _ <- [Text.words command]
+          name : _ <- [Text.words command],
+          let name' = Text.unpack name
         ]
       API _ requests ->
-        [ Violation (blockLocation n) ("POST " <> url) All
+        [ Violation (blockLocation n) ("POST " <> url) All False
         | PostRequest url _ <- requests
         ]
     blockLocation n = "code block " <> tShow n
@@ -224,6 +227,9 @@ renderViolations allowed violations =
     [ "Nothing was run: `" <> toolName allowed <> "` doesn't allow everything in this transcript.",
       ""
     ]
-      ++ [ "  " <> location <> ": `" <> offender <> "` needs `" <> toolName requires <> "`"
-         | Violation {location, offender, requires} <- violations
+      ++ [ "  " <> location <> ": " <> reason
+         | Violation {location, offender, requires, unknownCommand} <- violations,
+           let reason
+                 | unknownCommand = "`" <> offender <> "` isn't a UCM command (`help` lists them)"
+                 | otherwise = "`" <> offender <> "` needs `" <> toolName requires <> "`"
          ]
