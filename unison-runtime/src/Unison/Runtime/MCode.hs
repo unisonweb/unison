@@ -1713,6 +1713,11 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
   -- ('prepareBody'), so the two agree on every section's number.
   let rewritten = or [isJust (baseFrames lay) | (_, Comb _ lay) <- EC.mapToList (es <> auxEs)]
       base = if rewritten then Just (foldMap (fst . snd) bases) else Nothing
+  -- with every rewrite off the group is its own unoptimized form, so a
+  -- table means the emitter sees a difference the rewrites did not make
+  when (rewritten && not rewritesOn) $
+    internalBug [] $
+      "emitCombs: a deoptimization table with every rewrite off, in group " ++ show grpr
   pure (es <> ret <> specs <> auxEs, base)
   where
     b = batchOf rns
@@ -1899,7 +1904,17 @@ deoptOf rns bi n us chain
         | any ((== Just b1) . fst) bchain -> takeWhile ((/= Just b1) . fst) bchain
         | otherwise -> internalBug [] $ "deoptOf: the enclosing let's unoptimized section " ++ show b1 ++ " is not among the frames of " ++ show bidx
     labelled = zip (bidx : [fromMaybe (internalBug [] "deoptOf: an outer frame without a let") lbl | (lbl, _) <- drop 1 produced]) (map snd produced)
-    identity = bidx == n && length bs == length us && produced == chain
+    -- the section is its own unoptimized form: its own frames (those
+    -- above the enclosing let, which stands for the rest) are the base's,
+    -- under the same numbers, and the enclosing let's section is the
+    -- same section in both
+    identity =
+      bidx == n
+        && length bs == length us
+        && produced == take (length produced) chain
+        && enclosing == case drop (length produced) chain of
+          [] -> Nothing
+          (lbl, _) : _ -> lbl
     frame (ix, entries) = BaseFrame ix <$> traverse slot entries
     slot ETag = internalBug [] "deoptOf: a tag slot in a frame the explosion rewrote"
     slot (EVar w)

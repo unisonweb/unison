@@ -103,6 +103,7 @@ module Unison.Runtime.MCode.Explode
   ( explodeArgsOn,
     explodeReturnsOn,
     knownConstructorOn,
+    rewritesOn,
     specIndex,
     retIndex,
     joinIndex,
@@ -169,6 +170,12 @@ explodeReturnsOn = fromMaybe True (optimizationSetting ExplodeReturns)
 -- @UNISON_OPTIMIZATIONS@ says @-known_constructor@.
 knownConstructorOn :: Bool
 knownConstructorOn = fromMaybe True (optimizationSetting KnownConstructor)
+
+-- | Whether any rewrite of the ANF is on: with none, every lambda is
+-- emitted as its unoptimized form and no section gets a deoptimization
+-- table (the emitter checks this).
+rewritesOn :: Bool
+rewritesOn = explodeArgsOn || explodeReturnsOn || knownConstructorOn
 
 -- | The combinator index of a group's k-th specialisation (k from 1): in
 -- the high bits like a local function's, with a bit no let index reaches
@@ -825,7 +832,7 @@ joiningOf js bd srcs = (\setting -> Joining setting (caseSites cons (jsLocals se
 -- and the join points.
 prepareBody :: (Var v) => Batch -> Maybe Shape -> Maybe (Joining v) -> ANormal Reference v -> (ANormal Reference v, Sources v, M.Map [v] [v], Set.Set v, [Join v])
 prepareBody b ms mj bd
-  | not explodeArgsOn && not explodeReturnsOn && not knownConstructorOn = (uniqueBody bd, M.empty, M.empty, Set.empty, [])
+  | not rewritesOn = (uniqueBody bd, M.empty, M.empty, Set.empty, [])
   | otherwise = (freshLets main, M.unions [srcsK, srcs, srcsJ], lets, dead, map freshJoin joins)
   where
     (known, srcsK)
