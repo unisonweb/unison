@@ -2325,7 +2325,7 @@ reflectValue env val = do
   -- loads and serializes every stored continuation, could not name them)
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
-  reflectValue0 cmbs tyr tmr' val
+  reflectValue0 cmbs bns tyr tmr' val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -2421,11 +2421,12 @@ nativeMapPairs = go []
 -- cost, avoid having lots of nested reflected values.
 reflectValue0 ::
   EnumMap Word64 MCombs ->
+  EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 cmbs rty rtm = goV0
+reflectValue0 cmbs bns rty rtm = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
     layout = frameLayout cmbs
@@ -2485,9 +2486,20 @@ reflectValue0 cmbs rty rtm = goV0
             -- initial black hole, a foreign value, a handler's record, none
             -- of which serialize (found 2026-11-01: a continuation captured
             -- after native code had exited could not be serialized)
+            -- the frames a table rebuilt go through the unoptimized code's
+            -- liveness too (the group's unoptimized copy, 'baseNums', has
+            -- every base section): a slot the table packs that the
+            -- unoptimized code never reads is written as unit, which is
+            -- what a process that loaded the continuation writes for it,
+            -- so a round trip is stable (random-deserial.md compares the
+            -- hashes; found 2026-11-03 on serial-test-06, whose capture
+            -- frame holds a pair the rewrite had taken apart)
             let narrowed = narrowCont layout (boxVal rty) k a (deadToUnit cmbs k a slots)
                 (slots', frames) = deoptCont layout k a narrowed
-            ANF.Cont <$> traverse goV slots' <*> goFrames (reverse frames)
+                baseIx (CIx r g i) = CIx r (fromMaybe g (EC.lookup g bns)) i
+                described = [case fr of ContPush f n cix -> (f, n, Just (baseIx cix)); ContMark n _ _ -> (0, n, Nothing) | fr <- frames]
+                slots'' = deadToUnitFrames cmbs True described a slots'
+            ANF.Cont <$> traverse goV slots'' <*> goFrames (reverse frames)
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
           BytesC b -> pure (ANF.BLit (ANF.Bytes b))
@@ -2960,7 +2972,16 @@ narrowCont layout box k a0 vs0 = top ++ go (contFrames k) rest
 -- reads into, keeps every slot. The slots are the wide ones, before
 -- 'narrowCont'.
 deadToUnit :: EnumMap Word64 MCombs -> K -> Int -> [Val] -> [Val]
-deadToUnit cmbs k a0 vs0 = top ++ go [] (contFrames k) rest
+deadToUnit cmbs k = deadToUnitFrames cmbs False (contFrames k)
+
+-- | 'deadToUnit' over frames given as 'contFrames' gives them: the
+-- frames a deoptimization table rebuilt ('deoptCont') go through it
+-- with the unoptimized copy's sections, and narrowed (one slot per
+-- variable, 'narrowCont'), so a slot's offset in the section's layout
+-- is its narrow index plus the padding of the wide variables above it
+-- ('layoutPadding'), and the frame's wide size the same for its count.
+deadToUnitFrames :: EnumMap Word64 MCombs -> Bool -> [(Int, Int, Maybe CombIx)] -> Int -> [Val] -> [Val]
+deadToUnitFrames cmbs narrow frames a0 vs0 = top ++ go [] frames rest
   where
     (top, rest) = splitAt a0 vs0
     -- the contributions of nested sections to the frames outward: each as
@@ -2976,11 +2997,12 @@ deadToUnit cmbs k a0 vs0 = top ++ go [] (contFrames k) rest
     clean f cix@(CIx _ n _) frame nested
       | RComb (Comb (LamI na _ sect _) lay) <- rCombSection cmbs cix =
           let depth = frameDepth lay
-              own = Live.liveAt (arityOf n) (depth - f) na sect
+              wide j = if narrow then j + layoutPadding j lay else j
+              own = Live.liveAt (arityOf n) (depth - wide f) na sect
               live = foldr (\(_, l) acc -> l <+> acc) own nested
               reaching = [(r - 1, l) | (r, l) <- nested, r > 1] ++ [(enclosingLets lay, own) | enclosingLets lay > 0]
               frame' = case live of
-                Just l -> [if IS.member (depth - j) l then v else unitValue | (j, v) <- zip [0 ..] frame]
+                Just l -> [if IS.member (depth - wide j) l then v else unitValue | (j, v) <- zip [0 ..] frame]
                 Nothing -> frame
            in (frame', reaching)
       | otherwise = (frame, nested)
