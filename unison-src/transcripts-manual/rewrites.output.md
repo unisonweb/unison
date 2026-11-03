@@ -45,18 +45,38 @@ Let's rewrite these:
   I found and replaced matches in these definitions:
   Either.mapRight
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: rule1, eitherToOptional
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): Either.mapRight
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
+Either.mapRight f = cases
+  Left e -> Left e
+  Right a -> Right (f a)
+
+rule1 f x = @rewrite
+  term x + 1 ==> Nat.increment x
+  term (a -> f a) ==> f -- eta reduction
+
+unique type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+```
+
+``` unison :added-by-ucm scratch.u
 ex1 = List.map (x -> x + 1) [1, 2, 3, 4, 5, 6, 7]
 
 eitherToOptional e a =
@@ -77,9 +97,7 @@ rule1 f x =
     term x + 1 ==> Nat.increment x
     term a -> f a ==> f
 
-type Optional2 a
-  = None2
-  | Some2 a
+type Optional2 a = None2 | Some2 a
 
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
@@ -146,18 +164,31 @@ Let's apply the rewrite `woot1to2`:
 
   I found and replaced matches in these definitions: wootEx
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: woot1to2
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): wootEx
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+unique ability Woot1 where woot1 : () -> Nat
+unique ability Woot2 where woot2 : () -> Nat
 
+woot1to2 x = @rewrite
+  term Woot1.woot1 ==> Woot2.woot2
+  term blah ==> blah2
+  signature _ . Woot1 ==> Woot2
+
+wootEx : Nat ->{Woot1} Nat
+wootEx a =
+  _ = !woot1
+  blah
+
+blah = 123
+blah2 = 456
+```
+
+``` unison :added-by-ucm scratch.u
 ability Woot1 where
   woot1 : '{Woot1} Nat
 
@@ -276,18 +307,31 @@ In the above example, `bar2` is locally bound by the rule, so when applied, it s
 
   I found and replaced matches in these definitions: sameFileEx
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: rule
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): sameFileEx
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+bar1 =
+  b = "bar"
+  123
 
+bar2 =
+  a = 39494
+  233
+
+rule bar2 = @rewrite
+  case None ==> Left "oh no"
+  term bar1 ==> bar2
+
+sameFileEx =
+  _ = "ex"
+  bar1
+```
+
+``` unison :added-by-ucm scratch.u
 bar1 =
   b = "bar"
   123
@@ -311,12 +355,11 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 ``` ucm :error
 > load
 
-  Loading changes detected in
-  rewrites/scratch-0000-00-00-00-00-00000000.u.
+  Loading changes detected in scratch.u.
 
   I couldn't figure out what bar21 refers to here:
 
-     20 |   bar21
+     16 |   bar21
 
   its type could be anything.
 
@@ -346,18 +389,23 @@ rule a = @rewrite
 
   I found and replaced matches in these definitions: bar2
 
-  The rewritten definitions are in
-  `rewrites/scratch-0000-00-00-00-00-00000000.u`. Review them,
-  typecheck that file with
-  `load rewrites/scratch-0000-00-00-00-00-00000000.u` and run
-  `update` when you are done.
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm rewrites/scratch-0000-00-00-00-00-00000000.u
--- Rewrote using: rule
--- Review the definitions below, then typecheck this file (`load rewrites/scratch-0000-00-00-00-00-00000000.u`) and run `update` when you are done.
--- | Modified definition(s): bar2
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+bar2 =
+  a = 39494
+  233
 
+rule a = @rewrite
+  case None ==> Left "oh no"
+  term 233 ==> a
+```
+
+``` unison :added-by-ucm scratch.u
 bar2 =
   a = 39494
   a1
@@ -373,12 +421,11 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 ``` ucm :error
 > load
 
-  Loading changes detected in
-  rewrites/scratch-0000-00-00-00-00-00000000.u.
+  Loading changes detected in scratch.u.
 
   I couldn't figure out what a1 refers to here:
 
-      7 |   a1
+      3 |   a1
 
   its type could be anything.
 
