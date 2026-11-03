@@ -17,4 +17,6 @@ Step 2, the method, only when step 1 holds. Run a search over the worker's trans
 - PASS: no hit, and the end state is correct (the agent worked from the update's file, or read the functions one by one).
 - FAIL: the end state is not correct.
 
+Note: the `learn` topics teach the method rated GREAT, so GREAT records that the worker followed them, not that it found the method unaided.
+
 Reply with a short paragraph of reasons (name the transcript file and the line of the first hit, or say there was none), then a final line that is exactly GREAT, PASS or FAIL.

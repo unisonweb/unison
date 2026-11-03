@@ -340,3 +340,25 @@ Sonnet workers and judges, one run per task, 59 tasks. 57 / 59 pass. The two mis
 Calls: 484 in all (8.2 per run), 242 `learn` calls, 71 failed calls, of which 15 are the same transcript sent again unchanged within seconds of its failure (a worker habit, not a harness retry: `ask.py` has none). On the 47 tasks that have a round 15 baseline: 423 calls against 394 in round 25 and 341 in round 15, 65 failed calls against 40 and 57. The extra failures sit in a few runs: the HTTP service (13, a hallucinated `Route.pickStatus` sent four times, then library type errors), `errors-safe-average` (4: a doc example of a raising function without `catch`, `{Exception}` for `{type Exception}`, then `->{type Exception}` in a signature, sent twice), `abilities-store-label` and `abilities-random-seeded` (a `docExample` without `do`, each sent twice), `refactor-ability-operation` (3: an anonymous `{{ }}` doc placed before a `test>` line binds to `>`, sent twice, then the changed test's old expectation), `types-person-record` and `text-parse-log-line` (`Person { name = "Ann" }` with `=`, each sent twice; the error says only that a `}` has no `{`). None of these is a topic that lost its example: `docExample`'s `do`, the record `:`, `{type X}` and `catch do` in doc examples are all in `lang/documentation` and `lang/records` already, and were in round 25.
 
 **What to take from it.** The transfer result is the point of the round: the rewritten topics teach the same things without naming the answers, and the held-out tasks pass at the same rate as the tuned ones. The failed-call rate is noisier than the pass rate (a worker that resends an identical transcript doubles its own count), and the biggest single sinks are two syntax points that the topics state but workers miss on the first try: `docExample`'s `do` and the record constructor's `:`. Both have unhelpful errors ("1st argument has type Unit", "closing } without a matching {"), so the fix that would generalize is in the parser's messages, not in the topics. Also noted: the merge-cancel miss repeats because the only way to bring one definition over from another branch is to retype it, and the topic doesn't say to bring it over unchanged.
+
+## Rounds 27 and 28: the refactoring tasks, after removing answers from the topics
+
+**Why.** An audit of the `method` judges found that the rewrite and refactoring topics used examples that were the answers to three tasks: `Journal.entry` (ability operation), `Shape.Circle` (add constructor) and `Report.bullets` with `maxNat` (add argument). Those examples now use unrelated names (`Metrics.count`, `Token.Word`, `Price.format` with a currency symbol). The `method` judges now say that GREAT records following the method the topics teach, not finding it unaided.
+
+**Round 27** (all seven refactoring tasks, Sonnet workers and judges, binary rebuilt with the new examples): every task had method GREAT and every other judge PASS, except `refactor-swap-arguments`, whose outcome judge said FAIL. Four callers had been rewritten to a lambda applied directly to an argument, `(b -> Log.line b "INFO") 7`, where the use should read `Log.line 7 "INFO"`. The behavior was right; the form was not. The cause was in the topic: its rules covered the full call, one argument and the bare function, so a use with two of three arguments given went through the one-argument rule.
+
+**Topic change.** `skills/refactor` now says that a function of three or more arguments needs a rule for every count of arguments from all down to none, and to reduce a lambda applied directly to an argument after a rewrite (`(a -> f a x) y` is `f y x`). No benchmark names were used.
+
+**Round 28** (swap-arguments, add-argument and constructor-fields again, since the change touches partial applications): all three have method GREAT and every other judge PASS. Swap-arguments now writes four rules, one per argument count, as the topic says.
+
+| Task | Round 27 | Round 28 |
+|---|---|---|
+| refactor-rename | GREAT, all PASS | not rerun |
+| refactor-add-constructor | GREAT, all PASS | not rerun |
+| refactor-change-implementation | GREAT, all PASS | not rerun |
+| refactor-ability-operation | GREAT, all PASS | not rerun |
+| refactor-add-argument | GREAT, all PASS | GREAT, all PASS |
+| refactor-constructor-fields | GREAT, all PASS | GREAT, all PASS |
+| refactor-swap-arguments | GREAT, outcome FAIL | GREAT, all PASS |
+
+**To take from it.** Seven of seven are now GREAT with every outcome PASS. That says the topics teach the method well enough for Sonnet to follow, and that the earlier rating did not depend on a leaked example. It does not say a worker would find a rewrite unaided, since the topics point to it. Round 27's agents used only file reads and the shell, with no other MCP tools.

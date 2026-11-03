@@ -16,4 +16,6 @@ Step 2, the method, only when step 1 holds. Search the worker's transcripts for 
 - PASS: hits, but the end state is correct: the worker retyped or re-sent the users of `slug`.
 - FAIL: the end state is not correct.
 
+Note: the `learn` topics teach the method rated GREAT, so GREAT records that the worker followed them, not that it found the method unaided.
+
 Reply with a short paragraph of reasons (name the transcript file and the line of the first hit, or say there was none), then a final line that is exactly GREAT, PASS or FAIL.
