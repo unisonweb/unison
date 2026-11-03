@@ -126,11 +126,11 @@ proj/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
+  definitions to fix are in upgrade-old-to-new-24120b37.u.
 
   Edit the file, then run:
 
-      proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
+      proj/upgrade-old-to-new> load upgrade-old-to-new-24120b37.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -146,7 +146,7 @@ proj/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
+``` unison :added-by-ucm upgrade-old-to-new-24120b37.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -250,11 +250,11 @@ proj/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
+  definitions to fix are in upgrade-old-to-new-24120b37.u.
 
   Edit the file, then run:
 
-      proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
+      proj/upgrade-old-to-new> load upgrade-old-to-new-24120b37.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -270,7 +270,7 @@ proj/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
+``` unison :added-by-ucm upgrade-old-to-new-24120b37.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -441,11 +441,11 @@ myproject/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-aabcdb16.u.
+  definitions to fix are in upgrade-old-to-new-ac890861.u.
 
   Edit the file, then run:
 
-      myproject/upgrade-old-to-new> load upgrade-old-to-new-aabcdb16.u
+      myproject/upgrade-old-to-new> load upgrade-old-to-new-ac890861.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -461,7 +461,7 @@ myproject/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-aabcdb16.u
+``` unison :added-by-ucm upgrade-old-to-new-ac890861.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -795,11 +795,11 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
   You're now on a temporary branch, upgrade, and the definitions
   to fix are in
-  upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u.
+  upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u.
 
   Edit the file, then run:
 
-      scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
+      scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -815,7 +815,7 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
+``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 

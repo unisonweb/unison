@@ -537,11 +537,11 @@ scratch/main> delete a b c
   still in use.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in delete-main-9e3d9f66.u.
+  definitions to fix are in delete-main-0c8e56de.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load delete-main-9e3d9f66.u
+      scratch/update-main> load delete-main-0c8e56de.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -556,7 +556,7 @@ scratch/main> delete a b c
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm delete-main-9e3d9f66.u
+``` unison :added-by-ucm delete-main-0c8e56de.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -751,11 +751,11 @@ scratch/main> delete ping
   still in use.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in delete-main-0e1e597d.u.
+  definitions to fix are in delete-main-0b295472.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load delete-main-0e1e597d.u
+      scratch/update-main> load delete-main-0b295472.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -770,7 +770,7 @@ scratch/main> delete ping
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm delete-main-0e1e597d.u
+``` unison :added-by-ucm delete-main-0b295472.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
