@@ -140,6 +140,7 @@ import Data.Foldable (toList)
 import Data.List (elemIndex)
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe, isJust, listToMaybe)
+import Data.Monoid (Sum (..))
 import Data.Set qualified as Set
 import Data.Word (Word16, Word64)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -570,7 +571,10 @@ useReturns b bd = (bd', srcs, lets)
                 TLets d [u] [BX] bn <$> go bo
       ABTN.Term _ (ABTN.Abs v e) -> ABTN.TAbs v <$> go e
       ABTN.Term _ (ABTN.Tm f) -> ABTN.TTm <$> traverse go f
-    callUses u e = length [() | TApp (FComb r) args <- universe e, batchArity b r == Just (length args), a <- args, a == u]
+    callUses u =
+      getSum . foldMentions u \case
+        AApp (FComb r) args | batchArity b r == Just (length args) -> Sum (length (filter (== u) args))
+        _ -> Sum 0
     renameRoot u = \case
       Node _ sh ts -> Node u sh ts
       t -> t
@@ -583,7 +587,7 @@ rebuild (Leaf _) e = e
 rebuild (Node v sh ts) e = foldr rebuild withNode ts
   where
     withNode
-      | occurrences v e > 0 = TLets Direct [v] [BX] (packOf sh (map treeName ts)) e
+      | mentions v e = TLets Direct [v] [BX] (packOf sh (map treeName ts)) e
       | otherwise = e
     packOf (Con r t _) fs = TApp (FCon r t) fs
     packOf (Fields rs _) fs = TApp (FRec rs) fs
@@ -616,7 +620,7 @@ useSpecs b bd = go bd
 dropDead :: (Var v) => ANormal Reference v -> ANormal Reference v
 dropDead tm = case tm of
   TLets d us ms bn bo
-    | [u] <- us, isBuiltLet bn, occurrences u bo' == 0 -> bo'
+    | [u] <- us, isBuiltLet bn, not (mentions u bo') -> bo'
     | otherwise -> TLets d us ms (dropDead bn) bo'
     where
       bo' = dropDead bo
@@ -639,8 +643,8 @@ usable s v bd
   | otherwise = withSubShapes s [foldl' meet sub [usable sub f bo | (f, bo) <- fieldArms j] | (j, sub) <- zip [0 ..] subs]
   where
     subs = subShapes s
-    matches = [bs | TMatch u bs <- universe bd, u == v]
-    updates = [() | TLets _ [_] _ (TApp (FRecSet f) [base, _]) _ <- universe bd, base == v, Fields rs _ <- [s], f `elem` schemaFields rs]
+    matches = foldMentions v (\case AMatch u bs | u == v -> [bs]; _ -> []) bd
+    updates = foldMentions v (\case ALet _ [_] (TApp (FRecSet f) [base, _]) _ | base == v, Fields rs _ <- s, f `elem` schemaFields rs -> [()]; _ -> []) bd
     -- an arm as the fields it binds, each with its position in the product
     arms = map armFor matches
     armFor bs = case (s, bs) of
@@ -747,6 +751,8 @@ rewrite v (Node _ s ts) e = go e
     fields = case s of
       Fields rs _ -> schemaFields rs
       _ -> []
+    -- a subterm that does not use the variable has no match on it
+    go tm | not (mentions v tm) = pure tm
     go tm = case tm of
       TMatch u (MatchData r' cs _)
         | u == v,
@@ -1260,9 +1266,9 @@ boundVars _ = Set.empty
 -- | How many times a variable is used: its free occurrences, in every
 -- position a variable can take.
 occurrences :: (Var v) => v -> ANormal Reference v -> Int
-occurrences v = length . filter (== v) . concatMap nodeVars . universe
+occurrences v = getSum . foldMentions v (Sum . length . filter (== v) . nodeVars)
   where
-    nodeVars (ABTN.Term _ (ABTN.Tm f)) = case f of
+    nodeVars f = case f of
       AVar u -> [u]
       AApp fn args -> funcVars fn ++ args
       AName (Right u) as _ -> u : as
@@ -1277,8 +1283,26 @@ occurrences v = length . filter (== v) . concatMap nodeVars . universe
       AShift {} -> []
       ALit _ -> []
       ABLit _ -> []
-    nodeVars _ = []
     funcVars = \case
       FVar u -> [u]
       FCont u -> [u]
       _ -> []
+
+-- | A fold over the nodes of a body that can mention a variable: only
+-- the subterms whose free variables hold it are entered, which every
+-- term records ('ABTN.freeVars'), so the walk costs the paths to the
+-- variable's uses, not the body. The analyses here ask this once per
+-- let, which over a body of thousands of lets is what made them
+-- quadratic (Paul, 2026-11-03).
+foldMentions :: (Var v, Monoid m) => v -> (ANormalF Reference v (ANormal Reference v) -> m) -> ANormal Reference v -> m
+foldMentions v at = go
+  where
+    go tm
+      | not (Set.member v (ABTN.freeVars tm)) = mempty
+      | otherwise = case tm of
+          ABTN.Term _ (ABTN.Abs _ b) -> go b
+          ABTN.Term _ (ABTN.Tm f) -> at f <> foldMap go f
+
+-- | Whether a body uses a variable at all.
+mentions :: (Var v) => v -> ANormal Reference v -> Bool
+mentions v tm = Set.member v (ABTN.freeVars tm)
