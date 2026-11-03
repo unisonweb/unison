@@ -48,7 +48,7 @@ docToConsole = go
       Callout (Just icon) d -> P.group (indent (lit "  | ") (P.sep nl [P.bold (go icon), lit "", go d]))
       Table rows -> P.group (P.table (map (map go) rows))
       Folded _ summary details -> go summary <> go details
-      Paragraph ds -> P.wrap' (pure . P.lit) (foldMap go ds)
+      Paragraph ds -> P.sep nl (map paragraphPiece (paragraphRuns ds))
       BulletedList ds -> P.group (P.sep nl [indent' (lit "* ") (lit "  ") (go d) | d <- ds])
       NumberedList n ds ->
         let dot = ". "
@@ -68,6 +68,31 @@ docToConsole = go
       Image alt _ (Just caption) -> P.sep nl [go alt, go (Italic caption)]
       Image alt _ Nothing -> go alt
       Special form -> special form
+
+    -- A code block inside a paragraph is not words: it keeps its lines, and the text before and after it wraps on its own.
+    paragraphPiece :: Either Doc [Doc] -> Pretty
+    paragraphPiece = \case
+      Left block -> go block
+      Right ds -> P.wrap' (pure . P.lit) (foldMap go ds)
+
+    paragraphRuns :: [Doc] -> [Either Doc [Doc]]
+    paragraphRuns = \case
+      [] -> []
+      d : rest
+        | isBlock d -> Left d : paragraphRuns rest
+        | otherwise ->
+            let (inline, more) = List.span (not . isBlock) rest
+             in Right (d : inline) : paragraphRuns more
+
+    isBlock :: Doc -> Bool
+    isBlock = \case
+      CodeBlock {} -> True
+      Special (Eval {}) -> True
+      Special (ExampleBlock {}) -> True
+      Special (Signature {}) -> True
+      Special (Source {}) -> True
+      Special (FoldedSource {}) -> True
+      _ -> False
 
     -- Emphasis marks go inside the first and last words of a paragraph, so they stay with them when the paragraph wraps.
     emphasized mark = \case
