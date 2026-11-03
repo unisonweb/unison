@@ -122,7 +122,8 @@ handleShareRender ref@ShareRef {path} =
               ++ [doc | TypeDefinition {typeDocs} <- Map.elems typeDefinitions, (_, _, doc) <- typeDocs]
       when (null docs) do
         Cli.returnEarly (Output.ShareFailed ("There are no docs for " <> name))
-      Cli.respond . Output.ShareText . Text.intercalate "\n\n---\n\n" $ docs <&> Markdown.toText . Doc.toMarkdown
+      -- The same layout as @docs@ and @render@ give for a local definition, not Share's Markdown.
+      Cli.respond (Output.ShareDocs (P.linesSpaced (intersperse "---" (docs <&> docToConsole))))
 
 -- | Fetch the definitions at the ref's path, failing if the ref has none or the name isn't found.
 lookupDefinitions :: ShareRef -> Cli DefinitionDisplayResults

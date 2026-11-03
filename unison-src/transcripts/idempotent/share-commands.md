@@ -19,49 +19,37 @@ scratch/main> share.source @unison/base/releases/7.20.0:Optional
 
 `share.render` prints the docs of a definition, or a doc itself.
 
-```` ucm
+``` ucm
 scratch/main> share.render @unison/base/releases/7.20.0:Optional.map
 
-  Apply a function to the value in a `Optional` value if it is `Some` . Otherwise, return `None` .
+  Apply a function to the value in a Optional value if it is
+  Some. Otherwise, return None.
 
   # Examples
 
-  ```unison
-  Optional.map Nat.increment (Some 2)
-  ⧨
-  Some 3
+        Optional.map Nat.increment (Some 2)
+        ⧨
+        Some 3
 
-  ```
-
-  ```unison
-  Optional.map Nat.increment None
-  ⧨
-  None
-
-  ```
-
+        Optional.map Nat.increment None
+        ⧨
+        None
 
 scratch/main> share.render @unison/base/releases/7.20.0:Optional.map.doc
 
-  Apply a function to the value in a `Optional` value if it is `Some` . Otherwise, return `None` .
+  Apply a function to the value in a Optional value if it is
+  Some. Otherwise, return None.
 
   # Examples
 
-  ```unison
-  Optional.map Nat.increment (Some 2)
-  ⧨
-  Some 3
+        Optional.map Nat.increment (Some 2)
+        ⧨
+        Some 3
 
-  ```
-
-  ```unison
-  Optional.map Nat.increment None
-  ⧨
-  None
-
-  ```
-
-````
+        Optional.map Nat.increment None
+        ⧨
+        None
+```
 
 Names that don't exist, and references without a name where one is needed, are errors.
 
