@@ -113,7 +113,7 @@ outputTests =
         (message, contents) <-
           io $ withOutputDir \dir -> do
             message <- deliver dir long
-            let path = Text.unpack . fst . Text.breakOn ". Read or grep" . snd $ Text.breakOn "/" message
+            let path = Text.unpack . fst . Text.breakOn ". Read or grep" . Text.drop (Text.length "written to ") . snd $ Text.breakOn "written to " message
             contents <- Text.readFile path
             pure (message, contents)
         expectEqual long contents

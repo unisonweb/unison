@@ -306,7 +306,8 @@ expectFailureMentioning needles = \case
 
 expectTextContaining :: [Text] -> Text -> Test ()
 expectTextContaining needles haystack =
-  tests [expect (needle `Text.isInfixOf` haystack) | needle <- needles]
+  -- Messages wrap at a width, and where they wrap depends on how long a path in them is, so compare words.
+  tests [expect (Text.unwords (Text.words needle) `Text.isInfixOf` Text.unwords (Text.words haystack)) | needle <- needles]
 
 renderOutput :: Transcript -> String
 renderOutput = Text.unpack . Transcript.format
