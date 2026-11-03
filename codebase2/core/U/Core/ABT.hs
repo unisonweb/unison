@@ -196,14 +196,17 @@ foreachSubterm ::
   (Term f v a -> g b) ->
   Term f v a ->
   g [b]
-foreachSubterm f e = case out e of
-  Var _ -> pure <$> f e
-  Cycle body -> (:) <$> f e <*> foreachSubterm f body
-  Abs _ body -> (:) <$> f e <*> foreachSubterm f body
-  Tm body ->
-    (:)
-      <$> f e
-      <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
+foreachSubterm f e = ($ []) <$> go e
+  where
+    -- The subterms are collected as a difference list, so that a deep term
+    -- (a left-nested chain of thousands of applications, say) costs its size
+    -- rather than its size times its depth, which concatenating each node's
+    -- list of descendants onto its parent's would.
+    go t = case out t of
+      Var _ -> (:) <$> f t
+      Cycle body -> (.) . (:) <$> f t <*> go body
+      Abs _ body -> (.) . (:) <$> f t <*> go body
+      Tm body -> (.) . (:) <$> f t <*> (foldr (.) id <$> traverse go body)
 
 subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
