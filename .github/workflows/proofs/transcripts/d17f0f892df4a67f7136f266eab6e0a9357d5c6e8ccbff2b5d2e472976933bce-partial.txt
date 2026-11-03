@@ -1,2 +1,0 @@
-# transcripts run for the partial attestation d17f0f892df4a67f7136f266eab6e0a9357d5c6e8ccbff2b5d2e472976933bce
-e6397d738d4ea18e02259ebed85d4795f21922ece082e20a2a2b0ab05347806d unison-src/transcripts/idempotent/share-commands.md
