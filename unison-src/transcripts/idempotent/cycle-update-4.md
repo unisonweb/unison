@@ -41,8 +41,13 @@ clang _ = !pong + 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  Also typechecking, from the codebase: pong. They use what this
+  file redefines, so they are part of the file now, and `update`
+  saves them rebuilt on the new definition.
+
   + clang : 'Nat
   ~ ping : 'Nat
+  ~ pong : 'Nat
 
   + (added), ~ (modified)
 
@@ -54,10 +59,6 @@ clang _ = !pong + 3
 
   Okay, I'm searching the branch for code that needs to be
   updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
 
   Done.
 

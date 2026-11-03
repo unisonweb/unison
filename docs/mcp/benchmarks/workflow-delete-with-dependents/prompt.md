@@ -1,0 +1,1 @@
+In the current Unison project, remove `Page.size`: the page size should not be hardcoded anywhere any more. Everything that used it, directly or through other functions, takes the page size as one more last argument (a `Nat`) instead. Update the tests to match.

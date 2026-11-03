@@ -1,6 +1,6 @@
 # Undo
 
-Undo should pop a node off of the history of the current branch.
+Undo should go back to the previous state of the current branch, one command at a time. See `undo-redo.md` for more.
 
 ``` unison :hide
 x = 1
@@ -197,5 +197,6 @@ scratch/new> undo
 
   ⚠️
 
-  Nothing more to undo.
+  Nothing more to undo. Use `reflog` or `history` to find an
+  earlier state, and `reset` to go back to it.
 ```

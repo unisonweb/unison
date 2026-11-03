@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.StructuredArgument where
 
+import Data.Text (Text)
 import GHC.Generics (Generic)
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Editor.Input
@@ -27,4 +28,8 @@ data StructuredArgument
   | ShallowListEntry Path' (ShallowListEntry Symbol Ann)
   | SearchResult (Maybe Path') SearchResult
   | FilePath FilePath
+  | -- | A release on Share, like @\@unison/base/releases/7.20.0@.
+    ShareReleaseRef Text
+  | -- | A definition on Share, like @\@unison/base/releases/7.20.0:data.List.take@.
+    ShareDefinitionRef Text
   deriving (Eq, Generic, Show)

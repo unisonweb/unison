@@ -32,8 +32,8 @@ import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasIsPreferred (i
 import Language.LSP.Protocol.Lens qualified as LSPTypes
 import Language.LSP.Protocol.Types
   ( Diagnostic,
-    Position,
-    Range,
+    Position (Position),
+    Range (Range),
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
@@ -41,6 +41,7 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Load (insertAboveFold, pulledInDefinitions, pulledInHeader, pulledInStarts)
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
@@ -118,10 +119,22 @@ checkFileContents fileUri sourceName fileVersion contents = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  (localBindingInfo, notes, parsedFile, typecheckedFile) <- do
+  (localBindingInfo, notes, parsedFile, typecheckedFile, pulledIn) <- do
     liftIO do
-      Codebase.runTransaction cb do
-        parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
+      parseResult <- Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv)
+      -- As at `load`: a definition of the codebase that the file uses, and that uses what the file redefines, is
+      -- typechecked as part of the file, so that the editor reports what UCM would.
+      (parseResult, pulledIn) <- case Result.fromParsing parseResult of
+        Result.Result _ (Just parsedFile0) ->
+          pulledInDefinitions cb parseNames parsedFile0 >>= \case
+            Nothing -> pure (parseResult, Nothing)
+            Just (names, redefined, source) -> do
+              let (srcText', firstLine, lastLine) = insertAboveFold srcText (pulledInHeader redefined <> source)
+              Codebase.runTransaction cb (Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText') parsingEnv) <&> \case
+                Left _ -> (parseResult, Nothing)
+                withPulled -> (withPulled, Just (names, firstLine, lastLine))
+        _ -> pure (parseResult, Nothing)
+      fmap (\(a, b, c, d) -> (a, b, c, d, pulledIn)) $ Codebase.runTransaction cb do
         case Result.fromParsing parseResult of
           Result.Result parsingNotes Nothing -> pure (mempty, parsingNotes, Nothing, Nothing)
           Result.Result _ (Just parsedFile) -> do
@@ -157,7 +170,25 @@ checkFileContents fileUri sourceName fileVersion contents = do
             pure (localBindingInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- ppedForFileHelper parsedFile typecheckedFile
-  (errDiagnostics, codeActions) <- analyseFile fileUri srcText filePPED notes
+  (errDiagnostics0, codeActions) <- analyseFile fileUri srcText filePPED notes
+  -- A diagnostic in a pulled-in definition points at lines the document doesn't have. Put it on the line above the
+  -- pulled-in region (the last line of the user's own text there), and say which definition it is in.
+  let pulledStarts = case (pulledIn, parsedFile) of
+        (Just (names, _, _), Just file) -> pulledInStarts names file
+        _ -> []
+      relocate d = case pulledIn of
+        Just (_, firstLine, lastLine)
+          | line >= firstLine,
+            line <= lastLine,
+            Just name <- snd <$> lastMay (takeWhile ((<= line) . fst) pulledStarts) ->
+              let anchor = Position (fromIntegral (max 0 (firstLine - 3))) 0
+               in d
+                    & range .~ Range anchor anchor
+                    & LSPTypes.message %~ (("In " <> Name.toText name <> ", pulled in from the codebase because it uses what this file redefines: ") <>)
+        _ -> d
+        where
+          line = fromIntegral (d ^. range . LSPTypes.start . LSPTypes.line) + 1
+      errDiagnostics = relocate <$> errDiagnostics0
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
@@ -582,14 +613,19 @@ ppedForFileHelper uf tf = do
   hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
   pure $ case (uf, tf) of
     (Nothing, Nothing) -> codebasePPED
-    (_, Just tf) ->
-      let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
-       in filePPED `PPED.addFallback` codebasePPED
-    (Just uf, _) ->
-      let fileNames = UF.toNames uf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
-       in filePPED `PPED.addFallback` codebasePPED
+    (_, Just tf) -> withFileNames hashLen codebasePPED (UF.typecheckedToNames tf)
+    (Just uf, _) -> withFileNames hashLen codebasePPED (UF.toNames uf)
+  where
+    withFileNames :: Int -> PPED.PrettyPrintEnvDecl -> Names -> PPED.PrettyPrintEnvDecl
+    withFileNames hashLen codebasePPED fileNames =
+      let filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
+          -- A definition can still mention something the file shadowed. The hash tells it apart from the file's
+          -- definition of that name.
+          hashQualifyShadowed = PPE.hashQualifyShadowed hashLen fileNames
+       in filePPED
+            `PPED.addFallback` PPED.PrettyPrintEnvDecl
+              (hashQualifyShadowed codebasePPED.unsuffixifiedPPE)
+              (hashQualifyShadowed codebasePPED.suffixifiedPPE)
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
 mkTypeSignatureHints parsedFile typecheckedFile = do

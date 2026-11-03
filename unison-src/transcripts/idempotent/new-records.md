@@ -1172,19 +1172,29 @@ targetLit = cases
 ```
 
 ``` ucm
-scratch/main> rewrite litRule
+scratch/main> rewrite :litRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetLit
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+litRule = @rewrite
+  case {x: 0} ==> {x: 1}
+
+targetLit : {x: Nat} -> Nat
+targetLit = cases
+  {x: 0} -> 100
+  {x: n} -> n
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): targetLit
-
 litRule = @rewrite case {x: 0} ==> {x: 1}
 
 targetLit : {x: Nat} -> Nat
@@ -1227,19 +1237,28 @@ targetSwap = cases
 ```
 
 ``` ucm
-scratch/main> rewrite swapRule
+scratch/main> rewrite :swapRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetSwap
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+swapRule a b = @rewrite
+  case {x: a, y: b} ==> {x: b, y: a}
+
+targetSwap : {x: Nat, y: Nat} -> Nat
+targetSwap = cases
+  {x: p, y: q} -> p Nat.+ (q Nat.* 2)
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): targetSwap
-
 swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
 
 targetSwap : {x: Nat, y: Nat} -> Nat
@@ -1277,19 +1296,28 @@ targetWild = cases
 ```
 
 ``` ucm
-scratch/main> rewrite wildRule
+scratch/main> rewrite :wildRule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: targetWild
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+wildRule _w = @rewrite
+  case {w: _w} ==> {w: 0}
+
+targetWild : {w: Nat} -> Nat
+targetWild = cases
+  {w: _} -> 7
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): targetWild
-
 wildRule _w = @rewrite case {w: _w} ==> {w: 0}
 
 targetWild : {w: Nat} -> Nat

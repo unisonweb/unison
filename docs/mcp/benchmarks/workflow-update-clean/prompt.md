@@ -1,0 +1,1 @@
+In the current Unison project, `Invoice.tax` should round up to the next whole cent instead of down. For example the tax on `1005` cents is `81` (8% of 1005 is 80.4), and the tax on `1` cent is `1`. Everything that uses `Invoice.tax` should follow, and its documentation should still be right. Add a test for the rounding.

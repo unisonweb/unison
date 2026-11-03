@@ -1,0 +1,1 @@
+In the current Unison project, `Shape` has the constructors `Square`, `Rect` and `Circle`, and a number of functions work on shapes. I want a new constructor, `Shape.RightTriangle Float Float`, whose fields are the lengths of the two legs.

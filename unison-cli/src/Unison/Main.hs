@@ -82,7 +82,6 @@ import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
-import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -174,11 +173,9 @@ main version = do
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
         MCPServer -> do
           let ucmVersion = Version.gitDescribeWithDate version
-          let credMan = AuthN.globalCredentialManager
-          authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
-            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
-              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
+          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) ->
+            Transcript.withRunner jit Transcript.mcpConfig Verbosity.Silent ucmVersion \runner ->
+              MCP.runOnStdIO runner theCodebase
         Init -> do
           exitError
             ( P.lines
@@ -359,61 +356,63 @@ main version = do
               let ucmVersion = Version.gitDescribeWithDate version
               let credMan = AuthN.globalCredentialManager
               authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
-              Server.startServer
-                isTest
-                Backend.BackendEnv
-                codebaseServerOpts
-                sbRuntime
-                theCodebase
-                (MCP.mcpServer mcpServerConfig)
-                \mayBaseUrl -> case exitOption of
-                  DoNotExit -> case isHeadless of
-                    Headless -> whenJust mayBaseUrl \baseUrl -> do
-                      PT.putPrettyLn $
-                        P.lines
-                          [ "I've started the Codebase API server at",
-                            P.text $ Server.urlFor Server.Api baseUrl,
-                            "and the Codebase UI at",
-                            P.text $
-                              Server.urlFor
-                                ( Server.ProjectBranchUI
-                                    (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName)
-                                    Path.Root
-                                    Nothing
-                                )
-                                baseUrl
-                          ]
-                      PT.putPrettyLn $
-                        P.string "Running the codebase manager headless with "
-                          <> P.shown GHC.Conc.numCapabilities
-                          <> " "
-                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                          <> "."
-                      mvar <- newEmptyMVar
-                      takeMVar mvar
-                    WithCLI -> do
-                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                      launch
-                        version
-                        currentDir
-                        runtime
-                        sbRuntime
-                        theCodebase
-                        []
-                        authenticatedHTTPClient
-                        credMan
-                        mayBaseUrl
-                        (PP.toIds startingProjectPath)
-                        initRes
-                        lspCheckForChanges
-                        shouldWatchFiles
-                      -- Close the LSP server socket so the LSP thread unblocks from
-                      -- `accept` and can exit cleanly. This is necessary on Windows
-                      -- where async exceptions cannot interrupt a thread blocked in
-                      -- a socket accept call.
-                      whenJustM (UnliftIO.tryTakeMVar lspServerSock) Socket.close
-                  Exit -> Exit.exitSuccess
+              -- The codebase server also speaks MCP at /mcp, over HTTP, for clients that connect to a running UCM.
+              Transcript.withRunner jit Transcript.mcpConfig Verbosity.Silent ucmVersion \runner ->
+                MCP.withMessageHandler runner theCodebase \handleMcpMessage ->
+                  Server.startServer
+                    isTest
+                    Backend.BackendEnv
+                    codebaseServerOpts
+                    sbRuntime
+                    theCodebase
+                    (liftIO . handleMcpMessage)
+                    \mayBaseUrl -> case exitOption of
+                      DoNotExit -> case isHeadless of
+                        Headless -> whenJust mayBaseUrl \baseUrl -> do
+                          PT.putPrettyLn $
+                            P.lines
+                              [ "I've started the Codebase API server at",
+                                P.text $ Server.urlFor Server.Api baseUrl,
+                                "and the Codebase UI at",
+                                P.text $
+                                  Server.urlFor
+                                    ( Server.ProjectBranchUI
+                                        (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName)
+                                        Path.Root
+                                        Nothing
+                                    )
+                                    baseUrl
+                              ]
+                          PT.putPrettyLn $
+                            P.string "Running the codebase manager headless with "
+                              <> P.shown GHC.Conc.numCapabilities
+                              <> " "
+                              <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                              <> "."
+                          mvar <- newEmptyMVar
+                          takeMVar mvar
+                        WithCLI -> do
+                          PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                          launch
+                            version
+                            currentDir
+                            runtime
+                            sbRuntime
+                            theCodebase
+                            []
+                            authenticatedHTTPClient
+                            credMan
+                            mayBaseUrl
+                            (PP.toIds startingProjectPath)
+                            initRes
+                            lspCheckForChanges
+                            shouldWatchFiles
+                          -- Close the LSP server socket so the LSP thread unblocks from
+                          -- `accept` and can exit cleanly. This is necessary on Windows
+                          -- where async exceptions cannot interrupt a thread blocked in
+                          -- a socket accept call.
+                          whenJustM (UnliftIO.tryTakeMVar lspServerSock) Socket.close
+                      Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
     withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
