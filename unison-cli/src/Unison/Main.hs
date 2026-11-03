@@ -153,7 +153,10 @@ main version = do
   -- https://hackage.haskell.org/package/base-4.21.0.0/docs/GHC-IO-Handle.html#v:hPutStr
   UnliftIO.hSetBuffering UnliftIO.stderr UnliftIO.LineBuffering
 
-  withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
+  -- the JIT's compile thread is stopped, and a compile in flight waited
+  -- for, before the process exits (JIT.jitShutdown)
+  jitRef <- UnliftIO.newIORef Nothing
+  flip UnliftIO.finally (UnliftIO.readIORef jitRef >>= maybe (pure ()) JIT.jitShutdown) $ withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
     interruptHandler <- defaultInterruptHandler
     withInterruptHandler interruptHandler $ do
       void $ Ki.fork scope (initHTTPClient version)
@@ -166,6 +169,7 @@ main version = do
       -- the dump is one of the settings behind UNISON_JIT_DEBUG (JIT.Config)
       for_ jitDumpIROption (\dir -> setEnv "UNISON_JIT_DEBUG" "1" >> setEnv "UNISON_JIT_DUMP_IR" dir)
       jit <- JIT.newJIT =<< JIT.readConfig
+      UnliftIO.writeIORef jitRef (Just jit)
       announceJIT jit
       currentDir <- getCurrentDirectory
       case command of

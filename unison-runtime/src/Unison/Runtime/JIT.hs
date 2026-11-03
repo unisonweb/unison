@@ -15,6 +15,7 @@ module Unison.Runtime.JIT
     stackSlots,
     loadJIT,
     startJIT,
+    jitShutdown,
     jitCompileGroup,
     jitRequestGroup,
     jitRequestCell,
@@ -27,8 +28,8 @@ module Unison.Runtime.JIT
 where
 
 import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapability, yield)
-import Control.Concurrent.STM (TBQueue, TVar, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
-import Control.Exception (SomeException, evaluate, try)
+import Control.Concurrent.STM (TBQueue, TVar, atomically, check, isFullTBQueue, modifyTVar', newTBQueueIO, newTVarIO, orElse, readTBQueue, readTVar, readTVarIO, writeTBQueue, writeTVar)
+import Control.Exception (SomeException, bracket_, evaluate, finally, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE, withExceptT)
@@ -88,8 +89,22 @@ data JIT = JIT
     jitCompileThreadStarted :: !(IORef Bool),
     -- | the re-entry functions each group may still get because of ad
     -- hoc exits, and what those exits asked for (see 'noteAdHocExit')
-    jitAdHoc :: !(IORef AdHoc)
+    jitAdHoc :: !(IORef AdHoc),
+    -- | where the compile thread is, for 'jitShutdown'
+    jitStatus :: !(TVar Status),
+    -- | Stops the compile thread and waits for it: a compile in flight
+    -- finishes first, so that the process does not tear LLVM down under
+    -- it. ucm calls this before it exits. Returns at once when the thread
+    -- never started (the off and eager modes, or no request yet), and
+    -- after ten seconds whatever the thread is doing.
+    jitShutdown :: IO ()
   }
+
+-- | The compile thread's state: between requests, inside a compile, asked
+-- to stop ('jitShutdown'), and stopped, which it sets when it leaves its
+-- loop for any reason.
+data Status = Idle | Compiling | Finishing | Finished
+  deriving (Eq)
 
 data AdHoc = AdHoc
   { -- | by group number; absent means the full allowance
@@ -104,15 +119,27 @@ data AdHoc = AdHoc
 -- until 'loadJIT' or 'startJIT'. In the off mode it is inert, and the
 -- runtime's calls into it return at once.
 newJIT :: Config -> IO JIT
-newJIT config =
+newJIT config = do
+  status <- newTVarIO Idle
+  started <- newIORef False
   JIT
     <$> newCompiler config
     <*> newIORef (EC.mapFromList [])
     <*> newIORef Nothing
     <*> newIORef Nothing
     <*> newTBQueueIO 256
-    <*> newIORef False
+    <*> pure started
     <*> newIORef (AdHoc (EC.mapFromList []) 0 0)
+    <*> pure status
+    <*> pure (shutdown status started)
+  where
+    shutdown status started = do
+      running <- readIORef started
+      when running $ do
+        atomically $ modifyTVar' status \case
+          Finished -> Finished
+          _ -> Finishing
+        void (timeout (10 * 1000 * 1000) (atomically (readTVar status >>= check . (== Finished))))
 
 jitConfig :: JIT -> Config
 jitConfig = cConfig . jitCompiler
@@ -463,21 +490,26 @@ groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _) _)) <
 -- it. A definition's request is served ahead of the held re-entry
 -- functions, so the wait never delays a hot loop.
 compileThread :: JIT -> IO ()
-compileThread jit = do
+compileThread jit = flip finally (atomically (writeTVar status Finished)) $ do
   initialized <- newIORef False
   callersRef <- newIORef (Callers Set.empty Map.empty)
-  let loop held = do
-        next <-
+  let -- the next request, or Nothing once 'jitShutdown' has asked the
+      -- thread to stop
+      next = atomically (stopping `orElse` (Just <$> readTBQueue (jitRequests jit)))
+      stopping = Nothing <$ (readTVar status >>= check . (== Finishing))
+      loop held = do
+        taken <-
           if null held
-            then Just <$> atomically (readTBQueue (jitRequests jit))
-            else timeout (reentryWait config * 1000) (atomically (readTBQueue (jitRequests jit)))
-        case next of
-          Nothing -> flush held >> loop []
-          Just (ReqUnit u) | reentryWait config > 0 -> do
+            then Right <$> next
+            else maybe (Left ()) Right <$> timeout (reentryWait config * 1000) next
+        case taken of
+          Right Nothing -> pure ()
+          Left () -> flush held >> loop []
+          Right (Just (ReqUnit u)) | reentryWait config > 0 -> do
             let held' = u : held
             if length held' >= batch config then flush held' >> loop [] else loop held'
-          Just req -> do
-            r <- try (serve initialized callersRef req)
+          Right (Just req) -> do
+            r <- try (compiling (serve initialized callersRef req))
             case r of
               Left (e :: SomeException) -> jitLog config ("compile thread: " ++ show e)
               Right () -> pure ()
@@ -485,7 +517,7 @@ compileThread jit = do
       flush [] = pure ()
       flush held = do
         r <-
-          try
+          try . compiling $
             ( withState initialized $ \st numbers -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
                 guarded config name (compileUnits c st numbers name True (reverse held))
@@ -498,6 +530,13 @@ compileThread jit = do
   where
     config = jitConfig jit
     c = jitCompiler jit
+    status = jitStatus jit
+    -- a request being served; a stop asked for meanwhile is kept, and
+    -- the loop sees it next
+    compiling =
+      bracket_
+        (atomically (modifyTVar' status \case Finishing -> Finishing; _ -> Compiling))
+        (atomically (modifyTVar' status \case Finishing -> Finishing; _ -> Idle))
     withState initialized k = do
       ready <- readIORef initialized
       unless ready (void (initJIT jit) >> writeIORef initialized True)
