@@ -123,10 +123,13 @@ jobs:
         # check compares the headers' source hashes and, where the runner's
         # clang is the one that generated the files (the IR's text differs
         # between clang versions), regenerates cbits/jit_helpers.ll and
-        # jit_exit.ll and diffs them. Always, cache hit or not: the
-        # committed IR is what runs natively in every JIT'd process, so
-        # nothing but this regeneration vouches for it.
-        if: runner.os != 'Windows'
+        # jit_exit.ll and diffs them. The committed IR is what runs natively
+        # in every JIT'd process, so nothing but this regeneration vouches
+        # for it. Skipped on a cache hit: the cache key hashes every source
+        # and .ll file and is saved only by a job that passed this check, so
+        # a hit is the same sources that already passed; and a hit installs
+        # no stack, which the check needs to find GHC's headers.
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: unison-runtime/cbits/gen-helpers.sh --check
 
       - name: set git user info
