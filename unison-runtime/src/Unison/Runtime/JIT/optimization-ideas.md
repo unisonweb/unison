@@ -76,6 +76,23 @@ likely to matter:
   terms; most groups have no site of the explosion), and the check could
   be a debug-mode one. Not measured.
 
+### Linear analyses for the ANF rewrites
+
+The rewrites in `Unison.Runtime.MCode.Explode` walk a body once per let:
+`knownCons` rewrites the rest of the body at every constructor let,
+`site` counts a variable's occurrences at every let, `dropDead` and
+`useReturns` the same, so a body that is thousands of constructor lets
+(a doc literal: `bug-strange-closure.md` renders one) costs them time
+quadratic in its size; with `universe` building its list through nested
+appends it was cubic, and that transcript took minutes (2026-11-03;
+`universe` is linear now, the transcript 40 s against 14 s with every
+rewrite off). The linear forms: one pass that carries the constructors
+in scope and rewrites a match on one as it meets it, in place of a
+`rewrite` per let; one occurrence count per body (a map from variable
+to count) in place of `occurrences` per let. Worth doing before the
+rewrites run on a library's doc-heavy code at load time; measure
+`builtins.mergeio` plus loading base with the rewrites on and off first.
+
 ### A private convention for specialised workers
 
 A specialisation of a loop (`Unison.Runtime.MCode.Explode`) is called only

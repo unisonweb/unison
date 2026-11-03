@@ -1240,8 +1240,14 @@ lambdaBody :: (Var v) => SuperNormal Reference v -> ANormal Reference v
 lambdaBody (Lambda _ (TAbss _ bd)) = bd
 
 -- | A term and every term inside it.
+-- | Every subterm, the term first; built with an accumulator, since the
+-- analyses walk it once per let of a body and the nested appends of a
+-- 'concatMap' cost the body's size times its depth per walk (a doc
+-- literal of a few thousand lets took minutes, 2026-11-03).
 universe :: ANormal Reference v -> [ANormal Reference v]
-universe t = t : concatMap universe (children t)
+universe t0 = go t0 []
+  where
+    go t acc = t : foldr go acc (children t)
 
 children :: ANormal Reference v -> [ANormal Reference v]
 children (ABTN.Term _ (ABTN.Abs _ b)) = [b]
