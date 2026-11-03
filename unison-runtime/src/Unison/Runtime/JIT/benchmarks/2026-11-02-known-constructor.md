@@ -193,6 +193,26 @@ table-free check and the join-point fix below), interleaved.
   it apart, which the two rules now do in place.
 - **Everything else within noise.** No row is slower.
 
+## Load time over library code (2026-11-03)
+
+The rewrites run at emission, so their cost is paid when code is loaded.
+`compile suite` in the suite's codebase (`unison-src/transcripts-manual/jit-suite.md`)
+loads and emits the suite's whole dependency closure of base, 6.4 MB of
+compiled code, with `UNISON_JIT=off`, three rounds interleaved, wall time
+of the transcript run (which includes copying the codebase and starting
+up, 2.6 s for an empty transcript):
+
+| run | every rewrite off (ms) | every rewrite on (ms) |
+|---|---|---|
+| 1 | 11832 | 11973 |
+| 2 | 11474 | 11888 |
+| 3 | 11549 | 11946 |
+
+About 0.4 s more on 9 s of loading, 4%, after the per-let walks were made
+to enter only the subterms that use the variable (7cc80e278); before that
+the doc transcript alone took minutes. This is the measurement to repeat
+when a rewrite is added.
+
 ## Found by the suite
 
 Loading the suite's library stopped on `emitClosures: unknown reference`
