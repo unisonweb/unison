@@ -7,7 +7,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (mapped, (.=), (?=))
+import Control.Lens (mapped, (.=), (?=), _3)
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Map qualified as Map
@@ -22,6 +22,7 @@ import U.Codebase.Reference (TermReferenceId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -29,6 +30,7 @@ import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
+import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -59,12 +61,16 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReferenceId)
-import Unison.Reference qualified as Reference (fromId)
+import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
+import Unison.Term (Term)
+import Unison.Term qualified as Term
+import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -192,10 +198,31 @@ handleUpdate2 = do
 
             pure (dependents1, dependentsRefs, hydratedDependents1)
 
+        -- When no type that the dependents use changes, they can take their new references without being typechecked
+        -- again.
+        propagatedTuf <-
+          if defnsAreEmpty dependents || typecheckDependentsAlways
+            then pure Nothing
+            else do
+              file <-
+                Cli.runTransaction $
+                  propagateToDependents
+                    env.codebase
+                    unconflictedView.defns.terms
+                    tuf
+                    (bimap (Map.keysSet . Map.filter id . snd) (Map.keysSet . Map.filter id . snd) addedOrUpdatedNamespaceBindings0)
+                    hydratedDependents
+              whenJust file \_ ->
+                respondRegion $
+                  Output.Literal $
+                    Pretty.wrap "That's done. Nothing that code uses changed its type, so I'm saving the results without typechecking it again..."
+              pure file
+
         secondTuf <- do
           case defnsAreEmpty dependents of
             -- If there are no dependents of the updates, then just use the already-typechecked file.
             True -> pure tuf
+            False | Just file <- propagatedTuf -> pure file
             False -> do
               respondRegion (Output.Literal (Pretty.wrap "That's done. Now I'm making sure everything typechecks..."))
 
@@ -365,6 +392,113 @@ handleUpdate2 = do
         pure Output.Success
 
   Cli.respond finalOutput
+
+-- | Set @UNISON_UPDATE_TYPECHECK_DEPENDENTS@ to typecheck an update's dependents again even when no type changed, the
+-- way `update` always did.
+typecheckDependentsAlways :: Bool
+typecheckDependentsAlways =
+  isJust . unsafePerformIO $ lookupEnv "UNISON_UPDATE_TYPECHECK_DEPENDENTS"
+{-# NOINLINE typecheckDependentsAlways #-}
+
+-- | @propagateToDependents codebase namespaceTerms file updates dependents@ applies an update without typechecking its
+-- dependents again, which is safe when no type they rely on changes (#5790): no type declaration is updated, and every
+-- updated term that a dependent refers to keeps its type. Each dependent then keeps its own type too, and only its
+-- references change: to an updated term they become that term in the file, and to another dependent, that dependent.
+-- Hashing the result as one file gives every dependent its new hash, cycles included.
+--
+-- That is what printing the dependents into the file and parsing it back does, with the typechecking skipped. Term and
+-- type links are left alone, as that round trip leaves them (it resolves them against the namespace, not the file).
+--
+-- Returns 'Nothing' when the slow path is needed: a type changed, a name involved is one of several aliases (the round
+-- trip can split an alias from its cycle, and this doesn't try to match it), or a substituted name is also bound inside
+-- a term, where a plain substitution would capture it.
+--
+-- @updates@ holds the names the file updates (not the ones it adds).
+propagateToDependents ::
+  Codebase IO Symbol Ann ->
+  BiMultimap Referent Name ->
+  TypecheckedUnisonFile Symbol Ann ->
+  DefnsF Set Name Name ->
+  DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann) ->
+  Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
+propagateToDependents codebase namespaceTerms file updates dependents
+  | not (Set.null updates.types) || not (Map.null dependents.types) = pure Nothing
+  | otherwise = runMaybeT do
+      let onlyName :: TermReferenceId -> Name -> Bool
+          onlyName ref name =
+            BiMultimap.lookupDom (Referent.fromTermReferenceId ref) namespaceTerms == Set.singleton name
+
+      let fileTerms :: Map Name (Symbol, Type Symbol Ann)
+          fileTerms =
+            Map.fromList
+              [ (Name.unsafeParseVar var, (var, typ))
+              | (var, (_, _, Nothing, _, typ)) <- Map.toList (UF.hashTermsId file)
+              ]
+
+      -- Each updated term's old reference, with the variable that names it in the file and its new type
+      updated <-
+        for (Set.toList updates.terms) \name -> do
+          oldRef <-
+            case BiMultimap.lookupRan name namespaceTerms of
+              Just (Referent.Ref (Reference.DerivedId ref)) -> pure ref
+              _ -> hoistMaybe Nothing
+          guard (onlyName oldRef name)
+          (var, typ) <- hoistMaybe (Map.lookup name fileTerms)
+          pure (oldRef, (var, typ))
+
+      for_ (Map.toList dependents.terms) \(name, (ref, _)) -> guard (onlyName ref name)
+
+      -- Only a reference that a dependent makes needs its type kept; a leaf may change its type freely
+      let referenced :: Set TermReferenceId
+          referenced =
+            Set.fromList
+              [ ref
+              | (_, (_, (term, _))) <- Map.toList dependents.terms,
+                Term.Ref' (Reference.DerivedId ref) <- ABT.subterms term
+              ]
+      for_ updated \(oldRef, (_, newType)) ->
+        when (Set.member oldRef referenced) do
+          oldType <- lift (Codebase.getTypeOfTerm codebase (Reference.fromId oldRef))
+          guard (oldType == Just newType)
+
+      let replacements :: Map TermReferenceId Symbol
+          replacements =
+            Map.fromList (map (second fst) updated)
+              <> Map.fromList [(ref, Name.toVar name) | (name, (ref, _)) <- Map.toList dependents.terms]
+
+      let replace :: Term Symbol Ann -> Term Symbol Ann
+          replace =
+            ABT.visitPure \case
+              term@(Term.Ref' (Reference.DerivedId ref)) -> Term.var (ABT.annotation term) <$> Map.lookup ref replacements
+              _ -> Nothing
+
+      let dependentBindings :: [[(Symbol, Ann, Term Symbol Ann, Type Symbol Ann)]]
+          dependentBindings =
+            [ [(Name.toVar name, ABT.annotation term, term, typ)]
+            | (name, (_, (term, typ))) <- Map.toList dependents.terms
+            ]
+
+      let replacementVars = Set.fromList (Map.elems replacements)
+      let everyTerm =
+            [term | (_, _, term, _) <- concat dependentBindings ++ concat (UF.topLevelComponents' file)]
+              ++ [term | (_, terms) <- UF.watchComponents file, (_, _, term, _) <- terms]
+      guard (all (Set.disjoint replacementVars . binders) everyTerm)
+
+      let replaceIn = map (over _3 replace)
+      pure $
+        UF.typecheckedUnisonFile
+          (UF.dataDeclarationsId' file)
+          (UF.effectDeclarationsId' file)
+          (map replaceIn (UF.topLevelComponents' file ++ dependentBindings))
+          (map (second replaceIn) (UF.watchComponents file))
+  where
+    binders :: Term Symbol Ann -> Set Symbol
+    binders term =
+      case ABT.out term of
+        ABT.Var _ -> Set.empty
+        ABT.Cycle body -> binders body
+        ABT.Abs var body -> Set.insert var (binders body)
+        ABT.Tm body -> foldMap binders body
 
 makePrettyUnisonFile :: Pretty ColorText -> DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
 makePrettyUnisonFile originalFile dependents =
