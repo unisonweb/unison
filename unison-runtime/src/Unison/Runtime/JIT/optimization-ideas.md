@@ -30,7 +30,7 @@ natively (the type table holds one enum per type, for the reference), which a
 table by constructor would avoid; rare, since a nullary value that escapes is
 usually built boxed in the first place.
 
-### The product-return worker: what is left (Paul's idea, 2026-10-29; built 2026-10-31)
+### The product-return worker: what is left
 
 Built as design.md "Results exploded". Not done, in the order they are
 likely to matter:
@@ -61,20 +61,17 @@ likely to matter:
   group, but the index scheme (the JIT's `isEntry`, the cells keyed by
   index) would have to be redone for it. Not worth it until something
   else needs the workers in the group.
-- `specialise` prepares its body twice (before the argument rewrite, so
-  that it maps variables by name, and after, for the products the rewrite
-  builds), and `explosions` prepares every spec it discovers once more for
-  its sites; `prepare` is quadratic in the body (`occurrences` per let).
-  Load time was not measured after the ANF restructuring (2026-11-01); if
-  it shows, a single pass over the body for all the use counts would do.
-- The deoptimization tables (design.md, "Continuations across
-  processes", 2026-11-01) cost load time too: every lambda of every group
-  is emitted twice, once unoptimized for the frames of its sections and
-  once rewritten, and a group with a table three times, for the check
-  that renaming binders changed nothing. The first emission could be
-  skipped when the prepared body is the unoptimized body (compare the
-  terms; most groups have no site of the explosion), and the check could
-  be a debug-mode one. Not measured.
+- Load time: `specialise` prepares its body twice (before the argument
+  rewrite, so that it maps variables by name, and after, for the products
+  the rewrite builds), `explosions` prepares every spec it discovers once
+  more for its sites, and `emitCombs` emits every lambda of a group twice,
+  unoptimized for the frames of its sections and then rewritten. Each pass
+  is linear in the body (an analysis enters only the subterms that mention
+  the variable it asks about, `foldMentions`), and all of it together costs
+  about 4% of the load of the suite's closure
+  ([2026-11-02 known constructor](benchmarks/2026-11-02-known-constructor.md),
+  "Load time over library code"); the unoptimized emission could be
+  skipped for a group no rewrite touched if that ever matters.
 
 ### A private convention for specialised workers
 
@@ -88,32 +85,43 @@ function, all there for callers in other modules and for the interpreter.
 With every caller known, the wrapper could be generated only when some
 caller is in another module or interpreted, and a worker whose callers are
 all in its module could skip reserving Unison-stack slots for its
-arguments (Paul, 2026-10-29). The loops that matter compile into one
+arguments. The loops that matter compile into one
 module, so the gain is in the entry and exit paths, to be measured.
 
 ### A typed Box
 
-A `Box` of a call's result boxes a witness through the module's helper,
-which finds the type's reference in the pool's type table (four tagged
-pointer checks and an index) before it allocates. When the let's callee is
-known, the analysis that marks a result "never a witness" can instead say
-which constructors the callee's code can yield (`filterMap f t` yields `Nil`
-or `Cons` of one type), and the `Box` then takes the reference from the
-pool as a `Pack` does and switches on the field count, no table. The
-`filterMap` row (0.77x on 2026-10-28) boxes the recursive result into a
-`Cons` on every element and pays that lookup each time.
+Under the wide convention a call's result that is a small constructor,
+`Some x` say, comes back unboxed: the constructor's packed tag in the
+value slot's word, a witness closure in its pointer half, and the field in
+the slot below (design.md, "The wide calling convention"). Where such a
+value escapes, native code boxes it (`Box`), and to allocate the object it
+needs the type's `Reference`, which the tag word does not hold: it holds
+the type's *number*, so the module's boxing helper looks the reference up
+in the pool's type table (four tagged-pointer checks and an index,
+`typeReference` in Codegen.hs) before it allocates. When the let's callee
+is known, the generator can know the type statically: the analysis that
+already marks a result "never a witness" (`mayYieldWitness`) can instead
+say which constructors the callee's tails can yield (`filterMap f t`
+yields `Nil` or `Cons` of one type), and the `Box` then takes the
+reference from the pool as a `Pack` does and switches on the field count,
+no table. The `filterMap` row (0.77x on 2026-10-28) boxes the recursive
+result into a `Cons` on every element and pays that lookup each time.
 
 ### One witness closure
 
-A `Box` of a value that may be a witness (the result of an unknown call, say
-`f h` in a list map) compares the slot's closure against the three witness
-closures, one per field count, and a data match on such a value has the same
-chain. With one witness closure, and the field count in the slot's word
-beside the packed tag (bits above the 16 of the constructor and the type
-number), both become one compare. The interpreter would read the count from
-the word as well (`WitnessTag` becomes a constant). Worth about the
-difference on the `Cons.map` and `filterMap` rows (0.7x and 0.77x on
-2026-10-28), where the test is most of what the convention adds.
+Native code tells a witness from an ordinary value by comparing the slot's
+pointer against the pool's witness closures, one per field count
+(`poolIndexWitness`; `wideK + 1` of them, so two with K = 1), since a
+witness's info pointer is the one the type tags of unboxed numbers have.
+So a `Box` of a value that may be a witness (the result of an unknown
+call, say `f h` in a list map) is a chain of those compares, and a data
+match on such a value has the same chain in front of its arms. With a
+single witness closure, and the field count stored in the tag word in the
+bits above the sixteen of the constructor number and the type number, both
+become one compare; the interpreter would read the count from the word as
+well (`WitnessTag` becomes a constant). Worth about the difference on the
+`Cons.map` and `filterMap` rows (0.7x and 0.77x on 2026-10-28), where the
+test is most of what the convention adds.
 
 ### A let over a call of a zero-arity definition
 
@@ -154,7 +162,7 @@ The packed tag carries the type number, so the reference field is redundant: one
 one traced pointer per value. It stays because `compareClosure`'s different-types path
 (inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
 the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
-parameterized by a comparison would free it (`data-layout-plan.local.md`).
+parameterized by a comparison would free it.
 
 ### Caching compiled code across runs
 
@@ -229,7 +237,7 @@ But parsing IR is very fast, about 1% of a module's compile time ([2026-10-09 O0
 - A leaner entry for leaf functions, for the ones the "too small to enter" verdict keeps
   interpreted today.
 
-### `ghccc` for every JIT-compiled function (Paul, 2026-10-31)
+### `ghccc` for every JIT-compiled function
 
 Compile every Unison function under GHC's own calling convention (`ghccc`,
 which LLVM has for GHC's LLVM backend: the STG registers, including the
@@ -245,9 +253,9 @@ and cross-module calls can return their values in registers instead of
 through the Unison stack and the uniform entry's store and reload (Collatz
 0.82x and the hot caller 0.80x under the wide convention,
 `benchmarks/2026-10-28-wide-jit.md`, are that cost). What to establish
-first: that `ghccc` and `musttail` agree on each target (the `llc` check
-done for the wide return in delayed-data-construction.local.md is the
-model), how a Cmm `prim` enters a function pointer with the arguments where
+first: that `ghccc` and `musttail` agree on each target (an `llc` check of
+a small module per target, as was done for the wide return), how a Cmm
+`prim` enters a function pointer with the arguments where
 `ghccc` wants them, and what the exits and the write-back become when native
 code holds the STG registers rather than a `Ctx`.
 

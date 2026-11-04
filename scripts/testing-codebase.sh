@@ -42,9 +42,12 @@ if [ ! -f "$dir/.unison/v2/unison.sqlite3" ]; then
   fi
   tar xzf "$tmp/$asset" -C "$tmp"
   rm "$tmp/$asset"
-  # a leftover directory without a codebase (a download that failed after
-  # creating it) would make mv nest the new one inside it
-  [ -f "$dir/.unison/v2/unison.sqlite3" ] || rm -rf "$dir"
+  # mv would nest the new directory inside an existing one; the only
+  # existing one without a codebase is something this script did not make
+  if [ -d "$dir" ] && [ ! -f "$dir/.unison/v2/unison.sqlite3" ]; then
+    echo "$dir exists but holds no codebase; remove it and run again" >&2
+    exit 1
+  fi
   mv "$tmp" "$dir" 2>/dev/null || true # lost the race to another run: theirs is the same
   trap - EXIT
 fi

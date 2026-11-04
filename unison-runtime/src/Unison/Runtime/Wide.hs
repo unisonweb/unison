@@ -1,5 +1,5 @@
 -- | The wide calling convention: whether it is on, and how many field slots
--- a wide variable has. See delayed-data-construction.local.md for the design.
+-- a wide variable has. The design: JIT/design.md, "The wide calling convention".
 --
 -- A wide variable occupies @wideK + 1@ stack slots: its value slot on top (the
 -- lowest index in the emitter's context) and @wideK@ field slots below it.

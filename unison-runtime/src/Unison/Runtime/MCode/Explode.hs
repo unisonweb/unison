@@ -1156,18 +1156,26 @@ splitJoins (Joining (JoinSetting owner grpr locals) sites bcons srcs0) srcs1 bd 
 uniqueBody :: (Var v) => ANormal Reference v -> ANormal Reference v
 uniqueBody bd = uniqueLets (evalState (uniqueBinders M.empty bd) (Set.unions (ABTN.freeVars bd : map boundVars (universe bd)), Set.empty))
 
--- | The indirect lets numbered 1, 2, .. in the order they appear, binding
--- before body, so that the same body always gets the same numbers: a
--- continuation names the sections it resumes by them, in this process
--- and in any other.
+-- | The indirect lets numbered uniquely. A continuation names the
+-- sections it resumes by these numbers, in this process and in any other,
+-- so a let keeps the number the normalizer gave it, which is what every
+-- version writes for a body the optimizer left alone; only a let whose
+-- number an earlier let of the body already has (the optimizer inlines
+-- bodies that carry their own numbers) gets a new one, the next above
+-- every number in the body, in order of appearance, binding before body,
+-- so that the same body always gets the same numbers.
 uniqueLets :: (Var v) => ANormal Reference v -> ANormal Reference v
-uniqueLets bd = evalState (go bd) (1 :: Word16)
+uniqueLets bd = evalState (go bd) (Set.empty, top)
   where
+    top = maximum (0 : [w | TLets (Indirect w) _ _ _ _ <- universe bd]) :: Word16
     go (ABTN.Term _ (ABTN.Abs u b)) = ABTN.TAbs u <$> go b
     go (ABTN.Term _ (ABTN.Tm f)) = case f of
-      ALet (Indirect _) ccs bn bo -> do
-        w <- state (\n -> (n, n + 1))
-        ABTN.TTm <$> (ALet (Indirect w) ccs <$> go bn <*> go bo)
+      ALet (Indirect w) ccs bn bo -> do
+        w' <- state \(seen, next) ->
+          if Set.member w seen
+            then (next + 1, (Set.insert (next + 1) seen, next + 1))
+            else (w, (Set.insert w seen, next))
+        ABTN.TTm <$> (ALet (Indirect w') ccs <$> go bn <*> go bo)
       _ -> ABTN.TTm <$> traverse go f
 
 -- | The state is the names in use, and the binders seen so far.
