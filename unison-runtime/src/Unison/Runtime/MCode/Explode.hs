@@ -51,7 +51,10 @@
 -- exchange a tuple with nothing allocated in either direction; a result
 -- that escapes keeps the entry, and one that is only passed on to an
 -- exploded position of another worker is rebuilt in the caller and
--- dropped like any other product built for such a call.
+-- dropped like any other product built for such a call. A function whose
+-- own recursion embeds its result, a tree insert rebuilding the path, gets
+-- no worker ('selfResultEscapes'): the worker's recursion would yield the
+-- leaves and pack them again at every level.
 --
 -- Everything here is a rewrite of the ANF, and the result says what it
 -- means: a call of a worker is @TApp (FWorker r i) args@, the combinator
@@ -464,6 +467,7 @@ returns groups
     candidate r (Rec _ (Lambda _ (TAbss vs bd0)))
       | null vs = Nothing
       | Just n <- batchArity b r, n /= length vs = Nothing
+      | selfResultEscapes r bd = Nothing
       | Just ts <- sequence (tails b cons bd),
         built@(s0 : _) <- [s | Left s <- ts],
         let s = foldl' meetShape s0 built,
@@ -473,6 +477,30 @@ returns groups
       where
         (bd, _, _, _, _) = prepareBody b Nothing Nothing bd0
         cons = conLets bd
+    -- A function that lets the result of a saturated call of itself and
+    -- uses it whole (a field of what a tail builds, as in a tree insert
+    -- whose recursive call rebuilds the path) gets no worker: its own
+    -- recursion would yield the leaves and pack them again at every
+    -- level, and a result that escapes at once is better boxed by the
+    -- callee. A result taken apart (matched, or passed to a function of
+    -- the batch, where an exploded position may take it) is what the
+    -- worker is for.
+    selfResultEscapes r = go
+      where
+        go tm = case tm of
+          TLets _ [u] _ (TApp (FComb r') args) bo
+            | r' == r,
+              batchArity b r == Just (length args),
+              occurrences u bo /= matchUses u bo + callUses u bo ->
+                True
+          TLets _ _ _ bn bo -> go bn || go bo
+          ABTN.Term _ (ABTN.Abs _ e) -> go e
+          ABTN.Term _ (ABTN.Tm f) -> any go f
+        matchUses u = getSum . foldMentions u \case AMatch v _ | v == u -> Sum 1; _ -> Sum 0
+        callUses u =
+          getSum . foldMentions u \case
+            AApp (FComb r') args | batchArity b r' == Just (length args) -> Sum (length (filter (== u) args))
+            _ -> Sum 0
     settle cs
       | cs' == cs = cs
       | otherwise = settle cs'
@@ -562,7 +590,9 @@ useReturns b bd = (bd', srcs, lets)
                 tree = renameRoot u tree0
                 (rewritten, armSrcs) = runState (rewrite u tree bo) M.empty
                 bo' = rebuild tree rewritten
-            if occurrences u bo' == callUses u bo'
+            -- the uses are counted before 'rebuild', which binds the
+            -- variable again; counted after it, there are none
+            if occurrences u rewritten == callUses u rewritten
               then do
                 put (avoid', M.unions [srcs0, armSrcs, treeSources u tree], M.insert (leafNames tree) [u] lets0)
                 TLets d (leafNames tree) (map (const BX) (leafNames tree)) (TApp (FWorker r retIndex) args) <$> go bo'

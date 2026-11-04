@@ -756,7 +756,17 @@ loop acc i =
   else match step acc i with (acc', i') -> loop acc' i'
 ```
 
-`step` builds a pair that `loop` takes apart at once. A function of the batch whose every tail builds a product gets a *product-return worker* ([`returns`](../MCode/Explode.hs#:~:text=returns%20%3A%3A), [`returnWorker`](../MCode/Explode.hs#:~:text=returnWorker%20%3A%3A)), a combinator of its group at [`retIndex`](../MCode/Explode.hs#:~:text=retIndex%20%3A%3A) whose tails yield the product's leaves as several values, the way a primitive yields several values into a let of several names. A caller in the batch that takes the result apart at once calls the worker with a let of the leaves ([`useReturns`](../MCode/Explode.hs#:~:text=useReturns%20%3A%3A)), and when the product is both a result and the argument of an exploded call, as between `loop` and `step`, nothing is allocated in either direction. The entry keeps the original body for every other caller and for the function's own recursion where it embeds its result (an entry made of a call of the worker and the packs cost a recursive function two calls and a repack per level). A nested tuple is taken apart as far as every tail builds it (`(a, b)` is `Cons a (Cons b ())`, two leaves); a function with a tail that returns anything else keeps its entry only.
+`step` builds a pair that `loop` takes apart at once. A function of the batch whose every tail builds a product gets a *product-return worker* ([`returns`](../MCode/Explode.hs#:~:text=returns%20%3A%3A), [`returnWorker`](../MCode/Explode.hs#:~:text=returnWorker%20%3A%3A)), a combinator of its group at [`retIndex`](../MCode/Explode.hs#:~:text=retIndex%20%3A%3A) whose tails yield the product's leaves as several values, the way a primitive yields several values into a let of several names. A caller in the batch that takes the result apart at once calls the worker with a let of the leaves ([`useReturns`](../MCode/Explode.hs#:~:text=useReturns%20%3A%3A)), and when the product is both a result and the argument of an exploded call, as between `loop` and `step`, nothing is allocated in either direction. The entry keeps the original body for every other caller: a result used whole, as a field of what the caller builds, keeps the call of the entry. A function whose own recursion embeds its result gets no worker at all, since the worker's recursion would yield the leaves and pack them again at every level:
+
+```unison
+Tree.insert k v = cases
+  Leaf -> Node Leaf k v Leaf
+  Node l k2 v2 r ->
+    if k < k2 then Node (Tree.insert k v l) k2 v2 r
+    else ..
+```
+
+Every result of the self call escapes into a `Node`, so the result is better boxed by the callee, as it was ([`selfResultEscapes`](../MCode/Explode.hs#:~:text=selfResultEscapes)). A nested tuple is taken apart as far as every tail builds it (`(a, b)` is `Cons a (Cons b ())`, two leaves); a function with a tail that returns anything else keeps its entry only.
 
 Every rewrite here is a rewrite of the ANF, and the result says what it means: a call of a worker is `TApp (FWorker r i) args` and a tail that returns several values is `TApp FYield vs` ([`Unison.Runtime.ANF`](../ANF.hs#:~:text=FWorker)); the emitter turns each into one instruction and checks the counts ([`resultCount`](../MCode.hs#:~:text=resultCount%20%3A%3A)), deciding nothing. The two forms exist only in a batch's loaded code, never in what the cache stores or a continuation names. In the JIT the worker returns the leaves in registers, as that many pairs ([`staticWidth`](Codegen.hs#:~:text=staticWidth%20%3A%3A)); products of one leaf are left to the wide convention, and products of more than eight leaves are not taken. Measured in [benchmarks/2026-10-31-results-exploded.md](benchmarks/2026-10-31-results-exploded.md).
 
