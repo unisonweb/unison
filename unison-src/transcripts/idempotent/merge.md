@@ -833,11 +833,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-a9086949.u.
+  the definitions to fix are in merge-bob-into-alice-bc4536b8.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-a9086949.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-bc4536b8.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -852,7 +852,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-a9086949.u
+``` unison :added-by-ucm merge-bob-into-alice-bc4536b8.u
 bar : Text
 bar =
   use Text ++
@@ -925,11 +925,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-2459c2f8.u.
+  the definitions to fix are in merge-bob-into-alice-1644a83f.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-2459c2f8.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-1644a83f.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -944,7 +944,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-2459c2f8.u
+``` unison :added-by-ucm merge-bob-into-alice-1644a83f.u
 bar : Text
 bar =
   use Text ++
@@ -1028,11 +1028,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-e9a78b72.u.
+  the definitions to fix are in merge-bob-into-alice-6dca68dd.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-e9a78b72.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-6dca68dd.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1047,7 +1047,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-e9a78b72.u
+``` unison :added-by-ucm merge-bob-into-alice-6dca68dd.u
 -- scratch/alice
 foo : Text
 foo = "alices foo"
@@ -1136,11 +1136,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-b5d30f5c.u.
+  the definitions to fix are in merge-bob-into-alice-d2f0a9e7.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-b5d30f5c.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-d2f0a9e7.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1155,7 +1155,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-b5d30f5c.u
+``` unison :added-by-ucm merge-bob-into-alice-d2f0a9e7.u
 -- scratch/alice
 type Foo = MkFoo Nat Nat
 
@@ -1222,11 +1222,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-a7b263c3.u.
+  the definitions to fix are in merge-bob-into-alice-42cb4cc5.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-a7b263c3.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-42cb4cc5.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1241,7 +1241,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-a7b263c3.u
+``` unison :added-by-ucm merge-bob-into-alice-42cb4cc5.u
 -- scratch/alice
 type Foo = Baz Nat Nat | Qux Text
 
@@ -1308,11 +1308,11 @@ scratch/alice> merge bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-98b28f21.u.
+  the definitions to fix are in merge-bob-into-alice-39671eb6.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-98b28f21.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-39671eb6.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1327,7 +1327,7 @@ scratch/alice> merge bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-98b28f21.u
+``` unison :added-by-ucm merge-bob-into-alice-39671eb6.u
 -- scratch/alice
 type Foo = Alice Nat | Qux Text
 
@@ -1390,11 +1390,11 @@ scratch/alice> merge bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-36947d6b.u.
+  the definitions to fix are in merge-bob-into-alice-f31f2614.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-36947d6b.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-f31f2614.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1409,7 +1409,7 @@ scratch/alice> merge bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-36947d6b.u
+``` unison :added-by-ucm merge-bob-into-alice-f31f2614.u
 -- scratch/alice
 my.cool.thing : Nat
 my.cool.thing = 17
@@ -1494,11 +1494,11 @@ scratch/alice> merge bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-6536d733.u.
+  the definitions to fix are in merge-bob-into-alice-9d25d59a.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-6536d733.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-9d25d59a.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1513,7 +1513,7 @@ scratch/alice> merge bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-6536d733.u
+``` unison :added-by-ucm merge-bob-into-alice-9d25d59a.u
 -- scratch/alice
 Foo.Bar : Nat
 Foo.Bar = 17
@@ -1623,11 +1623,11 @@ scratch/alice> merge bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-24b73211.u.
+  the definitions to fix are in merge-bob-into-alice-37342a5f.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-24b73211.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-37342a5f.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1642,7 +1642,7 @@ scratch/alice> merge bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-24b73211.u
+``` unison :added-by-ucm merge-bob-into-alice-37342a5f.u
 -- scratch/alice
 Foo.Bar.Baz : Nat
 Foo.Bar.Baz = 100
@@ -1718,11 +1718,11 @@ scratch/alice> merge bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-ff5dde16.u.
+  the definitions to fix are in merge-bob-into-alice-2cf47830.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-ff5dde16.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-2cf47830.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1737,7 +1737,7 @@ scratch/alice> merge bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-ff5dde16.u
+``` unison :added-by-ucm merge-bob-into-alice-2cf47830.u
 -- scratch/alice
 unique[o01s0262qu1ks4ssh1cmhg9ccquqohp0] type Foo
   = Bar
@@ -1822,11 +1822,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-25feec1e.u.
+  the definitions to fix are in merge-bob-into-alice-3cd52afc.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-25feec1e.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-3cd52afc.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -1841,7 +1841,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-25feec1e.u
+``` unison :added-by-ucm merge-bob-into-alice-3cd52afc.u
 -- scratch/alice
 foo : Text
 foo = "alices foo"
@@ -2872,11 +2872,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-2276ceed.u.
+  the definitions to fix are in merge-bob-into-alice-dbb89fa4.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-2276ceed.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-dbb89fa4.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -2891,7 +2891,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-2276ceed.u
+``` unison :added-by-ucm merge-bob-into-alice-dbb89fa4.u
 -- scratch/alice
 baz : Text
 baz = "alice"
@@ -3262,11 +3262,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-f6575e32.u.
+  the definitions to fix are in merge-bob-into-alice-44ddc26b.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-f6575e32.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-44ddc26b.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -3281,7 +3281,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-f6575e32.u
+``` unison :added-by-ucm merge-bob-into-alice-44ddc26b.u
 -- scratch/alice
 type Foo
   = Alice
@@ -3415,11 +3415,11 @@ scratch/main> merge /topic
 
   You're now on a temporary branch, merge-topic-into-main, and
   the definitions to fix are in
-  merge-topic-into-main-a7e5b665.u.
+  merge-topic-into-main-60fe7caf.u.
 
   Edit the file, then run:
 
-      scratch/merge-topic-into-main> load merge-topic-into-main-a7e5b665.u
+      scratch/merge-topic-into-main> load merge-topic-into-main-60fe7caf.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -3434,7 +3434,7 @@ scratch/main> merge /topic
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-topic-into-main-a7e5b665.u
+``` unison :added-by-ucm merge-topic-into-main-60fe7caf.u
 -- scratch/main
 unique[qg9i3saca6l177670mmf60tc2lkc6fs0] type Foo = Bar
 
@@ -3559,11 +3559,11 @@ scratch/topic> merge /main
 
   You're now on a temporary branch, merge-main-into-topic, and
   the definitions to fix are in
-  merge-main-into-topic-ba5f1183.u.
+  merge-main-into-topic-cd23eefd.u.
 
   Edit the file, then run:
 
-      scratch/merge-main-into-topic> load merge-main-into-topic-ba5f1183.u
+      scratch/merge-main-into-topic> load merge-main-into-topic-cd23eefd.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -3578,7 +3578,7 @@ scratch/topic> merge /main
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-main-into-topic-ba5f1183.u
+``` unison :added-by-ucm merge-main-into-topic-cd23eefd.u
 -- scratch/topic
 unique[m53c0ha7hv61pbmftvphmbsbp9o105v6] type Foo = Bar
 
@@ -3716,11 +3716,11 @@ scratch/topic> merge /topic2
 
   You're now on a temporary branch, merge-topic2-into-topic, and
   the definitions to fix are in
-  merge-topic2-into-topic-f55b5c98.u.
+  merge-topic2-into-topic-ee29ce87.u.
 
   Edit the file, then run:
 
-      scratch/merge-topic2-into-topic> load merge-topic2-into-topic-f55b5c98.u
+      scratch/merge-topic2-into-topic> load merge-topic2-into-topic-ee29ce87.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -3735,7 +3735,7 @@ scratch/topic> merge /topic2
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-topic2-into-topic-f55b5c98.u
+``` unison :added-by-ucm merge-topic2-into-topic-ee29ce87.u
 -- scratch/topic
 unique[vbd5r4r3s97herm0109qdm5g539hpg0q] type Foo = Bar
 
@@ -3898,11 +3898,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-12c20b78.u.
+  the definitions to fix are in merge-bob-into-alice-75c39b8f.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-12c20b78.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-75c39b8f.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -3917,7 +3917,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-12c20b78.u
+``` unison :added-by-ucm merge-bob-into-alice-75c39b8f.u
 -- scratch/alice
 hello : Nat
 hello =

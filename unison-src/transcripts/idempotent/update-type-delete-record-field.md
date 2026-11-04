@@ -73,11 +73,11 @@ scratch/main> update
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-d9544649.u.
+  definitions to fix are in update-main-9e2e63bd.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-d9544649.u
+      scratch/update-main> load update-main-9e2e63bd.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -92,7 +92,7 @@ scratch/main> update
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-d9544649.u
+``` unison :added-by-ucm update-main-9e2e63bd.u
 type Foo = { bar : Nat }
 
 -- The definitions below no longer typecheck with the changes above.
@@ -115,7 +115,7 @@ and not in the temporary branch:
 ``` ucm
 scratch/update-main> ls
 
-  1. lib. (778 terms, 120 types)
+  1. lib. (780 terms, 120 types)
 ```
 
 so we can remove the unwanted definitions from the scratch file and `update` again to delete them:
