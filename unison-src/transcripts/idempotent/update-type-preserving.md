@@ -137,6 +137,9 @@ scratch/main> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
   That's done. Nothing that code uses changed its type, so I'm
   saving the results without typechecking it again...
 
@@ -151,7 +154,8 @@ scratch/main> view direct ping
   ping n = if n == 0 then helper 0 else pong (Nat.drop n 1)
 ```
 
-When a type that a dependent relies on changes, the dependents are typechecked again.
+When a type that a dependent relies on changes, only the dependents that use it are typechecked again (\#904). Here
+`direct` and `ping` use `helper` and are typechecked; `pong` is not, and stays in a cycle with `ping`.
 
 ``` unison
 helper : a -> Nat
@@ -174,14 +178,137 @@ scratch/main> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
 
   Everything typechecks, so I'm saving the results...
 
   Done.
 
-scratch/main> view direct
+scratch/main> view direct indirect ping pong
 
   direct : Nat
   direct = helper 1
+
+  indirect : Int
+  indirect = +1
+
+  ping : Nat -> Nat
+  ping n = if n == 0 then helper 0 else pong (Nat.drop n 1)
+
+  pong : Nat -> Nat
+  pong n = if n == 0 then 0 else ping (Nat.drop n 1)
+```
+
+``` unison
+direct : Nat
+direct = helper 1
+
+indirect : Int
+indirect = +1
+
+ping : Nat -> Nat
+ping n = if n == 0 then helper 0 else pong (Nat.drop n 1)
+
+pong : Nat -> Nat
+pong n = if n == 0 then 0 else ping (Nat.drop n 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
+
+One update can do both: `twice` keeps its type and `label` doesn't, so only `shown` is typechecked again.
+
+``` unison
+twice : Nat -> Nat
+twice n = n * 2
+
+label : Nat -> Text
+label n = "n"
+
+shown : Text
+shown = label (twice 3)
+
+doubled : Nat
+doubled = twice 4 + Text.size shown
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + doubled : Nat
+  + label   : Nat -> Text
+  + shown   : Text
+  + twice   : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+twice : Nat -> Nat
+twice n = n + n
+
+label : a -> Text
+label _ = "a"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ label : a -> Text
+  ~ twice : Nat -> Nat
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view shown doubled
+
+  doubled : Nat
+  doubled =
+    use Nat +
+    twice 4 + Text.size shown
+
+  shown : Text
+  shown = label (twice 3)
+```
+
+``` unison
+shown : Text
+shown = label (twice 3)
+
+doubled : Nat
+doubled = twice 4 + Text.size shown
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
 ```

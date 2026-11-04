@@ -168,7 +168,8 @@ other = "hello"
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
 
   Typechecking failed. I've updated scratch.u with the
   definitions that still need fixing.
