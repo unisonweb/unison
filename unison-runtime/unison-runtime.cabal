@@ -111,6 +111,7 @@ library
       Unison.Runtime.Signal
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
+      Unison.Runtime.TypeNumbers
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
       Unison.Runtime.Wide
@@ -250,6 +251,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
+      Unison.Test.Runtime.TypeNumbers
       Unison.Test.UnisonSources
       Paths_unison_runtime
   hs-source-dirs:

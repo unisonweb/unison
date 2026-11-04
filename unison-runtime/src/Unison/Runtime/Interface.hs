@@ -82,7 +82,7 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
   ( Args (..),
@@ -132,6 +132,7 @@ import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Serialize.Get
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Symbol (Symbol)
@@ -779,8 +780,8 @@ prepareEvaluation ppe tm ctx = do
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
-watchHook :: CCache p -> IORef Val -> XStack -> IO ()
-watchHook cc r xstk = boxSlot cc (packXStack xstk) 0 >>= writeIORef r
+watchHook :: IORef Val -> XStack -> IO ()
+watchHook r xstk = boxSlot (packXStack xstk) 0 >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
@@ -820,7 +821,7 @@ evalInContext ::
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
-  let hook = watchHook (ccache ctx) r
+  let hook = watchHook r
       decom = decompileCtx crs ctx
       mkResponse errs =
         if Set.null errs
@@ -894,7 +895,6 @@ data RuntimeHost
 startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
 startRuntime jit sandboxed runtimeHost version = do
   startJIT jit
-  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
   ctx <- baseContext jit sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
   -- everything else is when it is loaded
@@ -934,16 +934,18 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide) init = do
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ trs _ _ _ _ _ _ _ repl wide) init = do
   -- The file's replacement mode and calling convention, before anything
   -- decodes a value, consults the foreign function table or lays out a frame
   JIT.setReplacements repl
   setWide wide
+  -- The file's type numbering, which its MCode has baked into its packed
+  -- tags, before any code is restored (Unison.Runtime.TypeNumbers)
+  TN.seedTypeNumbers trs
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
   -- codebase path, for a compiled program
   startJIT jit
   cc <- restoreCache jit sandboxed sc
-  readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
   combRefs' <- readTVarIO (combRefs cc)
   combs' <- readTVarIO (combs cc)
   when (JIT.dumpMCode (jitConfig jit)) $
@@ -967,12 +969,13 @@ data StoredCache
       (EnumMap Word64 Word64)
       (EnumSet Word64)
       (OptInfos Reference Symbol)
+      -- the numbering of the types the code mentions, which its packed
+      -- tags carry: the process that runs it takes it on before loading
+      -- anything (Unison.Runtime.TypeNumbers)
       (EnumMap Word64 Reference)
       Word64
       Word64
-      Word64
       (Map Reference (SuperGroup Reference Symbol))
-      (Map Reference Word64)
       (Map Reference Word64)
       (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
@@ -988,7 +991,7 @@ data StoredCache
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs bns cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide) =
+putStoredCache (SCache cs crs bns cacheableCombs oinfo trs ftm frs int rtm rsLookup sbs rfm repl wide) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumMap putNat putNat bns
@@ -996,11 +999,9 @@ putStoredCache (SCache cs crs bns cacheableCombs oinfo trs ftm fty frs int rtm r
     <> putOptInfos oinfo
     <> putEnumMap putNat putReference trs
     <> putNat ftm
-    <> putNat fty
     <> putNat frs
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
-    <> putMap putReference putNat rty
     <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
@@ -1031,9 +1032,7 @@ getStoredCache =
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
-    <*> getNat
     <*> getMap getReference getGroupCurrent
-    <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
@@ -1060,7 +1059,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs bns cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _) = do
+restoreCache jit sandboxed (SCache cs crs bns cacheableCombs opt _ ftm frs int rtm recSchemas sbs rfm _ _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1085,13 +1084,10 @@ restoreCache jit sandboxed (SCache cs crs bns cacheableCombs opt trs ftm fty frs
       <*> newTVarIO bns
       <*> newTVarIO cacheableCombs
       <*> newTVarIO (opt <> builtinOptInfo)
-      <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
-      <*> newTVarIO fty
       <*> newTVarIO frs
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
-      <*> newTVarIO (rty <> builtinTypeNumbering)
       <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
@@ -1162,9 +1158,7 @@ buildSCache ::
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
-  Word64 ->
   Map Reference (SuperGroup Reference Symbol) ->
-  Map Reference Word64 ->
   Map Reference Word64 ->
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
@@ -1172,7 +1166,7 @@ buildSCache ::
   JIT.Replacements ->
   Bool ->
   StoredCache
-buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide =
+buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm frs int rtmsrc rsLookup sndbx rfm repl wide =
   SCache
     cs
     crs
@@ -1181,11 +1175,9 @@ buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc
     opt
     trs
     ftm
-    fty
     frs
     int
     rtm
-    (restrictTyR rtysrc)
     rsLookup
     (restrictTmR sndbx)
     rfm
@@ -1215,7 +1207,6 @@ buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc
 
     typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
     trs = restrictTyW trsrc
-    typeRefs = foldMap Set.singleton trs
 
     restrictTmW :: EnumMap Word64 a -> EnumMap Word64 a
     restrictTmW m = restrictKeys m combKeys
@@ -1223,8 +1214,6 @@ buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc
     restrictTmR m = Map.restrictKeys m termRefs
 
     restrictTyW m = restrictKeys m typeKeys
-    restrictTyR :: Map Reference a -> Map Reference a
-    restrictTyR m = Map.restrictKeys m typeRefs
 
 standalone :: CCache () -> Word64 -> IO StoredCache
 standalone cc init =
@@ -1236,13 +1225,11 @@ standalone cc init =
           <*> readTVarIO (baseNums cc)
           <*> readTVarIO (cacheableCombs cc)
           <*> readTVarIO (optInfos cc)
-          <*> readTVarIO (tagRefs cc)
+          <*> TN.typeReferences
           <*> readTVarIO (freshTm cc)
-          <*> readTVarIO (freshTy cc)
           <*> readTVarIO (freshRecSchema cc)
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
-          <*> readTVarIO (refTy cc)
           <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)

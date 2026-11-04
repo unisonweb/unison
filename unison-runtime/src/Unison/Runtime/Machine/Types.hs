@@ -52,11 +52,12 @@ import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
-import Unison.Runtime.JIT (JIT, initialNativeCount, registerTypeNumbers)
+import Unison.Runtime.JIT (JIT, initialNativeCount)
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Symbol
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BM
@@ -186,13 +187,12 @@ data CCache prof = CCache
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
-    tagRefs :: TVar (EnumMap Word64 Reference),
+    -- types are numbered by the process, not the cache
+    -- (Unison.Runtime.TypeNumbers)
     freshTm :: TVar Word64,
-    freshTy :: TVar Word64,
     freshRecSchema :: TVar Word64,
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
-    refTy :: TVar (M.Map Reference Word64),
     recordRefs :: TVar (BiMap ANF.RecordSchema ANF.RecordRef),
     sandbox :: TVar (M.Map Reference (Set Reference)),
     recordFieldMappings :: TVar RecordFieldMappings,
@@ -207,8 +207,9 @@ data CCache prof = CCache
 refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
 refNumsTm cc = readTVarIO (refTm cc)
 
+-- | The process-wide type numbering (Unison.Runtime.TypeNumbers).
 refNumsTy :: CCache prof -> IO (M.Map Reference Word64)
-refNumsTy cc = readTVarIO (refTy cc)
+refNumsTy _ = TN.typeNumberMap
 
 refNumTm :: CCache prof -> Reference -> IO Word64
 refNumTm cc r =
@@ -222,10 +223,6 @@ initialNativeCells = 16384
 
 baseCCache :: JIT -> Bool -> IO (CCache ())
 baseCCache jit sandboxed = do
-  -- Every cache knows the builtin types' numbers (the type part of a
-  -- packed tag, which one match arm of the generated code compares); the
-  -- rest are registered as code is loaded.
-  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- M.toList builtinTypeNumbering])
   -- The builtin combinators get native code cells like any loaded code, so
   -- that the JIT can compile the ones that are worth it and native code
   -- can call them (docs/jit/m6.md, step 4).
@@ -246,13 +243,10 @@ baseCCache jit sandboxed = do
     <*> newTVarIO mempty
     <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinOptInfo
-    <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
-    <*> newTVarIO fty
     <*> newTVarIO frs
     <*> newTVarIO mempty
     <*> newTVarIO builtinTermNumbering
-    <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
     <*> newTVarIO rfm
@@ -263,7 +257,6 @@ baseCCache jit sandboxed = do
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
-    fty = 1 + maximum builtinTypeNumbering
     -- No builtin record schemas yet
     frs = 1
 
@@ -367,18 +360,18 @@ codeValidate ::
   [(Reference, SuperGroup Reference Symbol)] ->
   IO (Maybe (Failure UText.Text))
 codeValidate cc tml = do
-  rty0 <- readTVarIO (refTy cc)
-  fty <- readTVarIO (freshTy cc)
   recRefs <- readTVarIO (recordRefs cc)
   frs <- readTVarIO (freshRecSchema cc)
   rfms <- readTVarIO (recordFieldMappings cc)
   let f b r
-        | b, M.notMember r rty0 = S.singleton r
+        | b = S.singleton r
         | otherwise = mempty
       ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
-      ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
-      rty = ntys <> rty0
-      -- Validation must not mutate the cache, so any schema this code
+  -- Validation must not mutate the cache. The types are numbered by the
+  -- process-wide registry, which is no mutation of the cache: a number
+  -- is just a number, assigned once whoever asks first.
+  rty <- TN.typeNumbers ntys0
+  let -- any schema this code
       -- introduces gets a provisional reference above the fresh counter, and
       -- the field mappings it interns are discarded along with the result.
       newSchemas = (foldMap . foldMap) ANF.groupRecordSchemas tml `S.difference` BM.keysSetL recRefs

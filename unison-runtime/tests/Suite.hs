@@ -18,6 +18,7 @@ import Unison.Test.Runtime.MCode.Serialization qualified as MCode.Serialization
 import Unison.Test.Runtime.MCode.Wide qualified as MCode.Wide
 import Unison.Test.Runtime.Process qualified as Process
 import Unison.Test.Runtime.Signal qualified as Signal
+import Unison.Test.Runtime.TypeNumbers qualified as TypeNumbers
 import Unison.Test.UnisonSources qualified as UnisonSources
 
 test :: Test ()
@@ -34,6 +35,7 @@ test =
       Dynamic.test,
       Process.test,
       Signal.test,
+      TypeNumbers.test,
       UnisonSources.test
     ]
 

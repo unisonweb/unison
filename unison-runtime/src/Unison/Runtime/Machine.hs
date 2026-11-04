@@ -81,7 +81,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -117,6 +117,7 @@ import Unison.Runtime.Machine.Types
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
@@ -149,7 +150,7 @@ eval0 env !activeThreads !co = do
   stk <- alloc (stackSlots (jit env))
   cmbs <- readTVarIO $ combs env
   (henv, k) <- do
-    rfTy <- readTVarIO (refTy env)
+    rfTy <- TN.typeNumberMap
     rfTm <- readTVarIO (refTm env)
     topHEnv cmbs rfTy rfTm
   (tick, cancelTicks) <- startTicker $ profiler env
@@ -210,7 +211,7 @@ apply0 !callback env !threadTracker !i = do
   cmbrs <- readTVarIO $ combRefs env
   cmbs <- readTVarIO $ combs env
   (henv, kf) <- do
-    rfTy <- readTVarIO (refTy env)
+    rfTy <- TN.typeNumberMap
     rfTm <- readTVarIO (refTm env)
     topHEnv cmbs rfTy rfTm
   r <- case EC.lookup i cmbrs of
@@ -485,12 +486,11 @@ exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) base args) = do
     group stk
       | base = discardFrame stk >>= \stk -> bumpn stk wideWidth
       | otherwise = bumpn stk wideWidth
-exec env henv !_activeThreads !stk !k _ (Box i) = do
+exec _ henv !_activeThreads !stk !k _ (Box i) = do
   peekOff stk i >>= \case
     Val t (UnboxedTypeTag (WitnessTag n)) -> do
-      rty <- readTVarIO (tagRefs env)
       let pt = PackedTag (fromIntegral t)
-      clo <- buildDataAt stk (rty EC.! TT.typeTag pt) pt n (i + 1 +)
+      clo <- buildDataAt stk (TN.typeReference (TT.typeTag pt)) pt n (i + 1 +)
       pokeOff stk i (BoxedVal clo)
     _ -> pure ()
   pure (False, henv, stk, k)
@@ -1676,14 +1676,14 @@ yield !yld env henv0 !activeThreads !stk = leap
     leap (Mark a ps cs k) | HEnv aenv0 denv0 <- henv0 = do
       denv <- evaluate $ cs <> EC.withoutKeys denv0 ps
       let h = denv0 EC.! EC.findMin ps
-      v <- boxSlot env stk 0
+      v <- boxSlot stk 0
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv0 denv
       apply yld env henv activeThreads stk k False (VArg1 0) h
     leap (AMark a aenv (ARef r) k) = do
-      v <- boxSlot env stk 0
+      v <- boxSlot stk 0
       h <- BoxedVal <$> readIORef r
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
@@ -1982,15 +1982,15 @@ abortCont !stk !k !r = walk (asize stk) k
 resolve :: CCache p -> HEnv -> Stack -> MRef -> IO Val
 resolve _ _ _ (Env cix mcomb) = pure (mCombVal cix mcomb)
 resolve _ _ stk (Stk i) = peekOff stk i
-resolve env (HEnv aenv denv) _ (Dyn i)
+resolve _ (HEnv aenv denv) _ (Dyn i)
   | Just v <- EC.lookup i denv = pure v
   | Just (ARef r) <- EC.lookup i aenv = BoxedVal <$> readIORef r
-  | otherwise = unhandledErr "resolve" env i
+  | otherwise = unhandledErr "resolve" i
 {-# INLINE resolve #-}
 
-unhandledErr :: String -> CCache p -> Word64 -> IO a
-unhandledErr fname env i =
-  readTVarIO (tagRefs env) >>= \rs -> case EC.lookup i rs of
+unhandledErr :: String -> Word64 -> IO a
+unhandledErr fname i =
+  TN.typeReferences >>= \rs -> case EC.lookup i rs of
     Just r -> bomb (show r)
     Nothing -> bomb (show i)
   where
@@ -2023,24 +2023,6 @@ decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
   where
     f (Ref r, rco) = pure (r, dereference rco)
     f _ = die [] "decodeCacheArgument: Con reference"
-
-addRefs ::
-  TVar Word64 ->
-  TVar (M.Map Reference Word64) ->
-  TVar (EnumMap Word64 Reference) ->
-  S.Set Reference ->
-  STM (M.Map Reference Word64)
-addRefs vfrsh vfrom vto rs = do
-  from0 <- readTVar vfrom
-  let new = S.filter (`M.notMember` from0) rs
-      sz = fromIntegral $ S.size new
-  frsh <- stateTVar vfrsh $ \i -> (i, i + sz)
-  let newl = S.toList new
-      from = M.fromList (zip newl [frsh ..]) <> from0
-      nto = mapFromList (zip [frsh ..] newl)
-  writeTVar vfrom from
-  modifyTVar vto (nto <>)
-  pure from
 
 -- Just evaluating to force exceptions. Shouldn't actually be that
 -- unsafe.
@@ -2092,7 +2074,13 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
     -- many cells it needs; the pool is grown outside the transaction and
     -- the whole thing is tried again.
     go = do
-      result <- atomically transaction
+      -- the new types are numbered before the transaction, by the
+      -- process-wide registry (Unison.Runtime.TypeNumbers): a number is
+      -- harmless to hand out whether or not the rest commits. The emitter
+      -- needs the numbers of every type the code mentions.
+      _ <- TN.typeNumbers ntys0
+      rty <- TN.typeNumberMap
+      result <- atomically (transaction rty)
       case result of
         Left needed -> do
           pool <- readTVarIO (nativeCells cc)
@@ -2100,7 +2088,6 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           atomically $ writeTVar (nativeCells cc) pool'
           go
         Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
-          readTVarIO (tagRefs cc) >>= registerTypeNumbers (jit cc)
           when (JIT.dumpMCode (jitConfig (jit cc))) $
             for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
               for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
@@ -2108,7 +2095,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (jit cc) (sandboxed cc) r w cmbs
           preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
-    transaction = do
+    transaction rty = do
       have <- readTVar (intermed cc)
       haveRecSchemas <- readTVar (recordRefs cc)
       let new = M.difference toAdd have
@@ -2121,9 +2108,9 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           haff (cmbs, opts) =
             (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
       (opt, optInfos') <- haff . ANF.optimize (fmap replace new) <$> readTVar (optInfos cc)
-      -- These three number things. Numbering is harmless to commit even if the
-      -- pool turns out to be too small: the numbers are simply used or skipped.
-      rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
+      -- The terms and schemas are numbered here. Numbering is harmless to
+      -- commit even if the pool turns out to be too small: the numbers are
+      -- simply used or skipped.
       -- two numbers per group: the second for the unoptimized copy of a
       -- group the explosion rewrote (MCode.emitCombs), unused otherwise
       ntm <- stateTVar (freshTm cc) $ \i -> (i, i + 2 * sz)
@@ -2271,7 +2258,7 @@ cacheAdd ::
   IO [Reference]
 cacheAdd l cc = do
   rtm <- readTVarIO (refTm cc)
-  rty <- readTVarIO (refTy cc)
+  rty <- TN.typeNumberMap
   sand <- readTVarIO (sandbox cc)
   let known = M.keysSet rtm <> S.fromList (view _1 <$> l)
       f b r
@@ -2316,7 +2303,7 @@ canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
   cmbs <- readTVarIO (combs env)
-  tyr <- readTVarIO (tagRefs env)
+  tyr <- TN.typeReferences
   tmr <- readTVarIO (combRefs env)
   -- a continuation loaded from another process resumes in a group's
   -- unoptimized copy (reifyValue's goPushIx), whose number is not a
@@ -2494,7 +2481,7 @@ reflectValue0 cmbs bns rty rtm = goV0
             -- so a round trip is stable (random-deserial.md compares the
             -- hashes; found 2026-11-03 on serial-test-06, whose capture
             -- frame holds a pair the rewrite had taken apart)
-            let narrowed = narrowCont layout (boxVal rty) k a (deadToUnit cmbs k a slots)
+            let narrowed = narrowCont layout boxVal k a (deadToUnit cmbs k a slots)
                 (slots', frames) = deoptCont layout k a narrowed
                 baseIx (CIx r g i) = CIx r (fromMaybe g (EC.lookup g bns)) i
                 described = [case fr of ContPush f n cix -> (f, n, Just (baseIx cix)); ContMark n _ _ -> (0, n, Nothing) | fr <- frames]
@@ -2564,6 +2551,9 @@ reifyValue cc val = do
       (,)
         <$> travSet (ixArr "reifyValue: type" tya) tyns
         <*> travSet (ixArr "reifyValue: term" tma) tmns
+  -- the types the value links are numbered whether or not its terms are
+  -- all loaded: a number is just a number
+  newTy <- TN.typeNumbers tyLinks
   erc <-
     atomically $ do
       combs <- readTVar (combs cc)
@@ -2572,9 +2562,7 @@ reifyValue cc val = do
       rfms <- readTVar (recordFieldMappings cc)
       bns <- readTVar (baseNums cc)
       case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
-        [] -> do
-          newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          pure . Right $ (combs, newTy, rtm, recRefLookup, rfms, bns)
+        [] -> pure . Right $ (combs, newTy, rtm, recRefLookup, rfms, bns)
         l -> pure (Left l)
   case erc of
     Left l -> pure (Left l)
@@ -2896,22 +2884,21 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
 
 -- | The boxed form of a wide variable's value slot, given its field
 -- slots: the heap object of an unboxed constructor, or the value itself.
-boxVal :: EnumMap Word64 Reference -> Val -> [Val] -> Val
-boxVal rty v fields = case v of
+boxVal :: Val -> [Val] -> Val
+boxVal v fields = case v of
   Val t (UnboxedTypeTag (WitnessTag n)) ->
     let pt = PackedTag (fromIntegral t)
-     in BoxedVal (DataC (rty EC.! TT.typeTag pt) pt (take n fields))
+     in BoxedVal (DataC (TN.typeReference (TT.typeTag pt)) pt (take n fields))
   _ -> v
 
 -- | The boxed form of the wide variable whose value slot is slot i
 -- ('boxVal' on the stack).
-boxSlot :: CCache p -> Stack -> Int -> IO Val
-boxSlot env stk i =
+boxSlot :: Stack -> Int -> IO Val
+boxSlot stk i =
   peekOff stk i >>= \case
     Val t (UnboxedTypeTag (WitnessTag n)) -> do
-      rty <- readTVarIO (tagRefs env)
       let pt = PackedTag (fromIntegral t)
-      BoxedVal <$> buildDataAt stk (rty EC.! TT.typeTag pt) pt n (i + 1 +)
+      BoxedVal <$> buildDataAt stk (TN.typeReference (TT.typeTag pt)) pt n (i + 1 +)
     v -> pure v
 
 -- | The frame layout of a let body's combinator: the value slot of each

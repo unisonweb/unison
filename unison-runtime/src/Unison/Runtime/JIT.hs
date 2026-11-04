@@ -3,7 +3,6 @@
 module Unison.Runtime.JIT
   ( JIT,
     newJIT,
-    typeNumbers,
     readConfig,
     jitConfig,
     jitExits,
@@ -20,7 +19,6 @@ module Unison.Runtime.JIT
     jitRequestGroup,
     jitRequestCell,
     noteAdHocExit,
-    registerTypeNumbers,
     printJITStats,
     describeExit,
     noteOutput,
@@ -60,6 +58,7 @@ import Unison.Runtime.JIT.Native (configureNative, ctxLayout, helperAddresses, m
 import Unison.Runtime.JIT.Pool (Pool)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, bumpNativeCount, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Stack (MCombs, defaultStackSlots)
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Util.EnumContainers qualified as EC
 
 -- | The JIT: its settings and everything it keeps while the process runs.
@@ -71,12 +70,6 @@ import Unison.Util.EnumContainers qualified as EC
 -- interpreter reaches it.
 data JIT = JIT
   { jitCompiler :: !Compiler,
-    -- | the numbers the code cache gives types (abilities among them),
-    -- with their references: the type part of a packed tag, which the one
-    -- match arm that compares a whole tag needs (Codegen's
-    -- 'envTypeNumbers'). No other declaration of a type reaches the
-    -- generator: field counts come from the match arms and the objects.
-    jitTypeNumbers :: !(IORef (EC.EnumMap Word64 Reference)),
     -- | set once by 'initJIT' when everything checks out; Nothing means off
     jitState :: !(IORef (Maybe JITState)),
     -- | set once a load has been tried, so that it is tried once only: a
@@ -124,7 +117,6 @@ newJIT config = do
   started <- newIORef False
   JIT
     <$> newCompiler config
-    <*> newIORef (EC.mapFromList [])
     <*> newIORef Nothing
     <*> newIORef Nothing
     <*> newTBQueueIO 256
@@ -173,16 +165,6 @@ initialNativeCount jit = case mode (jitConfig jit) of
 -- it tiny, so that growing the stack is exercised constantly.
 stackSlots :: JIT -> Int
 stackSlots = fromMaybe defaultStackSlots . stressStack . jitConfig
-
--- | Records the type numbering of the code cache. Called when types are
--- numbered: for the builtins at startup, and whenever code is loaded.
-registerTypeNumbers :: JIT -> EC.EnumMap Word64 Reference -> IO ()
-registerTypeNumbers jit m = atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
-
--- | The type reference each type number stands for, as the cache numbers
--- them.
-typeNumbers :: JIT -> IO (EC.EnumMap Word64 Reference)
-typeNumbers = readIORef . jitTypeNumbers
 
 -- | Gets the JIT going if it is enabled. Called by each runtime as it
 -- starts. LLVM is normally loaded already, by 'loadJIT' at ucm's startup;
@@ -328,7 +310,7 @@ jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
     readIORef (jitState jit) >>= \case
       Nothing -> pure ()
       Just st -> do
-        numbers <- readIORef (jitTypeNumbers jit)
+        numbers <- TN.typeReferences
         (now, _) <- groupUnits (jitCompiler jit) sandbox False False ref grp cmbs
         guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st numbers ("unison_" ++ show grp) False now)
   _ -> pure ()
@@ -543,7 +525,12 @@ compileThread jit = flip finally (atomically (writeTVar status Finished)) $ do
       readIORef (jitState jit) >>= \case
         Nothing -> pure ()
         Just st -> do
-          numbers <- readIORef (jitTypeNumbers jit)
+          -- the process-wide type numbering (Unison.Runtime.TypeNumbers):
+          -- the type part of a packed tag, which the one match arm that
+          -- compares a whole tag needs (Codegen's 'envTypeNumbers'). No
+          -- other declaration of a type reaches the generator: field
+          -- counts come from the match arms and the objects.
+          numbers <- TN.typeReferences
           k st numbers
     serve initialized callersRef req =
       withState initialized $ \st numbers -> do
