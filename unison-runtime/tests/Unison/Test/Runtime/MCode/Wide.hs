@@ -87,6 +87,14 @@ test =
         expectEqual
           (TLets Direct [x] [if wideOn then WD else BX] (con 0 [a]) (match x [(0, [BX], [b], TVar b)]))
           (wideBody (TLets Direct [x] [BX] (con 0 [a]) (match x [(0, [BX], [b], TVar b)]))),
+      scope "a small constructor only passed to a call is narrow, with no box" $
+        expectEqual
+          (TLets Direct [x] [BX] (con 0 [a]) (call g [x]))
+          (wideBody (TLets Direct [x] [BX] (con 0 [a]) (call g [x]))),
+      scope "a small constructor returned on one arm and passed on the other is wide, boxed on the other" $
+        expectEqual
+          (TLets Direct [x] [if wideOn then WD else BX] (con 0 [a]) (match b [(0, [], [], TVar x), (1, [], [], boxed x (call g [x]))]))
+          (wideBody (TLets Direct [x] [BX] (con 0 [a]) (match b [(0, [], [], TVar x), (1, [], [], call g [x])]))),
       scope "a wide variable returned is not boxed" $
         expectEqual
           (wide x (call f [a]) (TVar x))

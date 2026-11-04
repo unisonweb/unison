@@ -9,7 +9,11 @@
 -- most 'wideK' fields) its value slot holds a witness and the slots below
 -- it the fields, with nothing allocated. So is a let of one variable
 -- binding a small constructor application, which the emitter packs into
--- the slots ('wideCon'). Such a variable can be matched on and returned
+-- the slots ('wideCon'), when the body matches on the variable or returns
+-- it somewhere ('usedWide'): those are the uses the slots serve, and a
+-- constructor only ever passed on is packed as a heap value at once, since
+-- packing it wide and boxing it before the call would be the same
+-- allocation plus the box. Such a variable can be matched on and returned
 -- as it is. Where it /escapes/ (an argument of a call, a constructor, a
 -- record, a primitive or a request; a captured variable of a closure; the
 -- value of an affine update) it has to be an ordinary heap value, which
@@ -53,8 +57,10 @@ import Unison.Runtime.ANF
     pattern TDiscard,
     pattern TLets,
     pattern TLit,
+    pattern TMatch,
     pattern TName,
     pattern TUpdate,
+    pattern TVar,
   )
 import Unison.Runtime.Wide (wideK, wideOn)
 import Unison.Var (Var)
@@ -83,6 +89,20 @@ wideCon :: (Var v) => ANormal Reference v -> Bool
 wideCon (TApp (FCon _ _) args) = wideOn && length args <= wideK
 wideCon _ = False
 
+-- | Whether a body matches on a variable or returns it: the uses a wide
+-- variable serves unboxed. Walks only the subterms that mention the
+-- variable, which every term records.
+usedWide :: (Var v) => v -> ANormal Reference v -> Bool
+usedWide u = go
+  where
+    go tm
+      | not (Set.member u (ABTN.freeVars tm)) = False
+      | otherwise = case tm of
+          TMatch v bs -> v == u || any go bs
+          TVar v -> v == u
+          ABTN.Term _ (ABTN.Abs _ b) -> go b
+          ABTN.Term _ (ABTN.Tm f) -> any go f
+
 -- | The body with its wide binders marked and its boxes placed. Linear in
 -- the body: one walk, with the set of the wide variables that may still
 -- hold an unboxed constructor on the current path, forked at every branch.
@@ -105,6 +125,7 @@ wideBody = go Set.empty
              in TLets d us ms' (go un bn) (go un' bo)
         | [u] <- us,
           wideCon bn,
+          usedWide u bo,
           TApp _ args <- bn ->
             boxes un args \un' -> TLets d us [WD] bn (go (wide u (narrow us un')) bo)
         -- an instruction: its arguments escape before it
