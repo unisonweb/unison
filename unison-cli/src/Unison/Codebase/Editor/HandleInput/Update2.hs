@@ -29,6 +29,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ScratchFile qualified as ScratchFile
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -48,6 +49,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.DeclNameLookup (DeclNameLookup (..))
+import Unison.FileParsers qualified as FileParsers
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -55,22 +57,28 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
-import Unison.Reference (TypeReferenceId)
+import Unison.Reference (TermReference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -201,9 +209,10 @@ handleUpdate2 = do
         -- How the file and its dependents are printed for typechecking, by the frontier and the slow path alike
         let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
 
-        -- Typechecks the file with the named dependents printed into it, and returns what they typechecked to.
-        let typecheckDependents :: Set Name -> Cli (Maybe (Map Name (Term Symbol Ann, Type Symbol Ann)))
-            typecheckDependents names = do
+        -- Typechecks the file with every dependent type and the named dependent terms printed into it. The other
+        -- dependents are referred to by their old references, with the types in @retyped@ where they are given.
+        let typecheckDependents :: Map TermReference (Type Symbol Ann) -> Set Name -> Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
+            typecheckDependents retyped names = do
               parsingEnv <- Cli.makeParsingEnv pp namesIncludingLibdeps
               let prettyUnisonFile =
                     makePrettyUnisonFile
@@ -212,15 +221,9 @@ handleUpdate2 = do
                           declNameLookup
                           ppe
                           Set.empty
-                          (Defns (snd <$> Map.restrictKeys hydratedDependents.terms names) Map.empty)
+                          (Defns (snd <$> Map.restrictKeys hydratedDependents.terms names) hydratedDependents.types)
                       )
-              parseAndTypecheck prettyUnisonFile parsingEnv <&> fmap \typechecked ->
-                Map.fromList
-                  [ (name, (term, typ))
-                  | (var, _, term, typ) <- concat (UF.topLevelComponents' typechecked),
-                    let name = Name.unsafeParseVar var,
-                    Set.member name names
-                  ]
+              parseAndTypecheckRetyped retyped prettyUnisonFile parsingEnv
 
         -- Dependents that use no type that changed take their new references without being typechecked again
         propagated <-
@@ -231,27 +234,77 @@ handleUpdate2 = do
                 MaybeT . Cli.runTransaction $
                   planPropagation
                     env.codebase
-                    unconflictedView.defns.terms
+                    unconflictedView.defns
                     tuf
                     (bimap (Map.keysSet . Map.filter id . snd) (Map.keysSet . Map.filter id . snd) addedOrUpdatedNamespaceBindings0)
                     hydratedDependents
-              frontier <-
-                if Set.null propagation.changed
-                  then pure (Frontier'Typechecked Map.empty)
-                  else do
-                    lift . respondRegion . Output.Literal $
-                      Pretty.wrap "That's done. Some of that code uses a type that changed, so I'm typechecking those parts again..."
-                    lift (typecheckFrontier typecheckDependents hydratedDependents.terms propagation.changed)
-              case frontier of
-                Frontier'GaveUp -> hoistMaybe Nothing
-                Frontier'Failed -> pure Propagated'Failed
-                Frontier'Typechecked retypechecked -> do
-                  file <- hoistMaybe (substituteDependents tuf propagation.updated retypechecked hydratedDependents.terms)
-                  lift . respondRegion . Output.Literal . Pretty.wrap $
-                    if Map.null retypechecked
-                      then "That's done. Nothing that code uses changed its type, so I'm saving the results without typechecking it again..."
-                      else "Everything typechecks, so I'm saving the results..."
-                  pure (Propagated'File file)
+
+              -- The types that depend on an updated type get new references too, which printing them into the file
+              -- and parsing it gives them, as the slow path does
+              declFile <-
+                if Map.null propagation.updatedTypes && Map.null hydratedDependents.types
+                  then pure (Just tuf)
+                  else lift (typecheckDependents Map.empty Set.empty)
+
+              case declFile of
+                Nothing -> pure Propagated'Failed
+                Just declFile -> do
+                  let declRefs :: Map Name TypeReferenceId
+                      declRefs =
+                        Map.fromList $
+                          [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.dataDeclarationsId' declFile)]
+                            ++ [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.effectDeclarationsId' declFile)]
+                  typeUpdates <-
+                    fmap Map.fromList . for (Map.toList (propagation.updatedTypes <> fmap fst hydratedDependents.types)) $
+                      \(name, oldRef) -> do
+                        newRef <- hoistMaybe (Map.lookup name declRefs)
+                        pure (Reference.fromId oldRef, Reference.fromId newRef)
+                  let retype = retypeWith typeUpdates
+
+                  -- A term whose type is the same once it names the new types keeps its type
+                  let changed =
+                        Set.fromList
+                          [oldRef | (oldRef, newType, oldType) <- propagation.updatedTermTypes, Just newType /= fmap retype oldType]
+
+                  -- A dependent that builds or matches on a value of a type that changed has to be typechecked again
+                  let seeds =
+                        Map.keysSet $
+                          Map.filter
+                            (\(_, (term, _)) -> not (Set.disjoint (Term.constructorDependencies term) (Map.keysSet typeUpdates)))
+                            hydratedDependents.terms
+                  let retyped =
+                        if Map.null typeUpdates
+                          then Map.empty
+                          else Map.fromList [(Reference.fromId ref, retype typ) | (ref, (_, typ)) <- Map.elems hydratedDependents.terms]
+
+                  frontier <-
+                    if Set.null changed && Set.null seeds
+                      then pure (Frontier'Typechecked Map.empty)
+                      else do
+                        lift . respondRegion . Output.Literal $
+                          Pretty.wrap "That's done. Some of that code uses a type that changed, so I'm typechecking those parts again..."
+                        lift $
+                          typecheckFrontier
+                            (\names -> fmap (termsNamed names) <$> typecheckDependents retyped names)
+                            retype
+                            hydratedDependents.terms
+                            seeds
+                            changed
+                  case frontier of
+                    Frontier'GaveUp -> hoistMaybe Nothing
+                    Frontier'Failed -> pure Propagated'Failed
+                    Frontier'Typechecked retypechecked -> do
+                      file <-
+                        hoistMaybe $
+                          substituteDependents tuf declFile propagation.updated typeUpdates retypechecked hydratedDependents.terms
+                      lift . respondRegion . Output.Literal . Pretty.wrap $
+                        if not (Map.null retypechecked)
+                          then "Everything typechecks, so I'm saving the results..."
+                          else
+                            if Map.null typeUpdates
+                              then "That's done. Nothing that code uses changed its type, so I'm saving the results without typechecking it again..."
+                              else "That's done. None of that code looks inside the types that changed, so I'm saving the results without typechecking it again..."
+                      pure (Propagated'File file)
 
         -- A dependent that fails to typecheck against the types the others keep fails in the whole file too
         let frontierFailed = case propagated of
@@ -455,89 +508,116 @@ data Frontier
   | Frontier'Failed
   | Frontier'GaveUp
 
--- | What 'planPropagation' finds about the updated terms: each one's old reference with the variable that names it in
--- the file, and the old references of those whose type changed.
+-- | What 'planPropagation' finds about the updates: each updated term's old reference with the variable that names it
+-- in the file, each one's old reference with its new type and its old one, and each updated type's old reference.
 data Propagation = Propagation
   { updated :: Map TermReferenceId Symbol,
-    changed :: Set TermReferenceId
+    updatedTermTypes :: [(TermReferenceId, Type Symbol Ann, Maybe (Type Symbol Ann))],
+    updatedTypes :: Map Name TypeReferenceId
   }
 
--- | @planPropagation codebase namespaceTerms file updates dependents@ checks that an update can reach its dependents
--- without printing them all into the file and typechecking them again (#5790).
+-- | @planPropagation codebase namespace file updates dependents@ checks that an update can reach its dependents without
+-- printing them all into the file and typechecking them again (#5790).
 --
--- A dependent that uses no type that changed keeps its own type, and only its references change: to an updated term
--- they become that term in the file, and to another dependent, that dependent. Only the dependents that do use a
--- changed type are typechecked again ('typecheckFrontier'), and 'substituteDependents' then hashes them all with the
--- file, cycles included. That gives the result that printing the dependents into the file and parsing it back gives,
--- with most of the typechecking skipped.
+-- A dependent that uses no term whose type changed, and doesn't build or match on a value of a type that changed, keeps
+-- its own type (with the new references of the types in it), and only its references change: to an updated term they
+-- become that term in the file, to another dependent, that dependent, and to an updated type, its new reference. Only
+-- the other dependents are typechecked again ('typecheckFrontier'), and 'substituteDependents' then hashes them all with
+-- the file, cycles included. That gives the result that printing the dependents into the file and parsing it back
+-- gives, with most of the typechecking skipped.
 --
--- Returns 'Nothing' when the slow path is needed: a type declaration is updated or depends on an update, or a name
--- involved is one of several aliases (the round trip can split an alias from its cycle, and this doesn't try to match
--- it).
+-- Returns 'Nothing' when the slow path is needed: an updated type has parameters, or changes between data and ability
+-- (either could change its kind, which a substitution can't check), or a name involved is one of several aliases (the
+-- round trip can split an alias from its cycle, and this doesn't try to match it).
 --
 -- @updates@ holds the names the file updates (not the ones it adds).
 planPropagation ::
   Codebase IO Symbol Ann ->
-  BiMultimap Referent Name ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   TypecheckedUnisonFile Symbol Ann ->
   DefnsF Set Name Name ->
   DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann) ->
   Transaction (Maybe Propagation)
-planPropagation codebase namespaceTerms file updates dependents
-  | not (Set.null updates.types) || not (Map.null dependents.types) = pure Nothing
-  | otherwise = runMaybeT do
-      let onlyName :: TermReferenceId -> Name -> Bool
-          onlyName ref name =
-            BiMultimap.lookupDom (Referent.fromTermReferenceId ref) namespaceTerms == Set.singleton name
+planPropagation codebase namespace file updates dependents = runMaybeT do
+  let onlyName :: (Ord ref) => BiMultimap ref Name -> ref -> Name -> Bool
+      onlyName defns ref name =
+        BiMultimap.lookupDom ref defns == Set.singleton name
 
-      let fileTerms :: Map Name (Symbol, Type Symbol Ann)
-          fileTerms =
-            Map.fromList
-              [ (Name.unsafeParseVar var, (var, typ))
-              | (var, (_, _, Nothing, _, typ)) <- Map.toList (UF.hashTermsId file)
-              ]
+  let fileTerms :: Map Name (Symbol, Type Symbol Ann)
+      fileTerms =
+        Map.fromList
+          [ (Name.unsafeParseVar var, (var, typ))
+          | (var, (_, _, Nothing, _, typ)) <- Map.toList (UF.hashTermsId file)
+          ]
 
-      -- Each updated term's old reference, with the variable that names it in the file and its new type
-      updatedTerms <-
-        for (Set.toList updates.terms) \name -> do
-          oldRef <-
-            case BiMultimap.lookupRan name namespaceTerms of
-              Just (Referent.Ref (Reference.DerivedId ref)) -> pure ref
-              _ -> hoistMaybe Nothing
-          guard (onlyName oldRef name)
+  let fileDecls :: Map Name (Decl Symbol Ann)
+      fileDecls =
+        Map.fromList $
+          [(Name.unsafeParseVar var, Right decl) | (var, (_, decl)) <- Map.toList (UF.dataDeclarationsId' file)]
+            ++ [(Name.unsafeParseVar var, Left decl) | (var, (_, decl)) <- Map.toList (UF.effectDeclarationsId' file)]
+
+  -- Each updated type's old reference, when its kind can't have changed
+  updatedTypes <-
+    for (Set.toList updates.types) \name -> do
+      oldRef <-
+        case BiMultimap.lookupRan name namespace.types of
+          Just (Reference.DerivedId ref) -> pure ref
+          _ -> hoistMaybe Nothing
+      guard (onlyName namespace.types (Reference.fromId oldRef) name)
+      newDecl <- hoistMaybe (Map.lookup name fileDecls)
+      oldDecl <- MaybeT (Codebase.getTypeDeclaration codebase oldRef)
+      guard (null (Decl.bound (Decl.asDataDecl oldDecl)) && null (Decl.bound (Decl.asDataDecl newDecl)))
+      guard (isLeft oldDecl == isLeft newDecl)
+      pure (name, oldRef)
+
+  -- Each updated term's old reference, with the variable that names it in the file, its new type and its old one
+  let updatedTypeRefs = Set.fromList [Reference.fromId oldRef | (_, oldRef) <- updatedTypes]
+  updatedTerms <-
+    fmap catMaybes . for (Set.toList updates.terms) $ \name ->
+      case BiMultimap.lookupRan name namespace.terms of
+        -- A constructor of an updated type is updated with its type
+        Just referent@(Referent.Con _ _) -> do
+          guard (Set.member (Referent.toReference referent) updatedTypeRefs)
+          pure Nothing
+        Just (Referent.Ref (Reference.DerivedId oldRef)) -> do
+          guard (onlyName namespace.terms (Referent.fromTermReferenceId oldRef) name)
           (var, typ) <- hoistMaybe (Map.lookup name fileTerms)
-          pure (oldRef, (var, typ))
+          oldType <- lift (Codebase.getTypeOfTerm codebase (Reference.fromId oldRef))
+          pure (Just (oldRef, var, typ, oldType))
+        _ -> hoistMaybe Nothing
 
-      for_ (Map.toList dependents.terms) \(name, (ref, _)) -> guard (onlyName ref name)
+  for_ (Map.toList dependents.terms) \(name, (ref, _)) ->
+    guard (onlyName namespace.terms (Referent.fromTermReferenceId ref) name)
+  for_ (Map.toList dependents.types) \(name, (ref, _)) ->
+    guard (onlyName namespace.types (Reference.fromId ref) name)
 
-      changedTypes <-
-        lift $ for updatedTerms \(oldRef, (_, newType)) -> do
-          oldType <- Codebase.getTypeOfTerm codebase (Reference.fromId oldRef)
-          pure [oldRef | oldType /= Just newType]
+  pure
+    Propagation
+      { updated = Map.fromList [(oldRef, var) | (oldRef, var, _, _) <- updatedTerms],
+        updatedTermTypes = [(oldRef, typ, oldType) | (oldRef, _, typ, oldType) <- updatedTerms],
+        updatedTypes = Map.fromList updatedTypes
+      }
 
-      pure
-        Propagation
-          { updated = Map.fromList (map (second fst) updatedTerms),
-            changed = Set.fromList (concat changedTypes)
-          }
-
--- | @typecheckFrontier typecheck dependents changed@ typechecks again the dependents that refer to a term whose type
--- changed, then the ones that refer to one of those whose type changed in turn, and so on: the type-preserving frontier
--- of #904. Each round typechecks everything found so far, since the next round may refer to it.
+-- | @typecheckFrontier typecheck retype dependents seeds changed@ typechecks again the dependents in @seeds@ and the
+-- ones that refer to a term whose type changed, then the ones that refer to one of those whose type changed in turn,
+-- and so on: the type-preserving frontier of #904. Each round typechecks everything found so far, since the next round
+-- may refer to it. A type is compared with the old one as @retype@ gives it, with the new references of updated types.
 --
--- A dependent outside the frontier keeps its type, so the frontier can be typechecked against its old reference, which
--- 'substituteDependents' then replaces. Dependents are printed with their signatures, so the frontier usually ends one
--- round past the update.
+-- A dependent outside the frontier keeps its type, so the frontier can be typechecked against its old reference, given
+-- that type, and 'substituteDependents' then replaces the reference. Dependents are printed with their signatures, so
+-- the frontier usually ends one round past the update.
 --
 -- It fails when a dependent doesn't typecheck, and gives up (for the slow path to run instead) when the frontier is
 -- still growing after ten rounds, or a round doesn't give back every dependent it was asked about.
 typecheckFrontier ::
   (Monad m) =>
   (Set Name -> m (Maybe (Map Name (Term Symbol Ann, Type Symbol Ann)))) ->
+  (Type Symbol Ann -> Type Symbol Ann) ->
   Map Name (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) ->
+  Set Name ->
   Set TermReferenceId ->
   m Frontier
-typecheckFrontier typecheck dependents =
+typecheckFrontier typecheck retype dependents seeds =
   go (10 :: Int) Set.empty Map.empty
   where
     go rounds frontier typechecked changed
@@ -550,7 +630,11 @@ typecheckFrontier typecheck dependents =
               | Map.keysSet typechecked' == frontier' -> go (rounds - 1) frontier' typechecked' (changed <> changedIn typechecked')
               | otherwise -> pure Frontier'GaveUp
       where
-        next = Map.keysSet (Map.filterWithKey (\name (_, (term, _)) -> Set.notMember name frontier && refersTo changed term) dependents)
+        next =
+          Map.keysSet $
+            Map.filterWithKey
+              (\name (_, (term, _)) -> Set.notMember name frontier && (Set.member name seeds || refersTo changed term))
+              dependents
         frontier' = frontier <> next
 
     changedIn :: Map Name (Term Symbol Ann, Type Symbol Ann) -> Set TermReferenceId
@@ -559,38 +643,92 @@ typecheckFrontier typecheck dependents =
         [ ref
         | (name, (_, typ)) <- Map.toList typechecked,
           Just (ref, (_, oldType)) <- [Map.lookup name dependents],
-          typ /= oldType
+          typ /= retype oldType
         ]
 
     refersTo :: Set TermReferenceId -> Term Symbol Ann -> Bool
     refersTo refs term =
       or [Set.member ref refs | Term.Ref' (Reference.DerivedId ref) <- ABT.subterms term]
 
--- | @substituteDependents file updated typechecked dependents@ gives every dependent its new references and hashes it
--- with the file: the ones in @typechecked@ as they typechecked, and the rest as they are stored. Term and type links are
--- left alone, as printing and parsing leaves them (it resolves them against the namespace, not the file).
+-- | A stored type with every updated type's new reference in place of its old one. An ability's new reference can sort
+-- differently from its old one, and a list of abilities is kept sorted, so the list is sorted again.
+retypeWith :: Map TypeReference TypeReference -> Type Symbol Ann -> Type Symbol Ann
+retypeWith typeUpdates
+  | Map.null typeUpdates = id
+  | otherwise = Type.cleanupAbilityLists . Type.updateDependencies typeUpdates
+
+-- | The named terms in a typechecked file, with their types. A test in the codebase prints as a test watch, so those
+-- count too.
+termsNamed :: Set Name -> TypecheckedUnisonFile Symbol Ann -> Map Name (Term Symbol Ann, Type Symbol Ann)
+termsNamed names typechecked =
+  Map.fromList
+    [ (name, (term, typ))
+    | (var, _, term, typ) <- concat (UF.topLevelComponents typechecked),
+      let name = Name.unsafeParseVar var,
+      Set.member name names
+    ]
+
+-- | 'parseAndTypecheck', with the types of some terms in the codebase given rather than looked up: the dependents
+-- outside the frontier, whose types name the updated types' new references.
+parseAndTypecheckRetyped ::
+  Map TermReference (Type Symbol Ann) ->
+  Pretty ColorText ->
+  Parser.ParsingEnv Transaction ->
+  Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
+parseAndTypecheckRetyped retyped prettyUnisonFile parsingEnv
+  | Map.null retyped = parseAndTypecheck prettyUnisonFile parsingEnv
+  | otherwise = do
+      env <- ask
+      Cli.runTransaction do
+        Parsers.parseFile "<update>" (Text.unpack (Pretty.toPlain 80 prettyUnisonFile)) parsingEnv >>= \case
+          Left _ -> pure Nothing
+          Right unisonFile -> do
+            typecheckingEnv <-
+              computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) env.codebase [] unisonFile
+            let typeLookup = typecheckingEnv.typeLookup
+            let retypedEnv =
+                  typecheckingEnv {Typechecker.typeLookup = typeLookup {TL.typeOfTerms = Map.union retyped typeLookup.typeOfTerms}}
+            pure (Result.result (FileParsers.synthesizeFile retypedEnv unisonFile))
+
+-- | @substituteDependents file declFile updated typeUpdates typechecked dependents@ gives every dependent its new
+-- references and hashes it with the file and the types in @declFile@: the ones in @typechecked@ as they typechecked,
+-- and the rest as they are stored. A term link is left alone, as printing and parsing leaves it: the parser resolves it
+-- against the namespace and the file's constructors, not the file's terms (a dependent with a link to a constructor of
+-- an updated type is typechecked again instead). A type link takes the type's new reference, as the parser resolves it
+-- to the type printed into the file.
 --
 -- Returns 'Nothing' when a substituted name is also bound inside a term, where a plain substitution would capture it.
 substituteDependents ::
   TypecheckedUnisonFile Symbol Ann ->
+  TypecheckedUnisonFile Symbol Ann ->
   Map TermReferenceId Symbol ->
+  Map TypeReference TypeReference ->
   Map Name (Term Symbol Ann, Type Symbol Ann) ->
   Map Name (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) ->
   Maybe (TypecheckedUnisonFile Symbol Ann)
-substituteDependents file updated typechecked dependents = do
+substituteDependents file declFile updated typeUpdates typechecked dependents = do
   let replacements :: Map TermReferenceId Symbol
       replacements =
         updated <> Map.fromList [(ref, Name.toVar name) | (name, (ref, _)) <- Map.toList dependents]
 
-  let replace :: Term Symbol Ann -> Term Symbol Ann
-      replace =
+  let replaceTerms :: Term Symbol Ann -> Term Symbol Ann
+      replaceTerms =
         ABT.visitPure \case
           term@(Term.Ref' (Reference.DerivedId ref)) -> Term.var (ABT.annotation term) <$> Map.lookup ref replacements
           _ -> Nothing
 
+  -- Annotations and type links inside a term name types, which take their new references, as the parser resolves them
+  -- to the types printed into the file
+  let replaceTypes :: Term Symbol Ann -> Term Symbol Ann
+      replaceTypes =
+        ABT.rebuildUp \case
+          Term.Ann term typ -> Term.Ann term (Type.updateDependencies typeUpdates typ)
+          Term.TypeLink ref -> Term.TypeLink (Map.findWithDefault ref ref typeUpdates)
+          other -> other
+
   let dependentBindings :: [[(Symbol, Ann, Term Symbol Ann, Type Symbol Ann)]]
       dependentBindings =
-        [ [(Name.toVar name, ABT.annotation term, term, typ)]
+        [ [(Name.toVar name, ABT.annotation term, term, retypeWith typeUpdates typ)]
         | (name, (_, stored)) <- Map.toList dependents,
           let (term, typ) = Map.findWithDefault stored name typechecked
         ]
@@ -601,11 +739,11 @@ substituteDependents file updated typechecked dependents = do
           ++ [term | (_, terms) <- UF.watchComponents file, (_, _, term, _) <- terms]
   guard (all (Set.disjoint replacementVars . binders) everyTerm)
 
-  let replaceIn = map (over _3 replace)
+  let replaceIn = map (over _3 (replaceTerms . replaceTypes))
   pure $
     UF.typecheckedUnisonFile
-      (UF.dataDeclarationsId' file)
-      (UF.effectDeclarationsId' file)
+      (UF.dataDeclarationsId' declFile)
+      (UF.effectDeclarationsId' declFile)
       (map replaceIn (UF.topLevelComponents' file ++ dependentBindings))
       (map (second replaceIn) (UF.watchComponents file))
   where

@@ -312,3 +312,425 @@ doubled = twice 4 + Text.size shown
 
   No changes found.
 ```
+
+An updated type with no parameters keeps its kind, so only the code that builds or matches on its values is typechecked
+again. Here `shapes` builds shapes and `sceneArea` matches on a `Scene`, a type that holds shapes and so gets a new
+reference too; `totalArea` and `report` only pass shapes along, and take their new references without being typechecked.
+
+``` unison
+type Shape = Circle Nat | Square Nat
+
+area : Shape -> Nat
+area = cases
+  Circle r -> 3 * r * r
+  Square s -> s * s
+
+totalArea : [Shape] -> Nat
+totalArea = cases
+  [] -> 0
+  s +: rest -> area s + totalArea rest
+
+shapes : [Shape]
+shapes = [Circle 1, Square 2]
+
+report : Text
+report = Nat.toText (totalArea shapes)
+
+type Scene = Scene [Shape]
+
+sceneArea : Scene -> Nat
+sceneArea = cases Scene ss -> totalArea ss
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Scene
+  + type Shape
+
+  + area      : Shape -> Nat
+  + report    : Text
+  + sceneArea : Scene -> Nat
+  + shapes    : [Shape]
+  + totalArea : [Shape] -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Shape = Circle Nat | Square Nat | Dot
+
+area : Shape -> Nat
+area = cases
+  Circle r -> 3 * r * r
+  Square s -> s * s
+  Dot -> 0
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ type Shape
+
+  ~ area : Shape -> Nat
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view totalArea shapes report Scene sceneArea
+
+  type Scene = Scene [Shape]
+
+  report : Text
+  report = Nat.toText (totalArea shapes)
+
+  sceneArea : Scene -> Nat
+  sceneArea = cases Scene ss -> totalArea ss
+
+  shapes : [Shape]
+  shapes = [Circle 1, Square 2]
+
+  totalArea : [Shape] -> Nat
+  totalArea = cases
+    []        -> 0
+    s +: rest -> area s Nat.+ totalArea rest
+```
+
+``` unison
+totalArea : [Shape] -> Nat
+totalArea = cases
+  [] -> 0
+  s +: rest -> area s + totalArea rest
+
+shapes : [Shape]
+shapes = [Circle 1, Square 2]
+
+report : Text
+report = Nat.toText (totalArea shapes)
+
+type Scene = Scene [Shape]
+
+sceneArea : Scene -> Nat
+sceneArea = cases Scene ss -> totalArea ss
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
+
+A type with parameters could change its kind, so its dependents are all typechecked again.
+
+``` unison
+type Box a = Box a
+
+boxed : Box Nat
+boxed = Box 1
+
+boxes : [Box Nat]
+boxes = [boxed]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Box a
+
+  + boxed : Box Nat
+  + boxes : [Box Nat]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Box a = Box a | Empty
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ type Box a
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+When no dependent builds or matches on a value of the type, none is typechecked again; a type named in an annotation
+inside a term takes the new reference too.
+
+``` unison
+type Tag = Tag
+
+tagLabel : Tag -> Text
+tagLabel t =
+  kept : Tag
+  kept = t
+  "tagged"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Tag
+
+  + tagLabel : Tag -> Text
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Tag = Tag | Other
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ type Tag
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. None of that code looks inside the types that
+  changed, so I'm saving the results without typechecking it
+  again...
+
+  Done.
+
+scratch/main> view tagLabel
+
+  tagLabel : Tag -> Text
+  tagLabel t =
+    kept : Tag
+    kept = t
+    "tagged"
+```
+
+``` unison
+tagLabel : Tag -> Text
+tagLabel t =
+  kept : Tag
+  kept = t
+  "tagged"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
+
+A test in the frontier is typechecked like any other dependent.
+
+``` unison
+pick : Nat -> Nat
+pick n = n
+
+test> pick.tests.one = if pick 1 == 1 then [Ok "one"] else [Fail "not one"]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + pick           : Nat -> Nat
+  + pick.tests.one : [Result]
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | test> pick.tests.one = if pick 1 == 1 then [Ok "one"] else [Fail "not one"]
+    
+    ✅ Passed one
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+pick : a -> Nat
+pick _ = 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ pick : a -> Nat
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view pick.tests.one
+
+  pick.tests.one : [Result]
+  pick.tests.one =
+    if pick 1 == 1 then [Ok "one"] else [Fail "not one"]
+```
+
+``` unison
+test> pick.tests.one = if pick 1 == 1 then [Ok "one"] else [Fail "not one"]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | test> pick.tests.one = if pick 1 == 1 then [Ok "one"] else [Fail "not one"]
+    
+    ✅ Passed one
+```
+
+A type link takes the updated type's new reference, as parsing the printed source would give it.
+
+``` unison
+type Mark = Mark
+
+markLink : Link.Type
+markLink = typeLink Mark
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Mark
+
+  + markLink : Link.Type
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Mark = Mark | Unmarked
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ type Mark
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. None of that code looks inside the types that
+  changed, so I'm saving the results without typechecking it
+  again...
+
+  Done.
+
+scratch/main> view markLink
+
+  markLink : Link.Type
+  markLink = typeLink Mark
+```
+
+``` unison
+markLink : Link.Type
+markLink = typeLink Mark
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
