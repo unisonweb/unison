@@ -57,11 +57,11 @@ ping = 3
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-663cfccc.u.
+  definitions to fix are in update-main-51b09eba.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-663cfccc.u
+      scratch/update-main> load update-main-51b09eba.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -76,7 +76,7 @@ ping = 3
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-663cfccc.u
+``` unison :added-by-ucm update-main-51b09eba.u
 ping : Nat
 ping = 3
 

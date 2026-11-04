@@ -66,7 +66,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (780 terms, 120 types)
   2. new.     (1 term)
 
 proj/main> view thingy
@@ -126,11 +126,11 @@ proj/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
+  definitions to fix are in upgrade-old-to-new-524b191a.u.
 
   Edit the file, then run:
 
-      proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
+      proj/upgrade-old-to-new> load upgrade-old-to-new-524b191a.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -146,7 +146,7 @@ proj/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
+``` unison :added-by-ucm upgrade-old-to-new-524b191a.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -192,7 +192,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (780 terms, 120 types)
   2. new.     (1 term)
 
 proj/main> branches
@@ -250,11 +250,11 @@ proj/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-1df4ef6a.u.
+  definitions to fix are in upgrade-old-to-new-524b191a.u.
 
   Edit the file, then run:
 
-      proj/upgrade-old-to-new> load upgrade-old-to-new-1df4ef6a.u
+      proj/upgrade-old-to-new> load upgrade-old-to-new-524b191a.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -270,7 +270,7 @@ proj/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-1df4ef6a.u
+``` unison :added-by-ucm upgrade-old-to-new-524b191a.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -309,12 +309,12 @@ proj/upgrade-old-to-new> update
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (780 terms, 120 types)
   2. new.     (1 term)
 
 proj/main> ls .
 
-  1. lib.   (779 terms, 120 types)
+  1. lib.   (781 terms, 120 types)
   2. thingy (Int)
 
 proj/main> branches
@@ -441,11 +441,11 @@ myproject/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-aabcdb16.u.
+  definitions to fix are in upgrade-old-to-new-1d9b2bfa.u.
 
   Edit the file, then run:
 
-      myproject/upgrade-old-to-new> load upgrade-old-to-new-aabcdb16.u
+      myproject/upgrade-old-to-new> load upgrade-old-to-new-1d9b2bfa.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -461,7 +461,7 @@ myproject/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-aabcdb16.u
+``` unison :added-by-ucm upgrade-old-to-new-1d9b2bfa.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -595,7 +595,7 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (780 terms, 120 types)
   2. dep.     (1 term)
 ```
 
@@ -651,7 +651,7 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (780 terms, 120 types)
   2. dep.     (1 term)
   3. dep__2.  (1 term)
 ```
@@ -727,7 +727,7 @@ scratch/main> view thing
 scratch/main> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (778 terms, 120 types)
+  2. builtin. (780 terms, 120 types)
   3. foo_2.   (1 term)
 ```
 
@@ -795,11 +795,11 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
   You're now on a temporary branch, upgrade, and the definitions
   to fix are in
-  upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u.
+  upgrade-foo_1-to-foo_2-bar_1-to-bar_2-db37410d.u.
 
   Edit the file, then run:
 
-      scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
+      scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-db37410d.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -815,7 +815,7 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-4fe9a199.u
+``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-db37410d.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -830,7 +830,7 @@ thing =
 scratch/upgrade> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (778 terms, 120 types)
+  2. builtin. (780 terms, 120 types)
   3. foo_2.   (1 term)
 ```
 
