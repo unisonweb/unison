@@ -101,6 +101,7 @@ library
       Unison.Runtime.MCode.Explode
       Unison.Runtime.MCode.Live
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MCode.Wide
       Unison.Runtime.Optimizations
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling
@@ -246,6 +247,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.Foreign.Dynamic
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization
+      Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
       Unison.Test.UnisonSources

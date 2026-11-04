@@ -35,6 +35,7 @@ module Unison.Runtime.ANF
     pattern TDiscard,
     pattern TLocal,
     pattern TUpdate,
+    pattern TBox,
     FloatName (..),
     prettyFloatName,
     Mem (..),
@@ -859,7 +860,12 @@ minimizeCyclesOrCrash t = case minimize' t of
       "tried to minimize let rec with duplicate definitions: "
         ++ show (fst <$> toList e)
 
-data Mem = UN | BX deriving (Eq, Ord, Show, Enum)
+-- | How a let's binder, a parameter or a match arm's field is held:
+-- unboxed, boxed, or wide. A wide binder (Unison.Runtime.Wide) has
+-- 'wideWidth' slots, its boxed value on top; only a let of one variable
+-- has one, marked by Unison.Runtime.MCode.Wide in a batch's code after it
+-- is loaded, so nothing stored has it (the serializers refuse it).
+data Mem = UN | BX | WD deriving (Eq, Ord, Show, Enum)
 
 -- Context entries with evaluation strategy
 data CTE v s
@@ -893,6 +899,13 @@ data ANormalF ref v e
   | ALocal v e
   | -- Boolean indicates whether there are indirect calls afterward
     AUpdate Bool v v
+  | -- | Box a wide variable in place (Unison.Runtime.Wide): if its value
+    -- slot holds an unboxed constructor, the heap object built from its
+    -- slots replaces it, so from here on the variable is an ordinary
+    -- value. Binds nothing, like a discard. Placed by
+    -- Unison.Runtime.MCode.Wide before the first escape of the variable
+    -- on each path; only in loaded code, never stored.
+    ABox v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Bifunctor (ANormalF ref) where
@@ -909,6 +922,7 @@ instance Bifunctor (ANormalF ref) where
   bimap f _ (ADiscard v) = ADiscard (f v)
   bimap f g (ALocal v bo) = ALocal (f v) (g bo)
   bimap f _ (AUpdate b r v) = AUpdate b (f r) (f v)
+  bimap f _ (ABox v) = ABox (f v)
 
 instance Bifoldable (ANormalF ref) where
   bifoldMap f _ (AVar v) = f v
@@ -924,6 +938,7 @@ instance Bifoldable (ANormalF ref) where
   bifoldMap f _ (ADiscard v) = f v
   bifoldMap f g (ALocal v bo) = f v <> g bo
   bifoldMap f _ (AUpdate _ r v) = f r <> f v
+  bifoldMap f _ (ABox v) = f v
 
 instance (Ord ref) => ABTN.Align (ANormalF ref) where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
@@ -962,6 +977,7 @@ instance (Ord ref) => ABTN.Align (ANormalF ref) where
     Just $ ALocal <$> f u v <*> g bl br
   align f _ (AUpdate b r u) (AUpdate c s v)
     | b == c = Just $ AUpdate b <$> f r s <*> f u v
+  align f _ (ABox u) (ABox v) = Just $ ABox <$> f u v
   align _ _ _ _ = Nothing
 
 alignEither ::
@@ -1296,6 +1312,9 @@ pattern TUpdate ::
   (ABT.Var v) => Bool -> v -> v -> ABTN.Term (ANormalF ref) v
 pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
 
+pattern TBox :: (ABT.Var v) => v -> ANormal ref v
+pattern TBox v = ABTN.TTm (ABox v)
+
 {-# COMPLETE
   TLets,
   TName,
@@ -1310,6 +1329,7 @@ pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
   TDiscard,
   TLocal,
   TUpdate,
+  TBox,
   ABTN.TAbs
   #-}
 
@@ -1333,6 +1353,7 @@ pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
   TDiscard,
   TLocal,
   TUpdate,
+  TBox,
   ABTN.TAbs
   #-}
 
@@ -2543,6 +2564,7 @@ anfFLinks _ _ (AVar v) = pure $ AVar v
 anfFLinks _ _ (ADiscard v) = pure $ ADiscard v
 anfFLinks _ g (ALocal v e) = ALocal v <$> g e
 anfFLinks _ _ (AUpdate b u v) = pure $ AUpdate b u v
+anfFLinks _ _ (ABox v) = pure $ ABox v
 
 litLinks ::
   (Applicative f) =>
@@ -2758,6 +2780,8 @@ prettyANF m ind tm =
         . showString ", "
         . pvar v
         . showString "]"
+    TBox v ->
+      showString "box[" . pvar v . showString "]"
     ABTN.TAbs v (ABTN.TAbss vs bo) ->
       prettyVars (v : vs)
         . showString " ->"

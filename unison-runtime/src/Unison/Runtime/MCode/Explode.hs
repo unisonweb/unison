@@ -1287,6 +1287,7 @@ occurrences v = getSum . foldMentions v (Sum . length . filter (== v) . nodeVars
       ADiscard u -> [u]
       ALocal u _ -> [u]
       AUpdate _ u x -> [u, x]
+      ABox u -> [u]
       ALet {} -> []
       AShift {} -> []
       ALit _ -> []

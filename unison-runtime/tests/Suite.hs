@@ -15,6 +15,7 @@ import Unison.Test.Runtime.Foreign.Arrays qualified as Arrays
 import Unison.Test.Runtime.Foreign.Dynamic qualified as Dynamic
 import Unison.Test.Runtime.MCode qualified as MCode
 import Unison.Test.Runtime.MCode.Serialization qualified as MCode.Serialization
+import Unison.Test.Runtime.MCode.Wide qualified as MCode.Wide
 import Unison.Test.Runtime.Process qualified as Process
 import Unison.Test.Runtime.Signal qualified as Signal
 import Unison.Test.UnisonSources qualified as UnisonSources
@@ -26,6 +27,7 @@ test =
       ANF.Serialization.test,
       MCode.test,
       MCode.Serialization.test,
+      MCode.Wide.test,
       P256.test,
       Rsa.test,
       Arrays.test,

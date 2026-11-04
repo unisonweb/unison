@@ -153,6 +153,7 @@ import Unison.Runtime.ANF
     packTags,
     pattern TApp,
     pattern TBLit,
+    pattern TBox,
     pattern TDiscard,
     pattern TFOp,
     pattern TFrc,
@@ -171,6 +172,7 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Runtime.MCode.Explode
+import Unison.Runtime.MCode.Wide (letYields, wideBody, wideCon)
 import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BiMap
@@ -1337,11 +1339,9 @@ data Ctx v
     Block !Word64 (Ctx v)
   | Tag (Ctx v)
   | Var v Mem (Ctx v)
-  | -- | A wide variable (Unison.Runtime.Wide): 'wideWidth' slots, the
-    -- value slot on top, resolved to that slot. The flag says whether the
-    -- value slot may hold an unboxed constructor: False once the variable
-    -- has been boxed in place on this path ('boxEscapes').
-    Wide v Mem Bool (Ctx v)
+  | -- | A wide variable (Unison.Runtime.Wide, a 'WD' binder): 'wideWidth'
+    -- slots, the value slot on top, resolved to that slot.
+    Wide v Mem (Ctx v)
   deriving (Show)
 
 -- Represents the context formed by the top-level let rec around a
@@ -1400,7 +1400,7 @@ chainOf = go Nothing []
     go lbl acc (Block w ctx) = (lbl, reverse acc) : go (Just w) [] ctx
     go lbl acc (Tag ctx) = go lbl (ETag : acc) ctx
     go lbl acc (Var v _ ctx) = go lbl (EVar v : acc) ctx
-    go lbl acc (Wide v _ _ ctx) = go lbl (EVar v : acc) ctx
+    go lbl acc (Wide v _ ctx) = go lbl (EVar v : acc) ctx
 
 -- Add a sequence of variables and corresponding calling conventions
 -- to the context.
@@ -1418,14 +1418,13 @@ ctxResolve ctx v = walk 0 ctx
     walk i (Var x m ctx)
       | v == x = Just (i, m)
       | otherwise = walk (i + 1) ctx
-    walk i (Wide x m _ ctx)
+    walk i (Wide x m ctx)
       | v == x = Just (i, m)
       | otherwise = walk (i + wideWidth) ctx
 
--- | Whether a variable is wide in the context (its nearest binding) and
--- may hold an unboxed constructor, so an escape has to box it.
-ctxIsWide :: (Var v) => Ctx v -> v -> Bool
-ctxIsWide ctx v = wideOn && walk ctx
+-- | Whether a variable's nearest binding in the context is wide.
+ctxWide :: (Var v) => Ctx v -> v -> Bool
+ctxWide ctx v = walk ctx
   where
     walk ECtx = False
     walk (Block _ ctx) = walk ctx
@@ -1433,48 +1432,18 @@ ctxIsWide ctx v = wideOn && walk ctx
     walk (Var x _ ctx)
       | v == x = False
       | otherwise = walk ctx
-    walk (Wide x _ unboxed ctx)
-      | v == x = unboxed
+    walk (Wide x _ ctx)
+      | v == x = True
       | otherwise = walk ctx
 
--- | The context after a wide variable has been boxed in place: its value
--- slot holds an ordinary value from here on.
-markBoxed :: (Var v) => Ctx v -> v -> Ctx v
-markBoxed ctx v = case ctx of
-  ECtx -> ECtx
-  Block w ctx -> Block w (markBoxed ctx v)
-  Tag ctx -> Tag (markBoxed ctx v)
-  Var x m ctx
-    | v == x -> Var x m ctx
-    | otherwise -> Var x m (markBoxed ctx v)
-  Wide x m unboxed ctx
-    | v == x -> Wide x m False ctx
-    | otherwise -> Wide x m unboxed (markBoxed ctx v)
-
--- | Boxes the wide variables among some argument variables, in order: each
--- one gets a 'Box', which boxes it in place, and is marked boxed for the
--- rest of the section, so a variable that escapes twice on one path is
--- boxed once. The frame's layout does not change.
-boxEscapes :: (Var v) => Ctx v -> [v] -> (Ctx v -> Emit v Section) -> Emit v Section
-boxEscapes ctx [] k = k ctx
-boxEscapes ctx (a : as) k
-  | Just (i, _) <- ctxResolve ctx a,
-    ctxIsWide ctx a =
-      Ins (Box i) <$> boxEscapes (markBoxed ctx a) as k
-  | otherwise = boxEscapes ctx as k
-
--- | The argument variables of a let binding that 'emitLet' emits as an
--- instruction: the ones that have to be boxed first when they are wide.
--- A binding that becomes a 'Let' section boxes its own.
-instrArgs :: (Var v) => RNormal v -> [v]
-instrArgs = \case
-  TApp _ args -> args
-  TUpdate _ _ x -> [x]
-  _ -> []
-
--- Add a sequence of variables and calling conventions to the context.
+-- | Add a sequence of variables and calling conventions to the context:
+-- a 'WD' binder (Unison.Runtime.MCode.Wide) as a wide entry, boxed, the
+-- others as one slot each.
 pushCtx :: [(v, Mem)] -> Ctx v -> Ctx v
-pushCtx new old = foldr (uncurry Var) old new
+pushCtx new old = foldr push old new
+  where
+    push (v, WD) = Wide v BX
+    push (v, m) = Var v m
 
 -- Concatenate two contexts
 catCtx :: Ctx v -> Ctx v -> Ctx v
@@ -1482,7 +1451,7 @@ catCtx ECtx r = r
 catCtx (Tag l) r = Tag $ catCtx l r
 catCtx (Block w l) r = Block w $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
-catCtx (Wide v m u l) r = Wide v m u $ catCtx l r
+catCtx (Wide v m l) r = Wide v m $ catCtx l r
 
 -- Split the context after a particular variable
 breakAfter :: (Eq v) => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
@@ -1494,44 +1463,11 @@ breakAfter p (Var v m vs) = (Var v m lvs, rvs)
     (lvs, rvs)
       | p v = (ECtx, vs)
       | otherwise = breakAfter p vs
-breakAfter p (Wide v m u vs) = (Wide v m u lvs, rvs)
+breakAfter p (Wide v m vs) = (Wide v m lvs, rvs)
   where
     (lvs, rvs)
       | p v = (ECtx, vs)
       | otherwise = breakAfter p vs
-
--- | The context of a let's body: the bound variables over the context of
--- the let. A variable bound by a let that 'emitLet' turns into a 'Let'
--- section is wide, since its value arrives by a yield
--- ('Unison.Runtime.Wide'); a binding emitted as an instruction (a literal,
--- a constructor, a record, a primitive) writes its variable in place, one
--- slot. A let of several variables (a primitive yielding several values,
--- in the builtins) keeps one slot each.
-letCtx :: (Var v) => Direction a -> RNormal v -> [(v, Mem)] -> Ctx v -> Ctx v
-letCtx (Indirect _) bnd vcs ctx
-  | letYields bnd = yieldCtx vcs ctx
-letCtx _ _ vcs ctx = pushCtx vcs ctx
-
--- | The context over the values a 'Let' section's binding yields: wide for
--- one variable.
-yieldCtx :: [(v, Mem)] -> Ctx v -> Ctx v
-yieldCtx [(v, m)] ctx = Wide v m True ctx
-yieldCtx vcs ctx = pushCtx vcs ctx
-
--- | Whether 'emitLet' emits the binding as a 'Let' section, whose value
--- arrives by a yield, rather than as an instruction: the complement of
--- its instruction cases.
-letYields :: (Var v) => RNormal v -> Bool
-letYields = \case
-  TLit _ -> False
-  TBLit _ -> False
-  TApp (FCon _ _) _ -> False
-  TApp (FRec _) _ -> False
-  TApp (FRecSet _) _ -> False
-  TApp (FPrim _) _ -> False
-  TDiscard _ -> False
-  TUpdate {} -> False
-  _ -> True
 
 -- | The wide variables of a frame: the index of each one's value slot,
 -- counting from the top of the context, in increasing order, with the
@@ -1546,7 +1482,7 @@ wideSlots = go 0
     go i (Block _ ctx) = go i ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i (Var _ _ ctx) = go (i + 1) ctx
-    go i (Wide _ _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
+    go i (Wide _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
 
 -- | What a let body's combinator knows about the frame it is resumed
 -- over: the wide variables of the frame, each as (the index of its value
@@ -1847,7 +1783,7 @@ record :: (Var v) => RefNums -> RCtx v -> Ctx v -> [(v, Mem)] -> Word16 -> Emit 
 record rns rec ctx vcs l es = do
   c <- ask
   (s, (_m, Max sz, _)) <- listen es
-  let na = countCtx0 0 (yieldCtx vcs ctx)
+  let na = countCtx0 0 (pushCtx vcs ctx)
       n = letIndex l c
       chain = chainOf ctx
   base <- case rctxBase rec of
@@ -1963,7 +1899,7 @@ countCtx ctx = counted . C i
 
 countCtx0 :: Int -> Ctx v -> Int
 countCtx0 !i (Var _ _ ctx) = countCtx0 (i + 1) ctx
-countCtx0 !i (Wide _ _ _ ctx) = countCtx0 (i + wideWidth) ctx
+countCtx0 !i (Wide _ _ ctx) = countCtx0 (i + wideWidth) ctx
 countCtx0 i (Tag ctx) = countCtx0 (i + 1) ctx
 countCtx0 i (Block _ ctx) = countCtx0 i ctx
 countCtx0 i ECtx = i
@@ -1976,7 +1912,7 @@ emitComb ::
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
   State RecordFieldMappings (EC.EnumMap Word64 Comb, EC.EnumMap Word64 (Chain v))
-emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd))
+emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
   -- a body yields one value, or the leaves of its product for a
   -- product-return worker (Unison.Runtime.MCode.Explode)
   | Just k <- resultCount (combYields rns) bd,
@@ -1989,6 +1925,9 @@ emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd))
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
   where
+    -- the wide binders marked and the boxes placed, last
+    -- (Unison.Runtime.MCode.Wide)
+    bd = wideBody bd0
     -- the lambda's own lets by section index, for 'deoptOf' to find the
     -- let enclosing a section
     rec = rec0 {rctxBase = fmap (\bi -> bi {optLets = EC.mapFromList [(letIndex w n, us) | TLets (Indirect w) us _ _ _ <- universe bd]}) (rctxBase rec0)}
@@ -2033,6 +1972,7 @@ resultCount yields = go
       TFOp p args -> primCount (emitFOp p) args
       TDiscard _ -> Just 0
       TUpdate {} -> Just 0
+      TBox _ -> Just 0
       TApp FYield vs -> Just (length vs)
       TApp (FWorker r i) _ -> yields r i
       tm@(TMatch _ bs) -> case nubOrd (mapMaybe armCount (toList bs)) of
@@ -2100,10 +2040,10 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
       case (d, us, bu) of
         (Direct, [u], TPrm p _)
           | u == v,
-            Just (i, UN) <- ctxResolve (ectx ctx) v,
+            Just (i, UN) <- ctxResolve ectx v,
             all (\(t, (ccs, TAbss vs _)) -> Just (length (zip vs ccs)) == sumFields p t) (EC.mapToList cs) ->
               emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-                emitSumMatching rns grpr grpn rec (ectx ctx) v i cs
+                emitSumMatching rns grpr grpn rec ectx v i cs
         _ ->
           internalBug [] $
             "emitSection: an unboxed sum match that is not the body of a direct let of its tag over a primitive yielding that sum, with each arm binding the primitive's fields for its tag: " ++ show (TLets d us ms bu bo)
@@ -2111,26 +2051,25 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
     n /= length us =
       internalBug [] $
         "emitSection: a let of " ++ show (length us) ++ " names whose binding yields " ++ show n ++ " values: " ++ show bu
-  -- a small constructor stays in slots, boxed where it escapes
-  -- ('boxEscapes'): a path on which it never escapes allocates nothing
-  | wideOn,
-    [u] <- us,
-    TApp (FCon r n) args <- bu,
-    length args <= wideK =
-      boxEscapes ctx args $ \ctx ->
-        let rt = toEnum . fromIntegral $ dnum rns r
-         in addCount wideWidth
-              . fmap (Ins (PackWide r (packTags rt n) False (emitArgs grpn ctx args)))
-              $ emitSection rns grpr grpn rec (Wide u BX True ctx) bo
-  | letYields bu =
-      emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-        emitSection rns grpr grpn rec (ectx ctx) bo
+  -- a wide binder is one variable whose binding yields or builds a small
+  -- constructor (Unison.Runtime.MCode.Wide, 'wideBody')
+  | WD `elem` ms,
+    ms /= [WD] || not (letYields bu || wideCon bu) =
+      internalBug [] $ "emitSection: a wide binder on a let that neither yields nor builds a small constructor: " ++ show (TLets d us ms bu bo)
+  -- a small constructor stays in its wide variable's slots, boxed where
+  -- it escapes ('TBox'): a path on which it never escapes allocates
+  -- nothing
+  | [WD] <- ms,
+    TApp (FCon r n) args <- bu =
+      let rt = toEnum . fromIntegral $ dnum rns r
+       in addCount wideWidth
+            . fmap (Ins (PackWide r (packTags rt n) False (emitArgs grpn ctx args)))
+            $ emitSection rns grpr grpn rec ectx bo
   | otherwise =
-      boxEscapes ctx (instrArgs bu) $ \ctx ->
-        emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-          emitSection rns grpr grpn rec (ectx ctx) bo
+      emitLet rns grpr grpn rec d (zip us ms) ctx bu $
+        emitSection rns grpr grpn rec ectx bo
   where
-    ectx ctx = letCtx d bu (zip us ms) ctx
+    ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     let cix = (CIx f (cnum rns f) 0)
@@ -2148,9 +2087,10 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
               <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
+  -- a wide variable yields its slots
   | Just (i, _) <- ctxResolve ctx v,
     wideOn,
-    ctxIsWide ctx v =
+    ctxWide ctx v =
       countCtx ctx . Yield $ VArgR i wideWidth
   | Just (i, _) <- ctxResolve ctx v = countCtx ctx . Yield $ VArg1 i
   | Just j <- rctxResolve rec v =
@@ -2158,23 +2098,21 @@ emitSection _ grpr grpn rec ctx (TVar v)
        in countCtx ctx $ App False (Env cix cix) $ ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
-  boxEscapes ctx args $ \ctx ->
-    -- 3 is a conservative estimate of how many extra stack slots
-    -- a prim op will need for its results.
-    addCount 3
-      . countCtx ctx
-      . Ins (emitPOp p $ emitArgs grpn ctx args)
-      . Yield
-      . VArgV
-      $ countBlock ctx
+  -- 3 is a conservative estimate of how many extra stack slots
+  -- a prim op will need for its results.
+  addCount 3
+    . countCtx ctx
+    . Ins (emitPOp p $ emitArgs grpn ctx args)
+    . Yield
+    . VArgV
+    $ countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
-  boxEscapes ctx args $ \ctx ->
-    addCount 3
-      . countCtx ctx
-      . Ins (emitFOp p $ emitArgs grpn ctx args)
-      . Yield
-      . VArgV
-      $ countBlock ctx
+  addCount 3
+    . countCtx ctx
+    . Ins (emitFOp p $ emitArgs grpn ctx args)
+    . Yield
+    . VArgV
+    $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
     -- A record shape, or the reference for a field a record update replaces,
@@ -2401,7 +2339,7 @@ countBlock :: Ctx v -> Int
 countBlock = go 0
   where
     go !i (Var _ _ ctx) = go (i + 1) ctx
-    go !i (Wide _ _ _ ctx) = go (i + wideWidth) ctx
+    go !i (Wide _ _ ctx) = go (i + wideWidth) ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i _ = i
 
@@ -2474,6 +2412,13 @@ emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)
   | Just (i, _) <- ctxResolve ctx v = fmap (Ins $ Discard i)
+-- a wide variable boxed in place before it escapes
+-- (Unison.Runtime.MCode.Wide)
+emitLet _ _ _ _ _ _ ctx (TBox v)
+  | Just (i, _) <- ctxResolve ctx v,
+    ctxWide ctx v =
+      fmap (Ins $ Box i)
+  | otherwise = internalBug [] $ "emitLet: a box of a variable that is not wide: " ++ show v
 emitLet _ _ _ _ _ _ ctx (TUpdate ind r v)
   | Just (i, _) <- ctxResolve ctx r,
     Just (j, _) <- ctxResolve ctx v =
@@ -2866,9 +2811,6 @@ emitClosures grpr grpn rec ctx args k =
   where
     allocate ctx [] k = k ctx
     allocate ctx (a : as) k
-      | Just (i, _) <- ctxResolve ctx a,
-        ctxIsWide ctx a =
-          Ins (Box i) <$> allocate (markBoxed ctx a) as k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
           let cix = (CIx grpr grpn n)

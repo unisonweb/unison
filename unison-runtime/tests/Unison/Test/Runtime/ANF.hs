@@ -125,6 +125,7 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       FYield -> error "denormalize FYield"
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
+denormalize (TBox _) = error "denormalize TBox"
 denormalize (TLocal _ _) = error "denormalize TLocal"
 denormalize (TUpdate _ _ _) = error "denormalize TUpdate"
 denormalize (TAbs _ _) = error "denormalize TAbs"
