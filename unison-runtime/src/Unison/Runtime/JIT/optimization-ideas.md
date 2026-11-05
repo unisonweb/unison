@@ -145,6 +145,26 @@ indices, constant pool indices, and the addresses of native cells. Those would h
 indirections or relocations before an object could be reused. The one change that would make
 compile time stop mattering rather than smaller.
 
+### Inlining small definitions before the rewrites
+
+A loop that calls an accessor on its state each round keeps the accessor's match: with
+`Slice.sum s = go i acc = if i < Slice.size s then go (i + 1) (acc + Slice.at i s) else acc`
+over `structural type Slice a = Slice [a] Nat Nat`, the MCode of `go` is a call of
+`Slice.size`, a call of `Slice.at` and the recursive call, and each callee matches on
+the slice (`UNISON_JIT_DUMP_MCODE=1` on the example, 2026-11-05). The known-constructor
+rewrite works within one body and the explosion gives a worker only to a function whose
+body takes the argument apart, and `go` only passes `s` on, so neither fires, rightly:
+exploding `s` would mean repacking it for the two calls. The runtime has no inliner
+across definitions (the ANF only inlines variable aliases, `inlineAlias`), which is the
+step GHC takes first. An ANF-level inliner for small non-recursive definitions, run
+before `Unison.Runtime.MCode.Explode`, would make this case fall out: once `Slice.size`
+and `Slice.at` are in `go`'s body the matches are on `s`, `go` gets a worker over the
+three fields, the matches resolve against the known constructor and go, and a round is
+the bounds test, the index and the match on the element; the `{Exception}` on `Slice.at`
+is a request on the error path only. The threshold is a size in ANF nodes, the way the
+JIT's own `judge` estimates; a definition inlined into a group changes that group's
+continuations, so the deoptimization tables have to cover it like any other rewrite.
+
 ### Specialization on function arguments
 
 A call to `foldLeft` with `(Nat.+)` could produce a specialized version of `foldLeft`, with
