@@ -857,7 +857,7 @@ executeMainComb ::
   CCache () ->
   IO (Either Error ())
 executeMainComb init cc = do
-  rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
+  rSection <- resolveSection cc $ Ins (Pack TT.unitTag ZArgs) $ Call True init init (VArg1 0)
   result <- UnliftIO.try $ eval0 cc Nothing rSection
   bitraverse contextualizeErr pure result
   where

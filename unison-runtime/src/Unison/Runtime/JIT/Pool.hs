@@ -25,8 +25,6 @@ module Unison.Runtime.JIT.Pool
     poolIndexTrue,
     poolIndexFalse,
     poolIndexWitness,
-    poolIndexTypes,
-    poolTypes,
   )
 where
 
@@ -37,14 +35,12 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Primitive.Array (MutableArray, copyMutableArray, newArray, sizeofMutableArray, writeArray)
 import Data.Vector qualified as V
-import Data.Word (Word64)
-import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
-import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, witnessTag, pattern BoxedVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
+import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, emptyVal, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, witnessTag, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
 import Unison.Runtime.Stack qualified as Stack
 import Unison.Runtime.Wide (wideK)
-import Unison.Util.EnumContainers qualified as EC
+import Unsafe.Coerce (unsafeCoerce)
 
 -- The order matches unboxedTypeTagToInt in Stack.hs.
 poolIndexCharTag, poolIndexFloatTag, poolIndexIntTag, poolIndexNatTag :: Int
@@ -64,20 +60,8 @@ poolIndexFalse = 5
 poolIndexWitness :: Int -> Int
 poolIndexWitness n = 6 + n
 
--- | The type table: a mutable array of 'Val's, by type number, each the
--- @Enum@ of that type with constructor 0 (whose reference field native
--- code reads, as it does from the pool's own enums), wrapped as the
--- interpreter wraps a mutable array (@Foreign (WrapMutableArray ...)@),
--- the shape the array builtins already read natively. A @Box@ of an
--- unboxed constructor finds the type's reference here from the packed
--- tag it holds. Replaced by 'poolTypes' as types get numbers; a number
--- past the table's end, or an entry still the placeholder, sends the
--- instruction to the interpreter.
-poolIndexTypes :: Int
-poolIndexTypes = 7 + wideK
-
 fixedEntries :: Int
-fixedEntries = 8 + wideK
+fixedEntries = 7 + wideK
 
 -- | The size of the first array: every array ever passed to native code
 -- has at least this many entries.
@@ -91,10 +75,8 @@ poolStableSize (Pool _ n) = n
 
 -- | What a pool entry is. Entries are interned by key.
 data PoolKey
-  = -- | a constructor with no fields. Also how a 'Reference' is kept: the
-    -- entry for @KeyEnum r 0@ is an 'Enum' whose reference field native
-    -- code reads when it builds a constructor of that type.
-    KeyEnum !Reference !PackedTag
+  = -- | a constructor with no fields, by its packed tag
+    KeyEnum !PackedTag
   | -- | a boxed literal (text, term link, type link)
     KeyLit !MLit
   | -- | a known combinator as a value: a @PAp@ with nothing captured, the
@@ -108,13 +90,18 @@ data PoolKey
     -- copies the shape's words out of it when it builds a record
     -- (@RecPack@). Interned by the field names, which determine the shape.
     KeyRecord !RecordShape
+  | -- | the runtime's empty value ('emptyVal', a @Val@ closure), what a
+    -- new array is filled with: a heap object, so native code takes it
+    -- from the pool rather than from a C static, which the collector
+    -- would not update (found 2026-11-05)
+    KeyEmptyVal
 
 instance Eq PoolKey where
   a == b = compare a b == EQ
 
 instance Ord PoolKey where
   compare = \cases
-    (KeyEnum r t) (KeyEnum r' t') -> compare (r, t) (r', t')
+    (KeyEnum t) (KeyEnum t') -> compare t t'
     (KeyEnum {}) _ -> LT
     _ (KeyEnum {}) -> GT
     (KeyLit l) (KeyLit l') -> compare l l'
@@ -127,23 +114,25 @@ instance Ord PoolKey where
     (KeyCached {}) _ -> LT
     _ (KeyCached {}) -> GT
     (KeyRecord s) (KeyRecord s') -> compare s s'
+    (KeyRecord {}) _ -> LT
+    _ (KeyRecord {}) -> GT
+    KeyEmptyVal KeyEmptyVal -> EQ
 
 instance Show PoolKey where
   show = \case
-    KeyEnum r t -> "KeyEnum " ++ show r ++ " " ++ show t
+    KeyEnum t -> "KeyEnum " ++ show t
     KeyLit l -> "KeyLit " ++ show l
     KeyComb c _ -> "KeyComb " ++ show c
     KeyCached c _ -> "KeyCached " ++ show c
     KeyRecord s -> "KeyRecord " ++ show (shapeFields s)
+    KeyEmptyVal -> "KeyEmptyVal"
 
 data PoolState = PoolState
   { poolArray :: !(MutableArray (PrimState IO) Closure),
     poolNext :: !Int,
     poolKeys :: !(Map.Map PoolKey Int),
     -- | superseded arrays, kept alive on purpose
-    poolOld :: [MutableArray (PrimState IO) Closure],
-    -- | how many type numbers the type table covers
-    poolTypesSize :: !Int
+    poolOld :: [MutableArray (PrimState IO) Closure]
   }
 
 -- | A pool holding the fixed entries. The argument is the stress mode's
@@ -162,35 +151,8 @@ newPool stress = do
   put poolIndexTrue (getBoxedVal trueVal)
   put poolIndexFalse (getBoxedVal falseVal)
   forM_ [0 .. wideK] $ \n -> put (poolIndexWitness n) (witnessTag n)
-  types <- typeTable 0 (EC.mapFromList [])
-  put poolIndexTypes types
-  ref <- newIORef (PoolState arr fixedEntries Map.empty [] 0)
+  ref <- newIORef (PoolState arr fixedEntries Map.empty [])
   pure (Pool ref stable)
-
--- | Brings the type table up to the numbers the cache has given types.
--- Called where a module's indices are assigned, on the thread that
--- compiles (the only one that writes a pool), so that native code sees a
--- table at least as complete as the one its own compilation saw.
-poolTypes :: Pool -> EC.EnumMap Word64 Reference -> IO ()
-poolTypes (Pool ref _) m = do
-  p <- readIORef ref
-  let size = case EC.keys m of
-        [] -> 0
-        ks -> fromIntegral (maximum ks) + 1
-  when (size > poolTypesSize p) $ do
-    types <- typeTable size m
-    writeArray (poolArray p) poolIndexTypes types
-    forM_ (poolOld p) $ \old -> writeArray old poolIndexTypes types
-    writeIORef ref p {poolTypesSize = size}
-
--- | The type table with this many entries: see 'poolIndexTypes'. A number
--- without a type gets the placeholder, which native code tells from an
--- enum by its shape.
-typeTable :: Int -> EC.EnumMap Word64 Reference -> IO Closure
-typeTable size m = do
-  arr <- newArray size $! BoxedVal natTypeTag
-  forM_ (EC.mapToList m) $ \(k, r) -> writeArray arr (fromIntegral k) $! BoxedVal (Enum r (PackedTag 0))
-  pure $! Foreign (Stack.WrapMutableArray arr)
 
 -- | The array to pass to native code now.
 currentPool :: Pool -> IO (MutableArray (PrimState IO) Closure)
@@ -226,12 +188,15 @@ poolIndices (Pool ref _) keys = do
 
 closureFor :: PoolKey -> Closure
 closureFor = \case
-  KeyEnum r t -> Enum r t
+  KeyEnum t -> Enum t
   -- the segment's boxes must be evaluated (native code reads through
   -- them); nullSeg's components are CAFs, so force them
   KeyComb cix comb -> let (u, b) = nullSeg in u `seq` b `seq` PAp cix comb (u, b)
   KeyCached _ c -> c
   KeyRecord s -> RecordG s V.empty
+  -- a Val closure in a Closure's slot: the pool holds whatever native code
+  -- needs an address for, and the collector cares about neither type
+  KeyEmptyVal -> unsafeCoerce emptyVal
   KeyLit l -> case l of
     MT t -> Stack.TextC t
     MM r -> Foreign (Stack.WrapReferent r)

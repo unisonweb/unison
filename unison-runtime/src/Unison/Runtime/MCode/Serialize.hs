@@ -65,7 +65,7 @@ putLayout (FrameLayout wide base depth encl) =
     putBaseFrame (BaseFrame ix slots) = pWord ix <> putFoldable putSlot slots
     putSlot = \case
       Copy d i -> BU.word8 0 <> pInt d <> pInt i
-      PackSlot r t slots -> BU.word8 1 <> putReference r <> putPackedTag t <> putFoldable putSlot slots
+      PackSlot t slots -> BU.word8 1 <> putPackedTag t <> putFoldable putSlot slots
       RecSlot shape slots -> BU.word8 2 <> putRecordShape shape <> putFoldable putSlot slots
       Dead -> BU.word8 3
 
@@ -76,7 +76,7 @@ getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> 
     getSlot =
       getWord8 >>= \case
         0 -> Copy <$> gInt <*> gInt
-        1 -> PackSlot <$> getReference <*> getPackedTag <*> getList getSlot
+        1 -> PackSlot <$> getPackedTag <*> getList getSlot
         2 -> RecSlot <$> getRecordShape <*> getList getSlot
         3 -> pure Dead
         t -> fail $ "getLayout: unknown slot tag: " ++ show t
@@ -277,8 +277,8 @@ putInstr = \case
   (Discard i) -> putTag DiscardT <> pInt i
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
-  (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (PackWide r w b a) -> putTag PackWideT <> putReference r <> putPackedTag w <> putBool b <> putArgs a
+  (Pack w a) -> putTag PackT <> putPackedTag w <> putArgs a
+  (PackWide w b a) -> putTag PackWideT <> putPackedTag w <> putBool b <> putArgs a
   (Box i) -> putTag BoxT <> pInt i
   (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
@@ -334,8 +334,8 @@ getInstr =
     DiscardT -> Discard <$> gInt
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> getString
-    PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
-    PackWideT -> PackWide <$> getReference <*> getPackedTag <*> getBool <*> getArgs
+    PackT -> Pack <$> getPackedTag <*> getArgs
+    PackWideT -> PackWide <$> getPackedTag <*> getBool <*> getArgs
     BoxT -> Box <$> gInt
     LitT -> Lit <$> getLit
     PrintT -> Print <$> gInt

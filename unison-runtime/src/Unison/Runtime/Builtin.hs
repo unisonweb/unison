@@ -963,7 +963,7 @@ declareForeign sand arity func = declareForeignWrap sand wrap func
       | otherwise = argNDirect arity
 
 unitValue :: Val
-unitValue = BoxedVal $ Closure.Enum Ty.unitRef TT.unitTag
+unitValue = BoxedVal $ Closure.Enum TT.unitTag
 
 natValue :: Word64 -> Val
 natValue w = NatVal w

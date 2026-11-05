@@ -40,6 +40,7 @@ module Unison.Runtime.JIT.Codegen
     Switches (..),
     switches,
     unitForeign,
+    emptyArrayForeign,
     workerShape,
     staticWidth,
     mayYieldWitness,
@@ -64,7 +65,7 @@ import Data.Word (Word64)
 import Foreign.Ptr (Ptr, WordPtr (..), minusPtr, nullPtr, plusPtr, ptrToWordPtr)
 import GHC.Float (castDoubleToWord64)
 import System.Info (arch, os)
-import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Builtin.Decls qualified as Ty (unitRef)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
@@ -88,7 +89,7 @@ import Unison.Util.Text qualified as UT
 
 -- | Byte offsets of the fields of the C @Ctx@, from @unison_jit_ctx_layout@.
 data CtxOffsets = CtxOffsets
-  { oUstk, oBstk, oPool, oStackSize, oHplim, oAp, oFp, oSp, oMaxSp, oStressPoll, oStressPollLeft, oStressCallee, oStressCalleeLeft, oFrames, oNFrames, oMaxFrames, oCStackLimit, oCap, oBudgetEnd, oHp, oHpLim, oHenv, oNLocals :: !Int
+  { oUstk, oBstk, oPool, oStackSize, oHplim, oAp, oFp, oSp, oMaxSp, oMinSp, oStressPoll, oStressPollLeft, oStressCallee, oStressCalleeLeft, oFrames, oNFrames, oMaxFrames, oCStackLimit, oCap, oBudgetEnd, oHp, oHpLim, oHenv, oNLocals :: !Int
   }
 
 -- | From unison_jit_rts_facts: the info pointers and layouts of the two
@@ -121,8 +122,8 @@ data Env = Env
     -- | pool index of every constant this group uses
     envPool :: !(Map.Map PoolKey Int),
     envRts :: !RtsFacts,
-    -- | the number each type reference has in the cache (the type part of
-    -- a packed tag), for the one match arm that compares a whole tag (a
+    -- | the number each type reference has in the process
+    -- (Unison.Runtime.TypeNumbers: the type part of a packed tag), for the one match arm that compares a whole tag (a
     -- lone wide constructor's; no other declaration of a type is needed:
     -- field counts come from the arms and the objects, 'genDMatchClosure')
     envTypeNumbers :: !(Map.Map Reference Word64),
@@ -632,7 +633,7 @@ mayYieldWitness = \case
   Yield args -> case args of
     VArgR _ l -> wideOn && l == wideWidth
     _ -> False
-  Ins (PackWide _ _ True _) _ -> True
+  Ins (PackWide _ True _) _ -> True
   Ins _ rest -> mayYieldWitness rest
   Let _ _ _ body _ -> mayYieldWitness body
   Match _ br -> arms br
@@ -1427,7 +1428,7 @@ markWritten env top = do
 -- | Whether the code builds anything in the heap itself.
 allocates :: MSection -> Bool
 allocates = anyInstr $ \case
-  Pack _ _ ZArgs -> False
+  Pack _ ZArgs -> False
   Pack {} -> True
   Box _ -> True
   RecPack {} -> True
@@ -2053,6 +2054,22 @@ entryBlock env worker checks arity base maxK maxPool maxExitArgs witnesses =
                    "%maxsp.gt = icmp sgt i64 %fpk" <> tshow maxK <> ", %maxsp.old",
                    "%maxsp.new = select i1 %maxsp.gt, i64 %fpk" <> tshow maxK <> ", i64 %maxsp.old",
                    "store i64 %maxsp.new, ptr %maxsp.a"
+                 ]
+         )
+      -- and the low-water mark: a function re-entered inside an inline
+      -- binding has its frame below the one it was entered with (the frame
+      -- base), and writes the enclosing function's slots from %fp + 1,
+      -- which the marking on return would otherwise start above
+      <> ( if worker || base == 0
+             then D.empty
+             else
+               lines
+                 [ "%minsp.a = getelementptr i8, ptr %ctx, i64 " <> tshow (oMinSp (envCtx env)),
+                   "%minsp.old = load i64, ptr %minsp.a",
+                   "%minsp.fp1 = add i64 %fp, 1",
+                   "%minsp.lt = icmp slt i64 %minsp.fp1, %minsp.old",
+                   "%minsp.new = select i1 %minsp.lt, i64 %minsp.fp1, i64 %minsp.old",
+                   "store i64 %minsp.new, ptr %minsp.a"
                  ]
          )
       -- A constant past the pool's first array may not be in the array this
@@ -3281,16 +3298,6 @@ cachedConstant fe cix comb = case unRComb comb of
   _ -> Nothing
 
 -- | Pushes a cached top-level value.
--- | Loads a pool entry.
-poolClosure :: Int -> Gen Text
-poolClosure ix = do
-  usePool ix
-  a <- fresh "pool.a"
-  emit (a <> " = getelementptr ptr, ptr %pool, i64 " <> tshow ix)
-  v <- fresh "const"
-  emit (v <> " = load ptr, ptr " <> a)
-  pure v
-
 pushCached :: Int -> Int -> Int -> Gen ()
 pushCached d u ix = do
   usePool ix
@@ -3842,18 +3849,17 @@ genInstr fe d instr sect k =
     Lit l | Just ix <- Map.lookup (KeyLit l) (envPool (feEnv fe)) -> do
       poolConstant fe d ix
       k (d + 1)
-    Pack r t ZArgs | Just ix <- Map.lookup (KeyEnum r t) (envPool (feEnv fe)) -> do
+    Pack t ZArgs | Just ix <- Map.lookup (KeyEnum t) (envPool (feEnv fe)) -> do
       poolConstant fe d ix
       k (d + 1)
-    Pack r t args
-      | Just refIx <- Map.lookup (KeyEnum r (PackedTag 0)) (envPool (feEnv fe)),
-        Just fields <- packFields fe d args -> do
+    Pack t args
+      | Just fields <- packFields fe d args -> do
           slow <- exitBlock fe d (Resume (feCix fe) sect)
-          genPack fe d refIx t fields slow
+          genPack fe d t fields slow
           k (d + 1)
     -- an unboxed constructor: the packed tag and its witness in the value
     -- slot on top, the fields in the slots below (Unison.Runtime.Wide)
-    PackWide _ (PackedTag t) _ args -> do
+    PackWide (PackedTag t) _ args -> do
       vals <- loadSources (argSources fe d args)
       let n = D.size vals
           w = wideWidth
@@ -4009,7 +4015,7 @@ genInstr fe d instr sect k =
     Prim1 op i
       | enabled fe "list",
         op == VWLS || op == VWRS,
-        Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
+        Just emptyIx <- Map.lookup (KeyEnum TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
           let PackedTag elemTag = TT.seqViewElemTag
           slow <- callOutExit True fe d instr sect
           l <- loadB (d - i)
@@ -4038,7 +4044,7 @@ genInstr fe d instr sect k =
     Prim2 op i j
       | enabled fe "list",
         op == SPLL || op == SPLR,
-        Just emptyIx <- Map.lookup (KeyEnum Ty.seqViewRef TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
+        Just emptyIx <- Map.lookup (KeyEnum TT.seqViewEmptyTag) (envPool (feEnv fe)) -> do
           let PackedTag elemTag = TT.seqViewElemTag
           slow <- callOutExit True fe d instr sect
           n <- loadU (d - i)
@@ -4140,7 +4146,7 @@ genInstr fe d instr sect k =
           k (d + 1)
     Prim2 IDXB i j
       | enabled fe "bytes",
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
           slow <- callOutExit True fe d instr sect
           ix <- loadU (d - i)
@@ -4155,17 +4161,15 @@ genInstr fe d instr sect k =
     Prim1 op i
       | enabled fe "text",
         op == UCNS || op == USNC,
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
-        Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
-        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)),
+        Just unitIx <- Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
               PackedTag pairTag = TT.pairTag
           slow <- callOutExit True fe d instr sect
           t <- loadB (d - i)
           none <- poolValue noneIx
-          pair <- poolValue pairIx
           unit <- poolValue unitIx
-          listHelper d slow ("@unison_jit_text_uncons(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagChar fe <> ", i64 " <> (if op == UCNS then "1" else "0") <> ")")
+          listHelper d slow ("@unison_jit_text_uncons(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagChar fe <> ", i64 " <> (if op == UCNS then "1" else "0") <> ")")
           k (d + 1)
     Prim1 op i
       | enabled fe "text",
@@ -4186,7 +4190,7 @@ genInstr fe d instr sect k =
     Prim1 op i
       | enabled fe "text",
         op `elem` [TTOI, TTON, TTOF],
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
               !(Pair tag kind) = case op of
                 TTOI -> Pair (feTagInt fe) "0"
@@ -4209,7 +4213,7 @@ genInstr fe d instr sect k =
       k (d + 1)
     Prim2 IXOT i j
       | enabled fe "text",
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
           slow <- callOutExit True fe d instr sect
           x <- loadB (d - i)
@@ -4244,7 +4248,7 @@ genInstr fe d instr sect k =
       k (d + 1)
     Prim2 IXOB i j
       | enabled fe "bytes",
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
           slow <- callOutExit True fe d instr sect
           x <- loadB (d - i)
@@ -4275,13 +4279,11 @@ genInstr fe d instr sect k =
           k (d + 1)
     ForeignCall _ Text_fromUtf8_impl_v3 args
       | enabled fe "text",
-        kb :<| Empty <- argSources fe d args,
-        Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
+        kb :<| Empty <- argSources fe d args -> do
           let PackedTag rightTag = TT.rightTag
           slow <- callOutExit True fe d instr sect
           b <- loadB kb
-          eith <- poolValue eitherIx
-          listHelper d slow ("@unison_jit_text_from_utf8(ptr %ctx, ptr " <> b <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
+          listHelper d slow ("@unison_jit_text_from_utf8(ptr %ctx, ptr " <> b <> ", i64 " <> tshow rightTag <> ")")
           k (d + 1)
     ForeignCall _ Char_toText args
       | enabled fe "text",
@@ -4296,17 +4298,15 @@ genInstr fe d instr sect k =
       | enabled fe "bytes",
         Just (Pair width be) <- decodeNatKind f,
         kb :<| Empty <- argSources fe d args,
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)),
-        Just pairIx <- Map.lookup (KeyEnum Ty.pairRef (PackedTag 0)) (envPool (feEnv fe)),
-        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)),
+        Just unitIx <- Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
               PackedTag pairTag = TT.pairTag
           slow <- callOutExit True fe d instr sect
           b <- loadB kb
           none <- poolValue noneIx
-          pair <- poolValue pairIx
           unit <- poolValue unitIx
-          listHelper d slow ("@unison_jit_bytes_decode_nat(ptr %ctx, ptr " <> b <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagNat fe <> ")")
+          listHelper d slow ("@unison_jit_bytes_decode_nat(ptr %ctx, ptr " <> b <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagNat fe <> ")")
           k (d + 1)
     ForeignCall _ f args
       | enabled fe "bytes",
@@ -4346,16 +4346,15 @@ genInstr fe d instr sect k =
       | enabled fe "bytes",
         Just base <- fromBaseKind f,
         kb :<| Empty <- argSources fe d args,
-        Just eitherIx <- Map.lookup (KeyEnum Ty.eitherRef (PackedTag 0)) (envPool (feEnv fe)) -> do
+        True -> do
           let PackedTag rightTag = TT.rightTag
           slow <- callOutExit True fe d instr sect
           b <- loadB kb
-          eith <- poolValue eitherIx
-          listHelper d slow ("@unison_jit_bytes_from_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
+          listHelper d slow ("@unison_jit_bytes_from_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ", i64 " <> tshow rightTag <> ")")
           k (d + 1)
     Prim2 IDXS i j
       | enabled fe "list",
-        Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
+        Just noneIx <- Map.lookup (KeyEnum TT.noneTag) (envPool (feEnv fe)) -> do
           let PackedTag someTag = TT.someTag
           slow <- callOutExit True fe d instr sect
           ix <- loadU (d - i)
@@ -4365,7 +4364,7 @@ genInstr fe d instr sect k =
           k (d + 1)
     Prim2 REFW i j
       | enabled fe "ref",
-        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+        Just unitIx <- Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe)) -> do
           genRefWrite fe d (d - i) (d - j) unitIx instr sect
           k (d + 1)
     Prim2 op i j
@@ -4386,7 +4385,7 @@ genInstr fe d instr sect k =
     ForeignCall _ MutableArray_write args
       | enabled fe "array",
         ka :<| ki :<| kv :<| Empty <- argSources fe d args,
-        Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
+        Just unitIx <- Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe)) -> do
           genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) (Just (Pair kv unitIx)) instr sect
           k (d + 1)
     ForeignCall _ ImmutableArray_size args
@@ -4582,59 +4581,32 @@ requireTagged slow bs = do
       anyZ <- foldM (\acc z -> do r <- fresh "untagged"; emit (r <> " = or i1 " <> acc <> ", " <> z); pure r) z0 rest
       branchIf "tagged" anyZ slow
 
--- | Allocates a constructor with the given fields and pushes it. The
--- reference comes from the pool entry for the type's enumeration
--- constructor 0 (its first field). Each Pack allocates separately, since
--- a run of instructions can exit between two Packs and words taken for a
--- later one would be left uninitialized in the nursery, which the debug
--- RTS's heap walker rejects. An untagged field value goes to @slow@.
-genPack :: FnEnv -> Int -> Int -> PackedTag -> Deque Int -> Text -> Gen ()
-genPack fe d refIx (PackedTag t) fields slow = do
+-- | Allocates a constructor with the given fields and pushes it. Each
+-- Pack allocates separately, since a run of instructions can exit between
+-- two Packs and words taken for a later one would be left uninitialized
+-- in the nursery, which the debug RTS's heap walker rejects. An untagged
+-- field value goes to @slow@.
+genPack :: FnEnv -> Int -> PackedTag -> Deque Int -> Text -> Gen ()
+genPack fe d (PackedTag t) fields slow = do
   -- the fields, before the allocation call so nothing is held across it
   vals <- loadSources fields
   requireTagged slow (fmap (\(Pair _ b) -> b) vals)
-  ref <- poolReference fe refIx
-  genPackObj fe (d + 1) ref (tshow t) vals
+  genPackObj fe (d + 1) (tshow t) vals
 
--- | The Reference of a type: the pointer field of the pool's Enum for it.
-poolReference :: FnEnv -> Int -> Gen Text
-poolReference fe refIx = do
-  usePool refIx
-  ea <- fresh "enum.a"
-  emit (ea <> " = getelementptr ptr, ptr %pool, i64 " <> tshow refIx)
-  ep <- fresh "enum"
-  emit (ep <> " = load ptr, ptr " <> ea)
-  ei <- fresh "enum"
-  emit (ei <> " = ptrtoint ptr " <> ep <> " to i64")
-  eb <- fresh "enum.base"
-  emit (eb <> " = and i64 " <> ei <> ", -8")
-  enumReference fe eb
-
--- | The reference field of an enum (a constructor with no fields), from
--- its untagged address.
-enumReference :: FnEnv -> Text -> Gen Text
-enumReference fe eb = do
-  let ls = envLayouts (feEnv fe)
-  ra <- fresh "ref.a"
-  emit (ra <> " = add i64 " <> eb <> ", " <> tshow (lFieldOffset (lData ls V.! 0) 0))
-  rp <- fresh "ref.p"
-  emit (rp <> " = inttoptr i64 " <> ra <> " to ptr")
-  ref <- fresh "ref"
-  emit (ref <> " = load ptr, ptr " <> rp)
-  pure ref
-
--- | Allocates a data constructor with the given reference, packed tag (a
--- register or a constant) and field values, and stores it in slot @dst@.
-genPackObj :: FnEnv -> Int -> Text -> Text -> Deque (Pair Text Text) -> Gen ()
-genPackObj fe dst ref tag vals = do
-  tp <- genPackPtr fe ref tag vals
+-- | Allocates a data constructor with the given packed tag (a register or
+-- a constant) and field values, and stores it in slot @dst@.
+genPackObj :: FnEnv -> Int -> Text -> Deque (Pair Text Text) -> Gen ()
+genPackObj fe dst tag vals = do
+  tp <- genPackPtr fe tag vals
   storeU dst "-1"
   storeB dst tp
 
--- | Allocates a data constructor with the given reference, packed tag (a
--- register or a constant) and field values, and gives its tagged pointer.
-genPackPtr :: FnEnv -> Text -> Text -> Deque (Pair Text Text) -> Gen Text
-genPackPtr fe ref tag vals = do
+-- | Allocates a data constructor with the given packed tag (a register or
+-- a constant) and field values, and gives its tagged pointer. The tag is
+-- the first word after the field pointers (the layout the probes found,
+-- "Layouts" in design.md).
+genPackPtr :: FnEnv -> Text -> Deque (Pair Text Text) -> Gen Text
+genPackPtr fe tag vals = do
   let env = feEnv fe
       ls = envLayouts env
       rts = envRts env
@@ -4663,9 +4635,6 @@ genPackPtr fe ref tag vals = do
         emit ("store " <> what <> ", ptr " <> a)
   hdr <- word 0
   emit ("store i64 " <> tshow (lInfo layout) <> ", ptr " <> hdr)
-  -- the reference is the last pointer, the tag the first word after it
-  refA <- payload (lPtrs layout - 1)
-  emit ("store ptr " <> ref <> ", ptr " <> refA)
   tagA <- payload (lPtrs layout)
   emit ("store i64 " <> tag <> ", ptr " <> tagA)
   if not wide
@@ -4703,48 +4672,12 @@ genPackPtr fe ref tag vals = do
   emit (tp <> " = inttoptr i64 " <> ti <> " to ptr")
   pure tp
 
--- | The reference of the type whose number is in the packed tag @tagw@,
--- from the pool's type table ('poolIndexTypes'); a number the table does
--- not cover, or one still holding the placeholder, goes to @slow@.
-typeReference :: FnEnv -> Text -> Text -> Gen Text
-typeReference fe tagw slow = do
-  let ls = envLayouts (feEnv fe)
-      rts = envRts (feEnv fe)
-      d0 = lData ls V.! 0
-      vl = lVal ls
-  tn <- fresh "tynum"
-  emit (tn <> " = lshr i64 " <> tagw <> ", 16")
-  tbl <- poolClosure poolIndexTypes
-  raw <- fresh "raw"
-  emit (raw <> " = ptrtoint ptr " <> tbl <> " to i64")
-  fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
-  wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
-  w <- taggedObjectTag "types" wrapped (mutableArrayWrap fe) slow
-  arr <- loadAt w "arr" "i64" (lHeaderBytes ls)
-  count <- loadAt arr "count" "i64" (8 * rPtrsCount rts)
-  oob <- fresh "oob"
-  emit (oob <> " = icmp uge i64 " <> tn <> ", " <> count)
-  branchIf "known" oob slow
-  ea <- fresh "elem.a"
-  emit (ea <> " = add i64 " <> tn <> ", " <> tshow (rPtrsHeader rts))
-  arrP <- fresh "arr.p"
-  emit (arrP <> " = inttoptr i64 " <> arr <> " to ptr")
-  ep <- fresh "elem.p"
-  emit (ep <> " = getelementptr i64, ptr " <> arrP <> ", i64 " <> ea)
-  v <- fresh "elem"
-  emit (v <> " = load i64, ptr " <> ep)
-  val <- taggedObjectTag "val" v (Pair (lInfo vl) (lPtrTag vl)) slow
-  en <- loadAt val "enum" "i64" (lFieldOffset vl 0)
-  -- the placeholder of a number without a type fails this test
-  enum <- taggedObjectTag "enum" en (Pair (lInfo d0) (lPtrTag d0)) slow
-  enumReference fe enum
-
 -- | The text of a module's boxing helper, @unison_box_witness@, which a
 -- 'Box' of a witness calls (Unison.Runtime.Wide): given the packed tag,
 -- the field count and the field values of an unboxed constructor, it
--- allocates the object and gives its tagged pointer, or null when the
--- type table does not cover the type or a field is an untagged pointer,
--- which sends the instruction to the interpreter. One function per module
+-- allocates the object and gives its tagged pointer, the same allocation
+-- a Pack makes, or null when a field is an untagged pointer, which sends
+-- the instruction to the interpreter. One function per module
 -- rather than code at every site: a function with many small constructors
 -- escaping had three copies of all this at each of them, and its re-entry
 -- functions copies of those, 127 MB of IR for one module (2026-10-28).
@@ -4756,16 +4689,19 @@ boxHelperText env
           gs0 = initialState 0 (envCells env) (envKnown env) False
           gs = flip execState gs0 $ do
             failL <- freshLabel "fail"
-            ref <- typeReference fe "%tagw" failL
-            arms <- forM [0 .. wideK] $ \n -> do
-              l <- freshLabel ("fields" <> tshow n)
+            arms <- forM [0 .. wideK] $ \n -> Pair n <$> freshLabel ("fields" <> tshow n)
+            -- the switch is the entry block's one instruction, and the
+            -- entry block is closed before the arms so that it comes
+            -- first in the text: the arms are branched to, and an entry
+            -- block with predecessors is refused
+            emit ("switch i64 %n, label %" <> failL <> " [ " <> intercalateT " " (D.fromList ["i64 " <> tshow n <> ", label %" <> l | Pair n l <- arms]) <> " ]")
+            startBlock "unreachable"
+            forM_ arms $ \(Pair n l) ->
               sideBlockNamed l $ do
                 let vals = D.fromList (take n [Pair "%u0" "%b0", Pair "%u1" "%b1"])
                 requireTagged failL (fmap (\(Pair _ b) -> b) vals)
-                tp <- genPackPtr fe ref "%tagw" vals
+                tp <- genPackPtr fe "%tagw" vals
                 emit ("ret ptr " <> tp)
-              pure (Pair n l)
-            emit ("switch i64 %n, label %" <> failL <> " [ " <> intercalateT " " (D.fromList ["i64 " <> tshow n <> ", label %" <> l | Pair n l <- arms]) <> " ]")
             sideBlockNamed failL (emit "ret ptr null")
             startBlock "unreachable"
           block (Pair l is)
@@ -5346,6 +5282,10 @@ arrayForeign = \case
   _ -> Nothing
 
 -- | The foreign functions whose result is unit (they need the constant).
+-- | The array builtins that fill a new array with the empty value.
+emptyArrayForeign :: [ForeignFunc]
+emptyArrayForeign = [f | f <- [minBound .. maxBound], Just (PNew False) <- [arrayForeign f]]
+
 unitForeign :: [ForeignFunc]
 unitForeign =
   [f | f <- [minBound .. maxBound], Just op <- [arrayForeign f], givesUnit op]
@@ -5437,7 +5377,7 @@ genPtrOp fe d (PtrOp el indexed write) srcs instr sect = do
         PFloat64 -> 8
         PPtr -> 8
       ity = "i" <> tshow (8 * width)
-      unitIx = Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe))
+      unitIx = Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe))
       shape = case (D.toList srcs, indexed, write) of
         ([kp], False, False) -> Just (kp, Nothing, Nothing)
         ([kp, ki], True, False) -> Just (kp, Just ki, Nothing)
@@ -5538,7 +5478,7 @@ genArrayForeign fe d op srcs instr sect = do
   slow <- callOutExit True fe d instr sect
   let ls = envLayouts (feEnv fe)
       bool b = if b then "1" else "0"
-      unitIx = Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe))
+      unitIx = Map.lookup (KeyEnum TT.unitTag) (envPool (feEnv fe))
       unitResult call = case unitIx of
         Just ix -> unitHelper fe d slow ix call
         Nothing -> emit ("br label %" <> slow) >> startBlock "unreachable.unit" >> pure ()
@@ -5623,9 +5563,11 @@ genArrayForeign fe d op srcs instr sect = do
     (FromBytes, kb :<| Empty) -> do
       b <- loadB kb
       listHelper d slow ("@unison_jit_barray_from_bytes(ptr %ctx, ptr " <> b <> ")")
-    (PNew False, kn :<| Empty) -> do
-      n <- loadU kn
-      listHelper d slow ("@unison_jit_parray_new(ptr %ctx, i64 " <> n <> ", i64 0, i64 0, ptr null)")
+    (PNew False, kn :<| Empty)
+      | Just emptyIx <- Map.lookup KeyEmptyVal (envPool (feEnv fe)) -> do
+          n <- loadU kn
+          e <- poolValue emptyIx
+          listHelper d slow ("@unison_jit_parray_new(ptr %ctx, i64 " <> n <> ", i64 0, i64 0, ptr " <> e <> ")")
     (PNew True, kv :<| kn :<| Empty) -> do
       u <- loadU kv
       b <- loadB kv

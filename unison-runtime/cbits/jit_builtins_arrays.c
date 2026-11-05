@@ -23,7 +23,7 @@
 int64_t unison_jit_array_init(void **raw, int64_t *info) {
   WrapInfo *ws[] = {&AK.marray, &AK.array, &AK.mbarray, &AK.barray, &AK.ioref, &AK.ticket, &AK.ptr};
   for (int i = 0; i < 7; i++) ws[i]->info = info[2 * i], ws[i]->tag = info[2 * i + 1];
-  AK.empty_val = unison_jit_settle(raw[0]);
+  (void)raw;
   AK.ok = LF.foreign_info != 0;
   return AK.ok;
 }
@@ -179,12 +179,16 @@ static inline void parray_dirty(StgMutArrPtrs *a, StgWord from, StgWord to) {
   for (StgWord c = from >> MUT_ARR_PTRS_CARD_BITS; c <= to >> MUT_ARR_PTRS_CARD_BITS; c++) *mutArrPtrsCard(a, c) = 1;
 }
 
-// Scope.array / arrayOf (and IO's): n copies of the value, or of the
-// runtime's empty value. The value is one Val shared by every element, as
-// newArray n v shares it.
+// Scope.array / arrayOf (and IO's): n copies of the value, or, without
+// one, of the runtime's empty value, which the caller passes in `b` from
+// the constant pool: a heap object must not be kept in a C static, since
+// the collector moves it (found 2026-11-05: the static copy of the empty
+// value was dead after the first GC, and every array made without an
+// initial value held pointers to freed memory). The value is one Val
+// shared by every element, as newArray n v shares it.
 void *unison_jit_parray_new(UnisonJitCtx *ctx, int64_t n, int64_t has_init, int64_t u, void *b) {
-  if (!AK.ok || n < 0) return NULL;
-  StgClosure *init = has_init ? mk_val(ctx, b, u) : AK.empty_val;
+  if (!AK.ok || n < 0 || b == NULL) return NULL;
+  StgClosure *init = has_init ? mk_val(ctx, b, u) : (StgClosure *)b;
   // the size is the program's: a size no heap can hold is the
   // interpreter's to refuse (parray_new is for sizes bounded by existing data)
   StgWord cards = mutArrPtrsCardTableSize((StgWord)n);
@@ -218,9 +222,10 @@ void *unison_jit_parray_freeze(UnisonJitCtx *ctx, void *x, int64_t off, int64_t 
     SET_INFO((StgClosure *)a, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info);
     return wrap_word(ctx, &AK.array, (StgWord)a);
   }
-  if (len == 0) return wrap_word(ctx, &AK.array, (StgWord)parray_new(ctx, 0, AK.empty_val, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info));
+  if (len == 0) return wrap_word(ctx, &AK.array, (StgWord)parray_new(ctx, 0, NULL, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info));
   if (!range_ok(a->ptrs, off, len)) return NULL;
-  StgMutArrPtrs *b = parray_new(ctx, (StgWord)len, AK.empty_val, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info);
+  // every element is copied over the fill, so the fill is nothing
+  StgMutArrPtrs *b = parray_new(ctx, (StgWord)len, NULL, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info);
   memcpy(b->payload, &a->payload[off], (size_t)len * sizeof(W_));
   return wrap_word(ctx, &AK.array, (StgWord)b);
 }

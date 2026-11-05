@@ -98,8 +98,8 @@ instrReads base d = \case
   Discard _ -> Nothing
   Name r args -> (case r of Stk i -> slotAt d i; _ -> Just IS.empty) <+> argReads base d args
   Info _ -> Just IS.empty
-  Pack _ _ args -> argReads base d args
-  PackWide _ _ _ args -> argReads base d args
+  Pack _ args -> argReads base d args
+  PackWide _ _ args -> argReads base d args
   Box i -> foldr (<+>) (slotAt d i) [slotAt d (i + j) | j <- [1 .. wideWidth - 1]]
   RecPack _ args -> argReads base d args
   RecUnpack _ i -> slotAt d i

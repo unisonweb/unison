@@ -26,9 +26,8 @@ interpreter, a few were slightly slower. A three-word allocation in the
 nursery costs about what the two array reads and the tag test cost, and the
 garbage it leaves is free to a copying collector. Not kept; the entry stays
 for the record. A `Box` of a witness with no fields still allocates its enum
-natively (the type table holds one enum per type, for the reference), which a
-table by constructor would avoid; rare, since a nullary value that escapes is
-usually built boxed in the first place.
+natively, where the pool's entry for that constructor would do; rare, since a
+nullary value that escapes is usually built boxed in the first place.
 
 ### The product-return worker: what is left
 
@@ -88,33 +87,6 @@ all in its module could skip reserving Unison-stack slots for its
 arguments. The loops that matter compile into one
 module, so the gain is in the entry and exit paths, to be measured.
 
-### A typed Box
-
-Under the wide convention a call's result that is a small constructor,
-`Some x` say, comes back unboxed: the constructor's packed tag in the
-value slot's word, a witness closure in its pointer half, and the field in
-the slot below (design.md, "The wide calling convention"). Where such a
-value escapes, the ANF pass that places the boxes
-(`Unison.Runtime.MCode.Wide`) puts a box node there, native code boxes it
-(`Box`), and to allocate the object it needs the type's `Reference`,
-which the tag word does not hold: it holds the type's *number*, so the
-module's boxing helper looks the reference up in the pool's type table
-(four tagged-pointer checks and an index, `typeReference` in Codegen.hs)
-before it allocates. When the let's callee is in the batch, the pass can
-know the type statically: the analysis that already marks a result "never
-a witness" (`mayYieldWitness`) can instead say which constructors the
-callee's tails can yield (`filterMap f t` yields `Nil` or `Cons` of one
-type), the box node records the reference (`ABox v (Maybe ref)`), and the
-`Box` then takes the reference from the pool as a `Pack` does and
-switches on the field count, no table. The `filterMap` row (0.77x on
-2026-10-28) boxes the recursive result into a `Cons` on every element and
-pays that lookup each time. Two smaller refinements of the same pass: a
-box placed inside a let's binding (an argument of the call that is the
-binding) could count for the let's body, which boxes the variable again
-today should it escape there, since the box is in place in the frame the
-body reads; and a box in every arm of a match could move above the match,
-which saves no allocation but shrinks the code.
-
 ### One witness closure
 
 Native code tells a witness from an ordinary value by comparing the slot's
@@ -163,14 +135,6 @@ would have to live in one chunk (the maximum frame size is known, so an entry ch
 guarantee it), and everything that walks the stack across frames (`Capture`, `saveFrame`'s
 copies, continuations, the GC marking in `unison_jit_enter`, the C helpers reading argument
 slots) would follow chunk links. A sizeable interpreter change.
-
-### Dropping the reference pointer from data closures
-
-The packed tag carries the type number, so the reference field is redundant: one word and
-one traced pointer per value. It stays because `compareClosure`'s different-types path
-(inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
-the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
-parameterized by a comparison would free it.
 
 ### Caching compiled code across runs
 

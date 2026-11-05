@@ -39,9 +39,7 @@ import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
-import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, boxHelperText, genDeferred, genFunction, modulePrelude, patchIndices, relocateCells)
 import Unison.Runtime.JIT.Codegen qualified as CG
@@ -51,7 +49,7 @@ import Unison.Runtime.JIT.Exits (Exits, nameEntry, newExits, registerExits, repl
 import Unison.Runtime.JIT.Frames (Frames, newFrames, registerFrames, replaceFrames)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (Layouts)
-import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize, poolTypes)
+import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize)
 import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
 import Unison.Runtime.MCode.Explode (isJoinIndex, retIndex)
@@ -107,9 +105,8 @@ poolKeysOf s =
        ]
   where
     -- the constructors the text and bytes helpers build results from
-    none = KeyEnum Ty.optionalRef TT.noneTag
-    pair = KeyEnum Ty.pairRef (PackedTag 0)
-    unit = KeyEnum Ty.unitRef TT.unitTag
+    none = KeyEnum TT.noneTag
+    unit = KeyEnum TT.unitTag
     -- a known combinator used as a value, or a top-level value
     combKey = \case
       Env cix comb
@@ -127,36 +124,35 @@ poolKeysOf s =
       VArgN v -> Just (sizeofPrimArray v)
       VArgV _ -> Nothing
     keys = \case
-      Pack r t ZArgs -> [KeyEnum r t]
-      Pack r _ _ -> [KeyEnum r (PackedTag 0)]
+      Pack t ZArgs -> [KeyEnum t]
       -- a record is built from an empty one of its shape
       RecPack shape _ -> [KeyRecord shape]
       Lit l@(MT _) -> [KeyLit l]
       Lit l@(MM _) -> [KeyLit l]
       Lit l@(MY _) -> [KeyLit l]
-      Prim2 REFW _ _ -> [KeyEnum Ty.unitRef TT.unitTag]
+      Prim2 REFW _ _ -> [KeyEnum TT.unitTag]
       -- the list helpers are handed the result type's field-less constructor
-      Prim1 VWLS _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
-      Prim1 VWRS _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
+      Prim1 VWLS _ -> [KeyEnum TT.seqViewEmptyTag]
+      Prim1 VWRS _ -> [KeyEnum TT.seqViewEmptyTag]
       Prim2 IDXS _ _ -> [none]
       Prim2 IDXB _ _ -> [none]
       Prim2 IXOT _ _ -> [none]
       Prim2 IXOB _ _ -> [none]
-      Prim1 UCNS _ -> [none, pair, unit]
-      Prim1 USNC _ -> [none, pair, unit]
+      Prim1 UCNS _ -> [none, unit]
+      Prim1 USNC _ -> [none, unit]
       Prim1 TTOI _ -> [none]
       Prim1 TTON _ -> [none]
       Prim1 TTOF _ -> [none]
       ForeignCall _ f _
-        | f `elem` [Bytes_decodeNat16be, Bytes_decodeNat16le, Bytes_decodeNat32be, Bytes_decodeNat32le, Bytes_decodeNat64be, Bytes_decodeNat64le] -> [none, pair, unit]
-        | f `elem` [Text_fromUtf8_impl_v3, Bytes_fromBase16, Bytes_fromBase32, Bytes_fromBase64, Bytes_fromBase64UrlUnpadded] -> [KeyEnum Ty.eitherRef (PackedTag 0)]
-      Prim2 SPLL _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
-      Prim2 SPLR _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
+        | f `elem` [Bytes_decodeNat16be, Bytes_decodeNat16le, Bytes_decodeNat32be, Bytes_decodeNat32le, Bytes_decodeNat64be, Bytes_decodeNat64le] -> [none, unit]
+      Prim2 SPLL _ _ -> [KeyEnum TT.seqViewEmptyTag]
+      Prim2 SPLR _ _ -> [KeyEnum TT.seqViewEmptyTag]
       -- a partial application of a known function starts from its closure
       Name (Env cix comb) _ | Comb info _ <- unRComb comb -> [KeyComb cix info]
-      ForeignCall _ MutableArray_write _ -> [KeyEnum Ty.unitRef TT.unitTag]
+      ForeignCall _ MutableArray_write _ -> [KeyEnum TT.unitTag]
+      ForeignCall _ f _ | f `elem` CG.emptyArrayForeign -> [KeyEmptyVal]
       -- the array writes and copies give unit
-      ForeignCall _ f _ | f `elem` CG.unitForeign -> [KeyEnum Ty.unitRef TT.unitTag]
+      ForeignCall _ f _ | f `elem` CG.unitForeign -> [KeyEnum TT.unitTag]
       _ -> []
 
 -- | What compilation needs, found once at startup.
@@ -407,7 +403,6 @@ compileUnits c st numbers modName lazy candidates = do
   forM_ notWorthIt $ \(u, why) -> jitLog config (uName u ++ ": " ++ why)
   atomicModifyIORef' (cTotals c) (\t -> (t {ctNotWorthIt = ctNotWorthIt t + length notWorthIt}, ()))
   jitLog config (modName ++ ": compiling " ++ unwords (map uName units))
-  poolTypes (cPool c) numbers
   poolIxs <- poolIndices (cPool c) (concatMap (poolKeysOf . uSection) units)
   memos <- readIORef (cRootMemos c)
   let gen u e = uGen u (uName u) e

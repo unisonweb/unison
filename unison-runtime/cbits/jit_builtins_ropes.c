@@ -572,8 +572,7 @@ int64_t unison_jit_foreign_eq(void *x, void *y, int64_t kinds) {
 }
 
 // Bytes.at: Some n or None, as the interpreter's IDXB builds them. `none` is
-// the None closure (its first field is the type's Reference) and `nat_tag`
-// the type tag closure of a Nat.
+// the None closure and `nat_tag` the type tag closure of a Nat.
 void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *none, int64_t some_tag,
                              void *nat_tag) {
   StgClosure *r = rope_of(&BK, bytes);
@@ -581,14 +580,7 @@ void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *no
   if (i < 0 || i >= rope_size(&BK, r)) return none;
   StgInt off;
   StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
-  // Data1 tag v ref: pointers v's, ref; words tag, v's
-  StgWord *p = list_alloc(ctx, 5);
-  p[0] = LF.data1_info;
-  p[1] = (StgWord)nat_tag;
-  p[2] = (StgWord)LP(none, 0);
-  p[3] = some_tag;
-  p[4] = chunk_bytes(&BK, c)[off];
-  return (void *)((StgWord)p | LF.data1_tag);
+  return mk_some(ctx, some_tag, nat_tag, chunk_bytes(&BK, c)[off]);
 }
 
 // Bytes.flatten: the same bytes in one chunk. A rope of one chunk, or none,
@@ -772,10 +764,10 @@ static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t ar
   ctx->cap = rts_unsafeGetMyCapability();
   void *res = NULL;
   void *e0 = unison_jit_settle(elems[0]), *e1 = unison_jit_settle(elems[1]);
-  // the constructors the results need: elems[4] None, [5] the Tuple
-  // enumeration, [6] (), [7] the Either enumeration, [8..11] the Char, Nat,
-  // Int and Float type tags
-  void *none = unison_jit_settle(elems[4]), *pair = unison_jit_settle(elems[5]), *unit = unison_jit_settle(elems[6]), *either = unison_jit_settle(elems[7]);
+  // the constructors the results need: elems[4] None, [6] (), [8..11] the
+  // Char, Nat, Int and Float type tags; the tags of Some, Tuple and Right
+  // come as arguments
+  void *none = unison_jit_settle(elems[4]), *unit = unison_jit_settle(elems[6]);
   void *ctag = unison_jit_settle(elems[8]), *ntag = unison_jit_settle(elems[9]), *itag = unison_jit_settle(elems[10]), *ftag = unison_jit_settle(elems[11]);
   if (K == &TK) switch (op) {
       case 0: res = rope_h_append(ctx, K, e0, e1); break;
@@ -784,7 +776,7 @@ static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t ar
       case 3: return rope_h_size(K, e0);
       case 4: return rope_h_eq(K, e0, e1);
       case 5:
-      case 6: res = unison_jit_text_uncons(ctx, e0, none, arg, pair, arg2, unit, ctag, op == 5); break;
+      case 6: res = unison_jit_text_uncons(ctx, e0, none, arg, arg2, unit, ctag, op == 5); break;
       case 7: res = unison_jit_int_to_text(ctx, arg, 1); break;
       case 8: res = unison_jit_int_to_text(ctx, arg, 0); break;
       case 9: res = unison_jit_float_to_text(ctx, arg); break;
@@ -800,7 +792,7 @@ static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t ar
       case 19: res = unison_jit_text_case(ctx, e0, 1); break;
       case 20: res = unison_jit_text_case(ctx, e0, 0); break;
       case 21: res = unison_jit_text_to_utf8(ctx, e0); break;
-      case 22: res = unison_jit_text_from_utf8(ctx, e0, either, arg); break;
+      case 22: res = unison_jit_text_from_utf8(ctx, e0, arg); break;
       case 23: res = unison_jit_char_to_text(ctx, arg); break;
     }
   else switch (op) {
@@ -815,14 +807,14 @@ static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t ar
       case 8: res = unison_jit_bytes_unpack(ctx, e0, ntag); break;
       case 9: res = unison_jit_bytes_index_of(ctx, e0, e1, none, arg, ntag); break;
       case 10: return unison_jit_foreign_cmp(e0, e1, 2);
-      case 11: res = unison_jit_bytes_decode_nat(ctx, e0, arg >> 1, arg & 1, none, arg2, pair, arg3, unit, ntag); break;
+      case 11: res = unison_jit_bytes_decode_nat(ctx, e0, arg >> 1, arg & 1, none, arg2, arg3, unit, ntag); break;
       case 12: res = unison_jit_bytes_encode_nat(ctx, arg, arg2 >> 1, arg2 & 1); break;
       case 13: {
         int64_t ok = unison_jit_bytes_read_ok(e0, arg, arg2 >> 1);
         return ok == 1 ? unison_jit_bytes_read_at(e0, arg, arg2 >> 1, arg2 & 1) : ok == 0 ? -1 : -2;
       }
       case 14: res = unison_jit_bytes_to_base(ctx, e0, arg); break;
-      case 15: res = unison_jit_bytes_from_base(ctx, e0, arg, either, arg2); break;
+      case 15: res = unison_jit_bytes_from_base(ctx, e0, arg, arg2); break;
     }
   if (res == NULL) return 0;
   elems[3] = res;

@@ -195,6 +195,14 @@ data Config = Config
     stressCStack :: Int,
     -- | allocation budget between polls, in words (stress mode @alloc=N@)
     stressAlloc :: Int,
+    -- | a minor GC after every this-many-th return from native code (stress
+    -- mode @gc=N@): a pointer native code stored into a card the write
+    -- barrier did not mark dies at the next return, which the debug RTS
+    -- then reports at once instead of one run in several
+    stressGC :: Int,
+    -- | returns from native code before @gc=N@ starts (@gcskip=M@), to reach
+    -- a late fault sooner
+    stressGCSkip :: Int,
     -- | milliseconds to sleep between installing each function of a
     -- module (stress mode @install=N@)
     stressInstall :: Int,
@@ -283,6 +291,8 @@ readConfig = do
         stressCallee = fromMaybe 0 (setting "callee"),
         stressCStack = fromMaybe 0 (setting "cstack"),
         stressAlloc = fromMaybe 0 (setting "alloc"),
+        stressGC = fromMaybe 0 (setting "gc"),
+        stressGCSkip = fromMaybe 0 (setting "gcskip"),
         stressInstall = fromMaybe 0 (setting "install"),
         stressPool = setting "pool",
         stressLists = fromMaybe 0 (setting "lists"),

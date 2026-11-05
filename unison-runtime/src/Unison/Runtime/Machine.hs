@@ -441,12 +441,12 @@ exec env henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
       stk <- bump stk
       pokeBool stk r
       pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
-  clo <- buildData stk r t args
+exec _ henv !_activeThreads !stk !k _ (Pack t args) = do
+  clo <- buildData stk t args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) base args) = do
+exec _ henv !_activeThreads !stk !k _ (PackWide (PackedTag t) base args) = do
   -- one case per field count, like dataBranch's, so that nothing is
   -- allocated on the way; the fields are read before the slots are
   -- written, since at the base the new slots overlap the frame
@@ -490,7 +490,7 @@ exec _ henv !_activeThreads !stk !k _ (Box i) = do
   peekOff stk i >>= \case
     Val t (UnboxedTypeTag (WitnessTag n)) -> do
       let pt = PackedTag (fromIntegral t)
-      clo <- buildDataAt stk (TN.typeReference (TT.typeTag pt)) pt n (i + 1 +)
+      clo <- buildDataAt stk pt n (i + 1 +)
       pokeOff stk i (BoxedVal clo)
     _ -> pure ()
   pure (False, henv, stk, k)
@@ -887,7 +887,7 @@ eval' !yld env henv !activeThreads !stk !k r (Ins i nx) = do
       | exception -> do
           eh <- resolveExceptionHandler henv
           fv <- peek stk
-          bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
+          bpoke stk $ Data1 TT.exceptionRaiseTag fv
           (stk, fsz, asz) <- saveFrame stk
           let kk = Push fsz asz fakeCix 10 nx noNativeCell k
           apply yld env henv activeThreads stk kk False (VArg1 0) eh
@@ -1149,6 +1149,7 @@ runNativeFrom retried !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0
       if status == statusOK
         then do
           when tracing $ JIT.jitDump ("native returned OK with ap/fp/sp " ++ show (ap', fp', sp') ++ " (entered with " ++ show (ap, fp, sp) ++ ")")
+          stressGCTick
           yield yld env henv activeThreads stk k
         else
           if status == statusError
@@ -1166,6 +1167,7 @@ runNativeFrom retried !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0
                 when (every > 0 && total `mod` every == 0) (printJITStats (jit env))
               exit <- lookupExit exits status
               when tracing $ JIT.jitDump ("  exit " ++ show status ++ ": " ++ describeExit exit)
+              stressGCTick
               -- Records are written innermost caller first; K has the
               -- innermost frame on top, so build from the last record.
               k <- if n == 0 then pure k else foldM (pushRecord bstk size (isAdHoc exit)) k (reverse records)
@@ -1230,7 +1232,7 @@ runNativeFrom retried !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0
             | exception -> do
                 eh <- resolveExceptionHandler henv
                 fv <- peek stk'
-                bpoke stk' $ Data1 exceptionRef TT.exceptionRaiseTag fv
+                bpoke stk' $ Data1 TT.exceptionRaiseTag fv
                 (stk', fsz, asz) <- saveFrame stk'
                 let cell' = if n == 1 then cell else noNativeCell
                     kk = Push fsz asz fakeCix 10 rest cell' k'
@@ -1469,49 +1471,49 @@ closureArgs !_ _ =
   error "closure arguments can only be boxed."
 {-# INLINE closureArgs #-}
 
--- | Pack some number of args into a data type of the provided ref/tag type.
+-- | Pack some number of args into a data type of the provided tag.
 buildData ::
-  Stack -> Reference -> PackedTag -> Args -> IO Closure
-buildData !_ !r !t ZArgs = pure $ Enum r t
-buildData !stk !r !t (VArg1 i) = do
+  Stack -> PackedTag -> Args -> IO Closure
+buildData !_ !t ZArgs = pure $ Enum t
+buildData !stk !t (VArg1 i) = do
   v <- peekOff stk i
-  pure $ Data1 r t v
-buildData !stk !r !t (VArg2 i j) = do
+  pure $ Data1 t v
+buildData !stk !t (VArg2 i j) = do
   v1 <- peekOff stk i
   v2 <- peekOff stk j
-  pure $ Data2 r t v1 v2
-buildData !stk !r !t (VArgR i l)
-  | l <= 6 = buildDataAt stk r t l (i +)
+  pure $ Data2 t v1 v2
+buildData !stk !t (VArgR i l)
+  | l <= 6 = buildDataAt stk t l (i +)
   | otherwise = do
       seg <- augSeg I stk nullSeg (Just $ ArgR i l)
-      pure $ DataG r t seg
-buildData !stk !r !t (VArgN as)
-  | n <= 6 = buildDataAt stk r t n (PA.indexPrimArray as)
+      pure $ DataG t seg
+buildData !stk !t (VArgN as)
+  | n <= 6 = buildDataAt stk t n (PA.indexPrimArray as)
   | otherwise = do
       seg <- augSeg I stk nullSeg (Just $ ArgN as)
-      pure $ DataG r t seg
+      pure $ DataG t seg
   where
     n = PA.sizeofPrimArray as
-buildData !stk !r !t (VArgV i)
-  | l <= 6 = buildDataAt stk r t l id
+buildData !stk !t (VArgV i)
+  | l <= 6 = buildDataAt stk t l id
   | otherwise = do
       seg <- augSeg I stk nullSeg (Just $ ArgR 0 l)
-      pure $ DataG r t seg
+      pure $ DataG t seg
   where
     l = fsize stk - i
 {-# INLINE buildData #-}
 
 -- | A constructor of @n@ (up to six) fields, field @k@ read from slot
 -- @slot k@.
-buildDataAt :: Stack -> Reference -> PackedTag -> Int -> (Int -> Int) -> IO Closure
-buildDataAt !stk !r !t !n slot = case n of
-  0 -> pure $ Enum r t
-  1 -> Data1 r t <$> at 0
-  2 -> Data2 r t <$> at 0 <*> at 1
-  3 -> Data3 r t <$> at 0 <*> at 1 <*> at 2
-  4 -> Data4 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3
-  5 -> Data5 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4
-  6 -> Data6 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4 <*> at 5
+buildDataAt :: Stack -> PackedTag -> Int -> (Int -> Int) -> IO Closure
+buildDataAt !stk !t !n slot = case n of
+  0 -> pure $ Enum t
+  1 -> Data1 t <$> at 0
+  2 -> Data2 t <$> at 0 <*> at 1
+  3 -> Data3 t <$> at 0 <*> at 1 <*> at 2
+  4 -> Data4 t <$> at 0 <*> at 1 <*> at 2 <*> at 3
+  5 -> Data5 t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4
+  6 -> Data6 t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4 <*> at 5
   _ -> die [] "buildDataAt: more than six fields"
   where
     at k = peekOff stk (slot k)
@@ -1546,11 +1548,11 @@ dumpDataNoTag ::
 dumpDataNoTag !mr !stk = \case
   -- Normally we want to avoid dumping unboxed values since it's unnecessary, but sometimes we don't know the type of
   -- the incoming value and end up dumping unboxed values, so we just push them back to the stack as-is. e.g. in type-casts/coercions
-  Enum _ _ -> pure stk
-  Data1 _ _ a -> do
+  Enum _ -> pure stk
+  Data1 _ a -> do
     stk <- bump stk
     stk <$ poke stk a
-  Data2 _ _ a b -> do
+  Data2 _ a b -> do
     stk <- bumpn stk 2
     pokeOff stk 1 b
     stk <$ poke stk a
@@ -1558,7 +1560,7 @@ dumpDataNoTag !mr !stk = \case
   clo@(Data4 {}) -> dumpDataWide stk clo
   clo@(Data5 {}) -> dumpDataWide stk clo
   clo@(Data6 {}) -> dumpDataWide stk clo
-  DataG _ _ seg -> dumpSeg stk seg S
+  DataG _ seg -> dumpSeg stk seg S
   clo ->
     die [3320] $
       "dumpDataNoTag: bad closure: "
@@ -1570,25 +1572,25 @@ dumpDataNoTag !mr !stk = \case
 -- that the interpreter's loop only inlines the common shapes.
 dumpDataWide :: Stack -> Closure -> IO Stack
 dumpDataWide !stk = \case
-  Data3 _ _ a b c -> do
+  Data3 _ a b c -> do
     stk <- bumpn stk 3
     pokeOff stk 2 c
     pokeOff stk 1 b
     stk <$ poke stk a
-  Data4 _ _ a b c d -> do
+  Data4 _ a b c d -> do
     stk <- bumpn stk 4
     pokeOff stk 3 d
     pokeOff stk 2 c
     pokeOff stk 1 b
     stk <$ poke stk a
-  Data5 _ _ a b c d e -> do
+  Data5 _ a b c d e -> do
     stk <- bumpn stk 5
     pokeOff stk 4 e
     pokeOff stk 3 d
     pokeOff stk 2 c
     pokeOff stk 1 b
     stk <$ poke stk a
-  Data6 _ _ a b c d e f -> do
+  Data6 _ a b c d e f -> do
     stk <- bumpn stk 6
     pokeOff stk 5 f
     pokeOff stk 4 e
@@ -1678,7 +1680,7 @@ yield !yld env henv0 !activeThreads !stk = leap
       let h = denv0 EC.! EC.findMin ps
       v <- boxSlot stk 0
       stk <- bump stk
-      bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
+      bpoke stk $ Data1 (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv0 denv
       apply yld env henv activeThreads stk k False (VArg1 0) h
@@ -1686,7 +1688,7 @@ yield !yld env henv0 !activeThreads !stk = leap
       v <- boxSlot stk 0
       h <- BoxedVal <$> readIORef r
       stk <- bump stk
-      bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
+      bpoke stk $ Data1 (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv emptyDEnv
       apply yld env henv activeThreads stk k False (VArg1 0) h
@@ -1767,19 +1769,19 @@ dataBranch mrf stk i br = \case
   -- one case on the closure: each shape looks its arm up and pushes its
   -- fields in the same alternative (a second dispatch to push them cost a
   -- few nanoseconds per match, 2026-10-15)
-  Enum _ t -> pick t 0 (pure stk)
-  Data1 _ t a -> pick t 1 do
+  Enum t -> pick t 0 (pure stk)
+  Data1 t a -> pick t 1 do
     stk <- bump stk
     stk <$ poke stk a
-  Data2 _ t a b -> pick t 2 do
+  Data2 t a b -> pick t 2 do
     stk <- bumpn stk 2
     pokeOff stk 1 b
     stk <$ poke stk a
-  clo@(Data3 _ t _ _ _) -> pick t 3 (dumpDataWide stk clo)
-  clo@(Data4 _ t _ _ _ _) -> pick t 4 (dumpDataWide stk clo)
-  clo@(Data5 _ t _ _ _ _ _) -> pick t 5 (dumpDataWide stk clo)
-  clo@(Data6 _ t _ _ _ _ _ _) -> pick t 6 (dumpDataWide stk clo)
-  DataG _ t seg@(_, bseg) -> pick t (sizeofArray bseg) (dumpSeg stk seg S)
+  clo@(Data3 t _ _ _) -> pick t 3 (dumpDataWide stk clo)
+  clo@(Data4 t _ _ _ _) -> pick t 4 (dumpDataWide stk clo)
+  clo@(Data5 t _ _ _ _ _) -> pick t 5 (dumpDataWide stk clo)
+  clo@(Data6 t _ _ _ _ _ _) -> pick t 6 (dumpDataWide stk clo)
+  DataG t seg@(_, bseg) -> pick t (sizeofArray bseg) (dumpSeg stk seg S)
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
       | Just (Arm _ ca) <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
@@ -1854,8 +1856,9 @@ dataBranchArityError mrf t m n =
 
 dataBranchClosureError ::
   Maybe Reference -> Closure -> IO ()
-dataBranchClosureError (Just rftgt) (DataC rf _ _)
-  | rftgt /= rf =
+dataBranchClosureError (Just rftgt) (DataC t _)
+  | rf <- TN.typeReference (TT.typeTag t),
+    rftgt /= rf =
       die [] $
         "dataBranch: type mismatch detected\n"
           <> "    expected: "
@@ -1863,11 +1866,11 @@ dataBranchClosureError (Just rftgt) (DataC rf _ _)
           <> "\n"
           <> "    received: "
           <> prettyRef rf
-dataBranchClosureError _ (DataC rf t _) =
+dataBranchClosureError _ (DataC t _) =
   die [] $
     "dataBranch: unexpected tag for data type\n"
       <> "    type: "
-      <> prettyRef rf
+      <> prettyRef (TN.typeReference (TT.typeTag t))
       <> "\n"
       <> "    data tag: "
       <> show (maskTags t)
@@ -2381,8 +2384,8 @@ mapVal m
 nativeMapPairs :: Closure -> Maybe [(Val, Val)]
 nativeMapPairs = go []
   where
-    go acc (Enum _ t) | t == TT.mapTipTag = Just acc
-    go acc (Data5 _ t _sz k v (BoxedVal l) (BoxedVal r))
+    go acc (Enum t) | t == TT.mapTipTag = Just acc
+    go acc (Data5 t _sz k v (BoxedVal l) (BoxedVal r))
       | t == TT.mapBinTag = go acc r >>= \acc' -> go ((k, v) : acc') l
     go _ _ = Nothing
 
@@ -2442,9 +2445,9 @@ reflectValue0 cmbs bns rty rtm = goV0
         case clos of
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
-          Enum _ t
+          Enum t
             | not mapReplaced, t == TT.mapTipTag -> pure $ ANF.BLit (ANF.Map [])
-          DataC _ t vs
+          DataC t vs
             | not mapReplaced,
               t == TT.mapBinTag,
               Just kvs <- nativeMapPairs clos ->
@@ -2666,8 +2669,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data rn t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
-      rf <- ixTy rn
-      boxedVal . formDataReplaced rf t <$> goVs vs
+      boxedVal . formDataReplaced t <$> goVs vs
     goV (ANF.Record rs vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
@@ -2802,7 +2804,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . formDataReplaced r t <$> goVs vs
+      boxedVal . formDataReplaced t <$> goVs vs
     goV (ANF.Record rs vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
@@ -2888,7 +2890,7 @@ boxVal :: Val -> [Val] -> Val
 boxVal v fields = case v of
   Val t (UnboxedTypeTag (WitnessTag n)) ->
     let pt = PackedTag (fromIntegral t)
-     in BoxedVal (DataC (TN.typeReference (TT.typeTag pt)) pt (take n fields))
+     in BoxedVal (DataC pt (take n fields))
   _ -> v
 
 -- | The boxed form of the wide variable whose value slot is slot i
@@ -2898,7 +2900,7 @@ boxSlot stk i =
   peekOff stk i >>= \case
     Val t (UnboxedTypeTag (WitnessTag n)) -> do
       let pt = PackedTag (fromIntegral t)
-      BoxedVal <$> buildDataAt stk (TN.typeReference (TT.typeTag pt)) pt n (i + 1 +)
+      BoxedVal <$> buildDataAt stk pt n (i + 1 +)
     v -> pure v
 
 -- | The frame layout of a let body's combinator: the value slot of each
@@ -3044,15 +3046,15 @@ deoptCont layout k a0 vs0 = (top ++ concatMap fst out, concatMap snd out)
       Copy d i
         | Just fr <- index pushes (j + d), Just v <- index fr i -> v
         | otherwise -> error $ "deoptCont: no slot " ++ show i ++ " in frame " ++ show (j + d)
-      PackSlot r t sl -> BoxedVal (packData r t (map (resolve j) sl))
+      PackSlot t sl -> BoxedVal (packData t (map (resolve j) sl))
       RecSlot shape sl -> BoxedVal (RecordG shape (recordVals (segFromList (map (resolve j) sl))))
       Dead -> unitValue
     index xs i = listToMaybe (drop i xs)
-    packData r t = \case
-      [] -> Enum r t
-      [v] -> Data1 r t v
-      [v, w] -> Data2 r t v w
-      vs -> DataG r t (segFromList vs)
+    packData t = \case
+      [] -> Enum t
+      [v] -> Data1 t v
+      [v, w] -> Data2 t v w
+      vs -> DataG t (segFromList vs)
 
 -- | The inverse of 'narrowCont' for this process's frames: each wide
 -- variable's value is followed by copies of itself in its field slots,

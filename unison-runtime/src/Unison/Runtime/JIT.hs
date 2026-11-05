@@ -234,9 +234,9 @@ initJIT' jit = runExceptT $ do
     pure ls
   ctx <-
     liftIO ctxLayout >>= \case
-      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w)
+      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w x)
       _ -> throwE ["unexpected Ctx layout; the JIT is off"]
-  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (trace config))
+  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (stressGC config) (stressGCSkip config) (trace config))
   rts <-
     liftIO rtsFacts >>= \case
       -- the allocator's address isn't needed: generated code calls

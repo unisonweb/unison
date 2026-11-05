@@ -193,7 +193,6 @@ import Unison.Runtime.Stack hiding (Failure)
 import Unison.Runtime.Stack qualified as F
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
-import Unison.Type (anyRef)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Deque qualified as Sq
 import Unison.Util.RefPromise
@@ -1118,23 +1117,23 @@ foreignCallHelper = \case
     evaluate result
   Set_fromList -> mkForeign $ \(l :: [Val]) -> do
     m <- evaluate $ Map.fromList $ zip l (repeat unitValue)
-    pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+    pure . Data1 TT.setWrapTag $ encodeVal m
   Set_union -> mkForeign $ \case
-    (Data1 _ _ vl, Data1 _ _ vr) -> do
+    (Data1 _ vl, Data1 _ vr) -> do
       (l :: Map Val Val) <- decodeVal vl
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.union l r
-      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+      pure . Data1 TT.setWrapTag $ encodeVal m
     _ -> die [] "Set.union: bad closure"
   Set_intersect -> mkForeign $ \case
-    (Data1 _ _ vl, Data1 _ _ vr) -> do
+    (Data1 _ vl, Data1 _ vr) -> do
       (l :: Map Val Val) <- decodeVal vl
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.intersection l r
-      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+      pure . Data1 TT.setWrapTag $ encodeVal m
     _ -> die [] "Set.insersect: bad closure"
   Set_toList -> mkForeign $ \case
-    (Data1 _ _ vs) -> do
+    (Data1 _ vs) -> do
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
     _ -> die [] "Set.toList: bad closure"
@@ -2130,19 +2129,19 @@ functionReplacements, functionUnreplacements :: Map Reference Reference
       | (str, pos, ff, use) <- functionReplacementList,
         JIT.replacementActive use
       ]
-jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
-jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
-jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
+jsonNull = BoxedVal $ Enum TT.jsonNullTag
+jsonTrue = BoxedVal . Data1 TT.jsonBoolTag $ BoolVal True
+jsonFalse = BoxedVal . Data1 TT.jsonBoolTag $ BoolVal False
 
-jsonArr sq = BoxedVal . Data1 Ty.jsonRef TT.jsonArrTag $ encodeVal sq
+jsonArr sq = BoxedVal . Data1 TT.jsonArrTag $ encodeVal sq
 
-jsonObj sq = BoxedVal . Data1 Ty.jsonRef TT.jsonObjTag $ encodeVal sq
+jsonObj sq = BoxedVal . Data1 TT.jsonObjTag $ encodeVal sq
 
 jsonNum :: TL.Text -> Val
-jsonNum n = BoxedVal . Data1 Ty.jsonRef TT.jsonNumTag $ encodeVal n
+jsonNum n = BoxedVal . Data1 TT.jsonNumTag $ encodeVal n
 
 jsonText :: Val -> Val
-jsonText v = BoxedVal $ Data1 Ty.jsonRef TT.jsonTextTag v
+jsonText v = BoxedVal $ Data1 TT.jsonTextTag v
 
 data JsonParseError = JPErr Text Int TL.Text
 
@@ -2161,7 +2160,6 @@ encodeJsonParseError :: JsonParseError -> Val
 encodeJsonParseError (JPErr msg pos rem) =
   BoxedVal $
     DataC
-      Ty.parseErrorRef
       TT.jsonParseErrorTag
       [encodeVal msg, NatVal n, encodeVal rem]
   where
@@ -2343,9 +2341,9 @@ emitJson =
 
 emitJson0 :: Closure -> TB.StrictTextBuilder
 emitJson0 = \case
-  Enum _ t
+  Enum t
     | TT.jsonNullTag == t -> TB.fromText "null"
-  Data1 _ t v
+  Data1 t v
     | TT.jsonBoolTag == t,
       BoolVal b <- v ->
         TB.fromText $ if b then "true" else "false"
@@ -2466,31 +2464,31 @@ instance
   ) =>
   ForeignConvention (Either a b)
   where
-  decodeVal (BoxedVal (Data1 _ t v))
+  decodeVal (BoxedVal (Data1 t v))
     | t == TT.leftTag = Left <$> decodeVal v
     | otherwise = Right <$> decodeVal v
   decodeVal v = foreignConventionError "Either" v
 
   encodeVal (Left x) =
-    BoxedVal . Data1 Ty.eitherRef TT.leftTag $ encodeVal x
+    BoxedVal . Data1 TT.leftTag $ encodeVal x
   encodeVal (Right y) =
-    BoxedVal . Data1 Ty.eitherRef TT.rightTag $ encodeVal y
+    BoxedVal . Data1 TT.rightTag $ encodeVal y
 
   readAtIndex stk i =
     bpeekOff stk i >>= \case
-      Data1 _ t v
+      Data1 t v
         | t == TT.leftTag -> Left <$> decodeVal v
         | otherwise -> Right <$> decodeVal v
       c -> foreignConventionError "Either" (BoxedVal c)
 
   writeBack stk (Left x) =
-    bpoke stk . Data1 Ty.eitherRef TT.leftTag $ encodeVal x
+    bpoke stk . Data1 TT.leftTag $ encodeVal x
   writeBack stk (Right y) =
-    bpoke stk . Data1 Ty.eitherRef TT.rightTag $ encodeVal y
+    bpoke stk . Data1 TT.rightTag $ encodeVal y
 
 instance (ForeignConvention a) => ForeignConvention (Maybe a) where
-  decodeVal (BoxedVal (Enum _ _)) = pure Nothing
-  decodeVal (BoxedVal (Data1 _ _ v)) = Just <$> decodeVal v
+  decodeVal (BoxedVal (Enum _)) = pure Nothing
+  decodeVal (BoxedVal (Data1 _ v)) = Just <$> decodeVal v
   decodeVal v = foreignConventionError "Maybe" v
 
   encodeVal Nothing = noneVal
@@ -2498,21 +2496,21 @@ instance (ForeignConvention a) => ForeignConvention (Maybe a) where
 
   readAtIndex stk i =
     bpeekOff stk i >>= \case
-      Data1 _ _ v -> Just <$> decodeVal v
-      Enum _ _ -> pure Nothing
+      Data1 _ v -> Just <$> decodeVal v
+      Enum _ -> pure Nothing
       c -> foreignConventionError "Maybe" (BoxedVal c)
 
   writeBack stk Nothing = bpoke stk noneClo
   writeBack stk (Just v) = bpoke stk (someClo (encodeVal v))
 
 noneClo :: Closure
-noneClo = Enum Ty.optionalRef TT.noneTag
+noneClo = Enum TT.noneTag
 
 noneVal :: Val
 noneVal = BoxedVal noneClo
 
 someClo :: Val -> Closure
-someClo v = Data1 Ty.optionalRef TT.someTag v
+someClo v = Data1 TT.someTag v
 
 someVal :: Val -> Val
 someVal v = BoxedVal (someClo v)
@@ -2611,7 +2609,7 @@ instance ForeignConvention Float where
   writeBack stk f = pokeD stk $ float2Double f
 
 unitClo :: Closure
-unitClo = Enum Ty.unitRef TT.unitTag
+unitClo = Enum TT.unitTag
 
 unitVal :: Val
 unitVal = BoxedVal unitClo
@@ -2627,9 +2625,9 @@ instance ForeignConvention () where
   writeBack stk _ = bpoke stk $ unitClo
 
 pattern ConsC :: Val -> Val -> Closure
-pattern ConsC x y <- Data2 _ _ x y
+pattern ConsC x y <- Data2 _ x y
   where
-    ConsC x y = Data2 Ty.pairRef TT.pairTag x y
+    ConsC x y = Data2 TT.pairTag x y
 
 pattern ConsV x y = BoxedVal (ConsC x y)
 
@@ -2815,7 +2813,7 @@ instance
   writeBack stk p = bpoke stk $ encodeTup6 p
 
 decodeFailure :: (ForeignConvention a) => Closure -> IO (F.Failure a)
-decodeFailure (DataG _ _ (_, args)) =
+decodeFailure (DataG _ (_, args)) =
   F.Failure
     <$> decodeTypeLink (PA.indexArray args 0)
     <*> decodeText (PA.indexArray args 1)
@@ -2823,7 +2821,7 @@ decodeFailure (DataG _ _ (_, args)) =
 decodeFailure c = foreignConventionError "Failure" (BoxedVal c)
 
 encodeFailure :: (ForeignConvention a) => F.Failure a -> Closure
-encodeFailure (F.Failure r msg v) = DataG Ty.failureRef TT.failureTag payload
+encodeFailure (F.Failure r msg v) = DataG TT.failureTag payload
   where
     payload = boxedSeg [encodeTypeLink r, encodeText msg, encodeAny v]
 
@@ -2837,10 +2835,10 @@ encodeTypeLink :: Reference -> Closure
 encodeTypeLink rf = Foreign (WrapReference rf)
 
 encodeAny :: (ForeignConvention a) => a -> Closure
-encodeAny v = Data1 anyRef TT.anyTag (encodeVal v)
+encodeAny v = Data1 TT.anyTag (encodeVal v)
 
 decodeAny :: (ForeignConvention a) => Closure -> IO a
-decodeAny (Data1 _ _ v) = decodeVal v
+decodeAny (Data1 _ v) = decodeVal v
 decodeAny c = foreignConventionError "Any" (BoxedVal c)
 
 decodeText :: Closure -> IO Text
@@ -2904,11 +2902,11 @@ instance ForeignConvention POSIXTime where
   writeBack stk pt = pokeI stk (round pt)
 
 decodeBufferMode :: Closure -> IO BufferMode
-decodeBufferMode (Enum _ t)
+decodeBufferMode (Enum t)
   | t == TT.noBufTag = pure NoBuffering
   | t == TT.lineBufTag = pure LineBuffering
   | t == TT.blockBufTag = pure $ BlockBuffering Nothing
-decodeBufferMode (Data1 _ t (NatVal i))
+decodeBufferMode (Data1 t (NatVal i))
   | t == TT.sizedBlockBufTag = pure . BlockBuffering $ Just (fromIntegral i)
 decodeBufferMode c = foreignConventionError "BufferMode" (BoxedVal c)
 
@@ -2917,13 +2915,13 @@ encodeBufferMode NoBuffering = no'buf
 encodeBufferMode LineBuffering = line'buf
 encodeBufferMode (BlockBuffering Nothing) = block'buf
 encodeBufferMode (BlockBuffering (Just n)) =
-  Data1 Ty.bufferModeRef TT.sizedBlockBufTag . NatVal $ fromIntegral n
+  Data1 TT.sizedBlockBufTag . NatVal $ fromIntegral n
 
-no'buf = Enum Ty.bufferModeRef TT.noBufTag
+no'buf = Enum TT.noBufTag
 
-line'buf = Enum Ty.bufferModeRef TT.lineBufTag
+line'buf = Enum TT.lineBufTag
 
-block'buf = Enum Ty.bufferModeRef TT.blockBufTag
+block'buf = Enum TT.blockBufTag
 
 instance ForeignConvention BufferMode where
   decodeVal (BoxedVal c) = decodeBufferMode c
@@ -2935,7 +2933,7 @@ instance ForeignConvention BufferMode where
   writeBack stk bm = bpoke stk (encodeBufferMode bm)
 
 decodeIOMode :: Closure -> IO IOMode
-decodeIOMode (Enum _ t)
+decodeIOMode (Enum t)
   | t == TT.readModeTag = pure ReadMode
   | t == TT.writeModeTag = pure WriteMode
   | t == TT.appendModeTag = pure AppendMode
@@ -2948,13 +2946,13 @@ encodeIOMode WriteMode = write'mode
 encodeIOMode AppendMode = append'mode
 encodeIOMode ReadWriteMode = read'write'mode
 
-read'mode = Enum Ty.bufferModeRef TT.readModeTag
+read'mode = Enum TT.readModeTag
 
-write'mode = Enum Ty.bufferModeRef TT.writeModeTag
+write'mode = Enum TT.writeModeTag
 
-append'mode = Enum Ty.bufferModeRef TT.appendModeTag
+append'mode = Enum TT.appendModeTag
 
-read'write'mode = Enum Ty.bufferModeRef TT.readWriteModeTag
+read'write'mode = Enum TT.readWriteModeTag
 
 instance ForeignConvention IOMode where
   decodeVal (BoxedVal c) = decodeIOMode c
@@ -2966,7 +2964,7 @@ instance ForeignConvention IOMode where
   writeBack stk im = bpoke stk (encodeIOMode im)
 
 decodeSeekMode :: Closure -> IO SeekMode
-decodeSeekMode (Enum _ t)
+decodeSeekMode (Enum t)
   | t == TT.seekAbsoluteTag = pure AbsoluteSeek
   | t == TT.seekRelativeTag = pure RelativeSeek
   | t == TT.seekEndTag = pure SeekFromEnd
@@ -2977,11 +2975,11 @@ encodeSeekMode AbsoluteSeek = absolute'seek
 encodeSeekMode RelativeSeek = relative'seek
 encodeSeekMode SeekFromEnd = seek'from'end
 
-absolute'seek = Enum Ty.seekModeRef TT.seekAbsoluteTag
+absolute'seek = Enum TT.seekAbsoluteTag
 
-relative'seek = Enum Ty.seekModeRef TT.seekRelativeTag
+relative'seek = Enum TT.seekRelativeTag
 
-seek'from'end = Enum Ty.seekModeRef TT.seekEndTag
+seek'from'end = Enum TT.seekEndTag
 
 instance ForeignConvention SeekMode where
   decodeVal (BoxedVal c) = decodeSeekMode c
@@ -2995,7 +2993,7 @@ instance ForeignConvention SeekMode where
 data StdHnd = StdIn | StdOut | StdErr
 
 decodeStdHnd :: Closure -> IO StdHnd
-decodeStdHnd (Enum _ t)
+decodeStdHnd (Enum t)
   | t == TT.stdInTag = pure StdIn
   | t == TT.stdOutTag = pure StdOut
   | t == TT.stdErrTag = pure StdErr
@@ -3006,11 +3004,11 @@ encodeStdHnd StdIn = std'in
 encodeStdHnd StdOut = std'out
 encodeStdHnd StdErr = std'err
 
-std'in = Enum Ty.stdHandleRef TT.stdInTag
+std'in = Enum TT.stdInTag
 
-std'out = Enum Ty.stdHandleRef TT.stdOutTag
+std'out = Enum TT.stdOutTag
 
-std'err = Enum Ty.stdHandleRef TT.stdErrTag
+std'err = Enum TT.stdErrTag
 
 instance ForeignConvention StdHnd where
   decodeVal (BoxedVal c) = decodeStdHnd c

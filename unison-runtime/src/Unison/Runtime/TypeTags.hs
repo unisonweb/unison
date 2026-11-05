@@ -7,6 +7,9 @@ module Unison.Runtime.TypeTags
     unpackTags,
     maskTags,
     typeTag,
+    builtinTypeNumber,
+    isAnyTag,
+    isBooleanTag,
     anyTag,
     floatTag,
     natTag,
@@ -59,7 +62,7 @@ import Data.Map qualified as Map
 import U.Codebase.Reference (Reference)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
-import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
+import Unison.Runtime.Builtin.Types (anyTypeNumber, booleanTypeNumber, builtinTypeNumbering)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
@@ -111,6 +114,21 @@ maskTags (PackedTag w) = (w .&. 0xFFFF)
 typeTag :: PackedTag -> Word64
 typeTag (PackedTag w) = w `shiftR` 16
 {-# INLINE typeTag #-}
+
+-- | The fixed number of a builtin type ('builtinTypeNumbering'), the
+-- same in every process.
+builtinTypeNumber :: Reference -> Word64
+builtinTypeNumber r
+  | Just n <- Map.lookup r builtinTypeNumbering = n
+  | otherwise = internalBug [] $ "builtinTypeNumber: not a builtin type: " ++ show r
+
+-- | Whether a packed tag is a constructor of @Any@, or of @Boolean@: a
+-- compare of the type part against a literal ('anyTypeNumber').
+isAnyTag, isBooleanTag :: PackedTag -> Bool
+isAnyTag t = typeTag t == anyTypeNumber
+{-# INLINE isAnyTag #-}
+isBooleanTag t = typeTag t == booleanTypeNumber
+{-# INLINE isBooleanTag #-}
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x

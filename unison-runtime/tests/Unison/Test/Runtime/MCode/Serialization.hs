@@ -128,7 +128,7 @@ genInstr =
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
-      Pack <$> genReference <*> genPackedTag <*> genArgs,
+      Pack <$> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
       Reset
@@ -207,7 +207,7 @@ genFrameLayout =
       Gen.recursive
         Gen.choice
         [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10), pure Dead]
-        [ PackSlot <$> genReference <*> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
+        [ PackSlot <$> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
           RecSlot <$> genRecordShape <*> Gen.list (Range.linear 0 3) genSlot
         ]
 
@@ -245,11 +245,9 @@ genStoredCache =
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64
-    <*> genSmallWord64
     <*>
     -- We don't yet generate supergroups because generating valid ones is difficult.
     mempty
-    <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> genBiMap genRecordSchema genRecordRef
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))

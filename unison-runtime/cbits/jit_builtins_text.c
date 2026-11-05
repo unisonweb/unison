@@ -177,8 +177,8 @@ void unison_jit_lv_each(StgClosure *c, int top, int depth, ItemFn fn, void *env)
 
 // Some (c, rest) (front) or Some (rest, c), None for the empty text, NULL if
 // not a text. `char_tag` is a Char's type tag closure.
-void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t some_tag, void *pair, int64_t pair_tag,
-                             void *unit, void *char_tag, int64_t front) {
+void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t some_tag, int64_t pair_tag, void *unit,
+                             void *char_tag, int64_t front) {
   const RopeKind *K = &TK;
   StgClosure *r = rope_of(K, text);
   if (r == NULL) return NULL;
@@ -196,9 +196,8 @@ void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t 
     rest = rope_take(ctx, K, n - 1, r);
   }
   void *wrest = wrap_rope(ctx, K, rest, NULL);
-  void *p = front ? mk_pair(ctx, pair, pair_tag, unit, char_tag, cp, wrest, -1)
-                  : mk_pair(ctx, pair, pair_tag, unit, wrest, -1, char_tag, cp);
-  return mk_some(ctx, none, some_tag, p, -1);
+  void *p = front ? mk_pair(ctx, pair_tag, unit, char_tag, cp, wrest, -1) : mk_pair(ctx, pair_tag, unit, wrest, -1, char_tag, cp);
+  return mk_some(ctx, some_tag, p, -1);
 }
 
 // --- numbers to text ---
@@ -345,7 +344,7 @@ void *unison_jit_text_to_num(UnisonJitCtx *ctx, void *text, void *none, int64_t 
     double d = strtod((const char *)buf, NULL);
     int64_t bits;
     memcpy(&bits, &d, 8);
-    return mk_some(ctx, none, some_tag, tag, bits);
+    return mk_some(ctx, some_tag, tag, bits);
   }
   if (i != len) return NULL;    // something other than digits: the interpreter decides
   if (ndig == 0) return none;   // a sign alone
@@ -358,10 +357,10 @@ void *unison_jit_text_to_num(UnisonJitCtx *ctx, void *text, void *none, int64_t 
   }
   if (kind == 1) {
     if (neg && mag != 0) return none;
-    return mk_some(ctx, none, some_tag, tag, (int64_t)mag);
+    return mk_some(ctx, some_tag, tag, (int64_t)mag);
   }
   if (neg ? mag > (unsigned long long)1 << 63 : mag > (unsigned long long)INT64_MAX) return none;
-  return mk_some(ctx, none, some_tag, tag, neg ? (int64_t)(0 - mag) : (int64_t)mag);
+  return mk_some(ctx, some_tag, tag, neg ? (int64_t)(0 - mag) : (int64_t)mag);
 }
 
 // --- Text.fromCharList, Text.toCharList ---
@@ -456,7 +455,7 @@ static void *rope_index_of(UnisonJitCtx *ctx, const RopeKind *K, void *needle, v
                            void *nat_tag) {
   StgClosure *a = rope_of(K, needle), *b = rope_of(K, hay);
   if (a == NULL || b == NULL) return NULL;
-  if (rope_size(K, a) == 0) return K->utf8 ? mk_some(ctx, none, some_tag, nat_tag, 0) : NULL;
+  if (rope_size(K, a) == 0) return K->utf8 ? mk_some(ctx, some_tag, nat_tag, 0) : NULL;
   StgInt la, lb;
   unsigned char *ha, *hb;
   const unsigned char *pa = rope_flat(K, a, &la, &ha), *pb = rope_flat(K, b, &lb, &hb);
@@ -468,7 +467,7 @@ static void *rope_index_of(UnisonJitCtx *ctx, const RopeKind *K, void *needle, v
     if (K->utf8) {
       for (const unsigned char *q = pb; q < at; q++) ix += (*q & 0xC0) != 0x80;
     } else ix = at - pb;
-    res = mk_some(ctx, none, some_tag, nat_tag, ix);
+    res = mk_some(ctx, some_tag, nat_tag, ix);
   }
   free(ha), free(hb);
   return res;
@@ -649,9 +648,8 @@ void *unison_jit_text_to_utf8(UnisonJitCtx *ctx, void *text) {
 }
 
 // Text.fromUtf8: Right text over a copy of the bytes, as Text.fromText cuts
-// it; NULL for invalid UTF-8 (the interpreter builds the Failure). `either`
-// is the pooled Either enumeration.
-void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, void *either, int64_t right_tag) {
+// it; NULL for invalid UTF-8 (the interpreter builds the Failure).
+void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, int64_t right_tag) {
   StgClosure *r = rope_of(&BK, bytes);
   if (r == NULL) return NULL;
   StgInt len;
@@ -660,7 +658,7 @@ void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, void *either, in
   if (p == NULL) return NULL;
   StgInt count = utf8_count_valid(p, len);
   void *res = NULL;
-  if (count >= 0) res = mk_data1(ctx, LP(either, 0), right_tag, text_copy(ctx, p, len), -1);
+  if (count >= 0) res = mk_data1(ctx, right_tag, text_copy(ctx, p, len), -1);
   free(heap);
   return res;
 }

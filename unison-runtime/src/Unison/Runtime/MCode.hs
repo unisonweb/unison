@@ -704,8 +704,7 @@ data GInstr comb
   | -- Pack a data type value into a closure and place it
     -- on the stack.
     Pack
-      !Reference -- data type reference
-      !PackedTag -- tag
+      !PackedTag -- tag: the type's number and the constructor's
       !Args -- arguments to pack
   | -- This is essentially the opposite of `Call`. Pack a given
     -- statically known function into a closure with arguments.
@@ -749,7 +748,6 @@ data GInstr comb
     -- holding the packed tag and the witness of the field count, the
     -- fields in the slots below. Nothing is allocated.
     PackWide
-      !Reference
       !PackedTag
       -- whether to write the slots at the frame's base as the frame's
       -- only slots, for a constructor in tail position: the Yield of
@@ -1547,7 +1545,7 @@ data BaseFrame = BaseFrame !Word64 [Slot]
 
 data Slot
   = Copy !Int !Int
-  | PackSlot !Reference !PackedTag [Slot]
+  | PackSlot !PackedTag [Slot]
   | RecSlot !RecordShape [Slot]
   | Dead
   deriving (Show, Eq, Ord)
@@ -1886,7 +1884,7 @@ deoptOf rns bi n us chain
               ++ show us
               ++ " with frames "
               ++ show chain
-    pack depth (BuiltCon r t fs) = PackSlot r (packTags (toEnum . fromIntegral $ dnum rns r) t) <$> traverse (var (depth + 1)) fs
+    pack depth (BuiltCon r t fs) = PackSlot (packTags (toEnum . fromIntegral $ dnum rns r) t) <$> traverse (var (depth + 1)) fs
     pack depth (BuiltRec rs fs) = RecSlot <$> recordShape (recNum rns rs) rs <*> traverse (var (depth + 1)) fs
     optSlot w = listToMaybe [(d, i) | (d, (_, es)) <- zip [0 ..] chain, (i, EVar x) <- zip [0 ..] es, x == w]
 
@@ -2063,7 +2061,7 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
     TApp (FCon r n) args <- bu =
       let rt = toEnum . fromIntegral $ dnum rns r
        in addCount wideWidth
-            . fmap (Ins (PackWide r (packTags rt n) False (emitArgs grpn ctx args)))
+            . fmap (Ins (PackWide (packTags rt n) False (emitArgs grpn ctx args)))
             $ emitSection rns grpr grpn rec ectx bo
   | otherwise =
       emitLet rns grpr grpn rec d (zip us ms) ctx bu $
@@ -2288,11 +2286,11 @@ emitFunction rns _mshape _grpr _ _ _ (FComb r) as
 emitFunction rns _mshape _grpr _ _ _ (FCon r t) as
   | wideOn,
     countArgs as <= wideK =
-      Ins (PackWide r (packTags rt t) True as)
+      Ins (PackWide (packTags rt t) True as)
         . Yield
         $ VArgR 0 wideWidth
   | otherwise =
-      Ins (Pack r (packTags rt t) as)
+      Ins (Pack (packTags rt t) as)
         . Yield
         $ VArg1 0
   where
@@ -2314,7 +2312,7 @@ emitFunction rns _mshape _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
-  Ins (Pack r (packTags rt e) as)
+  Ins (Pack (packTags rt e) as)
     . App True (Dyn a)
     $ VArg1 0
   where
@@ -2394,7 +2392,7 @@ emitLet _ _ _ _ _ _ _ (TBLit l) =
 --   where
 --   n = cnum rns r
 emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
-  fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
+  fmap (Ins . Pack (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) = \es -> do
@@ -2872,8 +2870,8 @@ sectionTypes (RMatch _ pu br) =
 sectionTypes _ = []
 
 instrTypes :: GInstr comb -> [Word64]
-instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
-instrTypes (PackWide _ (PackedTag w) _ _) = [w `shiftR` 16]
+instrTypes (Pack (PackedTag w) _) = [w `shiftR` 16]
+instrTypes (PackWide (PackedTag w) _ _) = [w `shiftR` 16]
 instrTypes (Reset ws _ _) = setToList ws
 instrTypes (Capture w) = [w]
 instrTypes _ = []
@@ -2913,7 +2911,7 @@ prettyBase lay = case baseFrames lay of
     showList' slots = showString "[" . foldr (.) id (intersperse (showString ", ") (map slot slots)) . showString "]"
     slot = \case
       Copy d i -> shows d . showString "." . shows i
-      PackSlot _ t ss -> showString "pack " . shows t . showString " " . showList' ss
+      PackSlot t ss -> showString "pack " . shows t . showString " " . showList' ss
       RecSlot sh ss -> showString "record " . shows (shapeRef sh) . showString " " . showList' ss
       Dead -> showString "dead"
 
@@ -3040,17 +3038,13 @@ prettyBranches ind bs =
         . prettySection (ind + 1) e
 
 prettyIns :: (Show comb) => GInstr comb -> ShowS
-prettyIns (Pack r i as) =
+prettyIns (Pack i as) =
   showString "Pack "
-    . prettyRef r
-    . (' ' :)
     . shows i
     . (' ' :)
     . prettyArgs as
-prettyIns (PackWide r i base as) =
+prettyIns (PackWide i base as) =
   showString (if base then "PackWideRet " else "PackWide ")
-    . prettyRef r
-    . (' ' :)
     . shows i
     . (' ' :)
     . prettyArgs as

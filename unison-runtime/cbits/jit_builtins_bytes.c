@@ -22,13 +22,13 @@ static inline uint64_t read_be_le(StgClosure *r, StgInt i, StgInt width, int be)
 // Bytes.decodeNat16be and the others: Some (n, rest) or None, as
 // Bytes.decodeNat* give them
 void *unison_jit_bytes_decode_nat(UnisonJitCtx *ctx, void *bytes, int64_t width, int64_t be, void *none, int64_t some_tag,
-                                  void *pair, int64_t pair_tag, void *unit, void *nat_tag) {
+                                  int64_t pair_tag, void *unit, void *nat_tag) {
   StgClosure *r = rope_of(&BK, bytes);
   if (r == NULL) return NULL;
   if (rope_size(&BK, r) < width) return none;
   uint64_t v = read_be_le(r, 0, width, be);
   void *rest = wrap_rope(ctx, &BK, rope_drop(ctx, &BK, width, r), bytes);
-  return mk_some(ctx, none, some_tag, mk_pair(ctx, pair, pair_tag, unit, nat_tag, v, rest, -1), -1);
+  return mk_some(ctx, some_tag, mk_pair(ctx, pair_tag, unit, nat_tag, v, rest, -1), -1);
 }
 
 // Bytes.encodeNat16be and the others: one chunk
@@ -118,8 +118,8 @@ static int base_value(const char *alpha, int n, unsigned char c) {
 // Bytes.fromBase16 / 32 / 64 / 64UrlUnpadded: Right bytes for canonical
 // input (the alphabet exactly, full padding where the encoding has it, no
 // stray bits), NULL for anything else, which the interpreter decides and
-// describes. `either` is the pooled Either enumeration.
-void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, void *either, int64_t right_tag) {
+// describes.
+void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, int64_t right_tag) {
   StgClosure *r = rope_of(&BK, bytes);
   if (r == NULL) return NULL;
   StgInt len;
@@ -175,7 +175,7 @@ void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, v
       for (StgInt j = 0; ok && j < k; j++) *o++ = (unsigned char)(v >> (16 - 8 * j));
     }
   }
-  void *res = ok ? mk_data1(ctx, LP(either, 0), right_tag, bytes_copy(ctx, out, o - out), -1) : NULL;
+  void *res = ok ? mk_data1(ctx, right_tag, bytes_copy(ctx, out, o - out), -1) : NULL;
   free(out), free(heap);
   return res;
 }

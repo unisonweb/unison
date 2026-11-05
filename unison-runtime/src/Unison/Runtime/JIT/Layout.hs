@@ -42,7 +42,7 @@ import GHC.Exts (Any)
 import GHC.Float (castDoubleToWord64)
 import GHC.IORef (IORef (..))
 import Text.Read (readMaybe)
-import Unison.Builtin.Decls qualified as Ty (eitherRef, failureRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Builtin.Decls qualified as Ty (failureRef, optionalRef, pairRef, unitRef)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.ANF qualified as ANF
@@ -75,19 +75,18 @@ data Layout = Layout
 
 data Layouts = Layouts
   { -- | the data constructors with 0 to 6 fields, by field count: @DataN
-    -- tag (Val u b)... ref@, with the fields' boxed halves as pointers 0 to
-    -- n-1, the reference as pointer n, the tag as the first non-pointer
-    -- word and the fields' unboxed halves after it. Pointer tags 3 to 5
-    -- for 0 to 2 fields and 6 for 5 fields (base's Map node); 3, 4 and 6
-    -- fields share tag 7 with the rest.
+    -- tag (Val u b)...@, with the fields' boxed halves as pointers 0 to
+    -- n-1, the tag as the first non-pointer word and the fields' unboxed
+    -- halves after it. Pointer tags 3 to 5 for 0 to 2 fields and 6 for 5
+    -- fields (base's Map node); 3, 4 and 6 fields share tag 7 with the
+    -- rest.
     lData :: !(V.Vector Layout),
     -- | @TextC rope@, @ListC deque@ and @BytesC rope@ as (info pointer,
     -- pointer tag): one pointer each, the rope (Text is a newtype over it)
     -- or the deque; tags 1 and 2 for texts and lists, 7 for bytes
     lText, lList, lBytes :: !(Pair Int Int),
-    -- | @DataG tag useg bseg ref@ (seven or more fields): pointers the
-    -- ByteArray#, the Array# and the reference; one non-pointer, the tag;
-    -- pointer tag 7
+    -- | @DataG tag useg bseg@ (seven or more fields): pointers the
+    -- ByteArray# and the Array#; one non-pointer, the tag; pointer tag 7
     lDataG :: !Layout,
     -- | @PAp (CIx ref grp w) (LamI arity fsize entry cell) useg bseg@, with
     -- CombIx and GCombInfo unpacked: pointers ref, entry, the ByteArray#,
@@ -173,21 +172,21 @@ probeLayouts = do
       !int = intTypeTag
       !flt = floatTypeTag
       !chr = charTypeTag
-      !nil = Enum ref (PackedTag 0)
-      !one = Enum ref (PackedTag 1)
+      !nil = Enum (PackedTag 0)
+      !one = Enum (PackedTag 1)
       -- six distinct evaluated closures for the fields' boxed halves
       objs = [nat, nil, flt, chr, int, one]
       !useg = byteArrayFromList [11 :: Int, 12]
       !bseg = arrayFromList [nat, nil]
   -- the data constructors by field count: field j holds (9 + j, objs !! j);
-  -- the pointers are the boxed halves then the reference, the words the
-  -- tag then the unboxed halves
+  -- the pointers are the boxed halves, the words the tag then the unboxed
+  -- halves
   ds <- forM [0 .. 6] $ \k -> do
     let fields = take k objs
         vals = zipWith Val [9 ..] fields
-        !c = DataC ref (PackedTag 7) vals
-    probe (any' c) (map any' fields ++ [any' ref]) (7 : take k [9 ..])
-  dg <- probeKind 7 3 1 (any' $! DataC ref (PackedTag 7) (zipWith Val [9 ..] (objs ++ [nat])))
+        !c = DataC (PackedTag 7) vals
+    probe (any' c) (map any' fields) (7 : take k [9 ..])
+  dg <- probeKind 7 2 1 (any' $! DataC (PackedTag 7) (zipWith Val [9 ..] (objs ++ [nat])))
   let !entry = Exit
       !cell = noNativeCell
       IntPtr cellAddr = ptrToIntPtr cell
@@ -223,11 +222,11 @@ probeLayouts = do
   -- here only the counts and the pointer tag
   rc <- probeKind 7 4 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
   -- (the order of GClosure: ListC 1, TextC 2, Enum 3, Data1 4, Data2 5, Data5 6)
-  let dataOk k l = lPtrTag l == (if k <= 2 then k + 3 else if k == 5 then 6 else 7) && lPtrs l == k + 1 && lNptrs l == k + 1
+  let dataOk k l = lPtrTag l == (if k <= 2 then k + 3 else if k == 5 then 6 else 7) && lPtrs l == k && lNptrs l == k + 1
   pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc, tx, li, (by, tti)) of
     (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr, Right txi, Right lii, (Right byi, Right ttii))
       | and (zipWith dataOk [0 ..] lds),
-        lPtrTag ldg == 7 && lPtrs ldg == 3 && lNptrs ldg == 1,
+        lPtrTag ldg == 7 && lPtrs ldg == 2 && lNptrs ldg == 1,
         lPtrTag lp == 7 && lPtrs lp == 4 && lNptrs lp == 5,
         lPtrTag lv == 1 && lPtrs lv == 1 && lNptrs lv == 1,
         lPtrs ltw == 1 && lNptrs ltw == 0 ->
@@ -293,7 +292,7 @@ probeRecords _ls = do
           expected v = asWord64 (hash64ValueUntyped (Plain v))
           pos = ANF.BLit . ANF.Pos
           recV names vs = ANF.Record (ANF.RecordSchema (Set.fromList names)) vs
-          some v = BoxedVal (Data1 Ty.optionalRef (PackedTag someTag) v)
+          some v = BoxedVal (Data1 (PackedTag someTag) v)
           text t = BoxedVal (TextC (UText.pack t))
           rec sh vs = BoxedVal (RecordG sh (recordVals (segFromList vs)))
           shapeN = recordShapeOf 10 [("inner", 21), ("name", 22)]
@@ -312,7 +311,7 @@ probeRecords _ls = do
         got <- murmurTest harr 0 False
         pure (if got == Just (expected v) then Nothing else Just ("murmurHashUntyped of a record (" ++ name ++ "): native " ++ show got ++ ", Haskell " ++ show (expected v)))
       -- the comparisons, as probeCompare does
-      let anyOf v = BoxedVal (Data1 Ty.anyRef TT.anyTag v)
+      let anyOf v = BoxedVal (Data1 TT.anyTag v)
           both = (True, True)
           pairs :: [(String, Val, Val, (Bool, Bool))]
           pairs =
@@ -390,14 +389,14 @@ probeMurmur ls = do
           text t = ANF.BLit (ANF.Text (UText.pack t))
           bytes bs = ANF.BLit (ANF.Bytes (By.fromWord8s bs))
           list vs = ANF.BLit (ANF.List (Seq.fromList vs))
-          !unit = Enum Ty.unitRef (PackedTag 0)
-          !noneC = Enum Ty.optionalRef (PackedTag noneTag)
-          someC v = Data1 Ty.optionalRef (PackedTag someTag) v
-          pairC a b = Data2 Ty.pairRef (PackedTag pairTag) a (BoxedVal (Data2 Ty.pairRef (PackedTag pairTag) b (BoxedVal unit)))
+          !unit = Enum TT.unitTag
+          !noneC = Enum (PackedTag noneTag)
+          someC v = Data1 (PackedTag someTag) v
+          pairC a b = Data2 (PackedTag pairTag) a (BoxedVal (Data2 (PackedTag pairTag) b (BoxedVal unit)))
           !useg = byteArrayFromList [3 :: Int, 2, 1]
           !bseg = arrayFromList [nat, nat, nat]
           -- a three-field constructor: the segments hold the fields in reverse
-          !dg = DataG Ty.failureRef (PackedTag 5) (useg, bseg)
+          !dg = DataG (PackedTag 5) (useg, bseg)
           dgV = dat Ty.failureRef 5 [pos 1, pos 2, pos 3]
           textC t = TextC (UText.pack t)
           bytesC bs = BytesC (By.fromWord8s bs)
@@ -460,16 +459,16 @@ probeCompare ls = do
       let PackedTag someTag = TT.someTag
           PackedTag noneTag = TT.noneTag
           PackedTag pairTag = TT.pairTag
-          !unit = BoxedVal (Enum Ty.unitRef (PackedTag 0))
-          !none = BoxedVal (Enum Ty.optionalRef (PackedTag noneTag))
-          some v = BoxedVal (Data1 Ty.optionalRef (PackedTag someTag) v)
-          pair a b = BoxedVal (Data2 Ty.pairRef (PackedTag pairTag) a (BoxedVal (Data2 Ty.pairRef (PackedTag pairTag) b unit)))
+          !unit = BoxedVal (Enum TT.unitTag)
+          !none = BoxedVal (Enum (PackedTag noneTag))
+          some v = BoxedVal (Data1 (PackedTag someTag) v)
+          pair a b = BoxedVal (Data2 (PackedTag pairTag) a (BoxedVal (Data2 (PackedTag pairTag) b unit)))
           -- a three-field constructor: the segments hold the fields in reverse
           !nat = natTypeTag
           -- the fields are (word, evaluated tag closure) pairs: a thunk in the array is "not handled"
           dg :: [Int] -> Val
-          dg us = let !u = byteArrayFromList (reverse us); !b = arrayFromList (replicate (length us) nat) in BoxedVal (DataG Ty.failureRef (PackedTag 5) (u, b))
-          anyOf v = BoxedVal (Data1 Ty.anyRef TT.anyTag v)
+          dg us = let !u = byteArrayFromList (reverse us); !b = arrayFromList (replicate (length us) nat) in BoxedVal (DataG (PackedTag 5) (u, b))
+          anyOf v = BoxedVal (Data1 TT.anyTag v)
           text t = BoxedVal (TextC (UText.pack t))
           bytes bs = BoxedVal (BytesC (By.fromWord8s bs))
           list vs = BoxedVal (ListC (Sq.fromList vs))
@@ -516,8 +515,8 @@ probeCompare ls = do
               ("DataG DataG", dg [1, 2, 3], dg [1, 2, 4], both),
               ("equal DataG", dg [1, 2, 3], dg [1, 2, 3], both),
               ("unit against None", unit, none, both),
-              ("false against true", BoxedVal (Enum Ty.booleanRef (PackedTag 0)), BoxedVal (Enum Ty.booleanRef (PackedTag 1)), both),
-              ("true against true", BoxedVal (Enum Ty.booleanRef (PackedTag 1)), BoxedVal (Enum Ty.booleanRef (PackedTag 1)), both),
+              ("false against true", BoxedVal (Enum (PackedTag 0)), BoxedVal (Enum (PackedTag 1)), both),
+              ("true against true", BoxedVal (Enum (PackedTag 1)), BoxedVal (Enum (PackedTag 1)), both),
               ("Some against pair", some (NatVal 1), pair (NatVal 1) (NatVal 1), both),
               ("Any Any", anyOf (NatVal 1), anyOf (NatVal 2), both),
               ("Any Nat against Any Char", anyOf (NatVal 97), anyOf (CharVal 'a'), both),
@@ -573,10 +572,9 @@ probeCompare ls = do
 -- (see unison_jit_env_init in jit_rt.c).
 probeEnv :: IO (Either String ())
 probeEnv = do
-  let !ref = Ty.booleanRef
-      !v3 = Enum ref (PackedTag 3)
-      !v10 = Enum ref (PackedTag 10)
-      !v77 = Enum ref (PackedTag 77)
+  let !v3 = Enum (PackedTag 3)
+      !v10 = Enum (PackedTag 10)
+      !v77 = Enum (PackedTag 77)
   r3 <- newIORef v3
   r10 <- newIORef v10
   r77 <- newIORef v77
@@ -628,8 +626,8 @@ probeLists ls steps = do
       !sample = x Sq.<| (Sq.empty Sq.|> nat 1 Sq.|> nat 2 Sq.|> nat 3)
       PackedTag elemTag = TT.seqViewElemTag
       PackedTag someTag = TT.someTag
-      !emptyView = Enum Ty.seqViewRef TT.seqViewEmptyTag
-      !none = Enum Ty.optionalRef TT.noneTag
+      !emptyView = Enum TT.seqViewEmptyTag
+      !none = Enum TT.noneTag
       range a b = Sq.fromList (map nat [a .. b])
       -- lists of many shapes: built from either end, appended, cut, and drained
       built n = [range 1 n, foldr (Sq.<|) Sq.empty (map nat [1 .. n])]
@@ -694,10 +692,10 @@ probeLists ls steps = do
             r <- run d (if left then 0 else 1) (any' emptyView) (fromIntegral elemTag) 0
             case (r, left, d) of
               (Just c, _, Sq.Empty) -> pure (if same c emptyView then Just d else Nothing)
-              (Just (Data2 rf t a (BoxedVal c)), True, e Sq.:<| rest)
-                | rf == Ty.seqViewRef, t == TT.seqViewElemTag, a == e -> checked full rest (Just c)
-              (Just (Data2 rf t (BoxedVal c) b), False, rest Sq.:|> e)
-                | rf == Ty.seqViewRef, t == TT.seqViewElemTag, b == e -> checked full rest (Just c)
+              (Just (Data2 t a (BoxedVal c)), True, e Sq.:<| rest)
+                | t == TT.seqViewElemTag, a == e -> checked full rest (Just c)
+              (Just (Data2 t (BoxedVal c) b), False, rest Sq.:|> e)
+                | t == TT.seqViewElemTag, b == e -> checked full rest (Just c)
               _ -> pure Nothing
           -- a negative count is a Nat too large to be a size
           cut full tk k d =
@@ -709,9 +707,8 @@ probeLists ls steps = do
                 (ea, eb) = Sq.splitAt (if left then k else n - k) d
             case r of
               Just c | n < k -> pure (if same c emptyView then Just (d, d) else Nothing)
-              Just (Data2 rf t (BoxedVal a) (BoxedVal b))
-                | rf == Ty.seqViewRef,
-                  t == TT.seqViewElemTag -> do
+              Just (Data2 t (BoxedVal a) (BoxedVal b))
+                | t == TT.seqViewElemTag -> do
                     ra <- checked full ea (Just a)
                     rb <- checked full eb (Just b)
                     pure ((,) <$> ra <*> rb)
@@ -720,7 +717,7 @@ probeLists ls steps = do
           lit k v = run Sq.empty 10 (any' natTypeTag) k v >>= checked True (Sq.fromList (map nat [v .. v + k - 1]))
           at d i = do
             r <- run d 4 (any' none) i (fromIntegral someTag)
-            pure (maybe False (\c -> same c (maybe none (Data1 Ty.optionalRef TT.someTag) (Sq.lookup i d))) r)
+            pure (maybe False (\c -> same c (maybe none (Data1 TT.someTag) (Sq.lookup i d))) r)
           yes = maybe False (const True)
           -- one sample: its structure, then each helper against Haskell
           check :: Sq.Deque Val -> IO (Either String Int)
@@ -835,11 +832,11 @@ probeTexts ls steps = do
       PackedTag someTag = TT.someTag
       PackedTag pairTag = TT.pairTag
       PackedTag rightTag = TT.rightTag
-      !none = Enum Ty.optionalRef TT.noneTag
-      unitVal = BoxedVal (Enum Ty.unitRef TT.unitTag)
+      !none = Enum TT.noneTag
+      unitVal = BoxedVal (Enum TT.unitTag)
       -- the pair (x, y) as the interpreter builds it
-      tup2 x y = Data2 Ty.pairRef TT.pairTag x (BoxedVal (Data2 Ty.pairRef TT.pairTag y unitVal))
-      some = Data1 Ty.optionalRef TT.someTag
+      tup2 x y = Data2 TT.pairTag x (BoxedVal (Data2 TT.pairTag y unitVal))
+      some = Data1 TT.someTag
       textC = TextC
       chars t = UText.toString t
       -- readIntegral and readi of Machine/Primops.hs
@@ -866,9 +863,7 @@ probeTexts ls steps = do
   put arr 2 (wrap UText.empty)
   -- the constructors the helpers build results from (see rope_test)
   put arr 4 (any' none)
-  put arr 5 (any' (Enum Ty.pairRef (PackedTag 0)))
-  put arr 6 (any' (Enum Ty.unitRef TT.unitTag))
-  put arr 7 (any' (Enum Ty.eitherRef (PackedTag 0)))
+  put arr 6 (any' (Enum TT.unitTag))
   put arr 8 (any' charTypeTag)
   put arr 9 (any' natTypeTag)
   put arr 10 (any' intTypeTag)
@@ -920,7 +915,7 @@ probeTexts ls steps = do
                     | front = maybe none (\(ch, rest) -> some (BoxedVal (tup2 (CharVal ch) (BoxedVal (textC rest))))) (UText.uncons t)
                     | otherwise = maybe none (\(rest, ch) -> some (BoxedVal (tup2 (BoxedVal (textC rest)) (CharVal ch)))) (UText.unsnoc t)
               restOk <- case c of
-                Data1 _ _ (BoxedVal (Data2 _ _ a (BoxedVal (Data2 _ _ b _))))
+                Data1 _ (BoxedVal (Data2 _ a (BoxedVal (Data2 _ b _))))
                   | BoxedVal r <- if front then b else a -> put arr 0 (any' r) >> textCheck arr
                 _ -> pure (n == 0)
               pure (h == 1 && same c expected && restOk)
@@ -979,7 +974,7 @@ probeTexts ls steps = do
                     h9 <- textTest arr 22 (fromIntegral rightTag) 0 0
                     c9 <- slot3
                     okT <- case c9 of
-                      Data1 rf tg (BoxedVal inner) | rf == Ty.eitherRef, tg == TT.rightTag -> textIn inner t
+                      Data1 tg (BoxedVal inner) | tg == TT.rightTag -> textIn inner t
                       _ -> pure False
                     pure (okB && h9 == 1 && okT)
               _ -> pure False
@@ -1109,7 +1104,7 @@ probeTexts ls steps = do
                             h2 <- textTest arr 22 (fromIntegral rightTag) 0 0
                             c2 <- slot3
                             case c2 of
-                              Data1 _ _ (BoxedVal inner) | h2 == 1 -> put arr 3 (any' inner) >> verdict full 1 t
+                              Data1 _ (BoxedVal inner) | h2 == 1 -> put arr 3 (any' inner) >> verdict full 1 t
                               _ -> pure Nothing
                           _ -> pure Nothing
                     | otherwise -> do
@@ -1119,7 +1114,7 @@ probeTexts ls steps = do
                         h <- textTest arr (if front then 5 else 6) (fromIntegral someTag) (fromIntegral pairTag) 0
                         c <- slot3
                         case c of
-                          Data1 _ _ (BoxedVal (Data2 _ _ a (BoxedVal (Data2 _ _ b _))))
+                          Data1 _ (BoxedVal (Data2 _ a (BoxedVal (Data2 _ b _))))
                             | h == 1,
                               BoxedVal rest <- if front then b else a ->
                                 put arr 3 (any' rest) >> verdict full 1 (if front then UText.drop 1 t else UText.take (n - 1) t)
@@ -1197,10 +1192,10 @@ probeBytes ls steps = do
       PackedTag someTag = TT.someTag
       PackedTag pairTag = TT.pairTag
       PackedTag rightTag = TT.rightTag
-      !none = Enum Ty.optionalRef TT.noneTag
-      unitVal = BoxedVal (Enum Ty.unitRef TT.unitTag)
-      tup2 x y = Data2 Ty.pairRef TT.pairTag x (BoxedVal (Data2 Ty.pairRef TT.pairTag y unitVal))
-      some = Data1 Ty.optionalRef TT.someTag
+      !none = Enum TT.noneTag
+      unitVal = BoxedVal (Enum TT.unitTag)
+      tup2 x y = Data2 TT.pairTag x (BoxedVal (Data2 TT.pairTag y unitVal))
+      some = Data1 TT.someTag
       bytesC = BytesC
       -- the number functions: width, big-endian, and the Haskell operations
       numKinds =
@@ -1236,9 +1231,7 @@ probeBytes ls steps = do
   put arr 1 (wrap (bytes (replicate (th + 1) 97) <> bytes (replicate (th + 1) 98)))
   put arr 2 (wrap By.empty)
   put arr 4 (any' none)
-  put arr 5 (any' (Enum Ty.pairRef (PackedTag 0)))
-  put arr 6 (any' (Enum Ty.unitRef TT.unitTag))
-  put arr 7 (any' (Enum Ty.eitherRef (PackedTag 0)))
+  put arr 6 (any' (Enum TT.unitTag))
   put arr 8 (any' charTypeTag)
   put arr 9 (any' natTypeTag)
   put arr 10 (any' intTypeTag)
@@ -1271,7 +1264,7 @@ probeBytes ls steps = do
             put arr 2 (any' natTypeTag)
             h <- bytesTest arr 5 i (fromIntegral someTag) 0
             c <- unsafeCoerce <$> readArray arr 3 :: IO Closure
-            pure (h == 1 && same c (maybe none (Data1 Ty.optionalRef TT.someTag . NatVal . fromIntegral) (By.at i b)))
+            pure (h == 1 && same c (maybe none (Data1 TT.someTag . NatVal . fromIntegral) (By.at i b)))
           -- Bytes.flatten: the same bytes, in one chunk
           flat :: By.Bytes -> IO (Maybe By.Bytes)
           flat b = do
@@ -1316,7 +1309,7 @@ probeBytes ls steps = do
               cd <- slot3
               let expD = maybe none (\(v, rest) -> some (BoxedVal (tup2 (NatVal v) (BoxedVal (bytesC rest))))) (dec b)
               restOk <- case cd of
-                Data1 _ _ (BoxedVal (Data2 _ _ _ (BoxedVal (Data2 _ _ (BoxedVal rest) _)))) -> put arr 0 (any' rest) >> bytesCheck arr
+                Data1 _ (BoxedVal (Data2 _ _ (BoxedVal (Data2 _ (BoxedVal rest) _)))) -> put arr 0 (any' rest) >> bytesCheck arr
                 _ -> pure (n < w)
               encs <- forM [0, 1, 255, 256, 65535, 65536, 2 ^ (32 :: Int) - 1, 2 ^ (32 :: Int), maxBound] $ \v -> do
                 h <- bytesTest arr 12 (fromIntegral v) (w * 2 + be') 0
@@ -1337,7 +1330,7 @@ probeBytes ls steps = do
               h2 <- bytesTest arr 15 base (fromIntegral rightTag) 0
               c2 <- slot3
               back <- case (c2, dec e) of
-                (Data1 rf tg (BoxedVal inner), Right d) | rf == Ty.eitherRef, tg == TT.rightTag -> bytesIn inner d
+                (Data1 tg (BoxedVal inner), Right d) | tg == TT.rightTag -> bytesIn inner d
                 _ -> pure False
               pure (h == 1 && r == Just e && h2 == 1 && back)
             pure . catMaybes $
@@ -1466,7 +1459,7 @@ probeBytes ls steps = do
                             h2 <- bytesTest arr 15 base (fromIntegral rightTag) 0
                             c2 <- slot3
                             case c2 of
-                              Data1 _ _ (BoxedVal inner) | h2 == 1 -> put arr 3 (any' inner) >> verdict full 1 t
+                              Data1 _ (BoxedVal inner) | h2 == 1 -> put arr 3 (any' inner) >> verdict full 1 t
                               _ -> pure Nothing
                           _ -> pure Nothing
                     | otherwise -> do
@@ -1476,7 +1469,7 @@ probeBytes ls steps = do
                         h <- bytesTest arr 11 (w * 2 + (if be then 1 else 0)) (fromIntegral someTag) (fromIntegral pairTag)
                         c <- slot3
                         case (c, dec t) of
-                          (Data1 _ _ (BoxedVal (Data2 _ _ _ (BoxedVal (Data2 _ _ (BoxedVal rest) _)))), Just (_, expected)) | h == 1 -> put arr 3 (any' rest) >> verdict full 1 expected
+                          (Data1 _ (BoxedVal (Data2 _ _ (BoxedVal (Data2 _ (BoxedVal rest) _)))), Just (_, expected)) | h == 1 -> put arr 3 (any' rest) >> verdict full 1 expected
                           (_, Nothing) | h == 1 -> pure (Just t)
                           _ -> pure Nothing
                 case res of
@@ -1495,7 +1488,7 @@ probeBytes ls steps = do
         c <- slot3
         case (h, dec e) of
           (1, Right d) -> case c of
-            Data1 rf tg (BoxedVal inner) | rf == Ty.eitherRef, tg == TT.rightTag -> bytesIn inner d
+            Data1 tg (BoxedVal inner) | tg == TT.rightTag -> bytesIn inner d
             _ -> pure False
           (1, Left _) -> pure False
           _ -> pure True
