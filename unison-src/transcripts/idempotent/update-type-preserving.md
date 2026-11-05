@@ -734,3 +734,491 @@ markLink = typeLink Mark
 
   No changes found.
 ```
+
+An alias doesn't send an update down the slow path. A dependent with an alias that isn't recursive is substituted
+under both names, which stay aliases.
+
+``` unison
+h1 : Nat -> Nat
+h1 n = n + 1
+
+a1 : Nat
+a1 = h1 1
+
+user1 : Nat
+user1 = a1 + 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + a1    : Nat
+  + h1    : Nat -> Nat
+  + user1 : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.term a1 b1
+
+  Done.
+```
+
+``` unison
+h1 : Nat -> Nat
+h1 n = n + 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ h1 : Nat -> Nat
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Nothing that code uses changed its type, so I'm
+  saving the results without typechecking it again...
+
+  Done.
+```
+
+A recursive dependent printed under two names refers to one of them, so the other stops being an alias. Only it and
+what refers to it directly are typechecked; `above2` is not.
+
+``` unison
+h2 : Nat -> Nat
+h2 n = n + 1
+
+r2 : Nat -> Nat
+r2 n = if n == 0 then h2 0 else r2 (Nat.drop n 1)
+
+user2 : Nat
+user2 = r2 3
+
+above2 : Nat
+above2 = user2 + 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + above2 : Nat
+  + h2     : Nat -> Nat
+  + r2     : Nat -> Nat
+  + user2  : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.term r2 s2
+
+  Done.
+```
+
+``` unison
+h2 : Nat -> Nat
+h2 n = n + 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ h2 : Nat -> Nat
+      (also named h1)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code needs a closer look, so I'm
+  typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+The same goes for a name in a cycle.
+
+``` unison
+h3 : Nat -> Nat
+h3 n = n + 1
+
+ping3 : Nat -> Nat
+ping3 n = if n == 0 then h3 0 else pong3 (Nat.drop n 1)
+
+pong3 : Nat -> Nat
+pong3 n = if n == 0 then 0 else ping3 (Nat.drop n 1)
+
+user3 : Nat
+user3 = pong3 3
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + h3    : Nat -> Nat
+  + ping3 : Nat -> Nat
+  + pong3 : Nat -> Nat
+  + user3 : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.term pong3 pong3b
+
+  Done.
+```
+
+``` unison
+h3 : Nat -> Nat
+h3 n = n + 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ h3 : Nat -> Nat
+      (also named h1 and h2)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code needs a closer look, so I'm
+  typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+Two constants that happen to be equal are one term with two names. Updating one leaves the names of its users to the
+printer, so its direct users are typechecked and `aboveA` is not.
+
+``` unison
+limitA : Nat
+limitA = 5
+
+limitB : Nat
+limitB = 5
+
+useA : Nat
+useA = limitA + 1
+
+useB : Nat
+useB = limitB + 2
+
+aboveA : Nat
+aboveA = useA + useB
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + aboveA : Nat
+  + limitA : Nat
+  + limitB : Nat
+  + useA   : Nat
+  + useB   : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+limitA : Nat
+limitA = 6
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ limitA : Nat
+      (was also named limitB)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code needs a closer look, so I'm
+  typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+Updating one name of an aliased type leaves what mentions it to the printer in the same way.
+
+``` unison
+structural type T4 = C4 Nat
+
+pass4 : T4 -> T4
+pass4 t = t
+
+make4 : T4
+make4 = C4 1
+
+user4 : T4
+user4 = pass4 make4
+
+above4 : [T4]
+above4 = [user4]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type T4
+
+  + above4 : [T4]
+  + make4  : T4
+  + pass4  : T4 -> T4
+  + user4  : T4
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.type T4 U4
+
+  Done.
+```
+
+``` unison
+structural type T4 = C4 Nat | D4
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ structural type T4
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+A recursive type printed under two names stops being an alias too, so what mentions it is typechecked.
+
+``` unison
+structural type T5 = C5 Nat
+
+structural type L5 = N5 | K5 T5 L5
+
+one5 : L5
+one5 = N5
+
+pass5 : L5 -> L5
+pass5 l = l
+
+user5 : L5
+user5 = pass5 one5
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type L5
+  + structural type T5
+
+  + one5  : L5
+  + pass5 : L5 -> L5
+  + user5 : L5
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.type L5 M5
+
+  Done.
+```
+
+``` unison
+structural type T5 = C5 Nat | D5
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ structural type T5
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+A substitution would be captured by a local variable named like the dependent, so that term is printed instead.
+
+``` unison
+h6 : Nat -> Nat
+h6 n = n + 1
+
+count : Nat
+count = h6 1
+
+clash : Nat -> Nat
+clash n =
+  total = count + n
+  f = (count -> count + 1)
+  f total
+
+noClash : Nat
+noClash = count + 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + clash   : Nat -> Nat
+  + count   : Nat
+  + h6      : Nat -> Nat
+  + noClash : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+h6 : Nat -> Nat
+h6 n = n + 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ h6 : Nat -> Nat
+      (also named h1 , h2 , and h3)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code needs a closer look, so I'm
+  typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```

@@ -53,7 +53,8 @@ foo = +30
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
 
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
