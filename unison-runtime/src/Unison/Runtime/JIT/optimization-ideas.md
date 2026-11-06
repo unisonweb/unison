@@ -548,3 +548,15 @@ leaves (pushes 7% slower, pops 20 to 45%, `sum` and `toList` 60 to 70%),
 [2026-10-02](benchmarks/2026-10-02-deque-vs-data-sequence.md). The structure the Deque
 replaced (worst-case O(1) pushes and pops, twice the code, slower on every operation) was
 deleted; it is in the branch's history (commits of 2026-10-02).
+
+## The "Mutate a local Remote.Ref 10k times" row runs at 0.58x of trunk
+
+A real regression, not noise: 8.2 to 8.5 ms in four branch runs of `jit-suite.md` under `eager`
+on 2026-11-05 (130143e08 and fc1ffbe4b) against 4.8 to 5.0 ms on trunk (25234f241); the
+earlier reading of it as one run that happened to land a major GC was wrong. The row is a
+local `Ref` mutated inside an ability handler, so the suspects are the wide convention boxing a
+result on the handler path, the frame records written at each request, and the register entry's
+cell check (the cross-definition rows lost 0.80x to 0.87x the same way). Not looked at yet
+(Paul, 2026-11-05: save it for later). Start from the IR dump of the row's module and the exit
+and allocation counts under `UNISON_JIT_LOG`.
+
