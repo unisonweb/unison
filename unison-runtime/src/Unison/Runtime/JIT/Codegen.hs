@@ -4543,12 +4543,15 @@ genInstr fe d instr sect k =
           requireTagged slow (D.singleton b)
           -- the non-moving barrier for the content a successful swap
           -- overwrites: pushed before the attempt (a push for a swap that
-          -- then fails is harmless), so that the helper tests nothing
-          rp <- fresh "ref.p"
-          emit (rp <> " = inttoptr i64 " <> r <> " to ptr")
-          varA <- fresh "var.a"
-          emit (varA <> " = getelementptr i64, ptr " <> rp <> ", i64 " <> tshow (rMutVarVar (envRts (feEnv fe))))
-          pushOld fe [varA]
+          -- then fails is harmless), so that the helper tests nothing;
+          -- the MutVar# is reached through the Ref's wrappers as a read does
+          when (rNonmoving (envRts (feEnv fe)) && enabled fe "nmbarrier") $ do
+            Triple mv _ _ <- refFields fe (d - i) slow
+            mvp <- fresh "mutvar.p"
+            emit (mvp <> " = inttoptr i64 " <> mv <> " to ptr")
+            varA <- fresh "var.a"
+            emit (varA <> " = getelementptr i64, ptr " <> mvp <> ", i64 " <> tshow (rMutVarVar (envRts (feEnv fe))))
+            pushOld fe [varA]
           res <- fresh "cas"
           emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
           miss <- fresh "miss"
