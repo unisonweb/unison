@@ -366,7 +366,7 @@ modulePrelude =
       "declare i64 @unison_jit_foreign_eq(ptr, ptr, i64)",
       "declare ptr @unison_jit_bytes_index(ptr, ptr, i64, ptr, i64, ptr)",
       "declare ptr @unison_jit_bytes_flatten(ptr, ptr)",
-      "declare ptr @unison_jit_text_uncons(ptr, ptr, ptr, i64, ptr, i64, ptr, ptr, i64)",
+      "declare ptr @unison_jit_text_uncons(ptr, ptr, ptr, i64, i64, ptr, ptr, i64)",
       "declare ptr @unison_jit_int_to_text(ptr, i64, i64)",
       "declare ptr @unison_jit_float_to_text(ptr, i64)",
       "declare ptr @unison_jit_text_to_num(ptr, ptr, ptr, i64, ptr, i64)",
@@ -384,7 +384,7 @@ modulePrelude =
       "declare ptr @unison_jit_text_case(ptr, ptr, i64)",
       "declare ptr @unison_jit_text_to_utf8(ptr, ptr)",
       "declare ptr @unison_jit_text_from_utf8(ptr, ptr, ptr, i64)",
-      "declare ptr @unison_jit_bytes_decode_nat(ptr, ptr, i64, i64, ptr, i64, ptr, i64, ptr, ptr)",
+      "declare ptr @unison_jit_bytes_decode_nat(ptr, ptr, i64, i64, ptr, i64, i64, ptr, ptr)",
       "declare ptr @unison_jit_bytes_encode_nat(ptr, i64, i64, i64)",
       "declare i64 @unison_jit_bytes_read_ok(ptr, i64, i64)",
       "declare i64 @unison_jit_bytes_read_at(ptr, i64, i64, i64)",
@@ -4707,7 +4707,8 @@ boxHelperText env
           block (Pair l is)
             | l == "unreachable" = D.empty
             | otherwise = (l <> ":") <| fmap ("  " <>) is
-          header = "define internal ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 %tagw, i64 %n, i64 %u0, ptr %b0, i64 %u1, ptr %b1) {"
+          -- one pair per field the convention can carry: the call passes that many
+          header = "define internal ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 %tagw, i64 %n" <> foldMap (\k -> ", i64 %u" <> tshow k <> ", ptr %b" <> tshow k) [0 .. wideK - 1] <> ") {"
        in unlinesT (gsDescText gs <> (header <| foldMap block (gsBlocks gs)) |> "}")
 
 boxHelperName :: Text

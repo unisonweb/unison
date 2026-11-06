@@ -5930,3 +5930,55 @@ A value with fewer fields than the arm binds, and one with more:
   Please report it at
   https://github.com/unisonweb/unison/issues/new/choose.
 ```
+
+## Stack arguments and an early return
+
+`go` has four arguments (its two parameters and the two it captures), one pair more than arm64
+passes in registers, and returns before any call when `i == n`. A worker entered by a real call on
+that path, which the stress rows force (`callee`, which sends calls through the interpreter and in
+through the wrapper, and `poll`, whose re-entry function calls the worker through its register
+entry on the last iteration), returned without popping its stack argument under LLVM's shrink
+wrapping and crashed the caller's return (2026-11-05; `-enable-shrink-wrap=false` in `jit_llvm.c`).
+
+``` unison
+use Nat + ==
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.range : Nat -> Nat -> Cons Nat
+Cons.range lo hi =
+  go acc i = if i == lo then Cons.Cons i acc else go (Cons.Cons i acc) (Nat.drop i 1)
+  if Nat.lteq hi lo then Cons.Nil else go Cons.Nil (Nat.drop hi 1)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+headLoop : Nat -> Cons Nat -> Nat
+headLoop n c =
+  go acc i =
+    if i == n then acc
+    else match Cons.head c with
+      None -> go acc (i + 1)
+      Some h -> go (acc + h) (i + 1)
+  go 0 0
+
+> headLoop 10000 (Cons.range 5 10)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Cons a
+
+  + Cons.head  : Cons a -> Optional a
+  + Cons.range : Nat -> Nat -> Cons Nat
+  + headLoop   : Nat -> Cons Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    24 | > headLoop 10000 (Cons.range 5 10)
+           ⧩
+           50000
+```

@@ -403,12 +403,28 @@ int unison_jit_init(void) {
   // UNISON_JIT_INLINE_THRESHOLD=N sets the inliner's threshold (LLVM's
   // default is 225), for measurement.
   {
-    const char *argv[4] = {"unison"};
+    const char *argv[5] = {"unison"};
     int argc = 1;
     if (!debug_getenv("UNISON_JIT_SCHED")) {
       argv[argc++] = "-enable-misched=false";
       argv[argc++] = "-enable-post-misched=false";
     }
+    // Shrink wrapping is off (2026-11-05). On arm64 a tailcc function with
+    // more arguments than fit in registers pops its incoming stack
+    // arguments itself, in the epilogue (callee cleanup: the 16 of
+    // `add sp, sp, #256` in a worker of four argument pairs). LLVM 23's
+    // shrink wrapping lets a return path that needs no frame skip the
+    // epilogue, and with it that pop: a worker entered with its first
+    // test already true (a loop's `go acc i` called with i == n, which
+    // happens when an exit lands on the last iteration and the re-entry
+    // function calls the worker through its register entry) returned
+    // with the caller's stack pointer sixteen bytes low, the caller
+    // restored fp and lr from the spill pair below them, and `ret` went
+    // into the Haskell heap. Once in sixteen benchmark runs; every 90 s
+    // under UNISON_JIT_STRESS=poll=3. x86-64 is not affected (its `ret`
+    // carries the pop), and nor is a worker whose arguments all fit in
+    // registers. See benchmarks/2026-11-05-shrink-wrap.md for the cost.
+    argv[argc++] = "-enable-shrink-wrap=false";
     // The inliner's threshold: 600 where LLVM's default is 225. Generated
     // functions carry more instructions than their work (the exit paths,
     // the slot stores, and under the wide convention a seven-word return),
