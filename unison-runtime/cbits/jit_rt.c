@@ -27,6 +27,7 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#undef _WIN32_WINNT  // mingw's headers set 0x601 first
 #define _WIN32_WINNT 0x0602  // GetCurrentThreadStackLimits is Windows 8
 #include <windows.h>
 #else
@@ -38,7 +39,9 @@
 #include <ctype.h>
 #include <limits.h>
 #include <math.h>
-#include <execinfo.h>
+#if !defined(_WIN32)
+#include <execinfo.h>  // the C backtrace of an aborting thread, under UNISON_JIT_DEBUG
+#endif
 #include <signal.h>
 #include <stdint.h>
 
@@ -125,6 +128,7 @@ static int64_t stress_poll = 0;
 static int64_t stress_callee = 0;
 static int64_t jit_trace = 0;
 
+#if !defined(_WIN32)
 static void abort_backtrace(int sig) {
   void *bt[64];
   int n = backtrace(bt, 64);
@@ -133,6 +137,8 @@ static void abort_backtrace(int sig) {
   signal(sig, SIG_DFL);
   raise(sig);
 }
+#endif
+
 // How much C stack native code may use for non-tail calls, at most. The
 // stress mode cstack=N makes this small.
 static int64_t cstack_budget = 1 << 20;
@@ -284,7 +290,9 @@ void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t csta
   // Under UNISON_JIT_DEBUG, an abort (the RTS's barf, an assertion of the
   // debug RTS) prints the aborting thread's C backtrace first, which says
   // where the collector was when it found a bad object
+#if !defined(_WIN32)
   if (jit_debug()) signal(SIGABRT, abort_backtrace);
+#endif
 }
 
 // memmem, which Windows' C library lacks: the first occurrence of needle

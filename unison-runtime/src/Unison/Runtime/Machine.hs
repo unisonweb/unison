@@ -2128,7 +2128,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       -- shape during emit interns any name it hasn't seen.
       oldRfms <- readTVar (recordFieldMappings cc)
       -- check for missing references
-      let arities = fmap (head . ANF.arities) int <> builtinArities
+      let arities = fmap ANF.entryArity int <> builtinArities
           -- the loop state this batch's functions take as fields
           -- (Unison.Runtime.MCode.Explode): decided over the batch, since
           -- that is where a function's callers are

@@ -46,6 +46,7 @@ module Unison.Runtime.ANF
     arity,
     SuperGroup (..),
     arities,
+    entryArity,
     POp (..),
     close,
     saturate,
@@ -1636,6 +1637,10 @@ arity (Lambda ccs _) = length ccs
 -- local bindings follow in their original order.
 arities :: SuperGroup ref v -> [Int]
 arities (Rec bs e) = arity e : fmap (arity . snd) bs
+
+-- | The number of arguments the group's main entry accepts.
+entryArity :: SuperGroup ref v -> Int
+entryArity (Rec _ e) = arity e
 
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not

@@ -60,7 +60,7 @@ freshes' avoid0 = go avoid0 []
 class Fresh t where fresh :: t
 
 fresh1 :: (Var v) => v
-fresh1 = head $ freshes 1
+fresh1 = freshIn mempty $ typed ANFBlank
 
 instance (Var v) => Fresh (v, v) where
   fresh = (v1, v2)
