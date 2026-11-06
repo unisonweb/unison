@@ -24,6 +24,7 @@ module Unison.Runtime.JIT.Pool
     poolIndexNatTag,
     poolIndexTrue,
     poolIndexFalse,
+    poolIndexWitness,
   )
 where
 
@@ -34,11 +35,12 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Primitive.Array (MutableArray, copyMutableArray, newArray, sizeofMutableArray, writeArray)
 import Data.Vector qualified as V
-import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag)
+import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
-import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
+import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, emptyVal, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, witnessTag, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
 import Unison.Runtime.Stack qualified as Stack
+import Unison.Runtime.Wide (wideK)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- The order matches unboxedTypeTagToInt in Stack.hs.
 poolIndexCharTag, poolIndexFloatTag, poolIndexIntTag, poolIndexNatTag :: Int
@@ -52,8 +54,14 @@ poolIndexTrue, poolIndexFalse :: Int
 poolIndexTrue = 4
 poolIndexFalse = 5
 
+-- | The witness closure of an unboxed constructor with this many fields
+-- (Unison.Runtime.Wide): the entries after the booleans, one per field
+-- count up to 'wideK'.
+poolIndexWitness :: Int -> Int
+poolIndexWitness n = 6 + n
+
 fixedEntries :: Int
-fixedEntries = 6
+fixedEntries = 7 + wideK
 
 -- | The size of the first array: every array ever passed to native code
 -- has at least this many entries.
@@ -67,10 +75,8 @@ poolStableSize (Pool _ n) = n
 
 -- | What a pool entry is. Entries are interned by key.
 data PoolKey
-  = -- | a constructor with no fields. Also how a 'Reference' is kept: the
-    -- entry for @KeyEnum r 0@ is an 'Enum' whose reference field native
-    -- code reads when it builds a constructor of that type.
-    KeyEnum !Reference !PackedTag
+  = -- | a constructor with no fields, by its packed tag
+    KeyEnum !PackedTag
   | -- | a boxed literal (text, term link, type link)
     KeyLit !MLit
   | -- | a known combinator as a value: a @PAp@ with nothing captured, the
@@ -84,13 +90,18 @@ data PoolKey
     -- copies the shape's words out of it when it builds a record
     -- (@RecPack@). Interned by the field names, which determine the shape.
     KeyRecord !RecordShape
+  | -- | the runtime's empty value ('emptyVal', a @Val@ closure), what a
+    -- new array is filled with: a heap object, so native code takes it
+    -- from the pool rather than from a C static, which the collector
+    -- would not update (found 2026-11-05)
+    KeyEmptyVal
 
 instance Eq PoolKey where
   a == b = compare a b == EQ
 
 instance Ord PoolKey where
   compare = \cases
-    (KeyEnum r t) (KeyEnum r' t') -> compare (r, t) (r', t')
+    (KeyEnum t) (KeyEnum t') -> compare t t'
     (KeyEnum {}) _ -> LT
     _ (KeyEnum {}) -> GT
     (KeyLit l) (KeyLit l') -> compare l l'
@@ -103,14 +114,18 @@ instance Ord PoolKey where
     (KeyCached {}) _ -> LT
     _ (KeyCached {}) -> GT
     (KeyRecord s) (KeyRecord s') -> compare s s'
+    (KeyRecord {}) _ -> LT
+    _ (KeyRecord {}) -> GT
+    KeyEmptyVal KeyEmptyVal -> EQ
 
 instance Show PoolKey where
   show = \case
-    KeyEnum r t -> "KeyEnum " ++ show r ++ " " ++ show t
+    KeyEnum t -> "KeyEnum " ++ show t
     KeyLit l -> "KeyLit " ++ show l
     KeyComb c _ -> "KeyComb " ++ show c
     KeyCached c _ -> "KeyCached " ++ show c
     KeyRecord s -> "KeyRecord " ++ show (shapeFields s)
+    KeyEmptyVal -> "KeyEmptyVal"
 
 data PoolState = PoolState
   { poolArray :: !(MutableArray (PrimState IO) Closure),
@@ -135,6 +150,7 @@ newPool stress = do
   put poolIndexNatTag natTypeTag
   put poolIndexTrue (getBoxedVal trueVal)
   put poolIndexFalse (getBoxedVal falseVal)
+  forM_ [0 .. wideK] $ \n -> put (poolIndexWitness n) (witnessTag n)
   ref <- newIORef (PoolState arr fixedEntries Map.empty [])
   pure (Pool ref stable)
 
@@ -172,12 +188,15 @@ poolIndices (Pool ref _) keys = do
 
 closureFor :: PoolKey -> Closure
 closureFor = \case
-  KeyEnum r t -> Enum r t
+  KeyEnum t -> Enum t
   -- the segment's boxes must be evaluated (native code reads through
   -- them); nullSeg's components are CAFs, so force them
   KeyComb cix comb -> let (u, b) = nullSeg in u `seq` b `seq` PAp cix comb (u, b)
   KeyCached _ c -> c
   KeyRecord s -> RecordG s V.empty
+  -- a Val closure in a Closure's slot: the pool holds whatever native code
+  -- needs an address for, and the collector cares about neither type
+  KeyEmptyVal -> unsafeCoerce emptyVal
   KeyLit l -> case l of
     MT t -> Stack.TextC t
     MM r -> Foreign (Stack.WrapReferent r)

@@ -41,6 +41,8 @@ import Unison.Runtime.Stack
     pattern PApV,
     pattern TextC,
   )
+import Unison.Runtime.TypeNumbers qualified as TN
+import Unison.Runtime.TypeTags qualified as TT
 import Unison.Term
   ( Term,
     app,
@@ -62,8 +64,7 @@ import Unison.Term
   )
 import Unison.Term qualified as Term
 import Unison.Type
-  ( anyRef,
-    booleanRef,
+  ( booleanRef,
   )
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Text qualified as Text
@@ -109,13 +110,14 @@ decompile backref topTerms = \case
   Val i (UnboxedTypeTag tt) ->
     err (BadUnboxed tt) . nat () $ fromIntegral $ i
   Val _u clos -> case clos of
-    DataC rf (maskTags -> ct) []
-      | rf == booleanRef -> tag2bool ct
-    (DataC rf _ [b])
-      | rf == anyRef ->
+    DataC t []
+      | TT.isBooleanTag t -> tag2bool (maskTags t)
+    (DataC t [b])
+      | TT.isAnyTag t ->
           app () (builtin () "Any.Any") <$> decompile backref topTerms b
-    (DataC rf (maskTags -> ct) vs) ->
-      apps' (con rf ct) <$> traverse (decompile backref topTerms) vs
+    (DataC t vs) ->
+      -- the type's reference, from the process's registry
+      apps' (con (TN.typeReference (TT.typeTag t)) (maskTags t)) <$> traverse (decompile backref topTerms) vs
     (RecordC shape vals) -> do
       vs' <- traverse (decompile backref topTerms) vals
       -- The field names are carried by the record's shape, in the same

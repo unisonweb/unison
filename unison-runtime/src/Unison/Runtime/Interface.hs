@@ -82,7 +82,7 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
   ( Args (..),
@@ -98,6 +98,7 @@ import Unison.Runtime.MCode
     attachNativeCells,
     combTypes,
     emitComb,
+    emptyRCtx,
     emptyRNs,
     newNativeCellPool,
     prettyComb,
@@ -113,6 +114,7 @@ import Unison.Runtime.Machine
     Tracer (..),
     apply0,
     baseCCache,
+    boxSlot,
     cacheAdd,
     cacheAdd0,
     eval0,
@@ -130,7 +132,9 @@ import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Serialize.Get
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Runtime.TypeTags qualified as TT
+import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
@@ -777,7 +781,7 @@ prepareEvaluation ppe tm ctx = do
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
 watchHook :: IORef Val -> XStack -> IO ()
-watchHook r xstk = peek (packXStack xstk) >>= writeIORef r
+watchHook r xstk = boxSlot (packXStack xstk) 0 >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
@@ -853,7 +857,7 @@ executeMainComb ::
   CCache () ->
   IO (Either Error ())
 executeMainComb init cc = do
-  rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
+  rSection <- resolveSection cc $ Ins (Pack TT.unitTag ZArgs) $ Call True init init (VArg1 0)
   result <- UnliftIO.try $ eval0 cc Nothing rSection
   bitraverse contextualizeErr pure result
   where
@@ -891,7 +895,6 @@ data RuntimeHost
 startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
 startRuntime jit sandboxed runtimeHost version = do
   startJIT jit
-  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
   ctx <- baseContext jit sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
   -- everything else is when it is loaded
@@ -931,15 +934,18 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl) init = do
-  -- The file's replacement mode, before anything decodes a value or
-  -- consults the foreign function table
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ trs _ _ _ _ _ _ _ repl wide) init = do
+  -- The file's replacement mode and calling convention, before anything
+  -- decodes a value, consults the foreign function table or lays out a frame
   JIT.setReplacements repl
+  setWide wide
+  -- The file's type numbering, which its MCode has baked into its packed
+  -- tags, before any code is restored (Unison.Runtime.TypeNumbers)
+  TN.seedTypeNumbers trs
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
   -- codebase path, for a compiled program
   startJIT jit
   cc <- restoreCache jit sandboxed sc
-  readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
   combRefs' <- readTVarIO (combRefs cc)
   combs' <- readTVarIO (combs cc)
   when (JIT.dumpMCode (jitConfig jit)) $
@@ -957,14 +963,19 @@ data StoredCache
   = SCache
       (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
+      -- the unoptimized copies of the rewritten groups, by the group's
+      -- number (CCache.baseNums): a program's compiled code carries its
+      -- MCode, so it carries these, which a continuation it reads resumes
+      (EnumMap Word64 Word64)
       (EnumSet Word64)
       (OptInfos Reference Symbol)
+      -- the numbering of the types the code mentions, which its packed
+      -- tags carry: the process that runs it takes it on before loading
+      -- anything (Unison.Runtime.TypeNumbers)
       (EnumMap Word64 Reference)
       Word64
       Word64
-      Word64
       (Map Reference (SuperGroup Reference Symbol))
-      (Map Reference Word64)
       (Map Reference Word64)
       (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
@@ -974,25 +985,28 @@ data StoredCache
       -- it has to decode values the same way, whatever its own environment
       -- says
       JIT.Replacements
+      -- whether the code was compiled under the wide calling convention
+      -- (Unison.Runtime.Wide), for the same reason
+      Bool
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl) =
+putStoredCache (SCache cs crs bns cacheableCombs oinfo trs ftm frs int rtm rsLookup sbs rfm repl wide) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
+    <> putEnumMap putNat putNat bns
     <> putEnumSet putNat cacheableCombs
     <> putOptInfos oinfo
     <> putEnumMap putNat putReference trs
     <> putNat ftm
-    <> putNat fty
     <> putNat frs
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
-    <> putMap putReference putNat rty
     <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
     <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
+    <> BU.word8 (if wide then 1 else 0)
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -1012,20 +1026,25 @@ getStoredCache =
   SCache
     <$> getEnumMap getNat (getEnumMap getNat getComb)
     <*> getEnumMap getNat getReference
+    <*> getEnumMap getNat getNat
     <*> getEnumSet getNat
     <*> getOptInfos
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
-    <*> getNat
     <*> getMap getReference getGroupCurrent
-    <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
     <*> getReplacements
+    <*> getWide
   where
+    getWide =
+      getWord8 >>= \case
+        0 -> pure False
+        1 -> pure True
+        n -> fail ("getStoredCache: unknown calling convention " ++ show n)
     getReplacements =
       getWord8 >>= \case
         0 -> pure JIT.AllReplacements
@@ -1040,7 +1059,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+restoreCache jit sandboxed (SCache cs crs bns cacheableCombs opt _ ftm frs int rtm recSchemas sbs rfm _ _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1062,15 +1081,13 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
+      <*> newTVarIO bns
       <*> newTVarIO cacheableCombs
       <*> newTVarIO (opt <> builtinOptInfo)
-      <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
-      <*> newTVarIO fty
       <*> newTVarIO frs
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
-      <*> newTVarIO (rty <> builtinTypeNumbering)
       <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
@@ -1112,7 +1129,7 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
-                  emitComb @Symbol rns (rf k) k mempty (0, v)
+                  fst <$> emitComb @Symbol rns (rf k) k emptyRCtx (0, v)
               )
         )
     srcCombs :: EnumMap Word64 Combs
@@ -1135,37 +1152,37 @@ traceNeeded init src = go mempty init
 buildSCache ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Combs ->
+  EnumMap Word64 Word64 ->
   EnumSet Word64 ->
   OptInfos Reference Symbol ->
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
-  Word64 ->
   Map Reference (SuperGroup Reference Symbol) ->
-  Map Reference Word64 ->
   Map Reference Word64 ->
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
   JIT.Replacements ->
+  Bool ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl =
+buildSCache crsrc cssrc bnsrc cacheableCombs optsrc trsrc ftm frs int rtmsrc rsLookup sndbx rfm repl wide =
   SCache
     cs
     crs
+    bns
     cacheableCombs
     opt
     trs
     ftm
-    fty
     frs
     int
     rtm
-    (restrictTyR rtysrc)
     rsLookup
     (restrictTmR sndbx)
     rfm
     repl
+    wide
   where
     termRefs = Map.keysSet int
 
@@ -1179,14 +1196,17 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
 
     crs = restrictTmW crsrc
 
+    -- the unoptimized copies of the needed groups come along, under their
+    -- own numbers
+    bns = restrictKeys bnsrc combKeys
+
     cs :: EnumMap Word64 Combs
-    cs = restrictTmW cssrc
+    cs = restrictKeys cssrc (combKeys <> foldMap setSingleton bns)
 
     opt = bimap restrictTmR restrictTmR optsrc
 
     typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
     trs = restrictTyW trsrc
-    typeRefs = foldMap Set.singleton trs
 
     restrictTmW :: EnumMap Word64 a -> EnumMap Word64 a
     restrictTmW m = restrictKeys m combKeys
@@ -1194,8 +1214,6 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     restrictTmR m = Map.restrictKeys m termRefs
 
     restrictTyW m = restrictKeys m typeKeys
-    restrictTyR :: Map Reference a -> Map Reference a
-    restrictTyR m = Map.restrictKeys m typeRefs
 
 standalone :: CCache () -> Word64 -> IO StoredCache
 standalone cc init =
@@ -1204,19 +1222,19 @@ standalone cc init =
       Just rinit ->
         buildSCache crs
           <$> readTVarIO (srcCombs cc)
+          <*> readTVarIO (baseNums cc)
           <*> readTVarIO (cacheableCombs cc)
           <*> readTVarIO (optInfos cc)
-          <*> readTVarIO (tagRefs cc)
+          <*> TN.typeReferences
           <*> readTVarIO (freshTm cc)
-          <*> readTVarIO (freshTy cc)
           <*> readTVarIO (freshRecSchema cc)
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
-          <*> readTVarIO (refTy cc)
           <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
           <*> pure JIT.replacements
+          <*> pure wideOn
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

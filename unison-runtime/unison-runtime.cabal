@@ -98,7 +98,11 @@ library
       Unison.Runtime.Machine.Primops
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Explode
+      Unison.Runtime.MCode.Live
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MCode.Wide
+      Unison.Runtime.Optimizations
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
@@ -107,8 +111,10 @@ library
       Unison.Runtime.Signal
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
+      Unison.Runtime.TypeNumbers
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
+      Unison.Runtime.Wide
   hs-source-dirs:
       src
   default-extensions:
@@ -150,9 +156,7 @@ library
       asn1-encoding
     , asn1-types
     , atomic-primops
-    , avro
     , base
-    , binary
     , bytes
     , bytestring
     , clock
@@ -244,8 +248,10 @@ test-suite runtime-tests
       Unison.Test.Runtime.Foreign.Dynamic
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization
+      Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
+      Unison.Test.Runtime.TypeNumbers
       Unison.Test.UnisonSources
       Paths_unison_runtime
   hs-source-dirs:

@@ -31,7 +31,7 @@ env:
 
 jobs:
   full-verification:
-    name: full verification (PR #${{ github.event.issue.number }})
+    name: "full verification (PR #${{ github.event.issue.number }})"
     if: |
       github.event.issue.pull_request
         && contains(github.event.comment.body, '🤖 run full verification')

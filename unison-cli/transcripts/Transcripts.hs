@@ -66,7 +66,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
       io $ UnliftIO.withSystemTempDirectory debugName \tempDir ->
         withNewUcmCodebaseOrExit SC.init Verbosity.Silent debugName tempDir SC.DoLock \codebase -> do
           jit <- JIT.newJIT =<< JIT.readConfig
-          Transcript.withRunner jit (Transcript.testConfig (tempDir </> "credentials.json")) Verbosity.Silent "TODO: pass version here" \runTranscript ->
+          flip UnliftIO.finally (JIT.jitShutdown jit) $ Transcript.withRunner jit (Transcript.testConfig (tempDir </> "credentials.json")) Verbosity.Silent "TODO: pass version here" \runTranscript ->
             for files \filePath -> do
               transcriptSrc <- BS.readFile $ inputDir </> filePath
               out <- silence $ runTranscript filePath transcriptSrc codebase

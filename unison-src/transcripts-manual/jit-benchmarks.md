@@ -30,6 +30,117 @@ Cons.foldLeft f z = cases
   Cons.Nil -> z
   Cons.Cons h t -> Cons.foldLeft f (f z h) t
 
+-- Small constructors in flight between a return and a match (delayed data
+-- construction, Unison.Runtime.Wide): an Optional from an unknown callee, a
+-- head, a state tuple through a non-tail call, an Either-like step.
+Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+Cons.filterMap f = cases
+  Cons.Nil -> Cons.Nil
+  Cons.Cons h t -> match f h with
+    None -> Cons.filterMap f t
+    Some b -> Cons.Cons b (Cons.filterMap f t)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+headLoop : Nat -> Cons Nat -> Nat
+headLoop n c =
+  go acc i =
+    if i == n then acc
+    else match Cons.head c with
+      None -> go acc (i + 1)
+      Some h -> go (acc + h) (i + 1)
+  go 0 0
+
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+stateLoop : Nat -> Nat
+stateLoop n =
+  go acc i =
+    if i > n then acc
+    else
+      p = step acc i
+      match p with (acc', i') -> go acc' i'
+  go 0 0
+
+structural type Res = Ok Nat | Err Nat
+
+parse : Nat -> Res
+parse n = if Nat.mod n 7 == 0 then Res.Err n else Res.Ok (n * 2)
+
+parseLoop : Nat -> Nat
+parseLoop n =
+  go oks errs i =
+    if i == n then oks + errs
+    else match parse i with
+      Res.Ok v -> go (oks + v) errs (i + 1)
+      Res.Err e -> go oks (errs + e) (i + 1)
+  go 0 0 0
+
+-- Loop state exploded into parameters (Unison.Runtime.MCode.Explode): the
+-- tuple and the constructor are built for the recursive call and taken
+-- apart at once, so the worker takes their fields.
+tupleLoop : Nat -> Nat
+tupleLoop n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + i, i + 1)
+  go (0, 0)
+
+structural type Pos = Pos Nat Nat Nat
+
+posLoop : Nat -> Nat
+posLoop n =
+  go st = match st with
+    Pos i line col ->
+      if i == n then line + col
+      else if Nat.mod i 10 == 0 then go (Pos (i + 1) (line + 1) 0)
+      else go (Pos (i + 1) line (col + 1))
+  go (Pos 0 0 0)
+
+recLoop : Nat -> Nat
+recLoop n =
+  go : { i: Nat, line: Nat, col: Nat } -> Nat
+  go st = if st@i == n then st@line + st@col
+          else if Nat.mod (st@i) 10 == 0 then go (((st@i.set (st@i + 1))@line.set (st@line + 1))@col.set 0)
+          else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
+  go { i: 0, line: 0, col: 0 }
+
+-- a sum state: the worker per constructor, no tag or allocation per round
+sumLoop : Nat -> Nat
+sumLoop n =
+  go st = match st with
+    Left acc -> if acc == n then acc else go (Right (acc + 1))
+    Right acc -> go (Left (acc + 1))
+  go (Left 0)
+
+-- Known constructors and case of case (design.md): a match on two arguments
+-- at once builds a tuple and takes it apart; an Optional built in the
+-- branches of a match and matched at once, whose arms are join points.
+pairMatch : Nat -> Nat
+pairMatch n =
+  go acc i =
+    if i == n then acc
+    else match (Nat.mod i 3, Nat.mod i 5) with
+      (0, 0) -> go (acc + 3) (i + 1)
+      (0, _) -> go (acc + 1) (i + 1)
+      (_, 0) -> go (acc + 2) (i + 1)
+      _ -> go acc (i + 1)
+  go 0 0
+
+optMatch : Nat -> Nat
+optMatch n =
+  go acc i =
+    if i == n then acc
+    else
+      p = if Nat.mod i 2 == 0 then Some (i + acc) else None
+      match p with
+        Some k -> go (acc + Nat.mod k 7) (i + 1)
+        None -> go (acc + 1) (i + 1)
+  go 0 0
+
 structural type Tree = Leaf | Node Tree Nat Nat Tree
 
 Tree.insert : Nat -> Nat -> Tree -> Tree
@@ -99,6 +210,32 @@ collatzTotal : Nat -> Nat
 collatzTotal n =
   go acc i = if i > n then acc else go (acc + collatzSteps i) (i + 1)
   go 0 1
+
+-- The same shape with the callee made native in a batch of its own before
+-- the caller is compiled (warmSteps runs it hot first): a looping callee
+-- that already has code isn't copied into the caller's batch, so the call
+-- goes through the cell, which is what the register entry is for. The
+-- Collatz rows above compile all three functions in one batch and their
+-- calls are direct.
+stepsAlone : Nat -> Nat
+stepsAlone n =
+  go steps x = if x == 1 then steps else go (steps + 1) (if Nat.mod x 2 == 0 then x / 2 else 3 * x + 1)
+  go 0 n
+
+warmSteps : Nat -> Nat
+warmSteps n =
+  go acc i = if i == 0 then acc else go (acc + stepsAlone 27) (i - 1)
+  go 0 n
+
+totalAlone : Nat -> Nat
+totalAlone n =
+  go acc i = if i > n then acc else go (acc + stepsAlone i) (i + 1)
+  go 0 1
+
+manyAlone : Nat -> Nat
+manyAlone n =
+  go acc i = if i == n then acc else go (acc + stepsAlone 2) (i + 1)
+  go 0 0
 
 -- Text: every operation here is a call-out until native code can work on
 -- the rope directly.
@@ -366,10 +503,30 @@ jitSuite = do
   printTime "Binary tree: 1000 lookups" 1 let
     t = Tree.build 1000
     n -> repeat n do Tree.lookupAll 1000 t
+  printTime "Cons list: filterMap with a lambda returning Optional (1000 elements)" 1 let
+    c = Cons.range 0 1000
+    n -> repeat n do Cons.filterMap (x -> if Nat.mod x 2 == 0 then Some (x + 1) else None) c
+  printTime "Cons list: head, 10000 times" 1 let
+    c = Cons.range 0 10
+    n -> repeat n do headLoop 10000 c
+  printTime "State tuple through a non-tail call, 10000 steps" 1 (n -> repeat n do stateLoop 10000)
+  printTime "Ok or Err from a step function, 10000 steps" 1 (n -> repeat n do parseLoop 10000)
+  printTime "Loop state: a tuple rebuilt each round, 100000 rounds" 1 (n -> repeat n do tupleLoop 100000)
+  printTime "Loop state: a three-field constructor rebuilt each round, 100000 rounds" 1 (n -> repeat n do posLoop 100000)
+  printTime "Loop state: a record updated each round, 100000 rounds" 1 (n -> repeat n do recLoop 100000)
+  printTime "Loop state: an Either alternating each round, 100000 rounds" 1 (n -> repeat n do sumLoop 100000)
+  printTime "Known constructor: a match on two arguments at once, 100000 rounds" 1 (n -> repeat n do pairMatch 100000)
+  printTime "Case of case: an Optional built in branches and matched, 100000 rounds" 1 (n -> repeat n do optMatch 100000)
   printTime "Apply a function argument 10000 times" 1 (n -> repeat n do applyN 10000 (x -> x + 3) 0)
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)
   printTime "Calls across definitions: callee first reached once the caller is hot, 100000 iterations" 1 (n -> repeat n do branchCalls 100000)
+  printTime "Calls across definitions: callee native before the caller, Collatz steps for 1 to 1000" 1 let
+    w = warmSteps 100000
+    n -> repeat n do totalAlone (if w == 0 then 999 else 1000)
+  printTime "Calls across definitions: callee native before the caller, 100000 calls of a one-step callee" 1 let
+    w = warmSteps 100000
+    n -> repeat n do manyAlone (if w == 0 then 99999 else 100000)
   printTime "Text: append \"hi\" 10000 times" 1 (n -> repeat n do textAppend 10000)
   printTime "Text: drop 1, 100000 times" 1 let
     t = Text.repeat 100000 "a"

@@ -57,7 +57,8 @@ testLift s = case cs of !_ -> ok
       flip State.Strict.evalState emptyRecordFieldMappings
         -- Not `emptyRNs`: every one of its lookups throws, and `emitCombs`
         -- calls them. These stubs are total.
-        . emitCombs (RN (const 0) (const 0) (const Nothing) (const (RecordRef 0))) (Builtin "Test") 0
+        . fmap fst
+        . emitCombs (RN (const 0) (const 0) (const Nothing) (const Nothing) (const Nothing) (const (RecordRef 0))) (Builtin "Test") 0 0
         . superNormalize
         . (\(ll, _, _, _, _) -> ll)
         . lamLift mempty
@@ -120,8 +121,11 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       -- Handled by the equation above; the `case` can't see that.
       FRec _ -> error "denormalize FRec"
       FRecSet _ -> error "denormalize FRecSet"
+      FWorker {} -> error "denormalize FWorker"
+      FYield -> error "denormalize FYield"
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
+denormalize (TBox _) = error "denormalize TBox"
 denormalize (TLocal _ _) = error "denormalize TLocal"
 denormalize (TUpdate _ _ _) = error "denormalize TUpdate"
 denormalize (TAbs _ _) = error "denormalize TAbs"

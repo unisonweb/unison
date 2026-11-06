@@ -50,8 +50,8 @@ void *unison_jit_bytes_cut(UnisonJitCtx *ctx, void *bytes, int64_t n, int64_t ta
 int64_t unison_jit_foreign_eq(void *x, void *y, int64_t kinds);
 void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *none, int64_t some_tag, void *nat_tag);
 void *unison_jit_bytes_flatten(UnisonJitCtx *ctx, void *bytes);
-void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t some_tag, void *pair, int64_t pair_tag,
-                             void *unit, void *char_tag, int64_t front);
+void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t some_tag, int64_t pair_tag, void *unit,
+                             void *char_tag, int64_t front);
 void *unison_jit_int_to_text(UnisonJitCtx *ctx, int64_t n, int64_t is_signed);
 void *unison_jit_float_to_text(UnisonJitCtx *ctx, int64_t bits);
 void *unison_jit_text_to_num(UnisonJitCtx *ctx, void *text, void *none, int64_t some_tag, void *tag, int64_t kind);
@@ -68,14 +68,14 @@ void *unison_jit_text_repeat(UnisonJitCtx *ctx, int64_t n, void *text);
 void *unison_jit_text_reverse(UnisonJitCtx *ctx, void *text);
 void *unison_jit_text_case(UnisonJitCtx *ctx, void *text, int64_t upper);
 void *unison_jit_text_to_utf8(UnisonJitCtx *ctx, void *text);
-void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, void *either, int64_t right_tag);
+void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, int64_t right_tag);
 void *unison_jit_bytes_decode_nat(UnisonJitCtx *ctx, void *bytes, int64_t width, int64_t be, void *none, int64_t some_tag,
-                                  void *pair, int64_t pair_tag, void *unit, void *nat_tag);
+                                  int64_t pair_tag, void *unit, void *nat_tag);
 void *unison_jit_bytes_encode_nat(UnisonJitCtx *ctx, int64_t n, int64_t width, int64_t be);
 int64_t unison_jit_bytes_read_ok(void *bytes, int64_t i, int64_t width);
 int64_t unison_jit_bytes_read_at(void *bytes, int64_t i, int64_t width, int64_t be);
 void *unison_jit_bytes_to_base(UnisonJitCtx *ctx, void *bytes, int64_t base);
-void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, void *either, int64_t right_tag);
+void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, int64_t right_tag);
 int64_t unison_jit_pow(int64_t m, int64_t n);
 double unison_jit_atan2(double y, double x);
 int64_t unison_jit_barray_copy(void *dst, int64_t doff, void *src, int64_t soff, int64_t l, int64_t kind);
@@ -372,40 +372,46 @@ static inline StgClosure *mk_val(UnisonJitCtx *ctx, void *b, StgInt u) {
   return (StgClosure *)((StgWord)p | 1);
 }
 
-static inline void *mk_data1(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, void *b, StgInt u) {
-  StgWord *p = list_alloc(ctx, 5);
+// The data constructors with one and two fields, written at p ("Layouts"
+// in design.md: the info pointer, the fields' boxed halves, the packed tag,
+// the fields' unboxed halves) and given as the tagged pointer. Every
+// constructor a helper builds goes through these, so the layout is in one
+// place; DATA_TAG, DATA_U and DATA_B in jit_internal.h are the reads.
+#define DATA1_WORDS 4
+#define DATA2_WORDS 6
+static inline void *data1_at(StgWord *p, StgInt tag, void *b, StgInt u) {
   p[0] = LF.data1_info;
   p[1] = (StgWord)b;
-  p[2] = (StgWord)ref;
-  p[3] = tag;
-  p[4] = u;
+  p[2] = tag;
+  p[3] = u;
   return (void *)((StgWord)p | LF.data1_tag);
 }
-
-static inline void *mk_data2(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, void *b1, StgInt u1, void *b2, StgInt u2) {
-  StgWord *p = list_alloc(ctx, 7);
+static inline void *data2_at(StgWord *p, StgInt tag, void *b1, StgInt u1, void *b2, StgInt u2) {
   p[0] = LF.data2_info;
   p[1] = (StgWord)b1;
   p[2] = (StgWord)b2;
-  p[3] = (StgWord)ref;
-  p[4] = tag;
-  p[5] = u1;
-  p[6] = u2;
+  p[3] = tag;
+  p[4] = u1;
+  p[5] = u2;
   return (void *)((StgWord)p | LF.data2_tag);
 }
-
-// the pair (a, b): Tuple a (Tuple b ()); `pair` is the pooled Tuple
-// enumeration (its first field the reference) and `unit` the pooled ()
-static inline void *mk_pair(UnisonJitCtx *ctx, void *pair, StgInt pair_tag, void *unit, void *b1, StgInt u1, void *b2,
-                            StgInt u2) {
-  StgClosure *ref = LP(pair, 0);
-  void *inner = mk_data2(ctx, ref, pair_tag, b2, u2, unit, -1);
-  return mk_data2(ctx, ref, pair_tag, b1, u1, inner, -1);
+static inline void *mk_data1(UnisonJitCtx *ctx, StgInt tag, void *b, StgInt u) {
+  return data1_at(list_alloc(ctx, DATA1_WORDS), tag, b, u);
+}
+static inline void *mk_data2(UnisonJitCtx *ctx, StgInt tag, void *b1, StgInt u1, void *b2, StgInt u2) {
+  return data2_at(list_alloc(ctx, DATA2_WORDS), tag, b1, u1, b2, u2);
 }
 
-// Some v; `none` is the pooled None, whose first field is Optional's reference
-static inline void *mk_some(UnisonJitCtx *ctx, void *none, StgInt some_tag, void *b, StgInt u) {
-  return mk_data1(ctx, LP(none, 0), some_tag, b, u);
+// the pair (a, b): Tuple a (Tuple b ()); `pair_tag` is Tuple's packed tag
+// and `unit` the pooled ()
+static inline void *mk_pair(UnisonJitCtx *ctx, StgInt pair_tag, void *unit, void *b1, StgInt u1, void *b2, StgInt u2) {
+  void *inner = mk_data2(ctx, pair_tag, b2, u2, unit, -1);
+  return mk_data2(ctx, pair_tag, b1, u1, inner, -1);
+}
+
+// Some v, from Some's packed tag
+static inline void *mk_some(UnisonJitCtx *ctx, StgInt some_tag, void *b, StgInt u) {
+  return mk_data1(ctx, some_tag, b, u);
 }
 
 #endif

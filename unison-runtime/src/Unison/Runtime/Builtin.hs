@@ -60,7 +60,7 @@ freshes' avoid0 = go avoid0 []
 class Fresh t where fresh :: t
 
 fresh1 :: (Var v) => v
-fresh1 = head $ freshes 1
+fresh1 = freshIn mempty $ typed ANFBlank
 
 instance (Var v) => Fresh (v, v) where
   fresh = (v1, v2)
@@ -963,7 +963,7 @@ declareForeign sand arity func = declareForeignWrap sand wrap func
       | otherwise = argNDirect arity
 
 unitValue :: Val
-unitValue = BoxedVal $ Closure.Enum Ty.unitRef TT.unitTag
+unitValue = BoxedVal $ Closure.Enum TT.unitTag
 
 natValue :: Word64 -> Val
 natValue w = NatVal w
@@ -1468,7 +1468,6 @@ declareForeigns = do
   declareForeign Untracked 1 Json_toText
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
-  declareForeign Untracked 3 Avro_decodeBinary
   declareForeign Tracked 1 FFI_openDLL
   declareForeignWrap Untracked direct FFI_int64
   declareForeignWrap Untracked direct FFI_int32

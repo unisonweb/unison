@@ -3,7 +3,6 @@
 module Unison.Runtime.JIT
   ( JIT,
     newJIT,
-    typeNumbers,
     readConfig,
     jitConfig,
     jitExits,
@@ -15,19 +14,21 @@ module Unison.Runtime.JIT
     stackSlots,
     loadJIT,
     startJIT,
+    jitShutdown,
     jitCompileGroup,
     jitRequestGroup,
     jitRequestCell,
     noteAdHocExit,
-    registerTypeNumbers,
     printJITStats,
+    describeExit,
     noteOutput,
   )
 where
 
 import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapability, yield)
-import Control.Concurrent.STM (TBQueue, TVar, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
-import Control.Exception (SomeException, evaluate, try)
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
+import Control.Concurrent.STM (TBQueue, TVar, atomically, check, isFullTBQueue, modifyTVar', newTBQueueIO, newTVarIO, orElse, readTBQueue, readTVar, readTVarIO, writeTBQueue, writeTVar)
+import Control.Exception (SomeException, bracket_, evaluate, finally, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE, withExceptT)
@@ -58,6 +59,7 @@ import Unison.Runtime.JIT.Native (configureNative, ctxLayout, helperAddresses, m
 import Unison.Runtime.JIT.Pool (Pool)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, bumpNativeCount, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Stack (MCombs, defaultStackSlots)
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Util.EnumContainers qualified as EC
 
 -- | The JIT: its settings and everything it keeps while the process runs.
@@ -69,12 +71,6 @@ import Unison.Util.EnumContainers qualified as EC
 -- interpreter reaches it.
 data JIT = JIT
   { jitCompiler :: !Compiler,
-    -- | the numbers the code cache gives types (abilities among them),
-    -- with their references: the type part of a packed tag, which the one
-    -- match arm that compares a whole tag needs (Codegen's
-    -- 'envTypeNumbers'). No other declaration of a type reaches the
-    -- generator: field counts come from the match arms and the objects.
-    jitTypeNumbers :: !(IORef (EC.EnumMap Word64 Reference)),
     -- | set once by 'initJIT' when everything checks out; Nothing means off
     jitState :: !(IORef (Maybe JITState)),
     -- | set once a load has been tried, so that it is tried once only: a
@@ -87,8 +83,26 @@ data JIT = JIT
     jitCompileThreadStarted :: !(IORef Bool),
     -- | the re-entry functions each group may still get because of ad
     -- hoc exits, and what those exits asked for (see 'noteAdHocExit')
-    jitAdHoc :: !(IORef AdHoc)
+    jitAdHoc :: !(IORef AdHoc),
+    -- | where the compile thread is, for 'jitShutdown'
+    jitStatus :: !(TVar Status),
+    -- | eager mode compiles on the thread that asks (a group as it loads,
+    -- a re-entry function when the interpreter asks for it), so two
+    -- Unison threads could otherwise compile at once; one at a time
+    jitEagerLock :: !(MVar ()),
+    -- | Stops the compile thread and waits for it: a compile in flight
+    -- finishes first, so that the process does not tear LLVM down under
+    -- it. ucm calls this before it exits. Returns at once when the thread
+    -- never started (the off and eager modes, or no request yet), and
+    -- after ten seconds whatever the thread is doing.
+    jitShutdown :: IO ()
   }
+
+-- | The compile thread's state: between requests, inside a compile, asked
+-- to stop ('jitShutdown'), and stopped, which it sets when it leaves its
+-- loop for any reason.
+data Status = Idle | Compiling | Finishing | Finished
+  deriving (Eq)
 
 data AdHoc = AdHoc
   { -- | by group number; absent means the full allowance
@@ -103,15 +117,27 @@ data AdHoc = AdHoc
 -- until 'loadJIT' or 'startJIT'. In the off mode it is inert, and the
 -- runtime's calls into it return at once.
 newJIT :: Config -> IO JIT
-newJIT config =
+newJIT config = do
+  status <- newTVarIO Idle
+  started <- newIORef False
   JIT
     <$> newCompiler config
-    <*> newIORef (EC.mapFromList [])
     <*> newIORef Nothing
     <*> newIORef Nothing
     <*> newTBQueueIO 256
-    <*> newIORef False
+    <*> pure started
     <*> newIORef (AdHoc (EC.mapFromList []) 0 0)
+    <*> pure status
+    <*> newMVar ()
+    <*> pure (shutdown status started)
+  where
+    shutdown status started = do
+      running <- readIORef started
+      when running $ do
+        atomically $ modifyTVar' status \case
+          Finished -> Finished
+          _ -> Finishing
+        void (timeout (10 * 1000 * 1000) (atomically (readTVar status >>= check . (== Finished))))
 
 jitConfig :: JIT -> Config
 jitConfig = cConfig . jitCompiler
@@ -145,16 +171,6 @@ initialNativeCount jit = case mode (jitConfig jit) of
 -- it tiny, so that growing the stack is exercised constantly.
 stackSlots :: JIT -> Int
 stackSlots = fromMaybe defaultStackSlots . stressStack . jitConfig
-
--- | Records the type numbering of the code cache. Called when types are
--- numbered: for the builtins at startup, and whenever code is loaded.
-registerTypeNumbers :: JIT -> EC.EnumMap Word64 Reference -> IO ()
-registerTypeNumbers jit m = atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
-
--- | The type reference each type number stands for, as the cache numbers
--- them.
-typeNumbers :: JIT -> IO (EC.EnumMap Word64 Reference)
-typeNumbers = readIORef . jitTypeNumbers
 
 -- | Gets the JIT going if it is enabled. Called by each runtime as it
 -- starts. LLVM is normally loaded already, by 'loadJIT' at ucm's startup;
@@ -224,9 +240,9 @@ initJIT' jit = runExceptT $ do
     pure ls
   ctx <-
     liftIO ctxLayout >>= \case
-      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w)
+      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w x)
       _ -> throwE ["unexpected Ctx layout; the JIT is off"]
-  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (trace config))
+  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (stressGC config) (stressGCSkip config) (trace config))
   rts <-
     liftIO rtsFacts >>= \case
       -- the allocator's address isn't needed: generated code calls
@@ -293,17 +309,42 @@ addHelpers config = do
 minLLVM :: Int
 minLLVM = 20
 
--- | Compiles a freshly loaded top-level definition, in eager mode.
+-- | Compiles a freshly loaded top-level definition, in eager mode: its
+-- entry points and local functions, and the re-entry functions that are
+-- certain to be used. The rest, the Let bodies entered only when
+-- something exits and the continuations after slow paths, wait to be
+-- asked for exactly as under @on@ ('jitRequestCell'), after the first
+-- miss (the threshold is 1 in this mode): a Let body is the function's
+-- whole suffix from its point, so generating every one of an n-Let
+-- function is n²/2 of its code, which under the wide convention made
+-- the test transcript's largest module 95 MB of IR and the merge
+-- queue's jit jobs three to five times longer (2026-11-06).
 jitCompileGroup :: JIT -> Bool -> Reference -> Word64 -> MCombs -> IO ()
 jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
   Eager ->
     readIORef (jitState jit) >>= \case
       Nothing -> pure ()
-      Just st -> do
-        numbers <- readIORef (jitTypeNumbers jit)
-        (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
-        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st numbers ("unison_" ++ show grp) False now)
+      Just st -> withMVar (jitEagerLock jit) $ \() -> do
+        numbers <- TN.typeReferences
+        let c = jitCompiler jit
+        (now, later) <- groupUnits c sandbox True False ref grp cmbs
+        -- pending before the group's code can exit to them
+        forM_ later (addPending c)
+        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits c st numbers ("unison_" ++ show grp) True now)
   _ -> pure ()
+
+-- | Eager mode's answer to a request for a re-entry function: generated
+-- on the spot, on the thread that asked, since the mode has no compile
+-- thread.
+compileUnitNow :: JIT -> Unit -> IO ()
+compileUnitNow jit u =
+  readIORef (jitState jit) >>= \case
+    Nothing -> pure ()
+    Just st -> withMVar (jitEagerLock jit) $ \() -> do
+      numbers <- TN.typeReferences
+      let c = jitCompiler jit
+      guarded (jitConfig jit) (unitName u) (compileUnits c st numbers ("unison_" ++ unitName u) True [u])
+      dropPending c u
 
 -- ---------------------------------------------------------------------------
 -- The @on@ mode: compiling what gets hot, on a thread of its own.
@@ -330,7 +371,7 @@ offer jit r = atomically $ do
 -- It never goes back, so a definition is queued at most once.
 entryCell :: MCombs -> Maybe (Ptr NativeCell)
 entryCell cmbs = case EC.lookup 0 cmbs of
-  Just (Comb (LamI _ _ _ cell)) | cell /= noNativeCell -> Just cell
+  Just (Comb (LamI _ _ _ cell) _) | cell /= noNativeCell -> Just cell
   _ -> Nothing
 
 -- | Asks for the definition this combinator belongs to to be compiled.
@@ -372,10 +413,12 @@ jitRequestCell jit cell =
     Nothing -> pure ()
     Just u -> do
       mine <- claimNativeCell cell
-      when mine $ do
-        queued <- offer jit (ReqUnit u)
-        -- addPending starts the count again
-        unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
+      when mine $ case mode (jitConfig jit) of
+        Eager -> compileUnitNow jit u
+        _ -> do
+          queued <- offer jit (ReqUnit u)
+          -- addPending starts the count again
+          unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
 {-# NOINLINE jitRequestCell #-}
 
 -- | The trampoline's report of an ad hoc exit (the poll, the allocation
@@ -430,7 +473,7 @@ data Role = Callee | Caller
 -- sites of @d@ in it.
 edgeCalls :: Config -> MCombs -> Word64 -> IO Double
 edgeCalls config cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case c of
-  Comb (LamI _ _ _ cell)
+  Comb (LamI _ _ _ cell) _
     | cell /= noNativeCell,
       sites <- length (filter (== d) (combDeps c)),
       sites > 0 -> do
@@ -446,7 +489,7 @@ edgeCalls config cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case 
 -- slots and 56 sites, was 55k lines of IR, and a typical hot function
 -- under 500 (2026-10-09).
 groupSize :: MCombs -> Int
-groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _))) <- EC.mapToList cmbs]
+groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _) _)) <- EC.mapToList cmbs]
 
 -- | Serves requests, forever. LLVM is only ever used from this thread (in
 -- @on@ mode); it is normally loaded at startup already, and if not, by the
@@ -462,21 +505,26 @@ groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _))) <- 
 -- it. A definition's request is served ahead of the held re-entry
 -- functions, so the wait never delays a hot loop.
 compileThread :: JIT -> IO ()
-compileThread jit = do
+compileThread jit = flip finally (atomically (writeTVar status Finished)) $ do
   initialized <- newIORef False
   callersRef <- newIORef (Callers Set.empty Map.empty)
-  let loop held = do
-        next <-
+  let -- the next request, or Nothing once 'jitShutdown' has asked the
+      -- thread to stop
+      next = atomically (stopping `orElse` (Just <$> readTBQueue (jitRequests jit)))
+      stopping = Nothing <$ (readTVar status >>= check . (== Finishing))
+      loop held = do
+        taken <-
           if null held
-            then Just <$> atomically (readTBQueue (jitRequests jit))
-            else timeout (reentryWait config * 1000) (atomically (readTBQueue (jitRequests jit)))
-        case next of
-          Nothing -> flush held >> loop []
-          Just (ReqUnit u) | reentryWait config > 0 -> do
+            then Right <$> next
+            else maybe (Left ()) Right <$> timeout (reentryWait config * 1000) next
+        case taken of
+          Right Nothing -> pure ()
+          Left () -> flush held >> loop []
+          Right (Just (ReqUnit u)) | reentryWait config > 0 -> do
             let held' = u : held
             if length held' >= batch config then flush held' >> loop [] else loop held'
-          Just req -> do
-            r <- try (serve initialized callersRef req)
+          Right (Just req) -> do
+            r <- try (compiling (serve initialized callersRef req))
             case r of
               Left (e :: SomeException) -> jitLog config ("compile thread: " ++ show e)
               Right () -> pure ()
@@ -484,7 +532,7 @@ compileThread jit = do
       flush [] = pure ()
       flush held = do
         r <-
-          try
+          try . compiling $
             ( withState initialized $ \st numbers -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
                 guarded config name (compileUnits c st numbers name True (reverse held))
@@ -497,13 +545,25 @@ compileThread jit = do
   where
     config = jitConfig jit
     c = jitCompiler jit
+    status = jitStatus jit
+    -- a request being served; a stop asked for meanwhile is kept, and
+    -- the loop sees it next
+    compiling =
+      bracket_
+        (atomically (modifyTVar' status \case Finishing -> Finishing; _ -> Compiling))
+        (atomically (modifyTVar' status \case Finishing -> Finishing; _ -> Idle))
     withState initialized k = do
       ready <- readIORef initialized
       unless ready (void (initJIT jit) >> writeIORef initialized True)
       readIORef (jitState jit) >>= \case
         Nothing -> pure ()
         Just st -> do
-          numbers <- readIORef (jitTypeNumbers jit)
+          -- the process-wide type numbering (Unison.Runtime.TypeNumbers):
+          -- the type part of a packed tag, which the one match arm that
+          -- compares a whole tag needs (Codegen's 'envTypeNumbers'). No
+          -- other declaration of a type reaches the generator: field
+          -- counts come from the match arms and the objects.
+          numbers <- TN.typeReferences
           k st numbers
     serve initialized callersRef req =
       withState initialized $ \st numbers -> do
@@ -522,7 +582,7 @@ compileThread jit = do
               (now, later) <-
                 unzip
                   <$> sequence
-                    [ groupUnits c sandbox True ref g cmbs
+                    [ groupUnits c sandbox True False ref g cmbs
                     | g <- members,
                       Just cmbs <- [EC.lookup g cache],
                       Just ref <- [EC.lookup g refs]
@@ -609,7 +669,7 @@ compileThread jit = do
           picked <- forM callees $ \d -> case (EC.lookup d cache, EC.lookup d refs) of
             (Just cmbs, Just ref)
               | Just cell <- entryCell cmbs,
-                Just (Comb (LamI _ _ entry _)) <- EC.lookup 0 cmbs -> do
+                Just (Comb (LamI _ _ entry _) _) <- EC.lookup 0 cmbs -> do
                   code <- readNativeCode cell
                   if code == nullPtr
                     then pure []
@@ -701,11 +761,14 @@ printExits jit most = do
   when (total > 0) $ do
     jitDump ("[jit] " ++ show total ++ " exits taken (" ++ show (length counts) ++ " sites):")
     forM_ (take most (sortOn (\(_, _, n) -> negate n) counts)) $ \(i, e, n) ->
-      jitDump ("  " ++ show n ++ "\t#" ++ show i ++ "\t" ++ describe e)
-  where
-    describe = \case
-      Resume cix sect -> "resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
-      GrowStack n _ -> "grow stack by " ++ show n
-      Reenter _ -> "reenter (poll)"
-      CallOut cix instr _ _ _ -> "call out " ++ show cix ++ " for " ++ takeWhile (/= '\n') (prettyIns instr "")
-      Named name e -> name ++ ": " ++ describe e
+      jitDump ("  " ++ show n ++ "\t#" ++ show i ++ "\t" ++ describeExit e)
+
+-- | An exit, in a line, for the statistics and the trace.
+describeExit :: Exit -> String
+describeExit = \case
+  Resume cix sect -> "resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
+  GrowStack n _ -> "grow stack by " ++ show n
+  Reenter cell -> "reenter (poll) " ++ show cell
+  Retry cell cix sect -> "retry " ++ show cell ++ ", else resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
+  CallOut cix instr _ _ _ -> "call out " ++ show cix ++ " for " ++ takeWhile (/= '\n') (prettyIns instr "")
+  Named name e -> name ++ ": " ++ describeExit e

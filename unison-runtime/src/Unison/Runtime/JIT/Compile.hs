@@ -26,23 +26,22 @@ import Data.Bifunctor (first)
 import Data.Bits ((.&.))
 import Data.Foldable (toList)
 import Data.IORef
+import Data.List (zip4)
 import Data.Map qualified as Map
 import Data.Map.Strict qualified as MapS
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Primitive.PrimArray (sizeofPrimArray)
 import Data.Set qualified as Set
 import Data.Text.IO qualified as TIO
 import Data.Word (Word64)
-import Foreign.Ptr (Ptr, castFunPtrToPtr)
+import Foreign.Ptr (Ptr, castFunPtrToPtr, nullPtr)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
-import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, genDeferred, genFunction, modulePrelude)
+import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, boxHelperText, genDeferred, genFunction, modulePrelude, patchIndices, relocateCells)
 import Unison.Runtime.JIT.Codegen qualified as CG
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
@@ -53,6 +52,7 @@ import Unison.Runtime.JIT.Layout (Layouts)
 import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize)
 import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
+import Unison.Runtime.MCode.Explode (isJoinIndex, retIndex)
 import Unison.Runtime.Stack (MCombs, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Util.Deque qualified as D
@@ -98,20 +98,19 @@ poolKeysOf s =
     -- application is built from the function's closure
     ++ [ KeyComb cix info
        | App _ (Env cix comb) args <- sectionsOf s,
-         Comb info@(LamI arity _ _ _) <- [unRComb comb],
+         Comb info@(LamI arity _ _ _) _ <- [unRComb comb],
          Just n <- [argCount args],
          n > 0,
          n < arity
        ]
   where
     -- the constructors the text and bytes helpers build results from
-    none = KeyEnum Ty.optionalRef TT.noneTag
-    pair = KeyEnum Ty.pairRef (PackedTag 0)
-    unit = KeyEnum Ty.unitRef TT.unitTag
+    none = KeyEnum TT.noneTag
+    unit = KeyEnum TT.unitTag
     -- a known combinator used as a value, or a top-level value
     combKey = \case
       Env cix comb
-        | Comb info <- unRComb comb -> [KeyComb cix info]
+        | Comb info _ <- unRComb comb -> [KeyComb cix info]
         | otherwise -> cachedKey cix comb
       _ -> []
     cachedKey cix comb = case unRComb comb of
@@ -125,36 +124,35 @@ poolKeysOf s =
       VArgN v -> Just (sizeofPrimArray v)
       VArgV _ -> Nothing
     keys = \case
-      Pack r t ZArgs -> [KeyEnum r t]
-      Pack r _ _ -> [KeyEnum r (PackedTag 0)]
+      Pack t ZArgs -> [KeyEnum t]
       -- a record is built from an empty one of its shape
       RecPack shape _ -> [KeyRecord shape]
       Lit l@(MT _) -> [KeyLit l]
       Lit l@(MM _) -> [KeyLit l]
       Lit l@(MY _) -> [KeyLit l]
-      Prim2 REFW _ _ -> [KeyEnum Ty.unitRef TT.unitTag]
+      Prim2 REFW _ _ -> [KeyEnum TT.unitTag]
       -- the list helpers are handed the result type's field-less constructor
-      Prim1 VWLS _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
-      Prim1 VWRS _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
+      Prim1 VWLS _ -> [KeyEnum TT.seqViewEmptyTag]
+      Prim1 VWRS _ -> [KeyEnum TT.seqViewEmptyTag]
       Prim2 IDXS _ _ -> [none]
       Prim2 IDXB _ _ -> [none]
       Prim2 IXOT _ _ -> [none]
       Prim2 IXOB _ _ -> [none]
-      Prim1 UCNS _ -> [none, pair, unit]
-      Prim1 USNC _ -> [none, pair, unit]
+      Prim1 UCNS _ -> [none, unit]
+      Prim1 USNC _ -> [none, unit]
       Prim1 TTOI _ -> [none]
       Prim1 TTON _ -> [none]
       Prim1 TTOF _ -> [none]
       ForeignCall _ f _
-        | f `elem` [Bytes_decodeNat16be, Bytes_decodeNat16le, Bytes_decodeNat32be, Bytes_decodeNat32le, Bytes_decodeNat64be, Bytes_decodeNat64le] -> [none, pair, unit]
-        | f `elem` [Text_fromUtf8_impl_v3, Bytes_fromBase16, Bytes_fromBase32, Bytes_fromBase64, Bytes_fromBase64UrlUnpadded] -> [KeyEnum Ty.eitherRef (PackedTag 0)]
-      Prim2 SPLL _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
-      Prim2 SPLR _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
+        | f `elem` [Bytes_decodeNat16be, Bytes_decodeNat16le, Bytes_decodeNat32be, Bytes_decodeNat32le, Bytes_decodeNat64be, Bytes_decodeNat64le] -> [none, unit]
+      Prim2 SPLL _ _ -> [KeyEnum TT.seqViewEmptyTag]
+      Prim2 SPLR _ _ -> [KeyEnum TT.seqViewEmptyTag]
       -- a partial application of a known function starts from its closure
-      Name (Env cix comb) _ | Comb info <- unRComb comb -> [KeyComb cix info]
-      ForeignCall _ MutableArray_write _ -> [KeyEnum Ty.unitRef TT.unitTag]
+      Name (Env cix comb) _ | Comb info _ <- unRComb comb -> [KeyComb cix info]
+      ForeignCall _ MutableArray_write _ -> [KeyEnum TT.unitTag]
+      ForeignCall _ f _ | f `elem` CG.emptyArrayForeign -> [KeyEmptyVal]
       -- the array writes and copies give unit
-      ForeignCall _ f _ | f `elem` CG.unitForeign -> [KeyEnum Ty.unitRef TT.unitTag]
+      ForeignCall _ f _ | f `elem` CG.unitForeign -> [KeyEnum TT.unitTag]
       _ -> []
 
 -- | What compilation needs, found once at startup.
@@ -184,6 +182,13 @@ data Unit = Unit
     -- | the arity, for a combinator that can have a worker (an entry
     -- point or local function whose returns all yield one value)
     uWorker :: Maybe Int,
+    -- | the worker returns one result pair: the code cannot yield a witness
+    -- (see Codegen's 'Worker')
+    uNarrow :: Bool,
+    -- | a product-return worker (Unison.Runtime.MCode.Explode): the
+    -- worker returns this many result pairs, the leaves of the product,
+    -- and is called only from its module and through its wrapper
+    uStatic :: Maybe Int,
     -- | a private copy of a callee compiled earlier: it exists so that
     -- the module's calls to it are direct (and may be inlined), is not
     -- installed in its cell (the earlier code stays for everyone else),
@@ -291,8 +296,8 @@ compileTotals c = do
 -- when a second runtime (with a code cache of its own) is started: the
 -- names of a group whose number has been seen with different cells get a
 -- suffix.
-groupUnits :: Compiler -> Bool -> Bool -> Reference -> Word64 -> MCombs -> IO ([Unit], [Unit])
-groupUnits c sandbox lazy ref grp combs = do
+groupUnits :: Compiler -> Bool -> Bool -> Bool -> Reference -> Word64 -> MCombs -> IO ([Unit], [Unit])
+groupUnits c sandbox lazy copying ref grp combs = do
   suffix <- case [cell | (_, _, _, _, cell) <- every] of
     [] -> pure ""
     first : _ -> atomicModifyIORef' (cGroupCells c) $ \m ->
@@ -303,10 +308,12 @@ groupUnits c sandbox lazy ref grp combs = do
             Nothing -> (Map.insert grp (seen ++ [first]) m, if null seen then "" else "_v" ++ show (length seen + 1))
   pure (map (unit suffix False) now, map (unit suffix True) later)
   where
-    letCells = Set.fromList [c | Comb (LamI _ _ s _) <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
-    candidates = [c | c@(i, _, _, _, cell) <- every, isEntry i || Set.member cell letCells]
-    every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell)) <- EC.mapToList combs, cell /= noNativeCell]
-    isEntry i = i .&. 0xFFFF == 0
+    letCells = Set.fromList [c | Comb (LamI _ _ s _) _ <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
+    -- a join point (Explode's 'joinIndex') is called only from its own
+    -- group, so a copy for another module has no caller
+    candidates = [c | c@(i, _, _, _, cell) <- every, (isEntry i && not (copying && isJoinIndex i)) || Set.member cell letCells]
+    every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell) _) <- EC.mapToList combs, cell /= noNativeCell]
+    isEntry i = i .&. 0x7FFF == 0
     now = [c | c@(i, _, _, _, _) <- candidates, isEntry i || not lazy]
     later = [c | c@(i, _, _, _, _) <- candidates, not (isEntry i), lazy]
     unit suffix onDemand (i, a, f, entry, cell) =
@@ -323,8 +330,10 @@ groupUnits c sandbox lazy ref grp combs = do
               ++ show f
               ++ "\n"
               ++ unlines (map ("; " ++) (lines (prettySection 4 entry "")))
-          worker = if isEntry i && CG.workerShape entry then Just a else Nothing
-       in Unit name name cell combs entry describe onDemand worker False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
+          static = if i == retIndex then CG.staticWidth entry else Nothing
+          worker = if isEntry i && (CG.workerShape entry || isJust static) then Just a else Nothing
+          narrow = not (CG.mayYieldWitness entry)
+       in Unit name name cell combs entry describe onDemand worker narrow static False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
 
 -- | Private copies of a compiled group's entry point and local functions,
 -- for a module that calls them (see 'uCopy'). The group's re-entry points
@@ -333,7 +342,8 @@ groupUnits c sandbox lazy ref grp combs = do
 copyUnits :: Compiler -> Bool -> Reference -> Word64 -> MCombs -> IO [Unit]
 copyUnits c sandbox ref grp combs = do
   n <- atomicModifyIORef' (cCopyCounter c) (\k -> (k + 1, k))
-  (now, _) <- groupUnits c sandbox True ref grp combs
+  (now, _) <- groupUnits c sandbox True True ref grp combs
+  -- a product-return worker is called only from its own batch's module
   let copy u =
         u
           { uName = uName u ++ "_c" ++ show n,
@@ -341,7 +351,7 @@ copyUnits c sandbox ref grp combs = do
             uCopy = True,
             uDescribe = "; private copy of " ++ uName u ++ "\n" ++ uDescribe u
           }
-  pure (map copy now)
+  pure (map copy (filter (isNothing . uStatic) now))
 
 -- | The unit for a re-entry function its parent left for later.
 deferredUnit :: Unit -> Deferred -> Unit
@@ -364,6 +374,8 @@ deferredUnit parent d =
         ++ unlines (map ("; " ++) (lines (prettySection 4 (dBody d) "")))
     )
     True
+    Nothing
+    False
     Nothing
     False
     (uSandboxed parent)
@@ -398,28 +410,43 @@ compileUnits c st numbers modName lazy candidates = do
       disabledD = D.fromList (map UT.pack (disabled config))
       -- a private copy gets internal linkage, so that LLVM drops it once it
       -- is inlined at every call
-      env local workers u (base, fbase, cells) =
-        CG.Env (jsLayouts st) (jsCtx st) base fbase (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
+      env local workers u cells =
+        CG.Env (jsLayouts st) (jsCtx st) (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
       -- The functions that get a worker: calls to them from this module
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us
         | any (`elem` disabled config) ["direct", "worker"] = Map.empty
-        | otherwise = Map.fromList [(uCell u, Pair (UT.pack (uName u ++ "_w")) a) | u <- us, Just a <- [uWorker u]]
-      -- first pass: find out which functions compile, and how many exits,
-      -- frames and cells for auxiliary functions each needs
-      -- A function that fails as a worker (it turns out to return other
-      -- than one value) is generated in the uniform form instead.
-      candidates1 = workersOf units
-      firstTry u = gen u (env Map.empty candidates1 u (0, 0, CG.Counting))
-      firstPass =
-        [ case firstTry u of
-            Left _ | Map.member (uCell u) candidates1 -> (u {uWorker = Nothing}, gen u (env Map.empty (Map.delete (uCell u) candidates1) u (0, 0, CG.Counting)))
-            r -> (u, r)
-        | u <- units
-        ]
-      failed = [(u, "not compiled: " ++ why) | (u, Left why) <- firstPass]
+        | otherwise = Map.fromList [(uCell u, CG.Worker (UT.pack (uName u ++ "_w")) a (uNarrow u) (uStatic u)) | u <- us, Just a <- [uWorker u]]
+      -- Which functions compile, and in which form. A function that fails
+      -- as a worker (it turns out to return other than one value) is
+      -- generated in the uniform form instead, and its callers then call it
+      -- that way, so the generation is repeated until no unit changes
+      -- status; calls between the module's functions are direct (named),
+      -- which needs the set of compiled functions too. The last repetition
+      -- is the one kept: its own counts of exits, frames and auxiliary
+      -- cells size the tables, and the indices it embedded as placeholders
+      -- are patched in afterwards ('patchIndices', 'relocateCells'), so
+      -- what is registered and what the IR refers to cannot disagree. (A
+      -- separate counting pass with a different worker set did disagree
+      -- once, shifting a function's exit indices by one: it then took an
+      -- entry-poll re-enter in place of a call's resume, forever,
+      -- 2026-10-28.)
+      directOf us
+        | "direct" `elem` disabled config = Map.empty
+        | otherwise = Map.fromList [(uCell u, UT.pack (uName u)) | u <- us]
+      tryWith local ws u = case gen u (env local ws u (CG.Counting 0)) of
+        Left _ | Map.member (uCell u) ws -> (u {uWorker = Nothing}, gen u (env local (Map.delete (uCell u) ws) u (CG.Counting 0)))
+        r -> (u, r)
+      settle us local ws =
+        let fp = map (tryWith local ws) us
+            okUnits = [u | (u, Right _) <- fp]
+            ws' = workersOf okUnits
+            local' = directOf okUnits
+         in if Map.keysSet ws' == Map.keysSet ws && Map.keysSet local' == Map.keysSet local then fp else settle (map fst fp) local' ws'
+      finalPass = settle units (directOf units) (workersOf units)
+      failed = [(u, "not compiled: " ++ why) | (u, Left why) <- finalPass]
       skipped = notWorthIt ++ failed
-      ok = [(u, f) | (u, Right f) <- firstPass]
+      ok = [(u, f) | (u, Right f) <- finalPass]
   forM_ failed $ \(u, why) -> jitLog config (uName u ++ ": " ++ why)
   unless (null ok) $ do
     let counts = map (length . fnExits . snd) ok
@@ -428,18 +455,21 @@ compileUnits c st numbers modName lazy candidates = do
     base <- registerExits (cExits c) (concatMap (toList . fnExits . snd) ok)
     fbase <- registerFrames (cFrames c) (concatMap (toList . fnFrames . snd) ok)
     cellBlock <- newNativeCells (sum acounts)
-    -- second pass, with each function's real exit and frame bases and cells
-    let cells = [CG.Cells (D.fromList (map (nativeCellAt cellBlock) [a .. a + n - 1])) | (a, n) <- zip (scanl (+) 0 acounts) acounts]
-        bases = zip3 (scanl (+) base counts) (scanl (+) fbase fcounts) cells
-        -- calls between the functions of this module are direct (a call
-        -- site has the same exits either way, so the counts above hold)
-        local
-          | "direct" `elem` disabled config = Map.empty
-          | otherwise = Map.fromList [(uCell u, UT.pack (uName u)) | (u, _) <- ok]
-        compiled = [(u, f) | (b, (u, _)) <- zip bases ok, Right f <- [gen u (env local (workersOf (map fst ok)) u b)]]
+    -- the placeholders become the global indices and the real cells
+    let compiled =
+          [ (u, patched)
+          | ((u, f), eb, fb, cb) <- zip4 ok (scanl (+) base counts) (scanl (+) fbase fcounts) (scanl (+) 0 acounts),
+            let relocated = relocateCells (\k -> nativeCellAt cellBlock (cb + k)) f
+                patched = relocated {fnIR = UT.fromText (patchIndices eb fb (UT.toText (fnIR f)))}
+          ]
         fns = map snd compiled
-        ir = modulePrelude <> unlinesT (D.fromList (map fnIR fns))
-    -- the second pass's exits and frames name the auxiliary functions' cells
+        local = directOf (map fst ok)
+        -- the boxing helper the functions' Box sites call, once per module
+        helper = case ok of
+          (u, _) : _ -> boxHelperText (env local (workersOf (map fst ok)) u (CG.Counting 0))
+          _ -> ""
+        ir = modulePrelude <> helper <> unlinesT (D.fromList (map fnIR fns))
+    -- the registered exits and frames name the auxiliary functions' cells
     replaceExits (cExits c) base (concatMap (toList . fnExits) fns)
     replaceFrames (cFrames c) fbase (concatMap (toList . fnFrames) fns)
     -- The dump has each function's MCode as a comment above its IR, and
@@ -454,7 +484,7 @@ compileUnits c st numbers modName lazy candidates = do
                   ]
                     ++ ["; " ++ uName u ++ " " ++ why | (u, why) <- skipped]
                 )
-                ++ [modulePrelude]
+                ++ [modulePrelude, helper]
                 ++ concat [[UT.pack (uDescribe u), fnIR f] | (u, f) <- compiled]
       if dumpToStderr dir
         then jitDump (UT.unpack annotated)
@@ -497,6 +527,14 @@ compileUnits c st numbers modName lazy candidates = do
                 -- stress mode install=N: a module's functions appear one at a time
                 when (stressInstall config > 0) (threadDelay (1000 * stressInstall config))
                 when (stats config) (nameEntry (cExits c) (castFunPtrToPtr fp) (sym ++ maybe "" (" = " ++) (lookup sym described)))
+                -- the register entry goes in before the code, which publishes it
+                when (cell == fnCell f) $
+                  case fnRegisterEntry f of
+                    Nothing -> writeNativeRegisterEntry cell nullPtr
+                    Just xsym ->
+                      lookupSymbol (UT.unpack xsym) >>= \case
+                        Left e -> hPutStrLn stderr ("[jit] " ++ UT.unpack xsym ++ " could not be linked: " ++ e)
+                        Right xp -> writeNativeRegisterEntry cell (castFunPtrToPtr xp)
                 writeNativeCode cell (castFunPtrToPtr fp)
         t1 <- getMonotonicTimeNSec
         let onDemand = length [() | (u, _) <- compiled, uOnDemand u]
