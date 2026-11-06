@@ -3210,9 +3210,27 @@ five n =
     go (acc + applyAll f 2 0) (i + 1)
   go 0 0
 
+-- a captured value that arrived wide (a pair from a call) is boxed just
+-- before the partial application, so the binding is not the application
+-- alone; the library suite's Remote.Ref handler has this shape
+pairOf : Nat -> Nat -> (Nat, Nat)
+pairOf a b = (a + b, b + 1)
+
+sumPair : (Nat, Nat) -> Nat -> Nat -> Nat -> Nat
+sumPair p x y z = match p with (a, b) -> a + b + x + y + z
+
+captured : Nat -> Nat
+captured n =
+  go acc i = if i == n then acc else
+    p = pairOf i (i + 1)
+    f = sumPair p i
+    go (acc + f 1 2 + f 2 3) (i + 1)
+  go 0 0
+
 > fresh 20000
 > more 5000
 > five 3000
+> captured 3000
 ```
 
 ``` ucm :added-by-ucm
@@ -3220,23 +3238,30 @@ five n =
 
   + add3     : Nat -> Nat -> Nat -> Nat
   + applyAll : (Nat ->{g} Nat) -> Nat -> Nat ->{g} Nat
+  + captured : Nat -> Nat
   + five     : Nat -> Nat
   + fresh    : Nat -> Nat
   + more     : Nat -> Nat
+  + pairOf   : Nat -> Nat -> (Nat, Nat)
+  + sumPair  : (Nat, Nat) -> Nat -> Nat -> Nat -> Nat
 
   Run `update` to apply these changes to your codebase.
 
-    38 | > fresh 20000
+    55 | > fresh 20000
            ⧩
            1200200000
 
-    39 | > more 5000
+    56 | > more 5000
            ⧩
            562527500
 
-    40 | > five 3000
+    57 | > five 3000
            ⧩
            45045000
+
+    58 | > captured 3000
+           ⧩
+           36030000
 ```
 
 ### Every arity and argument count

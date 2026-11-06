@@ -3226,6 +3226,27 @@ genApp fe d r args sect = case r of
     | Comb (LamI arity _ _ _) _ <- unRComb comb,
       D.size (argSources fe d args) == arity ->
         genCall fe d cix comb args sect
+    -- Fewer arguments than the function takes: a partial application,
+    -- built in place from the function's closure in the pool
+    -- ('genNameInline') and yielded. The Let case above handles a
+    -- binding that is the application alone; this one is reached when
+    -- the binding starts with an instruction, as it does when a wide
+    -- variable it captures is boxed first (Unison.Runtime.MCode.Wide),
+    -- and when the application is a tail. Before 2026-11-06 both left
+    -- native code, 10,000 times in the library suite's Remote.Ref row.
+    | enabled fe "name",
+      Nothing <- feFast fe,
+      Comb info@(LamI arity _ _ _) _ <- unRComb comb,
+      let srcs = argSources fe d args,
+      not (D.null srcs),
+      D.size srcs < arity,
+      Just pix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) -> do
+        genNameInline fe d pix srcs
+        -- With pending arguments (a thunk forced as `f x ()`, where f
+        -- returns the thunk) the yield leaves it to the interpreter, from
+        -- the slot the closure is in: resuming at @sect@ would read the
+        -- closure as the application's first argument, one slot up.
+        genYield fe (d + 1) (VArg1 0) (Yield (VArg1 0))
     -- the combinator as a value: a constant closure, returned
     | ZArgs <- args,
       Just ix <- combConstant fe r -> do
