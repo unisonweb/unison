@@ -53,10 +53,14 @@ __attribute__((preserve_most)) void unison_jit_exit_frame(UnisonJitCtx *ctx, con
   const int64_t *slots = d + 6, *recs = slots + nslots;
   int64_t *ustk = ctx->ustk;
   void **bstk = ctx->bstk;
+  // the non-moving collector's barrier for the slots written below: one
+  // read of the flag, then a register test per store (zero unless the
+  // process runs under +RTS -xn and a mark is in progress)
+  const int64_t nm = ctx->nm_barrier;
   for (int64_t i = 0; i < nslots; i++) {
     int64_t k = fp + slots[i];
     ustk[k] = args[2 * i];
-    if (ctx->nm_barrier) unison_jit_push_old(ctx, bstk[k]);
+    if (nm) unison_jit_push_old(ctx, bstk[k]);
     bstk[k] = (void *)args[2 * i + 1];
   }
   const int64_t *extra = args + 2 * nslots;
@@ -75,7 +79,7 @@ __attribute__((preserve_most)) void unison_jit_exit_frame(UnisonJitCtx *ctx, con
     if (recs[0] < 0) {
       int64_t idx = ctx->n_local_ptrs++;
       if (__builtin_expect(idx >= UNISON_JIT_LOCALS, 0)) unison_jit_exit_fail();
-      if (ctx->nm_barrier) unison_jit_push_old(ctx, bstk[ctx->stack_size + 1 + idx]);
+      if (nm) unison_jit_push_old(ctx, bstk[ctx->stack_size + 1 + idx]);
       bstk[ctx->stack_size + 1 + idx] = (void *)*extra++;
       fr[0] = -1 - idx;
       fr[1] = 0;

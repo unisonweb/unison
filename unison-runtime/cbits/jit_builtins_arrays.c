@@ -260,7 +260,8 @@ int64_t unison_jit_ref_cas(UnisonJitCtx *ctx, void *ref, void *ticket, int64_t u
   StgClosure *v = mk_val(ctx, b, u);
   if (!__atomic_compare_exchange_n((StgWord *)&mv->var, &old, (StgWord)v, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return 0;
   if (GET_INFO((StgClosure *)mv) == &stg_MUT_VAR_CLEAN_info) dirty_MUT_VAR(reg_table(ctx->cap), mv, (StgClosure *)old);
-  if (ctx->nm_barrier) unison_jit_push_old(ctx, (void *)old);
+  // the non-moving collector's push of the old content is generated code's,
+  // before the call (Codegen.hs, RefCAS)
   return 1;
 }
 

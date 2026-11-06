@@ -4541,6 +4541,14 @@ genInstr fe d instr sect k =
           u <- loadU (d - kv)
           b <- loadB (d - kv)
           requireTagged slow (D.singleton b)
+          -- the non-moving barrier for the content a successful swap
+          -- overwrites: pushed before the attempt (a push for a swap that
+          -- then fails is harmless), so that the helper tests nothing
+          rp <- fresh "ref.p"
+          emit (rp <> " = inttoptr i64 " <> r <> " to ptr")
+          varA <- fresh "var.a"
+          emit (varA <> " = getelementptr i64, ptr " <> rp <> ", i64 " <> tshow (rMutVarVar (envRts (feEnv fe))))
+          pushOld fe [varA]
           res <- fresh "cas"
           emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
           miss <- fresh "miss"
@@ -5020,6 +5028,12 @@ genRefWrite fe d k kv unitIx instr sect = do
   emit (tp <> " = inttoptr i64 " <> ti <> " to ptr")
   mvp <- fresh "mutvar.p"
   emit (mvp <> " = inttoptr i64 " <> mv <> " to ptr")
+  -- the non-moving barrier for the content the write overwrites, here
+  -- rather than in the helper, so that the helper tests nothing at runtime
+  -- (under the default collector this is not generated)
+  varA <- fresh "var.a"
+  emit (varA <> " = getelementptr i64, ptr " <> mvp <> ", i64 " <> tshow (rMutVarVar (envRts env)))
+  pushOld fe [varA]
   emit ("call void @unison_jit_write_mutvar(ptr %ctx, ptr " <> mvp <> ", ptr " <> tp <> ")")
   poolConstant fe d unitIx
 

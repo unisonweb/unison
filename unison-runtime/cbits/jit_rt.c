@@ -437,9 +437,10 @@ void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
   // only a clean variable needs the barrier, as compiled code tests before
   // the call (the barrier tests again; this keeps the cold call off a dirty var)
   if (GET_INFO((StgClosure *)mv) == &stg_MUT_VAR_CLEAN_info) dirty_MUT_VAR(reg, mv, old);
-  // the non-moving collector's barrier wants the old value at every write,
-  // a dirty variable's too (dirty_MUT_VAR pushes it only for a clean one)
-  if (ctx->nm_barrier) unison_jit_push_old(ctx, old);
+  // under the non-moving collector the old value goes to the marker at
+  // every write, a dirty variable's too; generated code does that before
+  // the call (pushOld, only generated under +RTS -xn), so nothing is
+  // tested here
 }
 
 // The non-moving collector's write barrier (+RTS -xn; design.md, "The
@@ -448,11 +449,16 @@ void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
 // marker, which works from a snapshot, still reaches what was reachable
 // through it. Generated code, the exit routine and the helpers call this
 // before such a store, only while a mark is in progress (ctx->nm_barrier).
-void unison_jit_push_old(UnisonJitCtx *ctx, void *old) {
+// It runs only during a mark, so the call from generated code costs what
+// GHC's own barrier costs (updateRemembSetPushClosure_ is out of line
+// there too); the C callers in this file use the inline copy.
+static inline void push_old(UnisonJitCtx *ctx, void *old) {
   if (old == NULL) return;
   StgRegTable *reg = (StgRegTable *)((char *)ctx->cap + sizeof(StgFunTable));
   updateRemembSetPushClosure_(reg, UNTAG_CLOSURE((StgClosure *)old));
 }
+
+void unison_jit_push_old(UnisonJitCtx *ctx, void *old) { push_old(ctx, old); }
 
 // Addresses and sizes from the runtime that generated code needs: the
 // info pointers for the two kinds of array in a Seg, and their layouts.
@@ -761,7 +767,7 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   // The environment native code was running with (switched, after an exit
   // from inside a handler case), and the ones its Local records refer to.
   if (ctx->henv != henv_in || ctx->n_local_ptrs > 0) {
-    if (ctx->nm_barrier) unison_jit_push_old(ctx, bstk[stack_size]);
+    if (ctx->nm_barrier) push_old(ctx, bstk[stack_size]);
     bstk[stack_size] = ctx->henv;
     unison_jit_mark_bstk(bstk, stack_size, stack_size + ctx->n_local_ptrs);
   }
