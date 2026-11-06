@@ -1,0 +1,60 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      :  Control.Exception.Backtrace</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 1994-2023</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- This module provides the 'Backtrace'\ s type, which provides a</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- common representation for backtrace information which can be, e.g., attached</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- to exceptions (via the 'Control.Exception.Context.ExceptionContext' facility).</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- These backtraces preserve useful context about the execution state of the program</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- using a variety of means; we call these means *backtrace mechanisms*.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- We currently support four backtrace mechanisms:</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--  - 'CostCentreBacktrace' captures the current cost-centre stack</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--    using 'GHC.Stack.CCS.getCurrentCCS'.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--  - 'HasCallStackBacktrace' captures the 'HasCallStack' 'CallStack'.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--  - 'ExecutionBacktrace' captures the execution stack, unwound and resolved</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--    to symbols via DWARF debug information.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--  - 'IPEBacktrace' captures the execution stack, resolved to names via info-table</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--    provenance information.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Each of these are useful in different situations. While 'CostCentreBacktrace's are</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- readily mapped back to the source program, they require that the program be instrumented</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- with cost-centres, incurring runtime cost. Similarly, 'HasCallStackBacktrace's require that</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- the program be manually annotated with 'HasCallStack' constraints.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- By contrast, 'IPEBacktrace's incur no runtime instrumentation but require that (at least</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- some subset of) the program be built with GHC\'s @-finfo-table-map@ flag. Moreover, because</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- info-table provenance information is derived after optimisation, it may be harder to relate</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- back to the structure of the source program.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- 'ExecutionBacktrace's are similar to 'IPEBacktrace's but use DWARF stack unwinding</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- and symbol resolution; this allows for useful backtraces even in the presence</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- of foreign calls, both into and out of Haskell. However, for robust stack unwinding</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- the entirety of the program (and its dependencies, both Haskell and native) must</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- be compiled with debugging information (e.g. using GHC\'s @-g@ flag).</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- Note [Backtrace mechanisms]</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- See module docstring above.</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Exception.Backtrace.html"><span class="hs-identifier">Control.Exception.Backtrace</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Backtrace mechanisms</span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier">BacktraceMechanism</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#getBacktraceMechanismState"><span class="hs-identifier">getBacktraceMechanismState</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismState"><span class="hs-identifier">setBacktraceMechanismState</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Collecting backtraces</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier">Backtraces</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#displayBacktraces"><span class="hs-identifier">displayBacktraces</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html#collectBacktraces"><span class="hs-identifier">collectBacktraces</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Exception.Backtrace.html"><span class="hs-identifier">GHC.Internal.Exception.Backtrace</span></a></span><span>
+</span><span id="line-60"></span></pre></body></html>

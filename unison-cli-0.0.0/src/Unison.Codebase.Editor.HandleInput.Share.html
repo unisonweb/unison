@@ -1,0 +1,903 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Handlers for the @share.*@ commands, which read from Unison Share and never touch the local codebase.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.Share</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareProjectSearch"><span class="hs-identifier">handleShareProjectSearch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSearch"><span class="hs-identifier">handleShareSearch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSource"><span class="hs-identifier">handleShareSource</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareRender"><span class="hs-identifier">handleShareRender</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleases"><span class="hs-identifier">handleShareReleases</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareDocs"><span class="hs-identifier">handleShareDocs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleaseDetail"><span class="hs-identifier">handleShareReleaseDetail</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">intersperse</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">status404</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Client</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html"><span class="hs-identifier">Unison.Cli.Share.Definitions</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html"><span class="hs-identifier">Unison.Cli.Share.Ref</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier">SearchFilter</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier">ShareRef</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Editor.DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html"><span class="hs-identifier">Unison.Codebase.Editor.Output</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Output</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.StructuredArgument.html"><span class="hs-identifier">Unison.Codebase.Editor.StructuredArgument</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SA</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Doc.Console</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">docToConsole</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Doc.Markdown.Render</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Doc</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Doc.Markdown.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Markdown</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Syntax</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Syntax</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Types</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">DefinitionDisplayResults</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-identifier">DefinitionSearchResult</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-identifier">TermDefinition</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-identifier">TermOrTypeSummary</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-identifier">TermSummary</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="hs-identifier">TypeDefinition</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-identifier">TypeSummary</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Pretty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareProjectSearch"><span class="hs-identifier hs-type">handleShareProjectSearch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="handleShareProjectSearch"><span class="annot"><span class="annottext">handleShareProjectSearch :: Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareProjectSearch"><span class="hs-identifier hs-var hs-var">handleShareProjectSearch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#searchEntities%27"><span class="hs-identifier hs-var">searchEntities'</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Like the search box on the front page of Share: a query that starts with an @\@@ looks for users, organizations</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- and projects, and anything else looks for terms and types, by name or by type.</span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSearch"><span class="hs-identifier hs-type">handleShareSearch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier hs-type">SearchFilter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span id="handleShareSearch"><span class="annot"><span class="annottext">handleShareSearch :: Text -&gt; Maybe SearchFilter -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSearch"><span class="hs-identifier hs-var hs-var">handleShareSearch</span></a></span></span><span> </span><span id="local-6989586621681623233"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623233"><span class="hs-identifier hs-var">query</span></a></span></span><span> </span><span id="local-6989586621681623234"><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><a href="#local-6989586621681623234"><span class="hs-identifier hs-var">filter_</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-operator hs-var">`Text.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623233"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#searchEntities%27"><span class="hs-identifier hs-var">searchEntities'</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623233"><span class="hs-identifier hs-var">query</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-51"></span><span>      </span><span id="local-6989586621681623236"><span class="annot"><a href="#local-6989586621681623236"><span class="hs-identifier hs-var">results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; Maybe SearchFilter
+-&gt; Cli (Either ClientError [DefinitionSearchResult])
+</span><a href="Unison.Cli.Share.Definitions.html#searchDefinitions"><span class="hs-identifier hs-var">searchDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623233"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><a href="#local-6989586621681623234"><span class="hs-identifier hs-var">filter_</span></a></span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError [DefinitionSearchResult])
+-&gt; (Cli (Either ClientError [DefinitionSearchResult])
+    -&gt; Cli [DefinitionSearchResult])
+-&gt; Cli [DefinitionSearchResult]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ClientError -&gt; Cli [DefinitionSearchResult])
+-&gt; Cli (Either ClientError [DefinitionSearchResult])
+-&gt; Cli [DefinitionSearchResult]
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Cli [DefinitionSearchResult]
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli [DefinitionSearchResult])
+-&gt; (ClientError -&gt; Output)
+-&gt; ClientError
+-&gt; Cli [DefinitionSearchResult]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681623236"><span class="hs-identifier hs-type">results</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-var">Output.ShareText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;No definitions found matching &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623233"><span class="hs-identifier hs-var">query</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>        </span><span id="local-6989586621681623245"><span class="annot"><span class="annottext">DefinitionSearchResult
+</span><a href="#local-6989586621681623245"><span class="hs-identifier hs-var">firstResult</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-55"></span><span>          </span><span class="annot"><span class="annottext">NumberedArgs -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#setNumberedArgs"><span class="hs-identifier hs-var">Cli.setNumberedArgs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; StructuredArgument
+</span><a href="Unison.Codebase.Editor.StructuredArgument.html#ShareDefinitionRef"><span class="hs-identifier hs-var">SA.ShareDefinitionRef</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; StructuredArgument)
+-&gt; (DefinitionSearchResult -&gt; Text)
+-&gt; DefinitionSearchResult
+-&gt; StructuredArgument
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623248"><span class="hs-identifier hs-var">reference</span></a></span><span> </span><span class="annot"><span class="annottext">(DefinitionSearchResult -&gt; StructuredArgument)
+-&gt; [DefinitionSearchResult] -&gt; NumberedArgs
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><a href="#local-6989586621681623236"><span class="hs-identifier hs-var">results</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>          </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ShareMatch] -&gt; Text -&gt; Bool -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareDefinitionMatches"><span class="hs-identifier hs-var">Output.ShareDefinitionMatches</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DefinitionSearchResult -&gt; ShareMatch
+</span><a href="#local-6989586621681623251"><span class="hs-identifier hs-var">renderMatch</span></a></span><span> </span><span class="annot"><span class="annottext">(DefinitionSearchResult -&gt; ShareMatch)
+-&gt; [DefinitionSearchResult] -&gt; [ShareMatch]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><a href="#local-6989586621681623236"><span class="hs-identifier hs-var">results</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623248"><span class="hs-identifier hs-var">reference</span></a></span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult
+</span><a href="#local-6989586621681623245"><span class="hs-identifier hs-var">firstResult</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[DefinitionSearchResult] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><a href="#local-6989586621681623236"><span class="hs-identifier hs-var">results</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681623253"><span class="hs-identifier hs-var">maxMatches</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621681623253"><span class="annot"><span class="annottext">maxMatches :: Int
+</span><a href="#local-6989586621681623253"><span class="hs-identifier hs-var hs-var">maxMatches</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">20</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><a href="#local-6989586621681623256"><span class="hs-identifier hs-type">origin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621681623256"><span class="annot"><span class="annottext">origin :: DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623256"><span class="hs-identifier hs-var hs-var">origin</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623258"><span class="annot"><span class="annottext">ProjectName
+project :: ProjectName
+project :: DefinitionSearchResult -&gt; ProjectName
+</span><a href="#local-6989586621681623258"><span class="hs-identifier hs-var hs-var">project</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623260"><span class="annot"><span class="annottext">ProjectBranchName
+branchRef :: ProjectBranchName
+branchRef :: DefinitionSearchResult -&gt; ProjectBranchName
+</span><a href="#local-6989586621681623260"><span class="hs-identifier hs-var hs-var">branchRef</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">ProjectName
+</span><a href="#local-6989586621681623258"><span class="hs-identifier hs-var">project</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">ProjectBranchName
+</span><a href="#local-6989586621681623260"><span class="hs-identifier hs-var">branchRef</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><a href="#local-6989586621681623248"><span class="hs-identifier hs-type">reference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621681623248"><span class="annot"><span class="annottext">reference :: DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623248"><span class="hs-identifier hs-var hs-var">reference</span></a></span></span><span> </span><span id="local-6989586621681623263"><span class="annot"><span class="annottext">result :: DefinitionSearchResult
+</span><a href="#local-6989586621681623263"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623264"><span class="annot"><span class="annottext">Name
+fqn :: Name
+fqn :: DefinitionSearchResult -&gt; Name
+</span><a href="#local-6989586621681623264"><span class="hs-identifier hs-var hs-var">fqn</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623256"><span class="hs-identifier hs-var">origin</span></a></span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult
+</span><a href="#local-6989586621681623263"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;:&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">Name.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681623264"><span class="hs-identifier hs-var">fqn</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-comment">-- The name in its project and its type, like @data.List.take : Nat -&gt; [a] -&gt; [a]@ (with @builtin@ in front of a</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-comment">-- builtin), and where it is from.</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="#local-6989586621681623251"><span class="hs-identifier hs-type">renderMatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareMatch"><span class="hs-identifier hs-type">Output.ShareMatch</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621681623251"><span class="annot"><span class="annottext">renderMatch :: DefinitionSearchResult -&gt; ShareMatch
+</span><a href="#local-6989586621681623251"><span class="hs-identifier hs-var hs-var">renderMatch</span></a></span></span><span> </span><span id="local-6989586621681623267"><span class="annot"><span class="annottext">result :: DefinitionSearchResult
+</span><a href="#local-6989586621681623267"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623268"><span class="annot"><span class="annottext">Name
+fqn :: DefinitionSearchResult -&gt; Name
+fqn :: Name
+</span><span class="hs-identifier hs-var hs-var">fqn</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623269"><span class="annot"><span class="annottext">TermOrTypeSummary
+summary :: TermOrTypeSummary
+summary :: DefinitionSearchResult -&gt; TermOrTypeSummary
+</span><a href="#local-6989586621681623269"><span class="hs-identifier hs-var hs-var">summary</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareMatch"><span class="hs-identifier hs-type">Output.ShareMatch</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">heading :: Text
+</span><a href="Unison.Codebase.Editor.Output.html#heading"><span class="hs-identifier hs-var">heading</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623273"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">Name.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681623268"><span class="hs-identifier hs-var">fqn</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623274"><span class="hs-identifier hs-var">typeOf</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">origin :: Text
+</span><a href="Unison.Codebase.Editor.Output.html#origin"><span class="hs-identifier hs-var">origin</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult -&gt; Text
+</span><a href="#local-6989586621681623256"><span class="hs-identifier hs-var">origin</span></a></span><span> </span><span class="annot"><span class="annottext">DefinitionSearchResult
+</span><a href="#local-6989586621681623267"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621681623273"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623273"><span class="hs-identifier hs-var">prefix</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623274"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623274"><span class="hs-identifier hs-var">typeOf</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermOrTypeSummary
+</span><a href="#local-6989586621681623269"><span class="hs-identifier hs-var">summary</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-73"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">ToTTermSummary</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermSummary</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">summary :: TermSummary -&gt; DisplayObject SyntaxText SyntaxText
+</span><span class="hs-identifier hs-var">summary</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681623279"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623279"><span class="hs-identifier hs-var">displayed</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText -&gt; Text
+forall {b} {a}. DisplayObject b a -&gt; Text
+</span><a href="#local-6989586621681623280"><span class="hs-identifier hs-var">builtinPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623279"><span class="hs-identifier hs-var">displayed</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; : &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText -&gt; Text
+</span><a href="#local-6989586621681623281"><span class="hs-identifier hs-var">displayText</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623279"><span class="hs-identifier hs-var">displayed</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">ToTTypeSummary</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeSummary</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">summary :: TypeSummary -&gt; DisplayObject SyntaxText SyntaxText
+</span><span class="hs-identifier hs-var">summary</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681623285"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623285"><span class="hs-identifier hs-var">displayed</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText -&gt; Text
+forall {b} {a}. DisplayObject b a -&gt; Text
+</span><a href="#local-6989586621681623280"><span class="hs-identifier hs-var">builtinPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623285"><span class="hs-identifier hs-var">displayed</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;type &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>        </span><span id="local-6989586621681623280"><span class="annot"><span class="annottext">builtinPrefix :: DisplayObject b a -&gt; Text
+</span><a href="#local-6989586621681623280"><span class="hs-identifier hs-var hs-var">builtinPrefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-76"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;builtin &quot;</span></span><span>
+</span><span id="line-77"></span><span>          </span><span class="annot"><span class="annottext">DisplayObject b a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621681623281"><span class="annot"><span class="annottext">displayText :: DisplayObject SyntaxText SyntaxText -&gt; Text
+</span><a href="#local-6989586621681623281"><span class="hs-identifier hs-var hs-var">displayText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-79"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621681623297"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623297"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623297"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-80"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span id="local-6989586621681623299"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623299"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623299"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-81"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621681623301"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623301"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&lt;missing definition &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623301"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&gt;&quot;</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#searchEntities%27"><span class="hs-identifier hs-type">searchEntities'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span id="searchEntities%27"><span class="annot"><span class="annottext">searchEntities' :: Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#searchEntities%27"><span class="hs-identifier hs-var hs-var">searchEntities'</span></a></span></span><span> </span><span id="local-6989586621681623303"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623303"><span class="hs-identifier hs-var">query</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621681623304"><span class="annot"><a href="#local-6989586621681623304"><span class="hs-identifier hs-var">hits</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Cli (Either ClientError [SearchHit])
+</span><a href="Unison.Cli.Share.Definitions.html#searchEntities"><span class="hs-identifier hs-var">searchEntities</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623303"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError [SearchHit])
+-&gt; (Cli (Either ClientError [SearchHit]) -&gt; Cli [SearchHit])
+-&gt; Cli [SearchHit]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ClientError -&gt; Cli [SearchHit])
+-&gt; Cli (Either ClientError [SearchHit]) -&gt; Cli [SearchHit]
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Cli [SearchHit]
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli [SearchHit])
+-&gt; (ClientError -&gt; Output) -&gt; ClientError -&gt; Cli [SearchHit]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681623304"><span class="hs-identifier hs-type">hits</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-var">Output.ShareText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Nothing found matching &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623303"><span class="hs-identifier hs-var">query</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><span class="annottext">[SearchHit]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli ()) -&gt; ([Text] -&gt; Output) -&gt; [Text] -&gt; Cli ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-var">Output.ShareText</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Output) -&gt; ([Text] -&gt; Text) -&gt; [Text] -&gt; Output
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Cli ()) -&gt; [Text] -&gt; Cli ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">[SearchHit]
+</span><a href="#local-6989586621681623304"><span class="hs-identifier hs-var">hits</span></a></span><span> </span><span class="annot"><span class="annottext">[SearchHit] -&gt; (SearchHit -&gt; Text) -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-91"></span><span>          </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectHit"><span class="hs-identifier hs-type">ProjectHit</span></a></span><span> </span><span id="local-6989586621681623309"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623309"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621681623310"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623310"><span class="hs-identifier hs-var">summary</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623309"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Text
+</span><a href="#local-6989586621681623311"><span class="hs-identifier hs-var">describe</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623310"><span class="hs-identifier hs-var">summary</span></a></span><span>
+</span><span id="line-92"></span><span>          </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#UserHit"><span class="hs-identifier hs-type">UserHit</span></a></span><span> </span><span id="local-6989586621681623313"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623313"><span class="hs-identifier hs-var">handle</span></a></span></span><span> </span><span id="local-6989586621681623314"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623314"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623313"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  (user)&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Text
+</span><a href="#local-6989586621681623311"><span class="hs-identifier hs-var">describe</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623314"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-93"></span><span>          </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#OrgHit"><span class="hs-identifier hs-type">OrgHit</span></a></span><span> </span><span id="local-6989586621681623316"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623316"><span class="hs-identifier hs-var">handle</span></a></span></span><span> </span><span id="local-6989586621681623317"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623317"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623316"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  (organization)&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Text
+</span><a href="#local-6989586621681623311"><span class="hs-identifier hs-var">describe</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623317"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621681623311"><span class="annot"><span class="annottext">describe :: Maybe Text -&gt; Text
+</span><a href="#local-6989586621681623311"><span class="hs-identifier hs-var hs-var">describe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; (Text -&gt; Text) -&gt; Maybe Text -&gt; Text
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681623326"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623326"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; Text -&gt; Text
+Text -&gt; Text -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.replace</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623326"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="annot"><span class="hs-comment">-- | Print the source of the definition at @path@.</span></span><span>
+</span><span id="line-98"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSource"><span class="hs-identifier hs-type">handleShareSource</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span id="handleShareSource"><span class="annot"><span class="annottext">handleShareSource :: ShareRef -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareSource"><span class="hs-identifier hs-var hs-var">handleShareSource</span></a></span></span><span> </span><span id="local-6989586621681623328"><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623328"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623330"><span class="annot"><a href="#local-6989586621681623330"><span class="hs-identifier hs-var hs-var">termDefinitions</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623332"><span class="annot"><a href="#local-6989586621681623332"><span class="hs-identifier hs-var hs-var">typeDefinitions</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ShareRef -&gt; Cli DefinitionDisplayResults
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#lookupDefinitions"><span class="hs-identifier hs-var">lookupDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623328"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623335"><span class="annot"><a href="#local-6989586621681623335"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition -&gt; [TermDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition
+</span><a href="#local-6989586621681623330"><span class="hs-identifier hs-var">termDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">[TermDefinition] -&gt; (TermDefinition -&gt; Text) -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="hs-identifier hs-type">TermDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623338"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+termDefinition :: DisplayObject SyntaxText SyntaxText
+termDefinition :: TermDefinition -&gt; DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623338"><span class="hs-identifier hs-var hs-var">termDefinition</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText -&gt; Text
+</span><a href="#local-6989586621681623340"><span class="hs-identifier hs-var">displayObject</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623338"><span class="hs-identifier hs-var">termDefinition</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623341"><span class="annot"><a href="#local-6989586621681623341"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition -&gt; [TypeDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition
+</span><a href="#local-6989586621681623332"><span class="hs-identifier hs-var">typeDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">[TypeDefinition] -&gt; (TypeDefinition -&gt; Text) -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="hs-identifier hs-type">TypeDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623343"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+typeDefinition :: DisplayObject SyntaxText SyntaxText
+typeDefinition :: TypeDefinition -&gt; DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623343"><span class="hs-identifier hs-var hs-var">typeDefinition</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText -&gt; Text
+</span><a href="#local-6989586621681623340"><span class="hs-identifier hs-var">displayObject</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623343"><span class="hs-identifier hs-var">typeDefinition</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-type">Output.ShareText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text.intercalate</span></span><span> </span><span class="annot"><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681623341"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><a href="#local-6989586621681623335"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621681623340"><span class="annot"><span class="annottext">displayObject :: DisplayObject SyntaxText SyntaxText -&gt; Text
+</span><a href="#local-6989586621681623340"><span class="hs-identifier hs-var hs-var">displayObject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621681623355"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623355"><span class="hs-identifier hs-var">source</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623355"><span class="hs-identifier hs-var">source</span></a></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span id="local-6989586621681623356"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623356"><span class="hs-identifier hs-var">builtin</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623356"><span class="hs-identifier hs-var">builtin</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; (builtin)&quot;</span></span><span>
+</span><span id="line-108"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621681623357"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623357"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&lt;missing definition &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623357"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&gt;&quot;</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | Render the documentation of the definition at @path@ (a doc renders itself), or the project's README if there</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- is no path.</span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareRender"><span class="hs-identifier hs-type">handleShareRender</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span id="handleShareRender"><span class="annot"><span class="annottext">handleShareRender :: ShareRef -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareRender"><span class="hs-identifier hs-var hs-var">handleShareRender</span></a></span></span><span> </span><span id="local-6989586621681623358"><span class="annot"><span class="annottext">ref :: ShareRef
+</span><a href="#local-6989586621681623358"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623360"><span class="annot"><span class="annottext">Maybe Text
+path :: Maybe Text
+path :: ShareRef -&gt; Maybe Text
+</span><a href="#local-6989586621681623360"><span class="hs-identifier hs-var hs-var">path</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623360"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>      </span><span id="local-6989586621681623362"><span class="annot"><a href="#local-6989586621681623362"><span class="hs-identifier hs-var">readme</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ShareRef -&gt; Cli (Either ClientError Text)
+</span><a href="Unison.Cli.Share.Definitions.html#getReadme"><span class="hs-identifier hs-var">getReadme</span></a></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623358"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError Text)
+-&gt; (Cli (Either ClientError Text) -&gt; Cli Text) -&gt; Cli Text
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ClientError -&gt; Cli Text)
+-&gt; Cli (Either ClientError Text) -&gt; Cli Text
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Cli Text
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli Text)
+-&gt; (ClientError -&gt; Output) -&gt; ClientError -&gt; Cli Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>      </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-type">Output.ShareText</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681623362"><span class="hs-identifier hs-type">readme</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681623364"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623364"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623365"><span class="annot"><span class="hs-identifier hs-var hs-var">termDefinitions</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623366"><span class="annot"><span class="hs-identifier hs-var hs-var">typeDefinitions</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ShareRef -&gt; Cli DefinitionDisplayResults
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#lookupDefinitions"><span class="hs-identifier hs-var">lookupDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623358"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623367"><span class="annot"><a href="#local-6989586621681623367"><span class="hs-identifier hs-var hs-var">docs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>            </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623368"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623369"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+termDocs :: [(Text, Text, Doc)]
+termDocs :: TermDefinition -&gt; [(Text, Text, Doc)]
+</span><a href="#local-6989586621681623369"><span class="hs-identifier hs-var hs-var">termDocs</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition -&gt; [TermDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition
+</span><a href="#local-6989586621681623365"><span class="hs-identifier hs-var">termDefinitions</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623368"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623368"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623369"><span class="hs-identifier hs-var">termDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-122"></span><span>              </span><span class="annot"><span class="annottext">[Doc] -&gt; [Doc] -&gt; [Doc]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623371"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623372"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+typeDocs :: [(Text, Text, Doc)]
+typeDocs :: TypeDefinition -&gt; [(Text, Text, Doc)]
+</span><a href="#local-6989586621681623372"><span class="hs-identifier hs-var hs-var">typeDocs</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition -&gt; [TypeDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition
+</span><a href="#local-6989586621681623366"><span class="hs-identifier hs-var">typeDefinitions</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623371"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623371"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623372"><span class="hs-identifier hs-var">typeDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681623367"><span class="hs-identifier hs-type">docs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>        </span><span class="annot"><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-type">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-type">Output.ShareFailed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;There are no docs for &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681623364"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>      </span><span class="hs-comment">-- The same layout as @docs@ and @render@ give for a local definition, not Share's Markdown.</span><span>
+</span><span id="line-126"></span><span>      </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareDocs"><span class="hs-identifier hs-type">Output.ShareDocs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">P.linesSpaced</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">intersperse</span></span><span> </span><span class="annot"><span class="hs-string">&quot;---&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681623367"><span class="hs-identifier hs-type">docs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">docToConsole</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><span class="hs-comment">-- | Fetch the definitions at the ref's path, failing if the ref has none or the name isn't found.</span></span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#lookupDefinitions"><span class="hs-identifier hs-type">lookupDefinitions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span>
+</span><span id="line-130"></span><span id="lookupDefinitions"><span class="annot"><span class="annottext">lookupDefinitions :: ShareRef -&gt; Cli DefinitionDisplayResults
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#lookupDefinitions"><span class="hs-identifier hs-var hs-var">lookupDefinitions</span></a></span></span><span> </span><span id="local-6989586621681623379"><span class="annot"><span class="annottext">ref :: ShareRef
+</span><a href="#local-6989586621681623379"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623380"><span class="annot"><span class="annottext">Maybe Text
+path :: ShareRef -&gt; Maybe Text
+path :: Maybe Text
+</span><a href="Unison.Cli.Share.Ref.html#path"><span class="hs-identifier hs-var hs-var">path</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621681623381"><span class="annot"><a href="#local-6989586621681623381"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681623380"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; (Maybe Text -&gt; Cli Text) -&gt; Cli Text
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Cli Text -&gt; Maybe Text -&gt; Cli Text
+forall (m :: * -&gt; *) a. Applicative m =&gt; m a -&gt; Maybe a -&gt; m a
+</span><span class="hs-identifier hs-var">onNothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Cli Text
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-var">Output.ShareFailed</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Expected a name after the `:`, like @user/project:some.name&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621681623383"><span class="annot"><a href="#local-6989586621681623383"><span class="hs-identifier hs-var">results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#getDefinitions"><span class="hs-identifier hs-type">getDefinitions</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681623379"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681623381"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">onLeftM</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-134"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Servant.FailureResponse</span></span><span> </span><span class="annot"><span class="annottext">RequestF () (BaseUrl, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681623386"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623386"><span class="hs-identifier hs-var">response</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Response -&gt; Status
+forall a. ResponseF a -&gt; Status
+</span><span class="hs-identifier hs-var">Servant.responseStatusCode</span></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623386"><span class="hs-identifier hs-var">response</span></a></span><span> </span><span class="annot"><span class="annottext">Status -&gt; Status -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status404</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli DefinitionDisplayResults
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-var">Output.ShareFailed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Not found on Share: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623381"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>      </span><span id="local-6989586621681623388"><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623388"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli DefinitionDisplayResults
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span> </span><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623388"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">missingDefinitions</span></span><span> </span><span class="annot"><a href="#local-6989586621681623383"><span class="hs-identifier hs-type">results</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-type">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-type">Output.ShareFailed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;Not found on Share: &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.intercalate</span></span><span> </span><span class="annot"><span class="hs-string">&quot;, &quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">missingDefinitions</span></span><span> </span><span class="annot"><a href="#local-6989586621681623383"><span class="hs-identifier hs-type">results</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681623383"><span class="hs-identifier hs-type">results</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><span class="hs-comment">-- | List the releases of a project, newest first, numbered so that @share.releases.detail 2@ can refer to one.</span></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleases"><span class="hs-identifier hs-type">handleShareReleases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span id="handleShareReleases"><span class="annot"><span class="annottext">handleShareReleases :: Text -&gt; Text -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleases"><span class="hs-identifier hs-var hs-var">handleShareReleases</span></a></span></span><span> </span><span id="local-6989586621681623391"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span></span><span> </span><span id="local-6989586621681623392"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621681623393"><span class="annot"><a href="#local-6989586621681623393"><span class="hs-identifier hs-var">releases</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Cli (Either ClientError [ReleaseInfo])
+</span><a href="Unison.Cli.Share.Definitions.html#listReleases"><span class="hs-identifier hs-var">listReleases</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError [ReleaseInfo])
+-&gt; (Cli (Either ClientError [ReleaseInfo]) -&gt; Cli [ReleaseInfo])
+-&gt; Cli [ReleaseInfo]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ClientError -&gt; Cli [ReleaseInfo])
+-&gt; Cli (Either ClientError [ReleaseInfo]) -&gt; Cli [ReleaseInfo]
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-145"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Servant.FailureResponse</span></span><span> </span><span class="annot"><span class="annottext">RequestF () (BaseUrl, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681623395"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623395"><span class="hs-identifier hs-var">response</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Response -&gt; Status
+forall a. ResponseF a -&gt; Status
+</span><span class="hs-identifier hs-var">Servant.responseStatusCode</span></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623395"><span class="hs-identifier hs-var">response</span></a></span><span> </span><span class="annot"><span class="annottext">Status -&gt; Status -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status404</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli [ReleaseInfo]
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-var">Output.ShareFailed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;There is no project @&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; on Share.&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>      </span><span id="local-6989586621681623396"><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623396"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli [ReleaseInfo]
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span> </span><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623396"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681623393"><span class="hs-identifier hs-type">releases</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-var">Output.ShareText</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; has no releases.&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623397"><span class="annot"><span class="annottext">refs :: [Text]
+</span><a href="#local-6989586621681623397"><span class="hs-identifier hs-var hs-var hs-var">refs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><a href="#local-6989586621681623393"><span class="hs-identifier hs-var">releases</span></a></span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo] -&gt; (ReleaseInfo -&gt; Text) -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623399"><span class="annot"><span class="annottext">Text
+version :: Text
+version :: ReleaseInfo -&gt; Text
+</span><a href="#local-6989586621681623399"><span class="hs-identifier hs-var hs-var">version</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/releases/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623399"><span class="hs-identifier hs-var">version</span></a></span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">NumberedArgs -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#setNumberedArgs"><span class="hs-identifier hs-var">Cli.setNumberedArgs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; StructuredArgument
+</span><a href="Unison.Codebase.Editor.StructuredArgument.html#ShareReleaseRef"><span class="hs-identifier hs-var">SA.ShareReleaseRef</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; StructuredArgument) -&gt; [Text] -&gt; NumberedArgs
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681623397"><span class="hs-identifier hs-var">refs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623402"><span class="annot"><span class="annottext">width :: Int
+</span><a href="#local-6989586621681623402"><span class="hs-identifier hs-var hs-var">width</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ReleaseInfo] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><a href="#local-6989586621681623393"><span class="hs-identifier hs-var">releases</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>      </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli ()) -&gt; ([Text] -&gt; Output) -&gt; [Text] -&gt; Cli ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-var">Output.ShareText</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Output) -&gt; ([Text] -&gt; Text) -&gt; [Text] -&gt; Output
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Cli ()) -&gt; [Text] -&gt; Cli ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.justifyRight</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681623402"><span class="hs-identifier hs-var">width</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681623405"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;. &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623406"><span class="hs-identifier hs-var">version</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623407"><span class="hs-identifier hs-var">date</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623408"><span class="hs-identifier hs-var">status</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;published&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  (&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623408"><span class="hs-identifier hs-var">status</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;)&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681623405"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681623405"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623406"><span class="annot"><span class="annottext">Text
+version :: ReleaseInfo -&gt; Text
+version :: Text
+</span><a href="Unison.Cli.Share.Definitions.html#version"><span class="hs-identifier hs-var hs-var">version</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623407"><span class="annot"><span class="annottext">Text
+date :: Text
+date :: ReleaseInfo -&gt; Text
+</span><a href="#local-6989586621681623407"><span class="hs-identifier hs-var hs-var">date</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623408"><span class="annot"><span class="annottext">Text
+status :: Text
+status :: ReleaseInfo -&gt; Text
+</span><a href="#local-6989586621681623408"><span class="hs-identifier hs-var hs-var">status</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [ReleaseInfo] -&gt; [(Int, ReleaseInfo)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><a href="#local-6989586621681623393"><span class="hs-identifier hs-var">releases</span></a></span><span>
+</span><span id="line-156"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-157"></span><span>          </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-158"></span><span>               </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Use `share.releases.detail &lt;number&gt;` (or `share.releases.detail @&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623391"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623392"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/releases/&lt;version&gt;`) to read the release notes of one.&quot;</span></span><span>
+</span><span id="line-159"></span><span>             </span><span class="hs-special">]</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">-- | Print the release notes (the doc named @ReleaseNotes@) of a release.</span></span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleaseDetail"><span class="hs-identifier hs-type">handleShareReleaseDetail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span id="handleShareReleaseDetail"><span class="annot"><span class="annottext">handleShareReleaseDetail :: ShareRef -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareReleaseDetail"><span class="hs-identifier hs-var hs-var">handleShareReleaseDetail</span></a></span></span><span> </span><span id="local-6989586621681623411"><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623411"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Cli () -&gt; Cli ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623411"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">path</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-var">Output.ShareFailed</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Expected a release, like @user/project/releases/1.2.3&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>  </span><span id="local-6989586621681623413"><span class="annot"><a href="#local-6989586621681623413"><span class="hs-identifier hs-var">results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><span class="annottext">ShareRef
+-&gt; Text -&gt; Cli (Either ClientError DefinitionDisplayResults)
+</span><a href="Unison.Cli.Share.Definitions.html#getDefinitions"><span class="hs-identifier hs-var">getDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623411"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;ReleaseNotes&quot;</span></span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError DefinitionDisplayResults)
+-&gt; (Cli (Either ClientError DefinitionDisplayResults)
+    -&gt; Cli DefinitionDisplayResults)
+-&gt; Cli DefinitionDisplayResults
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(ClientError -&gt; Cli DefinitionDisplayResults)
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+-&gt; Cli DefinitionDisplayResults
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; m (Either a b) -&gt; m b
+</span><span class="hs-identifier hs-var">onLeftM</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-168"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Servant.FailureResponse</span></span><span> </span><span class="annot"><span class="annottext">RequestF () (BaseUrl, ByteString)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681623414"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623414"><span class="hs-identifier hs-var">response</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Response -&gt; Status
+forall a. ResponseF a -&gt; Status
+</span><span class="hs-identifier hs-var">Servant.responseStatusCode</span></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621681623414"><span class="hs-identifier hs-var">response</span></a></span><span> </span><span class="annot"><span class="annottext">Status -&gt; Status -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Status
+</span><span class="hs-identifier hs-var">status404</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli DefinitionDisplayResults
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ShareFailed"><span class="hs-identifier hs-var">Output.ShareFailed</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;That release was not found on Share.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>      </span><span id="local-6989586621681623415"><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623415"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli DefinitionDisplayResults
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientError -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#ServantClientError"><span class="hs-identifier hs-var">Output.ServantClientError</span></a></span><span> </span><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681623415"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623416"><span class="annot"><span class="hs-identifier hs-var hs-var">termDefinitions</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623417"><span class="annot"><span class="hs-identifier hs-var hs-var">typeDefinitions</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681623413"><span class="hs-identifier hs-type">results</span></a></span><span>
+</span><span id="line-171"></span><span>      </span><span id="local-6989586621681623418"><span class="annot"><a href="#local-6989586621681623418"><span class="hs-identifier hs-var hs-var">docs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-172"></span><span>        </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623419"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623420"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+termDocs :: TermDefinition -&gt; [(Text, Text, Doc)]
+termDocs :: [(Text, Text, Doc)]
+</span><span class="hs-identifier hs-var hs-var">termDocs</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition -&gt; [TermDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition
+</span><a href="#local-6989586621681623416"><span class="hs-identifier hs-var">termDefinitions</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623419"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623419"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623420"><span class="hs-identifier hs-var">termDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-173"></span><span>          </span><span class="annot"><span class="annottext">[Doc] -&gt; [Doc] -&gt; [Doc]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623421"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623422"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+typeDocs :: TypeDefinition -&gt; [(Text, Text, Doc)]
+typeDocs :: [(Text, Text, Doc)]
+</span><span class="hs-identifier hs-var hs-var">typeDocs</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition -&gt; [TypeDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition
+</span><a href="#local-6989586621681623417"><span class="hs-identifier hs-var">typeDefinitions</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623421"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623421"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623422"><span class="hs-identifier hs-var">typeDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681623418"><span class="hs-identifier hs-type">docs</span></a></span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-type">Output.ShareText</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;This release has no ReleaseNotes.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareText"><span class="hs-identifier hs-type">Output.ShareText</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.intercalate</span></span><span> </span><span class="annot"><span class="hs-string">&quot;\n\n---\n\n&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621681623418"><span class="hs-identifier hs-type">docs</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Markdown.toText</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc.toMarkdown</span></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><span class="hs-comment">-- | Print the type signature (or the declaration, for a type) and then the rendered documentation of a definition.</span></span><span>
+</span><span id="line-179"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareDocs"><span class="hs-identifier hs-type">handleShareDocs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span id="handleShareDocs"><span class="annot"><span class="annottext">handleShareDocs :: ShareRef -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#handleShareDocs"><span class="hs-identifier hs-var hs-var">handleShareDocs</span></a></span></span><span> </span><span id="local-6989586621681623425"><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623425"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623426"><span class="annot"><span class="hs-identifier hs-var hs-var">termDefinitions</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623427"><span class="annot"><span class="hs-identifier hs-var hs-var">typeDefinitions</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ShareRef -&gt; Cli DefinitionDisplayResults
+</span><a href="Unison.Codebase.Editor.HandleInput.Share.html#lookupDefinitions"><span class="hs-identifier hs-var">lookupDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">ShareRef
+</span><a href="#local-6989586621681623425"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623434"><span class="annot"><a href="#local-6989586621681623434"><span class="hs-identifier hs-var hs-var">render</span></a></span></span><span> </span><span id="local-6989586621681623435"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623435"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621681623436"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621681623436"><span class="hs-identifier hs-var">docs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-183"></span><span>        </span><span class="annot"><span class="annottext">[Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.linesSpaced</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+forall s. IsString s =&gt; Text -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.text</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623435"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; [Pretty ColorText]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621681623436"><span class="hs-identifier hs-var">docs</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;(This definition has no documentation.)&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621681623436"><span class="hs-identifier hs-var">docs</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; (Doc -&gt; Pretty ColorText) -&gt; [Pretty ColorText]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">docToConsole</span></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>      </span><span id="local-6989586621681623438"><span class="annot"><a href="#local-6989586621681623438"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-185"></span><span>        </span><span class="annot"><span class="annottext">Map Text TermDefinition -&gt; [TermDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TermDefinition
+</span><a href="#local-6989586621681623426"><span class="hs-identifier hs-var">termDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">[TermDefinition]
+-&gt; (TermDefinition -&gt; Pretty ColorText) -&gt; [Pretty ColorText]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="hs-identifier hs-type">TermDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623439"><span class="annot"><span class="annottext">Text
+bestTermName :: Text
+bestTermName :: TermDefinition -&gt; Text
+</span><a href="#local-6989586621681623439"><span class="hs-identifier hs-var hs-var">bestTermName</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623441"><span class="annot"><span class="annottext">SyntaxText
+signature :: SyntaxText
+signature :: TermDefinition -&gt; SyntaxText
+</span><a href="#local-6989586621681623441"><span class="hs-keyword hs-var hs-var">signature</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623443"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+termDocs :: TermDefinition -&gt; [(Text, Text, Doc)]
+termDocs :: [(Text, Text, Doc)]
+</span><span class="hs-identifier hs-var hs-var">termDocs</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-186"></span><span>          </span><span class="annot"><span class="annottext">Text -&gt; [Doc] -&gt; Pretty ColorText
+</span><a href="#local-6989586621681623434"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623439"><span class="hs-identifier hs-var">bestTermName</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; : &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623441"><span class="hs-keyword hs-var">signature</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623444"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623444"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623444"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623443"><span class="hs-identifier hs-var">termDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-187"></span><span>      </span><span id="local-6989586621681623445"><span class="annot"><a href="#local-6989586621681623445"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-188"></span><span>        </span><span class="annot"><span class="annottext">Map Text TypeDefinition -&gt; [TypeDefinition]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text TypeDefinition
+</span><a href="#local-6989586621681623427"><span class="hs-identifier hs-var">typeDefinitions</span></a></span><span> </span><span class="annot"><span class="annottext">[TypeDefinition]
+-&gt; (TypeDefinition -&gt; Pretty ColorText) -&gt; [Pretty ColorText]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="hs-identifier hs-type">TypeDefinition</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681623446"><span class="annot"><span class="annottext">Text
+bestTypeName :: Text
+bestTypeName :: TypeDefinition -&gt; Text
+</span><a href="#local-6989586621681623446"><span class="hs-identifier hs-var hs-var">bestTypeName</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623448"><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+typeDefinition :: TypeDefinition -&gt; DisplayObject SyntaxText SyntaxText
+typeDefinition :: DisplayObject SyntaxText SyntaxText
+</span><span class="hs-identifier hs-var hs-var">typeDefinition</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623449"><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+typeDocs :: TypeDefinition -&gt; [(Text, Text, Doc)]
+typeDocs :: [(Text, Text, Doc)]
+</span><span class="hs-identifier hs-var hs-var">typeDocs</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-189"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681623450"><span class="annot"><span class="annottext">declaration :: Text
+</span><a href="#local-6989586621681623450"><span class="hs-identifier hs-var hs-var">declaration</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText SyntaxText
+</span><a href="#local-6989586621681623448"><span class="hs-identifier hs-var">typeDefinition</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-190"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span id="local-6989586621681623451"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623451"><span class="hs-identifier hs-var">source</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Text] -&gt; [Text]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.lines</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Text
+</span><span class="hs-identifier hs-var">Syntax.toPlain</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621681623451"><span class="hs-identifier hs-var">source</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;builtin type &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623446"><span class="hs-identifier hs-var">bestTypeName</span></a></span><span>
+</span><span id="line-192"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621681623454"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623454"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&lt;missing definition &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621681623454"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&gt;&quot;</span></span><span>
+</span><span id="line-193"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Doc] -&gt; Pretty ColorText
+</span><a href="#local-6989586621681623434"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.strip</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681623450"><span class="hs-identifier hs-var">declaration</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623456"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681623456"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621681623456"><span class="hs-identifier hs-var">doc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Text, Text, Doc)]
+</span><a href="#local-6989586621681623449"><span class="hs-identifier hs-var">typeDocs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-194"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-type">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#ShareDocs"><span class="hs-identifier hs-type">Output.ShareDocs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">P.linesSpaced</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">intersperse</span></span><span> </span><span class="annot"><span class="hs-string">&quot;---&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681623445"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="annot"><a href="#local-6989586621681623438"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span></pre></body></html>

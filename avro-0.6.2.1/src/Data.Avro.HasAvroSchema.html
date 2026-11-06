@@ -1,0 +1,434 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ConstraintKinds     #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances   #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications    #-}</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html"><span class="hs-identifier">Data.Avro.HasAvroSchema</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Identity</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Identity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array</span></span><span>               </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ar</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html"><span class="hs-identifier">Data.Avro.Schema.Decimal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">D</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Avro.Schema.Schema.html"><span class="hs-identifier">Data.Avro.Schema.Schema</span></a></span><span>  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Strict</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lazy</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Strict</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HashMap</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Tagged</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TL</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Time</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.UUID</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UUID</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span>              </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Unboxed</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">U</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">class</span><span> </span><span id="HasAvroSchema"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-var">HasAvroSchema</span></a></span></span><span> </span><span id="local-6989586621679519575"><span class="annot"><a href="#local-6989586621679519575"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="schema"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-type">schema</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span class="annot"><a href="#local-6989586621679519575"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679519568"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#schemaOf"><span class="hs-identifier hs-type">schemaOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519568"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679519568"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span></span><span>
+</span><span id="line-36"></span><span id="schemaOf"><span class="annot"><span class="annottext">schemaOf :: forall a. HasAvroSchema a =&gt; a -&gt; Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schemaOf"><span class="hs-identifier hs-var hs-var">schemaOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tagged a Schema -&gt; a -&gt; Schema
+forall a b. Tagged a b -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">witness</span></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679519667"><span class="annot"><span class="annottext">schema :: Tagged Word8 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Word8 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int%27"><span class="hs-identifier hs-var">S.Int'</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679519672"><span class="annot"><span class="annottext">schema :: Tagged Word16 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Word16 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int%27"><span class="hs-identifier hs-var">S.Int'</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679519675"><span class="annot"><span class="annottext">schema :: Tagged Word32 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Word32 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long%27"><span class="hs-identifier hs-var">S.Long'</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679519679"><span class="annot"><span class="annottext">schema :: Tagged Word64 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Word64 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long%27"><span class="hs-identifier hs-var">S.Long'</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621679519682"><span class="annot"><span class="annottext">schema :: Tagged Bool Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Bool Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Boolean"><span class="hs-identifier hs-var">S.Boolean</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679519686"><span class="annot"><span class="annottext">schema :: Tagged () Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged () Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Null"><span class="hs-identifier hs-var">S.Null</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679519690"><span class="annot"><span class="annottext">schema :: Tagged Int Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Int Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long%27"><span class="hs-identifier hs-var">S.Long'</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679519693"><span class="annot"><span class="annottext">schema :: Tagged Int8 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Int8 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int%27"><span class="hs-identifier hs-var">S.Int'</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679519696"><span class="annot"><span class="annottext">schema :: Tagged Int16 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Int16 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int%27"><span class="hs-identifier hs-var">S.Int'</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679519699"><span class="annot"><span class="annottext">schema :: Tagged Int32 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Int32 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int%27"><span class="hs-identifier hs-var">S.Int'</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679519702"><span class="annot"><span class="annottext">schema :: Tagged Int64 Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Int64 Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long%27"><span class="hs-identifier hs-var">S.Long'</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679519705"><span class="annot"><span class="annottext">schema :: Tagged Double Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Double Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Double"><span class="hs-identifier hs-var">S.Double</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621679519709"><span class="annot"><span class="annottext">schema :: Tagged Float Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Float Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Float"><span class="hs-identifier hs-var">S.Float</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679519713"><span class="annot"><span class="annottext">schema :: Tagged Text Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Text Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#String%27"><span class="hs-identifier hs-var">S.String'</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679519717"><span class="annot"><span class="annottext">schema :: Tagged Text Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Text Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#String%27"><span class="hs-identifier hs-var">S.String'</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Strict.ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621679519720"><span class="annot"><span class="annottext">schema :: Tagged ByteString Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged ByteString Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Bytes%27"><span class="hs-identifier hs-var">S.Bytes'</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lazy.ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621679519724"><span class="annot"><span class="annottext">schema :: Tagged ByteString Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged ByteString Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Bytes%27"><span class="hs-identifier hs-var">S.Bytes'</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519587"><span id="local-6989586621679519588"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679519587"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679519588"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-type">D.Decimal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519587"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519588"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679519729"><span class="annot"><span class="annottext">schema :: Tagged (Decimal p s) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged (Decimal p s) Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged (Decimal p s) Schema)
+-&gt; Schema -&gt; Tagged (Decimal p s) Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeLong -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long"><span class="hs-identifier hs-var">S.Long</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeLong -&gt; Maybe LogicalTypeLong
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Decimal -&gt; LogicalTypeLong
+</span><a href="Data.Avro.Schema.Schema.html#DecimalL"><span class="hs-identifier hs-var">DecimalL</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Decimal
+</span><a href="Data.Avro.Schema.Schema.html#Decimal"><span class="hs-identifier hs-var">S.Decimal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679519733"><span class="hs-identifier hs-var">pp</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679519734"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679519734"><span class="annot"><span class="annottext">ss :: Integer
+</span><a href="#local-6989586621679519734"><span class="hs-identifier hs-var hs-var">ss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy s
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679519588"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>          </span><span id="local-6989586621679519733"><span class="annot"><span class="annottext">pp :: Integer
+</span><a href="#local-6989586621679519733"><span class="hs-identifier hs-var hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy p -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy p
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679519587"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UUID.UUID</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621679519741"><span class="annot"><span class="annottext">schema :: Tagged UUID Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged UUID Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged UUID Schema) -&gt; Schema -&gt; Tagged UUID Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeString -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#String"><span class="hs-identifier hs-var">S.String</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeString -&gt; Maybe LogicalTypeString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">LogicalTypeString
+</span><a href="Data.Avro.Schema.Schema.html#UUID"><span class="hs-identifier hs-var">UUID</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Time.Day</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621679519746"><span class="annot"><span class="annottext">schema :: Tagged Day Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged Day Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged Day Schema) -&gt; Schema -&gt; Tagged Day Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeInt -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Int"><span class="hs-identifier hs-var">S.Int</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeInt -&gt; Maybe LogicalTypeInt
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">LogicalTypeInt
+</span><a href="Data.Avro.Schema.Schema.html#Date"><span class="hs-identifier hs-var">Date</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Time.DiffTime</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621679519751"><span class="annot"><span class="annottext">schema :: Tagged DiffTime Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged DiffTime Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged DiffTime Schema)
+-&gt; Schema -&gt; Tagged DiffTime Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeLong -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long"><span class="hs-identifier hs-var">S.Long</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeLong -&gt; Maybe LogicalTypeLong
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">LogicalTypeLong
+</span><a href="Data.Avro.Schema.Schema.html#TimeMicros"><span class="hs-identifier hs-var">TimeMicros</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Time.UTCTime</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679519755"><span class="annot"><span class="annottext">schema :: Tagged UTCTime Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged UTCTime Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged UTCTime Schema)
+-&gt; Schema -&gt; Tagged UTCTime Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeLong -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long"><span class="hs-identifier hs-var">S.Long</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeLong -&gt; Maybe LogicalTypeLong
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">LogicalTypeLong
+</span><a href="Data.Avro.Schema.Schema.html#TimestampMicros"><span class="hs-identifier hs-var">TimestampMicros</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Time.LocalTime</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679519759"><span class="annot"><span class="annottext">schema :: Tagged LocalTime Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged LocalTime Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged LocalTime Schema)
+-&gt; Schema -&gt; Tagged LocalTime Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe LogicalTypeLong -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Long"><span class="hs-identifier hs-var">S.Long</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LogicalTypeLong -&gt; Maybe LogicalTypeLong
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">LogicalTypeLong
+</span><a href="Data.Avro.Schema.Schema.html#LocalTimestampMicros"><span class="hs-identifier hs-var">LocalTimestampMicros</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519610"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519610"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679519610"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621679519765"><span class="annot"><span class="annottext">schema :: Tagged (Identity a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged (Identity a) Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged (Identity a) Schema)
+-&gt; Schema -&gt; Tagged (Identity a) Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Union"><span class="hs-identifier hs-var">S.Union</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Schema -&gt; Schema) -&gt; Vector Schema -&gt; Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Schema] -&gt; Vector Schema
+forall a. Int -&gt; [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromListN</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519610"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519618"><span id="local-6989586621679519619"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519618"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519619"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679519618"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519619"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679519775"><span class="annot"><span class="annottext">schema :: Tagged (Either a b) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged (Either a b) Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged (Either a b) Schema)
+-&gt; Schema -&gt; Tagged (Either a b) Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Vector Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Union"><span class="hs-identifier hs-var">S.Union</span></a></span><span> </span><span class="annot"><span class="annottext">(Vector Schema -&gt; Schema) -&gt; Vector Schema -&gt; Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Schema] -&gt; Vector Schema
+forall a. Int -&gt; [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromListN</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519618"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519619"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged b Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519622"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519622"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679519622"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621679519780"><span class="annot"><span class="annottext">schema :: Tagged (Map Text a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519622"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519627"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519627"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap.HashMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679519627"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-119"></span><span>  </span><span id="local-6989586621679519787"><span class="annot"><span class="annottext">schema :: Tagged (HashMap Text a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519627"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519629"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519629"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679519629"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621679519792"><span class="annot"><span class="annottext">schema :: Tagged (Map Text a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519629"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519631"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519631"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap.HashMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679519631"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679519797"><span class="annot"><span class="annottext">schema :: Tagged (HashMap Text a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519631"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519633"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519633"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679519633"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>  </span><span id="local-6989586621679519802"><span class="annot"><span class="annottext">schema :: Tagged (Map String a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519633"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519635"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519635"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashMap.HashMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679519635"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679519807"><span class="annot"><span class="annottext">schema :: Tagged (HashMap String a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519635"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Map"><span class="hs-identifier hs-var">S.Map</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519637"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519637"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679519637"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621679519812"><span class="annot"><span class="annottext">schema :: Tagged (Maybe a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged (Maybe a) Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged (Maybe a) Schema)
+-&gt; Schema -&gt; Tagged (Maybe a) Schema
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NonEmpty Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#mkUnion"><span class="hs-identifier hs-var">mkUnion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema
+</span><a href="Data.Avro.Schema.Schema.html#Null"><span class="hs-identifier hs-var">S.Null</span></a></span><span class="annot"><span class="annottext">Schema -&gt; [Schema] -&gt; NonEmpty Schema
+forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">:|</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">forall {k} (s :: k) b. Tagged s b -&gt; b
+forall s b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519637"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519640"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519640"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679519640"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621679519819"><span class="annot"><span class="annottext">schema :: Tagged [a] Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519640"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-var">S.Array</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519644"><span id="local-6989586621679519645"><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519644"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ix</span></span><span> </span><span class="annot"><a href="#local-6989586621679519645"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ar.Array</span></span><span> </span><span class="annot"><a href="#local-6989586621679519645"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519644"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679519826"><span class="annot"><span class="annottext">schema :: Tagged (Array i a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519644"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-var">S.Array</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519647"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519647"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679519647"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679519831"><span class="annot"><span class="annottext">schema :: Tagged (Vector a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519647"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-var">S.Array</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519650"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519650"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">U.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679519650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621679519836"><span class="annot"><span class="annottext">schema :: Tagged (Vector a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519650"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-var">S.Array</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679519653"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679519653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#HasAvroSchema"><span class="hs-identifier hs-type">HasAvroSchema</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679519653"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621679519841"><span class="annot"><span class="annottext">schema :: Tagged (Set a) Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var hs-var hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var">wrapTag</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679519653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="Data.Avro.Schema.Schema.html#Array"><span class="hs-identifier hs-var">S.Array</span></a></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema
+forall a. HasAvroSchema a =&gt; Tagged a Schema
+</span><a href="Data.Avro.HasAvroSchema.html#schema"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span id="local-6989586621679519623"><span id="local-6989586621679519624"><span class="annot"><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-type">wrapTag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span class="annot"><a href="#local-6989586621679519623"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tagged</span></span><span> </span><span class="annot"><a href="#local-6989586621679519624"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="Data.Avro.Schema.Schema.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span></span></span><span>
+</span><span id="line-152"></span><span id="wrapTag"><span class="annot"><span class="annottext">wrapTag :: forall a b.
+(Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Tagged b Schema
+</span><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-identifier hs-var hs-var">wrapTag</span></a></span></span><span> </span><span id="local-6989586621679519842"><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="#local-6989586621679519842"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Tagged b Schema
+forall {k} (s :: k) b. b -&gt; Tagged s b
+</span><span class="hs-identifier hs-var">Tagged</span></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Tagged b Schema)
+-&gt; (Tagged a Schema -&gt; Schema)
+-&gt; Tagged a Schema
+-&gt; Tagged b Schema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Schema
+</span><a href="#local-6989586621679519842"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Schema)
+-&gt; (Tagged a Schema -&gt; Schema) -&gt; Tagged a Schema -&gt; Schema
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Tagged a Schema -&gt; Schema
+forall {k} (s :: k) b. Tagged s b -&gt; b
+</span><span class="hs-identifier hs-var">untag</span></span><span>
+</span><span id="line-153"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.HasAvroSchema.html#wrapTag"><span class="hs-pragma hs-type">wrapTag</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-154"></span></pre></body></html>

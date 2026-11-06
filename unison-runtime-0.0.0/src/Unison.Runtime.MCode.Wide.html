@@ -1,0 +1,592 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | The wide calling convention's escape analysis, as a pass over the ANF</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- (Unison.Runtime.Wide; design.md &quot;The wide calling convention&quot;).</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- A variable bound by a let whose value arrives by a yield (a call, a</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- match, a handle: everything 'letYields' says) is /wide/: it occupies</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- 'wideWidth' slots, and when the yield delivered a small constructor (at</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- most 'wideK' fields) its value slot holds a witness and the slots below</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- it the fields, with nothing allocated. So is a let of one variable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- binding a small constructor application, which the emitter packs into</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- the slots ('wideCon'), when the body matches on the variable or returns</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- it somewhere ('usedWide'): those are the uses the slots serve, and a</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- constructor only ever passed on is packed as a heap value at once, since</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- packing it wide and boxing it before the call would be the same</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- allocation plus the box. Such a variable can be matched on and returned</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- as it is. Where it /escapes/ (an argument of a call, a constructor, a</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- record, a primitive or a request; a captured variable of a closure; the</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- value of an affine update) it has to be an ordinary heap value, which</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- a box makes it, in place: after that the variable holds a boxed value</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- for the rest of the path.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- 'wideBody' marks each such binder 'WD' and places a 'TBox' before the</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- first escape of the variable on each path: once per path however many</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- times the variable escapes after, and not at all on a path where it</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- never does, so a value that is only matched on costs no allocation. The</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- result says everything the emitter (Unison.Runtime.MCode) needs: it lays</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- a 'WD' binder out wide, emits a 'Box' for each 'TBox', checks the two</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- invariants ('WD' only on a let of one variable that yields or builds a</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- small constructor; a 'TBox' only of a wide variable in scope) and</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- decides nothing itself. The pass runs last over every body the emitter</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- sees, the unoptimized copy of a rewritten lambda included, so a box is</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- at the same frame in both.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- With the convention off the yielding binders are still marked, since</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- 'wideWidth' is one then and a wide variable is laid out like any other,</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- and no box is placed.</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.Wide.html"><span class="hs-identifier">Unison.Runtime.MCode.Wide</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#wideBody"><span class="hs-identifier">wideBody</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#letYields"><span class="hs-identifier">letYields</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#wideCon"><span class="hs-identifier">wideCon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Set</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ABT.Normalized</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ABTN</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html"><span class="hs-identifier">Unison.Runtime.ANF</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier">ANormal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.html#Direction"><span class="hs-identifier">Direction</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.html#Func"><span class="hs-identifier">Func</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Unison.Runtime.ANF.html#Mem"><span class="hs-identifier">Mem</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier">TApp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TBLit"><span class="hs-identifier">TBLit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TBox"><span class="hs-identifier">TBox</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TDiscard"><span class="hs-identifier">TDiscard</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier">TLets</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TLit"><span class="hs-identifier">TLit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TMatch"><span class="hs-identifier">TMatch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TName"><span class="hs-identifier">TName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TUpdate"><span class="hs-identifier">TUpdate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TVar"><span class="hs-identifier">TVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Wide.html"><span class="hs-identifier">Unison.Runtime.Wide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Wide.html#wideK"><span class="hs-identifier">wideK</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Wide.html#wideOn"><span class="hs-identifier">wideOn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Var</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Var</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Whether a let's binding is emitted as a section of its own, whose</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- value arrives by a yield, rather than as an instruction (a literal, a</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- constructor, a record, a record update, a primitive, a discard, an</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- affine update, a box): the complement of the instruction cases of the</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- emitter's emitLet.</span><span>
+</span><span id="line-73"></span><span id="local-6989586621681987020"><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#letYields"><span class="hs-identifier hs-type">letYields</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621681987020"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987020"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-74"></span><span id="letYields"><span class="annot"><span class="annottext">letYields :: forall v. Var v =&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#letYields"><span class="hs-identifier hs-var hs-var">letYields</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TLit"><span class="hs-identifier hs-type">TLit</span></a></span><span> </span><span class="annot"><span class="annottext">Lit Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TBLit"><span class="hs-identifier hs-type">TBLit</span></a></span><span> </span><span class="annot"><span class="annottext">Lit Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#FCon"><span class="hs-identifier hs-type">FCon</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CTag
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#FRec"><span class="hs-identifier hs-type">FRec</span></a></span><span> </span><span class="annot"><span class="annottext">RecordSchema
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#FRecSet"><span class="hs-identifier hs-type">FRecSet</span></a></span><span> </span><span class="annot"><span class="annottext">FieldName
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#FPrim"><span class="hs-identifier hs-type">FPrim</span></a></span><span> </span><span class="annot"><span class="annottext">Either POp ForeignFunc
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TDiscard"><span class="hs-identifier hs-type">TDiscard</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TUpdate"><span class="hs-identifier hs-type">TUpdate</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="Unison.Runtime.ANF.html#TBox"><span class="hs-identifier hs-type">TBox</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | Whether a let's binding is a small constructor application, which</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- stays in the variable's slots under the convention.</span><span>
+</span><span id="line-88"></span><span id="local-6989586621681987124"><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#wideCon"><span class="hs-identifier hs-type">wideCon</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621681987124"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987124"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-89"></span><span id="wideCon"><span class="annot"><span class="annottext">wideCon :: forall v. Var v =&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#wideCon"><span class="hs-identifier hs-var hs-var">wideCon</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.ANF.html#FCon"><span class="hs-identifier hs-type">FCon</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CTag
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681987132"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987132"><span class="hs-identifier hs-var">args</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="Unison.Runtime.Wide.html#wideOn"><span class="hs-identifier hs-var">wideOn</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[v] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987132"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Wide.html#wideK"><span class="hs-identifier hs-var">wideK</span></a></span><span>
+</span><span id="line-90"></span><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#wideCon"><span class="hs-identifier hs-var">wideCon</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | Whether a body matches on a variable or returns it: the uses a wide</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- variable serves unboxed. Walks only the subterms that mention the</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- variable, which every term records.</span><span>
+</span><span id="line-95"></span><span id="local-6989586621681987038"><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#usedWide"><span class="hs-identifier hs-type">usedWide</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621681987038"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681987038"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987038"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-96"></span><span id="usedWide"><span class="annot"><span class="annottext">usedWide :: forall v. Var v =&gt; v -&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#usedWide"><span class="hs-identifier hs-var hs-var">usedWide</span></a></span></span><span> </span><span id="local-6989586621681987151"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987151"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+</span><a href="#local-6989586621681987152"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621681987152"><span class="annot"><span class="annottext">go :: ANormal Reference v -&gt; Bool
+</span><a href="#local-6989586621681987152"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681987153"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987153"><span class="hs-identifier hs-var">tm</span></a></span></span><span>
+</span><span id="line-99"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; Set v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.member</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987151"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Set v
+forall (f :: * -&gt; * -&gt; *) v. Term f v -&gt; Set v
+</span><span class="hs-identifier hs-var">ABTN.freeVars</span></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987153"><span class="hs-identifier hs-var">tm</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987153"><span class="hs-identifier hs-var">tm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-101"></span><span>          </span><span class="annot"><a href="Unison.Runtime.ANF.html#TMatch"><span class="hs-identifier hs-type">TMatch</span></a></span><span> </span><span id="local-6989586621681987157"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987157"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621681987158"><span class="annot"><span class="annottext">Branched Reference (ANormal Reference v)
+</span><a href="#local-6989586621681987158"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987157"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987151"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">(ANormal Reference v -&gt; Bool)
+-&gt; Branched Reference (ANormal Reference v) -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+</span><a href="#local-6989586621681987152"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Branched Reference (ANormal Reference v)
+</span><a href="#local-6989586621681987158"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-102"></span><span>          </span><span class="annot"><a href="Unison.Runtime.ANF.html#TVar"><span class="hs-identifier hs-type">TVar</span></a></span><span> </span><span id="local-6989586621681987161"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987161"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987161"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987151"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-103"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">ABTN.Term</span></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ABTN.Abs</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681987164"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987164"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+</span><a href="#local-6989586621681987152"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987164"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-104"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">ABTN.Term</span></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ABTN.Tm</span></span><span> </span><span id="local-6989586621681987166"><span class="annot"><span class="annottext">ANormalF Reference v (ANormal Reference v)
+</span><a href="#local-6989586621681987166"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ANormal Reference v -&gt; Bool)
+-&gt; ANormalF Reference v (ANormal Reference v) -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+</span><a href="#local-6989586621681987152"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">ANormalF Reference v (ANormal Reference v)
+</span><a href="#local-6989586621681987166"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | The body with its wide binders marked and its boxes placed. Linear in</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- the body: one walk, with the set of the wide variables that may still</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- hold an unboxed constructor on the current path, forked at every branch.</span><span>
+</span><span id="line-109"></span><span id="local-6989586621681987055"><span class="annot"><a href="Unison.Runtime.MCode.Wide.html#wideBody"><span class="hs-identifier hs-type">wideBody</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621681987055"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987055"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987055"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-110"></span><span id="wideBody"><span class="annot"><span class="annottext">wideBody :: forall v. Var v =&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="Unison.Runtime.MCode.Wide.html#wideBody"><span class="hs-identifier hs-var hs-var">wideBody</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621681987057"><span class="annot"><a href="#local-6989586621681987169"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621681987057"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621681987057"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987057"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#ANormal"><span class="hs-identifier hs-type">ANormal</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="annot"><a href="#local-6989586621681987057"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621681987169"><span class="annot"><span class="annottext">go :: forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681987227"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-114"></span><span>      </span><span class="hs-comment">-- a parameter or an arm's field is narrow, whatever it shadows</span><span>
+</span><span id="line-115"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ABTN.Term</span></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ABTN.Abs</span></span><span> </span><span id="local-6989586621681987228"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987228"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621681987229"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987229"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v (f :: * -&gt; * -&gt; *). Var v =&gt; v -&gt; Term f v -&gt; Term f v
+</span><span class="hs-identifier hs-var">ABTN.TAbs</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987228"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.delete</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987228"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987229"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-type">TLets</span></a></span><span> </span><span id="local-6989586621681987232"><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681987233"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621681987234"><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987234"><span class="hs-identifier hs-var">ms</span></a></span></span><span> </span><span id="local-6989586621681987235"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span></span><span> </span><span id="local-6989586621681987236"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span></span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-comment">-- the binding runs in a section of its own, and boxes what</span><span>
+</span><span id="line-118"></span><span>        </span><span class="hs-comment">-- escapes inside it; the body boxes again, since the binding's</span><span>
+</span><span id="line-119"></span><span>        </span><span class="hs-comment">-- boxes are not its own. One variable is wide; several (the</span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-comment">-- leaves of a product-return worker's result) are narrow.</span><span>
+</span><span id="line-121"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+forall v. Var v =&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#letYields"><span class="hs-identifier hs-var">letYields</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-122"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681987237"><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987237"><span class="hs-identifier hs-var">ms'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681987238"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987238"><span class="hs-identifier hs-var">un'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-123"></span><span>                  </span><span class="hs-special">[</span><span id="local-6989586621681987239"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987239"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Mem
+</span><a href="Unison.Runtime.ANF.html#WD"><span class="hs-identifier hs-var">WD</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987240"><span class="hs-identifier hs-var">wide</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987239"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>                  </span><span class="annot"><span class="annottext">[v]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987234"><span class="hs-identifier hs-var">ms</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [v]
+-&gt; [Mem]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987237"><span class="hs-identifier hs-var">ms'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987238"><span class="hs-identifier hs-var">un'</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">[</span><span id="local-6989586621681987242"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987242"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-127"></span><span>          </span><span class="annot"><span class="annottext">ANormal Reference v -&gt; Bool
+forall v. Var v =&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#wideCon"><span class="hs-identifier hs-var">wideCon</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-128"></span><span>          </span><span class="annot"><span class="annottext">v -&gt; ANormal Reference v -&gt; Bool
+forall v. Var v =&gt; v -&gt; ANormal Reference v -&gt; Bool
+</span><a href="Unison.Runtime.MCode.Wide.html#usedWide"><span class="hs-identifier hs-var">usedWide</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987242"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>          </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="annot"><span class="annottext">Func Reference v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681987243"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987243"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-130"></span><span>            </span><span class="annot"><span class="annottext">Set v
+-&gt; [v] -&gt; (Set v -&gt; ANormal Reference v) -&gt; ANormal Reference v
+forall {a} {ref}.
+Var a =&gt;
+Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987243"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681987245"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987245"><span class="hs-identifier hs-var">un'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [v]
+-&gt; [Mem]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Mem
+</span><a href="Unison.Runtime.ANF.html#WD"><span class="hs-identifier hs-var">WD</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987240"><span class="hs-identifier hs-var">wide</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987242"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987245"><span class="hs-identifier hs-var">un'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>        </span><span class="hs-comment">-- an instruction: its arguments escape before it</span><span>
+</span><span id="line-132"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span class="annot"><span class="annottext">Func Reference v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681987246"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987246"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-133"></span><span>            </span><span class="annot"><span class="annottext">Set v
+-&gt; [v] -&gt; (Set v -&gt; ANormal Reference v) -&gt; ANormal Reference v
+forall {a} {ref}.
+Var a =&gt;
+Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987246"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681987247"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987247"><span class="hs-identifier hs-var">un'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [v]
+-&gt; [Mem]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987234"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987247"><span class="hs-identifier hs-var">un'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html#TUpdate"><span class="hs-identifier hs-type">TUpdate</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681987248"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987248"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-135"></span><span>            </span><span class="annot"><span class="annottext">Set v
+-&gt; [v] -&gt; (Set v -&gt; ANormal Reference v) -&gt; ANormal Reference v
+forall {a} {ref}.
+Var a =&gt;
+Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987248"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681987249"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987249"><span class="hs-identifier hs-var">un'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [v]
+-&gt; [Mem]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987234"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987249"><span class="hs-identifier hs-var">un'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [v]
+-&gt; [Mem]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+</span><a href="#local-6989586621681987232"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">[Mem]
+</span><a href="#local-6989586621681987234"><span class="hs-identifier hs-var">ms</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987235"><span class="hs-identifier hs-var">bn</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v -&gt; Set v
+forall {t :: * -&gt; *} {a}.
+(Foldable t, Ord a) =&gt;
+t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var">narrow</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987233"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987236"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>      </span><span class="annot"><a href="Unison.Runtime.ANF.html#TName"><span class="hs-identifier hs-type">TName</span></a></span><span> </span><span id="local-6989586621681987250"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987250"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621681987251"><span class="annot"><span class="annottext">Either Reference v
+</span><a href="#local-6989586621681987251"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681987252"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987252"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span id="local-6989586621681987253"><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987253"><span class="hs-identifier hs-var">bo</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="annottext">Set v
+-&gt; [v] -&gt; (Set v -&gt; ANormal Reference v) -&gt; ANormal Reference v
+forall {a} {ref}.
+Var a =&gt;
+Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987252"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681987254"><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987254"><span class="hs-identifier hs-var">un'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">v
+-&gt; Either Reference v
+-&gt; [v]
+-&gt; ANormal Reference v
+-&gt; ANormal Reference v
+forall v ref.
+Var v =&gt;
+v -&gt; Either ref v -&gt; [v] -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TName"><span class="hs-identifier hs-var">TName</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987250"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">Either Reference v
+</span><a href="#local-6989586621681987251"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987252"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.delete</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621681987250"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987254"><span class="hs-identifier hs-var">un'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormal Reference v
+</span><a href="#local-6989586621681987253"><span class="hs-identifier hs-var">bo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>      </span><span class="annot"><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-type">TApp</span></a></span><span> </span><span id="local-6989586621681987255"><span class="annot"><span class="annottext">Func Reference v
+</span><a href="#local-6989586621681987255"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681987256"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987256"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Set v
+-&gt; [v] -&gt; (Set v -&gt; ANormal Reference v) -&gt; ANormal Reference v
+forall {a} {ref}.
+Var a =&gt;
+Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987256"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Set v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Func Reference v -&gt; [v] -&gt; ANormal Reference v
+forall v ref. Var v =&gt; Func ref v -&gt; [v] -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TApp"><span class="hs-identifier hs-var">TApp</span></a></span><span> </span><span class="annot"><span class="annottext">Func Reference v
+</span><a href="#local-6989586621681987255"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621681987256"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-140"></span><span>      </span><span class="hs-comment">-- a match, a handle, a shift, a local, a force, a variable, a</span><span>
+</span><span id="line-141"></span><span>      </span><span class="hs-comment">-- literal, a discard: nothing escapes, and the walk goes on into</span><span>
+</span><span id="line-142"></span><span>      </span><span class="hs-comment">-- each child with the same set</span><span>
+</span><span id="line-143"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ABTN.Term</span></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ABTN.Tm</span></span><span> </span><span id="local-6989586621681987257"><span class="annot"><span class="annottext">ANormalF Reference v (ANormal Reference v)
+</span><a href="#local-6989586621681987257"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ANormalF Reference v (ANormal Reference v) -&gt; ANormal Reference v
+forall v (f :: * -&gt; * -&gt; *).
+(Var v, Bifoldable f) =&gt;
+f v (Term f v) -&gt; Term f v
+</span><span class="hs-identifier hs-var">ABTN.TTm</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ANormal Reference v -&gt; ANormal Reference v)
+-&gt; ANormalF Reference v (ANormal Reference v)
+-&gt; ANormalF Reference v (ANormal Reference v)
+forall a b.
+(a -&gt; b) -&gt; ANormalF Reference v a -&gt; ANormalF Reference v b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+forall v.
+Var v =&gt;
+Set v -&gt; ANormal Reference v -&gt; ANormal Reference v
+</span><a href="#local-6989586621681987169"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set v
+</span><a href="#local-6989586621681987227"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ANormalF Reference v (ANormal Reference v)
+</span><a href="#local-6989586621681987257"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621681987240"><span class="annot"><span class="annottext">wide :: a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987240"><span class="hs-identifier hs-var hs-var">wide</span></a></span></span><span> </span><span id="local-6989586621681987263"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987263"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621681987264"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987264"><span class="hs-identifier hs-var">un</span></a></span></span><span>
+</span><span id="line-145"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="Unison.Runtime.Wide.html#wideOn"><span class="hs-identifier hs-var">wideOn</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987263"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987264"><span class="hs-identifier hs-var">un</span></a></span><span>
+</span><span id="line-146"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987264"><span class="hs-identifier hs-var">un</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621681987241"><span class="annot"><span class="annottext">narrow :: t a -&gt; Set a -&gt; Set a
+</span><a href="#local-6989586621681987241"><span class="hs-identifier hs-var hs-var">narrow</span></a></span></span><span> </span><span id="local-6989586621681987272"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621681987272"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621681987273"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987273"><span class="hs-identifier hs-var">un</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Set a -&gt; Set a) -&gt; Set a -&gt; t a -&gt; Set a
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.delete</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987273"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621681987272"><span class="hs-identifier hs-var">us</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-comment">-- a box before the node for each argument still unboxed, once each</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621681987244"><span class="annot"><span class="annottext">boxes :: Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var hs-var">boxes</span></a></span></span><span> </span><span id="local-6989586621681987285"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987285"><span class="hs-identifier hs-var">un</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span id="local-6989586621681987286"><span class="annot"><span class="annottext">Set a -&gt; ANormal ref a
+</span><a href="#local-6989586621681987286"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; ANormal ref a
+</span><a href="#local-6989586621681987286"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987285"><span class="hs-identifier hs-var">un</span></a></span><span>
+</span><span id="line-150"></span><span>    </span><span class="annot"><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span id="local-6989586621681987287"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987287"><span class="hs-identifier hs-var">un</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681987288"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987288"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681987289"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681987289"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681987290"><span class="annot"><span class="annottext">Set a -&gt; ANormal ref a
+</span><a href="#local-6989586621681987290"><span class="hs-identifier hs-var">k</span></a></span></span><span>
+</span><span id="line-151"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.member</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987288"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987287"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Direction Word16
+-&gt; [a] -&gt; [Mem] -&gt; ANormal ref a -&gt; ANormal ref a -&gt; ANormal ref a
+forall v ref.
+Var v =&gt;
+Direction Word16
+-&gt; [v] -&gt; [Mem] -&gt; ANormal ref v -&gt; ANormal ref v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TLets"><span class="hs-identifier hs-var">TLets</span></a></span><span> </span><span class="annot"><span class="annottext">Direction Word16
+forall a. Direction a
+</span><a href="Unison.Runtime.ANF.html#Direct"><span class="hs-identifier hs-var">Direct</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; ANormal ref a
+forall v ref. Var v =&gt; v -&gt; ANormal ref v
+</span><a href="Unison.Runtime.ANF.html#TBox"><span class="hs-identifier hs-var">TBox</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987288"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.delete</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681987288"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987287"><span class="hs-identifier hs-var">un</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681987289"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; ANormal ref a
+</span><a href="#local-6989586621681987290"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a] -&gt; (Set a -&gt; ANormal ref a) -&gt; ANormal ref a
+</span><a href="#local-6989586621681987244"><span class="hs-identifier hs-var">boxes</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621681987287"><span class="hs-identifier hs-var">un</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681987289"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; ANormal ref a
+</span><a href="#local-6989586621681987290"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-153"></span></pre></body></html>

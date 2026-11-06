@@ -1,0 +1,868 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-type-defaults #-}</span><span> </span><span class="hs-comment">-- avoids  warnings for things like x^2</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- -- | This module defines the type 'BigDecimal' which provides a representation of arbitrary precision decimal numbers.</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--     'BigDecimal' is a native Haskell implementation based on arbitrary sized 'Integer' values.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--     The implementation was inspired by Java BigDecimals.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--      BigDecimal instantiates the typeclasses 'Num', 'Fractional' and 'Real'. It is thus possible to use all common</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--          operators like '+', '-', '*', '/', '^' on them.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--       Here are a few examples from an interactive GHCI session:</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--      &gt;  &#955;&gt; a = BigDecimal 144 2</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--      &gt;  &#955;&gt; toString a</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--      &gt;  1.44</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--      &gt;  &#955;&gt; b = sqrt a</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--      &gt;  &#955;&gt; b</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--      &gt;  1.2</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--      &gt;  &#955;&gt; b * b</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--      &gt;  1.44</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--      &gt;  &#955;&gt; b * b * b</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--      &gt;  1.728</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--      &gt;  &#955;&gt; b^2</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--      &gt;  1.44</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--      &gt;  &#955;&gt; c = read &quot;123.4567890&quot; :: BigDecimal</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--      &gt;  &#955;&gt; c</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--      &gt;  123.4567890</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--      &gt;  &#955;&gt; a / c</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--      &gt;  0.01166400010614240096589584878965222398584</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--      &gt;  &#955;&gt; roundBD it (halfUp 10)</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--      &gt;  0.0116640001</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--      &gt;  &#955;&gt; divide (a, c) $ halfUp 20</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--      &gt;  0.01166400010614240097</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.BigDecimal.html"><span class="hs-identifier">Data.BigDecimal</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#RoundingMode"><span class="hs-identifier">RoundingMode</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier">RoundingAdvice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#precision"><span class="hs-identifier">precision</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#trim"><span class="hs-identifier">trim</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#nf"><span class="hs-identifier">nf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#divide"><span class="hs-identifier">divide</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#roundBD"><span class="hs-identifier">roundBD</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#fromRatio"><span class="hs-identifier">fromRatio</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#halfUp"><span class="hs-identifier">halfUp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#fromString"><span class="hs-identifier">fromString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#fromStringMaybe"><span class="hs-identifier">fromStringMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier">fromNatural</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier">matchScales</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">elemIndex</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromJust</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Natural</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Real</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ratio</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(:%)</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Text.Read</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">readMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | BigDecimal is represented by an unscaled Integer value and a Natural that defines the scale</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--   E.g.: (BigDecimal 1234 2) represents the decimal value 12.34.</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="BigDecimal"><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BigDecimal"><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">-- | the unscaled Integer value</span></span><span>
+</span><span id="line-60"></span><span>    </span><span id="value"><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><a href="Data.BigDecimal.html#value"><span class="hs-identifier hs-var hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="hs-comment">-- | the scale (i.e. the number of digits after the decimal point)</span></span><span>
+</span><span id="line-62"></span><span>    </span><span id="scale"><span class="annot"><span class="annottext">BigDecimal -&gt; Natural
+</span><a href="Data.BigDecimal.html#scale"><span class="hs-identifier hs-var hs-var">scale</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | A RoundingAdvice is interpreted by divisions and rounding operations to specify the expected loss of precision and the rounding behaviour.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--   RoundingAdvice is a pair of a 'RoundingMode' and a target precision of type 'Maybe' 'Natural'. The precision defines the number of digits after the decimal point.</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--   If 'Nothing' is given as precision all decimal digits are to be preserved, that is precision is not limited.</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">type</span><span> </span><span id="RoundingAdvice"><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier hs-var">RoundingAdvice</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#RoundingMode"><span class="hs-identifier hs-type">RoundingMode</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><span class="hs-comment">-- | RoundingMode defines how to handle loss of precision in divisions or explicit rounding.</span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">data</span><span> </span><span id="RoundingMode"><span class="annot"><a href="Data.BigDecimal.html#RoundingMode"><span class="hs-identifier hs-var">RoundingMode</span></a></span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round away from zero.</span></span><span>
+</span><span id="line-73"></span><span>    </span><span id="UP"><span class="annot"><a href="Data.BigDecimal.html#UP"><span class="hs-identifier hs-var">UP</span></a></span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards zero.</span></span><span>
+</span><span id="line-75"></span><span>    </span><span id="DOWN"><span class="annot"><a href="Data.BigDecimal.html#DOWN"><span class="hs-identifier hs-var">DOWN</span></a></span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards positive infinity.</span></span><span>
+</span><span id="line-77"></span><span>    </span><span id="CEILING"><span class="annot"><a href="Data.BigDecimal.html#CEILING"><span class="hs-identifier hs-var">CEILING</span></a></span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards negative infinity.</span></span><span>
+</span><span id="line-79"></span><span>    </span><span id="FLOOR"><span class="annot"><a href="Data.BigDecimal.html#FLOOR"><span class="hs-identifier hs-var">FLOOR</span></a></span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards &quot;nearest neighbor&quot; unless both neighbors are equidistant, in which case round up.</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="HALF_UP"><span class="annot"><a href="Data.BigDecimal.html#HALF_UP"><span class="hs-identifier hs-var">HALF_UP</span></a></span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards &quot;nearest neighbor&quot; unless both neighbors are equidistant, in which case round down.</span></span><span>
+</span><span id="line-83"></span><span>    </span><span id="HALF_DOWN"><span class="annot"><a href="Data.BigDecimal.html#HALF_DOWN"><span class="hs-identifier hs-var">HALF_DOWN</span></a></span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to round towards &quot;nearest neighbor&quot; unless both neighbors are equidistant, in which case, round towards the even neighbor.</span></span><span>
+</span><span id="line-85"></span><span>    </span><span id="HALF_EVEN"><span class="annot"><a href="Data.BigDecimal.html#HALF_EVEN"><span class="hs-identifier hs-var">HALF_EVEN</span></a></span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Rounding mode to assert that the requested operation has an exact result, hence no rounding is applied.</span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="PRECISE"><span class="annot"><a href="Data.BigDecimal.html#PRECISE"><span class="hs-identifier hs-var">PRECISE</span></a></span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040277"><span id="local-6989586621679040282"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621679040285"><span class="annot"><span class="annottext">show :: BigDecimal -&gt; String
+</span><a href="#local-6989586621679040285"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; String
+</span><a href="Data.BigDecimal.html#toString"><span class="hs-identifier hs-var">toString</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040290"><span id="local-6989586621679040294"><span id="local-6989586621679040297"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679040300"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS BigDecimal
+</span><a href="#local-6989586621679040300"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679040302"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040302"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe BigDecimal
+</span><a href="Data.BigDecimal.html#fromStringMaybe"><span class="hs-identifier hs-var">fromStringMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040302"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><span class="annottext">Maybe BigDecimal
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-96"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679040303"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040303"><span class="hs-identifier hs-var">bd</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040303"><span class="hs-identifier hs-var">bd</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040306"><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679040314"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040314"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040315"><span class="annot"><span class="annottext">+ :: BigDecimal -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="#local-6989586621679040315"><span class="hs-operator hs-var hs-var hs-var">+</span></a></span></span><span> </span><span id="local-6989586621679040317"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040317"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040314"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040317"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679040319"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040319"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040320"><span class="annot"><span class="annottext">* :: BigDecimal -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="#local-6989586621679040320"><span class="hs-operator hs-var hs-var hs-var">*</span></a></span></span><span> </span><span id="local-6989586621679040322"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040322"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#mul"><span class="hs-identifier hs-var">mul</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040319"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040322"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621679040325"><span class="annot"><span class="annottext">abs :: BigDecimal -&gt; BigDecimal
+</span><a href="#local-6989586621679040325"><span class="hs-identifier hs-var hs-var hs-var">abs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040327"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040327"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679040328"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040328"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040327"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040328"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679040331"><span class="annot"><span class="annottext">signum :: BigDecimal -&gt; BigDecimal
+</span><a href="#local-6989586621679040331"><span class="hs-identifier hs-var hs-var hs-var">signum</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040333"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040333"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040333"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679040335"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; BigDecimal
+</span><span class="hs-identifier hs-var hs-var hs-var">fromInteger</span></span></span><span> </span><span id="local-6989586621679040336"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040336"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040336"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621679040338"><span class="annot"><span class="annottext">negate :: BigDecimal -&gt; BigDecimal
+</span><span class="hs-identifier hs-var hs-var hs-var">negate</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040339"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040339"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679040340"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040340"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040339"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040340"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040343"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679040348"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040348"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040349"><span class="annot"><span class="annottext">== :: BigDecimal -&gt; BigDecimal -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621679040350"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040350"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040351"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040351"><span class="hs-identifier hs-var">valA</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040352"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040352"><span class="hs-identifier hs-var">valB</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var">matchScales</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040348"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040350"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040351"><span class="hs-identifier hs-var">valA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040352"><span class="hs-identifier hs-var">valB</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040357"><span class="annot"><span class="hs-identifier hs-type">Fractional</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-comment">-- default division rounds up and does not limit precision</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621679040362"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040362"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040363"><span class="annot"><span class="annottext">/ :: BigDecimal -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="#local-6989586621679040363"><span class="hs-operator hs-var hs-var hs-var">/</span></a></span></span><span> </span><span id="local-6989586621679040365"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040365"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#nf"><span class="hs-identifier hs-var">nf</span></a></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; BigDecimal) -&gt; BigDecimal -&gt; BigDecimal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#divide"><span class="hs-identifier hs-var">divide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var">matchScales</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040362"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040365"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_UP"><span class="hs-identifier hs-var">HALF_UP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Natural
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>  </span><span id="local-6989586621679040366"><span class="annot"><span class="annottext">fromRational :: Rational -&gt; BigDecimal
+</span><span class="hs-identifier hs-var hs-var hs-var">fromRational</span></span></span><span> </span><span id="local-6989586621679040367"><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621679040367"><span class="hs-identifier hs-var">ratio</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rational -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#fromRatio"><span class="hs-identifier hs-var">fromRatio</span></a></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621679040367"><span class="hs-identifier hs-var">ratio</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_UP"><span class="hs-identifier hs-var">HALF_UP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Natural
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | creates a BigDecimal from a 'Rational' value. 'RoundingAdvice' defines precision and rounding mode.</span></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Data.BigDecimal.html#fromRatio"><span class="hs-identifier hs-type">fromRatio</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Rational</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier hs-type">RoundingAdvice</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-118"></span><span id="fromRatio"><span class="annot"><span class="annottext">fromRatio :: Rational -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#fromRatio"><span class="hs-identifier hs-var hs-var">fromRatio</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040368"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040368"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:%</span></span><span> </span><span id="local-6989586621679040369"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040369"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#nf"><span class="hs-identifier hs-var">nf</span></a></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; BigDecimal)
+-&gt; (RoundingAdvice -&gt; BigDecimal) -&gt; RoundingAdvice -&gt; BigDecimal
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#divide"><span class="hs-identifier hs-var">divide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; BigDecimal
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040368"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; BigDecimal
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040369"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Real</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679040395"><span class="annot"><span class="annottext">toRational :: BigDecimal -&gt; Rational
+</span><span class="hs-identifier hs-var hs-var hs-var">toRational</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040396"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040396"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679040397"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040397"><span class="hs-identifier hs-var">scl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Rational
+forall a. Real a =&gt; a -&gt; Rational
+</span><span class="hs-identifier hs-var">toRational</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040396"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Rational -&gt; Rational
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Integer -&gt; Rational
+forall a b. (Fractional a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^^</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Integer
+forall a. Num a =&gt; Natural -&gt; a
+</span><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-var">fromNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040397"><span class="hs-identifier hs-var">scl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679040403"><span id="local-6989586621679040406"><span id="local-6989586621679040409"><span id="local-6989586621679040412"><span id="local-6989586621679040415"><span id="local-6989586621679040418"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>  </span><span id="local-6989586621679040422"><span class="annot"><span class="annottext">compare :: BigDecimal -&gt; BigDecimal -&gt; Ordering
+</span><a href="#local-6989586621679040422"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span id="local-6989586621679040424"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040424"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040425"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040425"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040426"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040426"><span class="hs-identifier hs-var">valA</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040427"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040427"><span class="hs-identifier hs-var">valB</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var">matchScales</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040424"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040425"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040426"><span class="hs-identifier hs-var">valA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040427"><span class="hs-identifier hs-var">valB</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><span class="hs-comment">-- | add two BigDecimals</span></span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Data.BigDecimal.html#plus"><span class="hs-identifier hs-type">plus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-130"></span><span id="plus"><span class="annot"><span class="annottext">plus :: (BigDecimal, BigDecimal) -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#plus"><span class="hs-identifier hs-var hs-var">plus</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040428"><span class="annot"><span class="annottext">a :: BigDecimal
+</span><a href="#local-6989586621679040428"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040429"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040429"><span class="hs-identifier hs-var">valA</span></a></span></span><span> </span><span id="local-6989586621679040430"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040430"><span class="hs-identifier hs-var">scaleA</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040431"><span class="annot"><span class="annottext">b :: BigDecimal
+</span><a href="#local-6989586621679040431"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040432"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040432"><span class="hs-identifier hs-var">valB</span></a></span></span><span> </span><span id="local-6989586621679040433"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040433"><span class="hs-identifier hs-var">scaleB</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040430"><span class="hs-identifier hs-var">scaleA</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040433"><span class="hs-identifier hs-var">scaleB</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040429"><span class="hs-identifier hs-var">valA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040432"><span class="hs-identifier hs-var">valB</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040430"><span class="hs-identifier hs-var">scaleA</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">((BigDecimal, BigDecimal) -&gt; BigDecimal)
+-&gt; (BigDecimal, BigDecimal) -&gt; BigDecimal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var">matchScales</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040428"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040431"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><span class="hs-comment">-- | multiply two BigDecimals</span></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="Data.BigDecimal.html#mul"><span class="hs-identifier hs-type">mul</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-136"></span><span id="mul"><span class="annot"><span class="annottext">mul :: (BigDecimal, BigDecimal) -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#mul"><span class="hs-identifier hs-var hs-var">mul</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040434"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040434"><span class="hs-identifier hs-var">valA</span></a></span></span><span> </span><span id="local-6989586621679040435"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040435"><span class="hs-identifier hs-var">scaleA</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040436"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040436"><span class="hs-identifier hs-var">valB</span></a></span></span><span> </span><span id="local-6989586621679040437"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040437"><span class="hs-identifier hs-var">scaleB</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040434"><span class="hs-identifier hs-var">valA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040436"><span class="hs-identifier hs-var">valB</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040435"><span class="hs-identifier hs-var">scaleA</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040437"><span class="hs-identifier hs-var">scaleB</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="annot"><span class="hs-comment">-- | divide two BigDecimals and applies the 'RoundingAdvice' (i.e. a tuple of 'RoundingMode' and the specified precision) for rounding.</span></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Data.BigDecimal.html#divide"><span class="hs-identifier hs-type">divide</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-140"></span><span>  </span><span class="annot"><span class="hs-comment">-- |  the tuple of dividend and divisor. I.e. (dividend, divisor)</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-comment">-- | 'RoundingAdvice' (i.e. a tuple of 'RoundingMode' and the specified precision) defines the rounding behaviour.</span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-comment">--   if 'Nothing' if given as precision the maximum possible precision is used.</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier hs-type">RoundingAdvice</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-145"></span><span>  </span><span class="annot"><span class="hs-comment">-- | the resulting BigDecimal</span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-147"></span><span id="divide"><span class="annot"><span class="annottext">divide :: (BigDecimal, BigDecimal) -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#divide"><span class="hs-identifier hs-var hs-var">divide</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040438"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040438"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040439"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040439"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040440"><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040440"><span class="hs-identifier hs-var">rMode</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040441"><span class="annot"><span class="annottext">Maybe Natural
+</span><a href="#local-6989586621679040441"><span class="hs-identifier hs-var">prefScale</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040442"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040442"><span class="hs-identifier hs-var">numA</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040443"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040443"><span class="hs-identifier hs-var">numB</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var">matchScales</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040438"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040439"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>      </span><span id="local-6989586621679040466"><span class="annot"><span class="annottext">maxPrecision :: Natural
+</span><a href="#local-6989586621679040466"><span class="hs-identifier hs-var hs-var">maxPrecision</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Maybe Natural -&gt; Natural
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal -&gt; Natural
+</span><a href="Data.BigDecimal.html#precision"><span class="hs-identifier hs-var">precision</span></a></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040438"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Natural
+forall b. Integral b =&gt; Double -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal -&gt; Natural
+</span><a href="Data.BigDecimal.html#precision"><span class="hs-identifier hs-var">precision</span></a></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040439"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Natural
+</span><a href="#local-6989586621679040441"><span class="hs-identifier hs-var">prefScale</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span>
+</span><span id="line-150"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#trim"><span class="hs-identifier hs-var">trim</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040466"><span class="hs-identifier hs-var">maxPrecision</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RoundingMode -&gt; Integer -&gt; Integer -&gt; Integer
+</span><a href="Data.BigDecimal.html#divUsing"><span class="hs-identifier hs-var">divUsing</span></a></span><span> </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040440"><span class="hs-identifier hs-var">rMode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040442"><span class="hs-identifier hs-var">numA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; Integer
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040466"><span class="hs-identifier hs-var">maxPrecision</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040443"><span class="hs-identifier hs-var">numB</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040466"><span class="hs-identifier hs-var">maxPrecision</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><span class="hs-comment">-- | divide two correctly scaled Integers and apply the RoundingMode</span></span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Data.BigDecimal.html#divUsing"><span class="hs-identifier hs-type">divUsing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#RoundingMode"><span class="hs-identifier hs-type">RoundingMode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-154"></span><span id="divUsing"><span class="annot"><span class="annottext">divUsing :: RoundingMode -&gt; Integer -&gt; Integer -&gt; Integer
+</span><a href="Data.BigDecimal.html#divUsing"><span class="hs-identifier hs-var hs-var">divUsing</span></a></span></span><span> </span><span id="local-6989586621679040470"><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040470"><span class="hs-identifier hs-var">rounding</span></a></span></span><span> </span><span id="local-6989586621679040471"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040471"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679040472"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040472"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040474"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040475"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040475"><span class="hs-identifier hs-var">remainder</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; (Integer, Integer)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040471"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040472"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-156"></span><span>      </span><span id="local-6989586621679040484"><span class="annot"><span class="annottext">delta :: Integer
+</span><a href="#local-6989586621679040484"><span class="hs-identifier hs-var hs-var">delta</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040475"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040472"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-157"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040470"><span class="hs-identifier hs-var">rounding</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-158"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#PRECISE"><span class="hs-identifier hs-var">PRECISE</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040475"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; Integer
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;non-terminating decimal expansion&quot;</span></span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#UP"><span class="hs-identifier hs-var">UP</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040475"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-160"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#CEILING"><span class="hs-identifier hs-var">CEILING</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040475"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-161"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_UP"><span class="hs-identifier hs-var">HALF_UP</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040484"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-162"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_DOWN"><span class="hs-identifier hs-var">HALF_DOWN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040484"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-163"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#DOWN"><span class="hs-identifier hs-var">DOWN</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#FLOOR"><span class="hs-identifier hs-var">FLOOR</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-165"></span><span>        </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_EVEN"><span class="hs-identifier hs-var">HALF_EVEN</span></a></span><span>
+</span><span id="line-166"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040484"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-167"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040484"><span class="hs-identifier hs-var">delta</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+forall a. Integral a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">odd</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">signum</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-168"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040474"><span class="hs-identifier hs-var">quotient</span></a></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><span class="hs-comment">-- | round a BigDecimal according to a 'RoundingAdvice' to 'n' digits applying the 'RoundingMode' 'rMode'</span></span><span>
+</span><span id="line-171"></span><span class="annot"><a href="Data.BigDecimal.html#roundBD"><span class="hs-identifier hs-type">roundBD</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier hs-type">RoundingAdvice</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-172"></span><span id="roundBD"><span class="annot"><span class="annottext">roundBD :: BigDecimal -&gt; RoundingAdvice -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#roundBD"><span class="hs-identifier hs-var hs-var">roundBD</span></a></span></span><span> </span><span id="local-6989586621679040491"><span class="annot"><span class="annottext">bd :: BigDecimal
+</span><a href="#local-6989586621679040491"><span class="hs-identifier hs-var">bd</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040492"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040492"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679040493"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040493"><span class="hs-identifier hs-var">scl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040494"><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040494"><span class="hs-identifier hs-var">rMode</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679040495"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040495"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040495"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040495"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040493"><span class="hs-identifier hs-var">scl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040491"><span class="hs-identifier hs-var">bd</span></a></span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RoundingMode -&gt; Integer -&gt; Integer -&gt; Integer
+</span><a href="Data.BigDecimal.html#divUsing"><span class="hs-identifier hs-var">divUsing</span></a></span><span> </span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="#local-6989586621679040494"><span class="hs-identifier hs-var">rMode</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040492"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; Integer
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040493"><span class="hs-identifier hs-var">scl</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040495"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040495"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Data.BigDecimal.html#roundBD"><span class="hs-identifier hs-var">roundBD</span></a></span><span> </span><span id="local-6989586621679040498"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040498"><span class="hs-identifier hs-var">bd</span></a></span></span><span> </span><span class="annot"><span class="annottext">RoundingAdvice
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040498"><span class="hs-identifier hs-var">bd</span></a></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><span class="hs-comment">-- | match the scales of a tuple of BigDecimals</span></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-type">matchScales</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span id="matchScales"><span class="annot"><span class="annottext">matchScales :: (BigDecimal, BigDecimal) -&gt; (BigDecimal, BigDecimal)
+</span><a href="Data.BigDecimal.html#matchScales"><span class="hs-identifier hs-var hs-var">matchScales</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040499"><span class="annot"><span class="annottext">a :: BigDecimal
+</span><a href="#local-6989586621679040499"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040500"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040500"><span class="hs-identifier hs-var">integerA</span></a></span></span><span> </span><span id="local-6989586621679040501"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040502"><span class="annot"><span class="annottext">b :: BigDecimal
+</span><a href="#local-6989586621679040502"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040503"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040503"><span class="hs-identifier hs-var">integerB</span></a></span></span><span> </span><span id="local-6989586621679040504"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040500"><span class="hs-identifier hs-var">integerA</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; Integer
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040502"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040499"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040503"><span class="hs-identifier hs-var">integerB</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; Integer
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040504"><span class="hs-identifier hs-var">scaleB</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040501"><span class="hs-identifier hs-var">scaleA</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040499"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040502"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="annot"><span class="hs-comment">-- | returns the number of digits of a BigDecimal.</span></span><span>
+</span><span id="line-185"></span><span class="annot"><a href="Data.BigDecimal.html#precision"><span class="hs-identifier hs-type">precision</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- see benchmark/Main.hs</span><span>
+</span><span id="line-187"></span><span id="precision"><span class="annot"><span class="annottext">precision :: BigDecimal -&gt; Natural
+</span><a href="Data.BigDecimal.html#precision"><span class="hs-identifier hs-var hs-var">precision</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Natural)
+-&gt; (BigDecimal -&gt; Integer) -&gt; BigDecimal -&gt; Natural
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Integer) -&gt; (BigDecimal -&gt; Int) -&gt; BigDecimal -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Int) -&gt; (BigDecimal -&gt; String) -&gt; BigDecimal -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; String)
+-&gt; (BigDecimal -&gt; Integer) -&gt; BigDecimal -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer)
+-&gt; (BigDecimal -&gt; Integer) -&gt; BigDecimal -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><a href="Data.BigDecimal.html#value"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="annot"><span class="hs-comment">-- | removes trailing zeros from a BigDecimals intValue by decreasing the scale</span></span><span>
+</span><span id="line-190"></span><span class="annot"><a href="Data.BigDecimal.html#trim"><span class="hs-identifier hs-type">trim</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-191"></span><span id="trim"><span class="annot"><span class="annottext">trim :: Natural -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#trim"><span class="hs-identifier hs-var hs-var">trim</span></a></span></span><span> </span><span id="local-6989586621679040506"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040506"><span class="hs-identifier hs-var">prefScale</span></a></span></span><span> </span><span id="local-6989586621679040507"><span class="annot"><span class="annottext">bd :: BigDecimal
+</span><a href="#local-6989586621679040507"><span class="hs-identifier hs-var">bd</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040508"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040508"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679040509"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040509"><span class="hs-identifier hs-var">scl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679040512"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040512"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040513"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040513"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; (Integer, Integer)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">quotRem</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040508"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-193"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040513"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040506"><span class="hs-identifier hs-var">prefScale</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040506"><span class="hs-identifier hs-var">prefScale</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040509"><span class="hs-identifier hs-var">scl</span></a></span><span>
+</span><span id="line-194"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#trim"><span class="hs-identifier hs-var">trim</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040506"><span class="hs-identifier hs-var">prefScale</span></a></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; BigDecimal) -&gt; BigDecimal -&gt; BigDecimal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040512"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040509"><span class="hs-identifier hs-var">scl</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Natural
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679040507"><span class="hs-identifier hs-var">bd</span></a></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="annot"><span class="hs-comment">-- | computes the normal form of a BigDecimal</span></span><span>
+</span><span id="line-198"></span><span class="annot"><a href="Data.BigDecimal.html#nf"><span class="hs-identifier hs-type">nf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-199"></span><span id="nf"><span class="annot"><span class="annottext">nf :: BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#nf"><span class="hs-identifier hs-var hs-var">nf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; BigDecimal -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#trim"><span class="hs-identifier hs-var">trim</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- | read a BigDecimal from a human readable decimal notation.</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--   e.g. @ fromString &quot;3.14&quot; @ yields 'BigDecimal 314 2'</span><span>
+</span><span id="line-203"></span><span class="annot"><a href="Data.BigDecimal.html#fromString"><span class="hs-identifier hs-type">fromString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-204"></span><span id="fromString"><span class="annot"><span class="annottext">fromString :: String -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#fromString"><span class="hs-identifier hs-var hs-var">fromString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe BigDecimal -&gt; BigDecimal
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe BigDecimal -&gt; BigDecimal)
+-&gt; (String -&gt; Maybe BigDecimal) -&gt; String -&gt; BigDecimal
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe BigDecimal
+</span><a href="Data.BigDecimal.html#fromStringMaybe"><span class="hs-identifier hs-var">fromStringMaybe</span></a></span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- | read a BigDecimal from a human readable decimal notation.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--   e.g. @ fromString &quot;3.14&quot; @ yields 'BigDecimal 314 2'</span><span>
+</span><span id="line-208"></span><span class="annot"><a href="Data.BigDecimal.html#fromStringMaybe"><span class="hs-identifier hs-type">fromStringMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span>
+</span><span id="line-209"></span><span id="fromStringMaybe"><span class="annot"><span class="annottext">fromStringMaybe :: String -&gt; Maybe BigDecimal
+</span><a href="Data.BigDecimal.html#fromStringMaybe"><span class="hs-identifier hs-var hs-var">fromStringMaybe</span></a></span></span><span> </span><span id="local-6989586621679040514"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040514"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679040517"><span class="annot"><span class="annottext">maybeIndex :: Maybe Int
+</span><a href="#local-6989586621679040517"><span class="hs-identifier hs-var hs-var">maybeIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; String -&gt; Maybe Int
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">elemIndex</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040514"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-211"></span><span>      </span><span id="local-6989586621679040521"><span class="annot"><span class="annottext">maybeIntValue :: Maybe Integer
+</span><a href="#local-6989586621679040521"><span class="hs-identifier hs-var hs-var">maybeIntValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Integer
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; ShowS
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040514"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-213"></span><span>        </span><span id="local-6989586621679040523"><span class="annot"><a href="#local-6989586621679040523"><span class="hs-identifier hs-var">intValue</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679040521"><span class="hs-identifier hs-var">maybeIntValue</span></a></span><span>
+</span><span id="line-214"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679040517"><span class="hs-identifier hs-type">maybeIndex</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-215"></span><span>          </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Maybe BigDecimal
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; Maybe BigDecimal) -&gt; BigDecimal -&gt; Maybe BigDecimal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040523"><span class="hs-identifier hs-var">intValue</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-216"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679040524"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040524"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Maybe BigDecimal
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; Maybe BigDecimal) -&gt; BigDecimal -&gt; Maybe BigDecimal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-var">BigDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040523"><span class="hs-identifier hs-var">intValue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040514"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040524"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- | returns a readable String representation of a BigDecimal</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--   e.g. @ toString (BigDecimal 314 2) @ yields &quot;3.14&quot;</span><span>
+</span><span id="line-220"></span><span class="annot"><a href="Data.BigDecimal.html#toString"><span class="hs-identifier hs-type">toString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-221"></span><span id="toString"><span class="annot"><span class="annottext">toString :: BigDecimal -&gt; String
+</span><a href="Data.BigDecimal.html#toString"><span class="hs-identifier hs-var hs-var">toString</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.BigDecimal.html#BigDecimal"><span class="hs-identifier hs-type">BigDecimal</span></a></span><span> </span><span id="local-6989586621679040525"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040525"><span class="hs-identifier hs-var">intValue</span></a></span></span><span> </span><span id="local-6989586621679040526"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040526"><span class="hs-identifier hs-var">scl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679040529"><span class="annot"><span class="annottext">s :: String
+</span><a href="#local-6989586621679040529"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; String) -&gt; Integer -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040525"><span class="hs-identifier hs-var">intValue</span></a></span><span>
+</span><span id="line-223"></span><span>      </span><span id="local-6989586621679040539"><span class="annot"><span class="annottext">filled :: String
+</span><a href="#local-6989586621679040539"><span class="hs-identifier hs-var hs-var">filled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-224"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Int
+forall a. Num a =&gt; Natural -&gt; a
+</span><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-var">fromNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040526"><span class="hs-identifier hs-var">scl</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040529"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-225"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char -&gt; String
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Int
+forall a. Num a =&gt; Natural -&gt; a
+</span><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-var">fromNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040526"><span class="hs-identifier hs-var">scl</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040529"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040529"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-226"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040529"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-227"></span><span>      </span><span id="local-6989586621679040544"><span class="annot"><span class="annottext">splitPos :: Int
+</span><a href="#local-6989586621679040544"><span class="hs-identifier hs-var hs-var">splitPos</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040539"><span class="hs-identifier hs-var">filled</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Int
+forall a. Num a =&gt; Natural -&gt; a
+</span><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-var">fromNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040526"><span class="hs-identifier hs-var">scl</span></a></span><span>
+</span><span id="line-228"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679040545"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040545"><span class="hs-identifier hs-var">ints</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679040546"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040546"><span class="hs-identifier hs-var">decimals</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; (String, String)
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679040544"><span class="hs-identifier hs-var">splitPos</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040539"><span class="hs-identifier hs-var">filled</span></a></span><span>
+</span><span id="line-229"></span><span>      </span><span id="local-6989586621679040550"><span class="annot"><span class="annottext">sign :: String
+</span><a href="#local-6989586621679040550"><span class="hs-identifier hs-var hs-var">sign</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679040525"><span class="hs-identifier hs-var">intValue</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-230"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040550"><span class="hs-identifier hs-var">sign</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040546"><span class="hs-identifier hs-var">decimals</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040545"><span class="hs-identifier hs-var">ints</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040546"><span class="hs-identifier hs-var">decimals</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679040545"><span class="hs-identifier hs-var">ints</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><span class="hs-comment">-- | construct a 'RoundingAdvice' for rounding 'HALF_UP' with 'scl' decimal digits</span></span><span>
+</span><span id="line-233"></span><span class="annot"><a href="Data.BigDecimal.html#halfUp"><span class="hs-identifier hs-type">halfUp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.BigDecimal.html#RoundingAdvice"><span class="hs-identifier hs-type">RoundingAdvice</span></a></span><span>
+</span><span id="line-234"></span><span id="halfUp"><span class="annot"><span class="annottext">halfUp :: Natural -&gt; RoundingAdvice
+</span><a href="Data.BigDecimal.html#halfUp"><span class="hs-identifier hs-var hs-var">halfUp</span></a></span></span><span> </span><span id="local-6989586621679040553"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040553"><span class="hs-identifier hs-var">scl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RoundingMode
+</span><a href="Data.BigDecimal.html#HALF_UP"><span class="hs-identifier hs-var">HALF_UP</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Maybe Natural
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679040553"><span class="hs-identifier hs-var">scl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="annot"><span class="hs-comment">-- | convert a Natural to any numeric type a</span></span><span>
+</span><span id="line-237"></span><span id="local-6989586621679040118"><span class="annot"><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-type">fromNatural</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679040118"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679040118"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-238"></span><span id="fromNatural"><span class="annot"><span class="annottext">fromNatural :: forall a. Num a =&gt; Natural -&gt; a
+</span><a href="Data.BigDecimal.html#fromNatural"><span class="hs-identifier hs-var hs-var">fromNatural</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; a
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; a) -&gt; (Natural -&gt; Integer) -&gt; Natural -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span>
+</span><span id="line-239"></span></pre></body></html>

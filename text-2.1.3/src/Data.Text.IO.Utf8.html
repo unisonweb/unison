@@ -1,0 +1,182 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Data.Text.IO.Utf8</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Efficient UTF-8 support for text I\/O.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Unlike @Data.Text.IO@, these functions do not depend on the locale</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- and do not do line ending conversion.</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html"><span class="hs-identifier">Data.Text.IO.Utf8</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-comment">-- * File-at-a-time operations</span></span><span>
+</span><span id="line-12"></span><span>      </span><span class="annot"><a href="Data.Text.IO.Utf8.html#readFile"><span class="hs-identifier">readFile</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#writeFile"><span class="hs-identifier">writeFile</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#appendFile"><span class="hs-identifier">appendFile</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Operations on handles</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#hGetContents"><span class="hs-identifier">hGetContents</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#hGetLine"><span class="hs-identifier">hGetLine</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#hPutStr"><span class="hs-identifier">hPutStr</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#hPutStrLn"><span class="hs-identifier">hPutStrLn</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Special cases for standard input and output</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#interact"><span class="hs-identifier">interact</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#getContents"><span class="hs-identifier">getContents</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#getLine"><span class="hs-identifier">getLine</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#putStr"><span class="hs-identifier">putStr</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.IO.Utf8.html#putStrLn"><span class="hs-identifier">putStrLn</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Exception.html"><span class="hs-identifier">Control.Exception</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">evaluate</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;=&lt;)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(=&lt;&lt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html"><span class="hs-identifier">Data.ByteString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Internal.Type.html#ByteString"><span class="hs-identifier">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Char8.html"><span class="hs-identifier">Data.ByteString.Char8</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Function.html"><span class="hs-identifier">Data.Function</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.html"><span class="hs-identifier">Data.Text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier">Text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Encoding.html"><span class="hs-identifier">Data.Text.Encoding</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Encoding.html#decodeUtf8"><span class="hs-identifier">decodeUtf8</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier">encodeUtf8</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.Handle.html"><span class="hs-identifier">GHC.IO.Handle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Handle</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier">IO</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-type">decodeUtf8IO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Internal.Type.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-40"></span><span id="decodeUtf8IO"><span class="annot"><span class="annottext">decodeUtf8IO :: ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var hs-var">decodeUtf8IO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; IO Text
+forall a. a -&gt; IO a
+</span><span class="hs-identifier hs-var">evaluate</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; IO Text) -&gt; (ByteString -&gt; Text) -&gt; ByteString -&gt; IO Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><a href="Data.Text.Encoding.html#decodeUtf8"><span class="hs-identifier hs-var">decodeUtf8</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | The 'readFile' function reads a file and returns the contents of</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- the file as a string.  The entire file is read strictly, as with</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- 'getContents'.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#readFile"><span class="hs-identifier hs-type">readFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-46"></span><span id="readFile"><span class="annot"><span class="annottext">readFile :: FilePath -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#readFile"><span class="hs-identifier hs-var hs-var">readFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var">decodeUtf8IO</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO Text)
+-&gt; (FilePath -&gt; IO ByteString) -&gt; FilePath -&gt; IO Text
+forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#readFile"><span class="hs-identifier hs-var">B.readFile</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Write a string to a file.  The file is truncated to zero length</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- before writing begins.</span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#writeFile"><span class="hs-identifier hs-type">writeFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span id="writeFile"><span class="annot"><span class="annottext">writeFile :: FilePath -&gt; Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#writeFile"><span class="hs-identifier hs-var hs-var">writeFile</span></a></span></span><span> </span><span id="local-6989586621679173672"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679173672"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#writeFile"><span class="hs-identifier hs-var">B.writeFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679173672"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- | Write a string to the end of a file.</span></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#appendFile"><span class="hs-identifier hs-type">appendFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span id="appendFile"><span class="annot"><span class="annottext">appendFile :: FilePath -&gt; Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#appendFile"><span class="hs-identifier hs-var hs-var">appendFile</span></a></span></span><span> </span><span id="local-6989586621679173674"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679173674"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#appendFile"><span class="hs-identifier hs-var">B.appendFile</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679173674"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- | Read the remaining contents of a 'Handle' as a string.</span></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#hGetContents"><span class="hs-identifier hs-type">hGetContents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-59"></span><span id="hGetContents"><span class="annot"><span class="annottext">hGetContents :: Handle -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#hGetContents"><span class="hs-identifier hs-var hs-var">hGetContents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var">decodeUtf8IO</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO Text)
+-&gt; (Handle -&gt; IO ByteString) -&gt; Handle -&gt; IO Text
+forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#hGetContents"><span class="hs-identifier hs-var">B.hGetContents</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Read a single line from a handle.</span></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#hGetLine"><span class="hs-identifier hs-type">hGetLine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-63"></span><span id="hGetLine"><span class="annot"><span class="annottext">hGetLine :: Handle -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#hGetLine"><span class="hs-identifier hs-var hs-var">hGetLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var">decodeUtf8IO</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO Text)
+-&gt; (Handle -&gt; IO ByteString) -&gt; Handle -&gt; IO Text
+forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Char8.html#hGetLine"><span class="hs-identifier hs-var">B.hGetLine</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">-- | Write a string to a handle.</span></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#hPutStr"><span class="hs-identifier hs-type">hPutStr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span id="hPutStr"><span class="annot"><span class="annottext">hPutStr :: Handle -&gt; Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#hPutStr"><span class="hs-identifier hs-var hs-var">hPutStr</span></a></span></span><span> </span><span id="local-6989586621679173678"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679173678"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#hPutStr"><span class="hs-identifier hs-var">B.hPutStr</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679173678"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | Write a string to a handle, followed by a newline.</span></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#hPutStrLn"><span class="hs-identifier hs-type">hPutStrLn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span id="hPutStrLn"><span class="annot"><span class="annottext">hPutStrLn :: Handle -&gt; Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#hPutStrLn"><span class="hs-identifier hs-var hs-var">hPutStrLn</span></a></span></span><span> </span><span id="local-6989586621679173680"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679173680"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Char8.html#hPutStrLn"><span class="hs-identifier hs-var">B.hPutStrLn</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679173680"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | The 'interact' function takes a function of type @Text -&gt; Text@</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- as its argument. The entire input from the standard input device is</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- passed to this function as its argument, and the resulting string</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- is output on the standard output device.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#interact"><span class="hs-identifier hs-type">interact</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span id="interact"><span class="annot"><span class="annottext">interact :: (Text -&gt; Text) -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#interact"><span class="hs-identifier hs-var hs-var">interact</span></a></span></span><span> </span><span id="local-6989586621679173682"><span class="annot"><span class="annottext">Text -&gt; Text
+</span><a href="#local-6989586621679173682"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#putStr"><span class="hs-identifier hs-var">putStr</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; IO ()) -&gt; (Text -&gt; Text) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><a href="#local-6989586621679173682"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; IO ()) -&gt; IO Text -&gt; IO ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO Text
+</span><a href="Data.Text.IO.Utf8.html#getContents"><span class="hs-identifier hs-var">getContents</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><span class="hs-comment">-- | Read all user input on 'stdin' as a single string.</span></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#getContents"><span class="hs-identifier hs-type">getContents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-82"></span><span id="getContents"><span class="annot"><span class="annottext">getContents :: IO Text
+</span><a href="Data.Text.IO.Utf8.html#getContents"><span class="hs-identifier hs-var hs-var">getContents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var">decodeUtf8IO</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO Text) -&gt; IO ByteString -&gt; IO Text
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#getContents"><span class="hs-identifier hs-var">B.getContents</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="annot"><span class="hs-comment">-- | Read a single line of user input from 'stdin'.</span></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#getLine"><span class="hs-identifier hs-type">getLine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-86"></span><span id="getLine"><span class="annot"><span class="annottext">getLine :: IO Text
+</span><a href="Data.Text.IO.Utf8.html#getLine"><span class="hs-identifier hs-var hs-var">getLine</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO Text
+</span><a href="Data.Text.IO.Utf8.html#decodeUtf8IO"><span class="hs-identifier hs-var">decodeUtf8IO</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO Text) -&gt; IO ByteString -&gt; IO Text
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO ByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Char8.html#getLine"><span class="hs-identifier hs-var">B.getLine</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><span class="hs-comment">-- | Write a string to 'stdout'.</span></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#putStr"><span class="hs-identifier hs-type">putStr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span id="putStr"><span class="annot"><span class="annottext">putStr :: Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#putStr"><span class="hs-identifier hs-var hs-var">putStr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.html#putStr"><span class="hs-identifier hs-var">B.putStr</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Write a string to 'stdout', followed by a newline.</span></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Data.Text.IO.Utf8.html#putStrLn"><span class="hs-identifier hs-type">putStrLn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span id="putStrLn"><span class="annot"><span class="annottext">putStrLn :: Text -&gt; IO ()
+</span><a href="Data.Text.IO.Utf8.html#putStrLn"><span class="hs-identifier hs-var hs-var">putStrLn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Char8.html#putStrLn"><span class="hs-identifier hs-var">B.putStrLn</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; IO ()) -&gt; (Text -&gt; ByteString) -&gt; Text -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><a href="Data.Text.Encoding.html#encodeUtf8"><span class="hs-identifier hs-var">encodeUtf8</span></a></span><span>
+</span><span id="line-95"></span></pre></body></html>

@@ -1,0 +1,618 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards, DeriveGeneric, GeneralizedNewtypeDeriving,
+    BangPatterns, CPP, MagicHash, FlexibleInstances, FlexibleContexts,
+    TypeApplications, ScopedTypeVariables, UnboxedTuples #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html"><span class="hs-identifier">GHCi.ResolvedBCO</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier">ResolvedBCO</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtr"><span class="hs-identifier">ResolvedBCOPtr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#isLittleEndian"><span class="hs-identifier">isLittleEndian</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier">BCOByteArray</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#mkBCOByteArray"><span class="hs-identifier">mkBCOByteArray</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-comment">-- See note [Why do we import Prelude here?]</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html"><span class="hs-identifier">GHC.Data.SizedSeq</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHCi.RemoteTypes.html"><span class="hs-identifier">GHCi.RemoteTypes</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHCi.BreakArray.html"><span class="hs-identifier">GHCi.BreakArray</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.html"><span class="hs-identifier">Data.Binary</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Put.html"><span class="hs-identifier">Data.Binary.Put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Put.html#putBuilder"><span class="hs-identifier">putBuilder</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.Ptr.html"><span class="hs-identifier">Foreign.Ptr</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Array.Byte.html"><span class="hs-identifier">Data.Array.Byte</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Get.Internal.html"><span class="hs-identifier">Data.Binary.Get.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Binary</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.html"><span class="hs-identifier">Data.ByteString.Builder</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BB</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html"><span class="hs-identifier">Data.ByteString.Builder.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BB</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../array-0.5.8.0-b385/src/Data.Array.Base.html"><span class="hs-identifier">Data.Array.Base</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../array-0.5.8.0-b385/src/Data.Array.Base.html#UArray"><span class="hs-identifier">UArray</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.html"><span class="hs-identifier">GHC.IO</span></a></span><span class="hs-cpp">
+
+#include &quot;MachDeps.h&quot;
+</span><span>
+</span><span id="line-33"></span><span class="annot"><a href="GHCi.ResolvedBCO.html#isLittleEndian"><span class="hs-identifier hs-type">isLittleEndian</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span class="hs-cpp">
+#if defined(WORDS_BIGENDIAN)
+</span><span class="hs-identifier">isLittleEndian</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">False</span><span class="hs-cpp">
+#else
+</span><span id="isLittleEndian"><span class="annot"><span class="annottext">isLittleEndian :: Bool
+</span><a href="GHCi.ResolvedBCO.html#isLittleEndian"><span class="hs-identifier hs-var hs-var">isLittleEndian</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#True"><span class="hs-identifier hs-var">True</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- -----------------------------------------------------------------------------</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- ResolvedBCO</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | A 'ResolvedBCO' is one in which all the 'Name' references have been</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- resolved to actual addresses or 'RemoteHValues'.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">data</span><span> </span><span id="ResolvedBCO"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-var">ResolvedBCO</span></a></span></span><span>
+</span><span id="line-47"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span id="ResolvedBCO"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-var">ResolvedBCO</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-48"></span><span>        </span><span id="resolvedBCOIsLE"><span class="annot"><span class="annottext">ResolvedBCO -&gt; Bool
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOIsLE"><span class="hs-identifier hs-var hs-var">resolvedBCOIsLE</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>        </span><span id="resolvedBCOArity"><span class="annot"><span class="annottext">ResolvedBCO -&gt; Int
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOArity"><span class="hs-identifier hs-var hs-var">resolvedBCOArity</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>        </span><span id="resolvedBCOInstrs"><span class="annot"><span class="annottext">ResolvedBCO -&gt; BCOByteArray Word16
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOInstrs"><span class="hs-identifier hs-var hs-var">resolvedBCOInstrs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span class="hs-special">,</span><span>       </span><span class="hs-comment">-- insns</span><span>
+</span><span id="line-51"></span><span>        </span><span id="resolvedBCOBitmap"><span class="annot"><span class="annottext">ResolvedBCO -&gt; BCOByteArray Word
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOBitmap"><span class="hs-identifier hs-var hs-var">resolvedBCOBitmap</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>         </span><span class="hs-comment">-- bitmap</span><span>
+</span><span id="line-52"></span><span>        </span><span id="resolvedBCOLits"><span class="annot"><span class="annottext">ResolvedBCO -&gt; BCOByteArray Word
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOLits"><span class="hs-identifier hs-var hs-var">resolvedBCOLits</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span>         </span><span class="hs-comment">-- non-ptrs</span><span>
+</span><span id="line-53"></span><span>        </span><span id="resolvedBCOPtrs"><span class="annot"><span class="annottext">ResolvedBCO -&gt; SizedSeq ResolvedBCOPtr
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOPtrs"><span class="hs-identifier hs-var hs-var">resolvedBCOPtrs</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtr"><span class="hs-identifier hs-type">ResolvedBCOPtr</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-comment">-- ptrs</span><span>
+</span><span id="line-54"></span><span>   </span><span class="hs-special">}</span><span>
+</span><span id="line-55"></span><span>   </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679108832"><span id="local-6989586621679108834"><span class="annot"><span class="annottext">(forall x. ResolvedBCO -&gt; Rep ResolvedBCO x)
+-&gt; (forall x. Rep ResolvedBCO x -&gt; ResolvedBCO)
+-&gt; Generic ResolvedBCO
+forall x. Rep ResolvedBCO x -&gt; ResolvedBCO
+forall x. ResolvedBCO -&gt; Rep ResolvedBCO x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ResolvedBCO -&gt; Rep ResolvedBCO x
+from :: forall x. ResolvedBCO -&gt; Rep ResolvedBCO x
+$cto :: forall x. Rep ResolvedBCO x -&gt; ResolvedBCO
+to :: forall x. Rep ResolvedBCO x -&gt; ResolvedBCO
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679108840"><span id="local-6989586621679108856"><span id="local-6989586621679108860"><span class="annot"><span class="annottext">Int -&gt; ResolvedBCO -&gt; ShowS
+[ResolvedBCO] -&gt; ShowS
+ResolvedBCO -&gt; String
+(Int -&gt; ResolvedBCO -&gt; ShowS)
+-&gt; (ResolvedBCO -&gt; String)
+-&gt; ([ResolvedBCO] -&gt; ShowS)
+-&gt; Show ResolvedBCO
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ResolvedBCO -&gt; ShowS
+showsPrec :: Int -&gt; ResolvedBCO -&gt; ShowS
+$cshow :: ResolvedBCO -&gt; String
+show :: ResolvedBCO -&gt; String
+$cshowList :: [ResolvedBCO] -&gt; ShowS
+showList :: [ResolvedBCO] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Wrapper for a 'ByteArray#'.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- The phantom type tells what elements are stored in the 'ByteArray#'.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Creating a 'ByteArray#' can be achieved using 'UArray''s API,</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- where the underlying 'ByteArray#' can be unpacked.</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">data</span><span> </span><span id="BCOByteArray"><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-var">BCOByteArray</span></a></span></span><span> </span><span id="local-6989586621679108723"><span class="annot"><a href="#local-6989586621679108723"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="BCOByteArray"><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-var">BCOByteArray</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-63"></span><span>        </span><span id="getBCOByteArray"><span class="annot"><span class="annottext">forall a. BCOByteArray a -&gt; ByteArray#
+</span><a href="GHCi.ResolvedBCO.html#getBCOByteArray"><span class="hs-identifier hs-var hs-var">getBCOByteArray</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#ByteArray%23"><span class="hs-identifier hs-type">ByteArray#</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679108725"><span class="annot"><a href="GHCi.ResolvedBCO.html#mkBCOByteArray"><span class="hs-identifier hs-type">mkBCOByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../array-0.5.8.0-b385/src/Data.Array.Base.html#UArray"><span class="hs-identifier hs-type">UArray</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108725"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108725"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-67"></span><span id="mkBCOByteArray"><span class="annot"><span class="annottext">mkBCOByteArray :: forall a. UArray Int a -&gt; BCOByteArray a
+</span><a href="GHCi.ResolvedBCO.html#mkBCOByteArray"><span class="hs-identifier hs-var hs-var">mkBCOByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../array-0.5.8.0-b385/src/Data.Array.Base.html#UArray"><span class="hs-identifier hs-type">UArray</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679108868"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679108868"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; BCOByteArray a
+forall a. ByteArray# -&gt; BCOByteArray a
+</span><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-var">BCOByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679108868"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679108871"><span id="local-6989586621679108874"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>  </span><span id="local-6989586621679108876"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; BCOByteArray Word16 -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">BCOByteArray Word16
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BCOByteArray Word16&quot;</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679108880"><span id="local-6989586621679108883"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679108885"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; BCOByteArray Word -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">BCOByteArray Word
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BCOByteArray Word&quot;</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | The Binary instance for ResolvedBCOs.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- Note, that we do encode the endianness, however there is no support for mixed</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- endianness setups.  This is primarily to ensure that ghc and iserv share the</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- same endianness.</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679108889"><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-type">ResolvedBCO</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679108911"><span class="annot"><span class="annottext">put :: ResolvedBCO -&gt; Put
+</span><a href="#local-6989586621679108911"><span class="hs-identifier hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-type">ResolvedBCO</span></a></span><span class="hs-special">{</span><span id="local-6989586621679108913"><span id="local-6989586621679108914"><span id="local-6989586621679108915"><span id="local-6989586621679108916"><span id="local-6989586621679108917"><span id="local-6989586621679108918"><span class="annot"><span class="annottext">Bool
+Int
+SizedSeq ResolvedBCOPtr
+BCOByteArray Word
+BCOByteArray Word16
+resolvedBCOIsLE :: ResolvedBCO -&gt; Bool
+resolvedBCOArity :: ResolvedBCO -&gt; Int
+resolvedBCOInstrs :: ResolvedBCO -&gt; BCOByteArray Word16
+resolvedBCOBitmap :: ResolvedBCO -&gt; BCOByteArray Word
+resolvedBCOLits :: ResolvedBCO -&gt; BCOByteArray Word
+resolvedBCOPtrs :: ResolvedBCO -&gt; SizedSeq ResolvedBCOPtr
+resolvedBCOIsLE :: Bool
+resolvedBCOArity :: Int
+resolvedBCOInstrs :: BCOByteArray Word16
+resolvedBCOBitmap :: BCOByteArray Word
+resolvedBCOLits :: BCOByteArray Word
+resolvedBCOPtrs :: SizedSeq ResolvedBCOPtr
+</span><a href="GHCi.ResolvedBCO.html#resolvedBCOIsLE"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679108913"><span class="hs-identifier hs-var">resolvedBCOIsLE</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679108914"><span class="hs-identifier hs-var">resolvedBCOArity</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="annottext">BCOByteArray Word16 -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">BCOByteArray Word16
+</span><a href="#local-6989586621679108915"><span class="hs-identifier hs-var">resolvedBCOInstrs</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="annottext">BCOByteArray Word -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">BCOByteArray Word
+</span><a href="#local-6989586621679108916"><span class="hs-identifier hs-var">resolvedBCOBitmap</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="annottext">BCOByteArray Word -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">BCOByteArray Word
+</span><a href="#local-6989586621679108917"><span class="hs-identifier hs-var">resolvedBCOLits</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="annottext">SizedSeq ResolvedBCOPtr -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">SizedSeq ResolvedBCOPtr
+</span><a href="#local-6989586621679108918"><span class="hs-identifier hs-var">resolvedBCOPtrs</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679108934"><span class="annot"><span class="annottext">get :: Get ResolvedBCO
+</span><a href="#local-6989586621679108934"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Int
+-&gt; BCOByteArray Word16
+-&gt; BCOByteArray Word
+-&gt; BCOByteArray Word
+-&gt; SizedSeq ResolvedBCOPtr
+-&gt; ResolvedBCO
+</span><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-var">ResolvedBCO</span></a></span><span> </span><span class="annot"><span class="annottext">(Bool
+ -&gt; Int
+ -&gt; BCOByteArray Word16
+ -&gt; BCOByteArray Word
+ -&gt; BCOByteArray Word
+ -&gt; SizedSeq ResolvedBCOPtr
+ -&gt; ResolvedBCO)
+-&gt; Get Bool
+-&gt; Get
+     (Int
+      -&gt; BCOByteArray Word16
+      -&gt; BCOByteArray Word
+      -&gt; BCOByteArray Word
+      -&gt; SizedSeq ResolvedBCOPtr
+      -&gt; ResolvedBCO)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get Bool
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">Get
+  (Int
+   -&gt; BCOByteArray Word16
+   -&gt; BCOByteArray Word
+   -&gt; BCOByteArray Word
+   -&gt; SizedSeq ResolvedBCOPtr
+   -&gt; ResolvedBCO)
+-&gt; Get Int
+-&gt; Get
+     (BCOByteArray Word16
+      -&gt; BCOByteArray Word
+      -&gt; BCOByteArray Word
+      -&gt; SizedSeq ResolvedBCOPtr
+      -&gt; ResolvedBCO)
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get Int
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">Get
+  (BCOByteArray Word16
+   -&gt; BCOByteArray Word
+   -&gt; BCOByteArray Word
+   -&gt; SizedSeq ResolvedBCOPtr
+   -&gt; ResolvedBCO)
+-&gt; Get (BCOByteArray Word16)
+-&gt; Get
+     (BCOByteArray Word
+      -&gt; BCOByteArray Word -&gt; SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (BCOByteArray Word16)
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">Get
+  (BCOByteArray Word
+   -&gt; BCOByteArray Word -&gt; SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+-&gt; Get (BCOByteArray Word)
+-&gt; Get
+     (BCOByteArray Word -&gt; SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (BCOByteArray Word)
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">Get (BCOByteArray Word -&gt; SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+-&gt; Get (BCOByteArray Word)
+-&gt; Get (SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (BCOByteArray Word)
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">Get (SizedSeq ResolvedBCOPtr -&gt; ResolvedBCO)
+-&gt; Get (SizedSeq ResolvedBCOPtr) -&gt; Get ResolvedBCO
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (SizedSeq ResolvedBCOPtr)
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679108734"><span id="local-6989586621679108940"><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108734"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621679108942"><span class="annot"><span class="annottext">put :: BCOByteArray a -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BCOByteArray a -&gt; Put
+forall a. BCOByteArray a -&gt; Put
+</span><a href="GHCi.ResolvedBCO.html#putBCOByteArray"><span class="hs-identifier hs-var">putBCOByteArray</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679108944"><span class="annot"><span class="annottext">get :: Get (BCOByteArray a)
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get (BCOByteArray a)
+forall a. Get (BCOByteArray a)
+</span><a href="GHCi.ResolvedBCO.html#decodeBCOByteArray"><span class="hs-identifier hs-var">decodeBCOByteArray</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">data</span><span> </span><span id="ResolvedBCOPtr"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtr"><span class="hs-identifier hs-var">ResolvedBCOPtr</span></a></span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ResolvedBCORef"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCORef"><span class="hs-identifier hs-var">ResolvedBCORef</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-97"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ reference to the Nth BCO in the current set</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ResolvedBCOPtr"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtr"><span class="hs-identifier hs-var">ResolvedBCOPtr</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHCi.RemoteTypes.html#RemoteRef"><span class="hs-identifier hs-type">RemoteRef</span></a></span><span> </span><span class="annot"><a href="GHCi.RemoteTypes.html#HValue"><span class="hs-identifier hs-type">HValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ reference to a previously created BCO</span></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ResolvedBCOStaticPtr"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOStaticPtr"><span class="hs-identifier hs-var">ResolvedBCOStaticPtr</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHCi.RemoteTypes.html#RemotePtr"><span class="hs-identifier hs-type">RemotePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ reference to a static ptr</span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ResolvedBCOPtrBCO"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtrBCO"><span class="hs-identifier hs-var">ResolvedBCOPtrBCO</span></a></span></span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCO"><span class="hs-identifier hs-type">ResolvedBCO</span></a></span><span>
+</span><span id="line-103"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ a nested BCO</span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ResolvedBCOPtrBreakArray"><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtrBreakArray"><span class="hs-identifier hs-var">ResolvedBCOPtrBreakArray</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHCi.RemoteTypes.html#RemoteRef"><span class="hs-identifier hs-type">RemoteRef</span></a></span><span> </span><span class="annot"><a href="GHCi.BreakArray.html#BreakArray"><span class="hs-identifier hs-type">BreakArray</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Resolves to the MutableArray# inside the BreakArray</span></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679108952"><span id="local-6989586621679108954"><span class="annot"><span class="annottext">(forall x. ResolvedBCOPtr -&gt; Rep ResolvedBCOPtr x)
+-&gt; (forall x. Rep ResolvedBCOPtr x -&gt; ResolvedBCOPtr)
+-&gt; Generic ResolvedBCOPtr
+forall x. Rep ResolvedBCOPtr x -&gt; ResolvedBCOPtr
+forall x. ResolvedBCOPtr -&gt; Rep ResolvedBCOPtr x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ResolvedBCOPtr -&gt; Rep ResolvedBCOPtr x
+from :: forall x. ResolvedBCOPtr -&gt; Rep ResolvedBCOPtr x
+$cto :: forall x. Rep ResolvedBCOPtr x -&gt; ResolvedBCOPtr
+to :: forall x. Rep ResolvedBCOPtr x -&gt; ResolvedBCOPtr
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679108957"><span id="local-6989586621679108971"><span id="local-6989586621679108974"><span class="annot"><span class="annottext">Int -&gt; ResolvedBCOPtr -&gt; ShowS
+[ResolvedBCOPtr] -&gt; ShowS
+ResolvedBCOPtr -&gt; String
+(Int -&gt; ResolvedBCOPtr -&gt; ShowS)
+-&gt; (ResolvedBCOPtr -&gt; String)
+-&gt; ([ResolvedBCOPtr] -&gt; ShowS)
+-&gt; Show ResolvedBCOPtr
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ResolvedBCOPtr -&gt; ShowS
+showsPrec :: Int -&gt; ResolvedBCOPtr -&gt; ShowS
+$cshow :: ResolvedBCOPtr -&gt; String
+show :: ResolvedBCOPtr -&gt; String
+$cshowList :: [ResolvedBCOPtr] -&gt; ShowS
+showList :: [ResolvedBCOPtr] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679108977"><span id="local-6989586621679108983"><span id="local-6989586621679108989"><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#ResolvedBCOPtr"><span class="hs-identifier hs-type">ResolvedBCOPtr</span></a></span></span></span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- --------------------------------------------------------</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- Serialisers for 'BCOByteArray'</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- --------------------------------------------------------</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span id="local-6989586621679109069"><span class="annot"><a href="GHCi.ResolvedBCO.html#putBCOByteArray"><span class="hs-identifier hs-type">putBCOByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679109069"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Put.html#Put"><span class="hs-identifier hs-type">Put</span></a></span></span><span>
+</span><span id="line-115"></span><span id="putBCOByteArray"><span class="annot"><span class="annottext">putBCOByteArray :: forall a. BCOByteArray a -&gt; Put
+</span><a href="GHCi.ResolvedBCO.html#putBCOByteArray"><span class="hs-identifier hs-var hs-var">putBCOByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span id="local-6989586621679109072"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109072"><span class="hs-identifier hs-var">bar</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-var">I#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray# -&gt; Int#
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#sizeofByteArray%23"><span class="hs-identifier hs-var">sizeofByteArray#</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109072"><span class="hs-identifier hs-var">bar</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><span class="annottext">Builder -&gt; Put
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Put.html#putBuilder"><span class="hs-identifier hs-var">putBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder -&gt; Put) -&gt; Builder -&gt; Put
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; Builder
+</span><a href="GHCi.ResolvedBCO.html#byteArrayBuilder"><span class="hs-identifier hs-var">byteArrayBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109072"><span class="hs-identifier hs-var">bar</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span id="local-6989586621679109074"><span class="annot"><a href="GHCi.ResolvedBCO.html#decodeBCOByteArray"><span class="hs-identifier hs-type">decodeBCOByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Get.Internal.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679109074"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-120"></span><span id="decodeBCOByteArray"><span class="annot"><span class="annottext">decodeBCOByteArray :: forall a. Get (BCOByteArray a)
+</span><a href="GHCi.ResolvedBCO.html#decodeBCOByteArray"><span class="hs-identifier hs-var hs-var">decodeBCOByteArray</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679109078"><span class="annot"><a href="#local-6989586621679109078"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get Int
+forall t. Binary t =&gt; Get t
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="GHCi.ResolvedBCO.html#getByteArray"><span class="hs-identifier hs-type">getByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679109078"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="GHCi.ResolvedBCO.html#byteArrayBuilder"><span class="hs-identifier hs-type">byteArrayBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#ByteArray%23"><span class="hs-identifier hs-type">ByteArray#</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#Builder"><span class="hs-identifier hs-type">BB.Builder</span></a></span><span>
+</span><span id="line-125"></span><span id="byteArrayBuilder"><span class="annot"><span class="annottext">byteArrayBuilder :: ByteArray# -&gt; Builder
+</span><a href="GHCi.ResolvedBCO.html#byteArrayBuilder"><span class="hs-identifier hs-var hs-var">byteArrayBuilder</span></a></span></span><span> </span><span id="local-6989586621679109080"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109080"><span class="hs-identifier hs-var">arr#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall r. BuildStep r -&gt; BuildStep r) -&gt; Builder
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#builder"><span class="hs-identifier hs-var">BB.builder</span></a></span><span> </span><span class="annot"><span class="annottext">((forall r. BuildStep r -&gt; BuildStep r) -&gt; Builder)
+-&gt; (forall r. BuildStep r -&gt; BuildStep r) -&gt; Builder
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; BuildStep r -&gt; BuildStep r
+forall a. Int -&gt; Int -&gt; BuildStep a -&gt; BuildStep a
+</span><a href="#local-6989586621679109082"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-var">I#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray# -&gt; Int#
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#sizeofByteArray%23"><span class="hs-identifier hs-var">sizeofByteArray#</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109080"><span class="hs-identifier hs-var">arr#</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679108793"><span class="annot"><a href="#local-6989586621679109082"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#BuildStep"><span class="hs-identifier hs-type">BB.BuildStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108793"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#BuildStep"><span class="hs-identifier hs-type">BB.BuildStep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108793"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679109082"><span class="annot"><span class="annottext">go :: forall a. Int -&gt; Int -&gt; BuildStep a -&gt; BuildStep a
+</span><a href="#local-6989586621679109082"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679109088"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109088"><span class="hs-identifier hs-var">inStart</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679109089"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109089"><span class="hs-identifier hs-var">inEnd</span></a></span></span><span> </span><span id="local-6989586621679109090"><span class="annot"><span class="annottext">BuildStep a
+</span><a href="#local-6989586621679109090"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#BufferRange"><span class="hs-identifier hs-type">BB.BufferRange</span></a></span><span> </span><span id="local-6989586621679109092"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109092"><span class="hs-identifier hs-var">outStart</span></a></span></span><span> </span><span id="local-6989586621679109093"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109093"><span class="hs-identifier hs-var">outEnd</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-comment">-- There is enough room in this output buffer to write all remaining array</span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-comment">-- contents</span><span>
+</span><span id="line-131"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109094"><span class="hs-identifier hs-var">inRemaining</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C%3D"><span class="hs-operator hs-var">&lt;=</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109096"><span class="hs-identifier hs-var">outRemaining</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>          </span><span class="annot"><span class="annottext">ByteArray# -&gt; Int -&gt; Ptr Word8 -&gt; Int -&gt; IO ()
+forall a. ByteArray# -&gt; Int -&gt; Ptr a -&gt; Int -&gt; IO ()
+</span><a href="#local-6989586621679109097"><span class="hs-identifier hs-var">copyByteArrayToAddr</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109080"><span class="hs-identifier hs-var">arr#</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109088"><span class="hs-identifier hs-var">inStart</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109092"><span class="hs-identifier hs-var">outStart</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109094"><span class="hs-identifier hs-var">inRemaining</span></a></span><span>
+</span><span id="line-133"></span><span>          </span><span class="annot"><span class="annottext">BuildStep a
+</span><a href="#local-6989586621679109090"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr Word8 -&gt; BufferRange
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#BufferRange"><span class="hs-identifier hs-var">BB.BufferRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109092"><span class="hs-identifier hs-var">outStart</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109094"><span class="hs-identifier hs-var">inRemaining</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109093"><span class="hs-identifier hs-var">outEnd</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>      </span><span class="hs-comment">-- There is only enough space for a fraction of the remaining contents</span><span>
+</span><span id="line-135"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-136"></span><span>          </span><span class="annot"><span class="annottext">ByteArray# -&gt; Int -&gt; Ptr Word8 -&gt; Int -&gt; IO ()
+forall a. ByteArray# -&gt; Int -&gt; Ptr a -&gt; Int -&gt; IO ()
+</span><a href="#local-6989586621679109097"><span class="hs-identifier hs-var">copyByteArrayToAddr</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109080"><span class="hs-identifier hs-var">arr#</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109088"><span class="hs-identifier hs-var">inStart</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109092"><span class="hs-identifier hs-var">outStart</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109096"><span class="hs-identifier hs-var">outRemaining</span></a></span><span>
+</span><span id="line-137"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679109101"><span class="annot"><span class="annottext">inStart' :: Int
+</span><a href="#local-6989586621679109101"><span class="hs-identifier hs-var hs-var">inStart'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109088"><span class="hs-identifier hs-var">inStart</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109096"><span class="hs-identifier hs-var">outRemaining</span></a></span><span>
+</span><span id="line-138"></span><span>          </span><span class="annot"><span class="annottext">BuildSignal a -&gt; IO (BuildSignal a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(BuildSignal a -&gt; IO (BuildSignal a))
+-&gt; BuildSignal a -&gt; IO (BuildSignal a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Ptr Word8 -&gt; BuildStep a -&gt; BuildSignal a
+forall a. Int -&gt; Ptr Word8 -&gt; BuildStep a -&gt; BuildSignal a
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#bufferFull"><span class="hs-identifier hs-var">BB.bufferFull</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109093"><span class="hs-identifier hs-var">outEnd</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; BuildStep a -&gt; BuildStep a
+forall a. Int -&gt; Int -&gt; BuildStep a -&gt; BuildStep a
+</span><a href="#local-6989586621679109082"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109101"><span class="hs-identifier hs-var">inStart'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109089"><span class="hs-identifier hs-var">inEnd</span></a></span><span> </span><span class="annot"><span class="annottext">BuildStep a
+</span><a href="#local-6989586621679109090"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>        </span><span id="local-6989586621679109094"><span class="annot"><span class="annottext">inRemaining :: Int
+</span><a href="#local-6989586621679109094"><span class="hs-identifier hs-var hs-var">inRemaining</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109089"><span class="hs-identifier hs-var">inEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109088"><span class="hs-identifier hs-var">inStart</span></a></span><span>
+</span><span id="line-141"></span><span>        </span><span id="local-6989586621679109096"><span class="annot"><span class="annottext">outRemaining :: Int
+</span><a href="#local-6989586621679109096"><span class="hs-identifier hs-var hs-var">outRemaining</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109093"><span class="hs-identifier hs-var">outEnd</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr Word8 -&gt; Int
+forall a b. Ptr a -&gt; Ptr b -&gt; Int
+</span><span class="hs-operator hs-var">`minusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679109092"><span class="hs-identifier hs-var">outStart</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621679108797"><span class="annot"><a href="#local-6989586621679109097"><span class="hs-identifier hs-type">copyByteArrayToAddr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#ByteArray%23"><span class="hs-identifier hs-type">ByteArray#</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679108797"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679109097"><span class="annot"><span class="annottext">copyByteArrayToAddr :: forall a. ByteArray# -&gt; Int -&gt; Ptr a -&gt; Int -&gt; IO ()
+</span><a href="#local-6989586621679109097"><span class="hs-identifier hs-var hs-var">copyByteArrayToAddr</span></a></span></span><span> </span><span id="local-6989586621679109107"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109107"><span class="hs-identifier hs-var">src#</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-type">I#</span></a></span><span> </span><span id="local-6989586621679109108"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109108"><span class="hs-identifier hs-var">src_off#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679109110"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679109110"><span class="hs-identifier hs-var">dst#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-type">I#</span></a></span><span> </span><span id="local-6989586621679109111"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109111"><span class="hs-identifier hs-var">len#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-145"></span><span>        </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ())
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679109112"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109112"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteArray#
+-&gt; Int# -&gt; Addr# -&gt; Int# -&gt; State# RealWorld -&gt; State# RealWorld
+forall d.
+ByteArray# -&gt; Int# -&gt; Addr# -&gt; Int# -&gt; State# d -&gt; State# d
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#copyByteArrayToAddr%23"><span class="hs-identifier hs-var">copyByteArrayToAddr#</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109107"><span class="hs-identifier hs-var">src#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109108"><span class="hs-identifier hs-var">src_off#</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679109110"><span class="hs-identifier hs-var">dst#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109111"><span class="hs-identifier hs-var">len#</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109112"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-146"></span><span>                     </span><span id="local-6989586621679109113"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109113"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109113"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span id="local-6989586621679108789"><span class="annot"><a href="GHCi.ResolvedBCO.html#getByteArray"><span class="hs-identifier hs-type">getByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Get.Internal.html#Get"><span class="hs-identifier hs-type">Get</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-type">BCOByteArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679108789"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-149"></span><span id="getByteArray"><span class="annot"><span class="annottext">getByteArray :: forall a. Int -&gt; Get (BCOByteArray a)
+</span><a href="GHCi.ResolvedBCO.html#getByteArray"><span class="hs-identifier hs-var hs-var">getByteArray</span></a></span></span><span> </span><span id="local-6989586621679109116"><span class="annot"><span class="annottext">nbytes :: Int
+</span><a href="#local-6989586621679109116"><span class="hs-identifier hs-var">nbytes</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-type">I#</span></a></span><span> </span><span id="local-6989586621679109117"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109117"><span class="hs-identifier hs-var">nbytes#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Array.Byte.html#MutableByteArray"><span class="hs-identifier hs-type">MutableByteArray</span></a></span><span> </span><span id="local-6989586621679109119"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109119"><span class="hs-identifier hs-var hs-var">arr#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (MutableByteArray RealWorld) -&gt; MutableByteArray RealWorld
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (MutableByteArray RealWorld) -&gt; MutableByteArray RealWorld)
+-&gt; IO (MutableByteArray RealWorld) -&gt; MutableByteArray RealWorld
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-151"></span><span>          </span><span class="annot"><span class="annottext">(State# RealWorld
+ -&gt; (# State# RealWorld, MutableByteArray RealWorld #))
+-&gt; IO (MutableByteArray RealWorld)
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld
+  -&gt; (# State# RealWorld, MutableByteArray RealWorld #))
+ -&gt; IO (MutableByteArray RealWorld))
+-&gt; (State# RealWorld
+    -&gt; (# State# RealWorld, MutableByteArray RealWorld #))
+-&gt; IO (MutableByteArray RealWorld)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679109121"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109121"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int#
+-&gt; State# RealWorld
+-&gt; (# State# RealWorld, MutableByteArray# RealWorld #)
+forall d. Int# -&gt; State# d -&gt; (# State# d, MutableByteArray# d #)
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#newByteArray%23"><span class="hs-identifier hs-var">newByteArray#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109117"><span class="hs-identifier hs-var">nbytes#</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109121"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-152"></span><span>                </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679109122"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109122"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679109123"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109123"><span class="hs-identifier hs-var">mbar</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109122"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld -&gt; MutableByteArray RealWorld
+forall s. MutableByteArray# s -&gt; MutableByteArray s
+</span><a href="../../base-4.20.2.0-6654/src/Data.Array.Byte.html#MutableByteArray"><span class="hs-identifier hs-var">MutableByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109123"><span class="hs-identifier hs-var">mbar</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679109131"><span class="annot"><span class="annottext">go :: Int -&gt; Int -&gt; Get ()
+</span><a href="#local-6989586621679109131"><span class="hs-identifier hs-var hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; Get ()
+forall a. a -&gt; Get a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>        </span><span class="annot"><a href="#local-6989586621679109131"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679109132"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109132"><span class="hs-identifier hs-var">remaining</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679109133"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109133"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-155"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; (Ptr () -&gt; IO ()) -&gt; Get ()
+forall a. Int -&gt; (Ptr a -&gt; IO a) -&gt; Get a
+</span><a href="../../binary-0.8.9.3-c8fc/src/Data.Binary.Get.Internal.html#readNWith"><span class="hs-identifier hs-var">Binary.readNWith</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109135"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr () -&gt; IO ()) -&gt; Get ()) -&gt; (Ptr () -&gt; IO ()) -&gt; Get ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679109136"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679109136"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-156"></span><span>              </span><span class="annot"><span class="annottext">Ptr () -&gt; MutableByteArray# RealWorld -&gt; Int -&gt; Int -&gt; IO ()
+forall a.
+Ptr a -&gt; MutableByteArray# RealWorld -&gt; Int -&gt; Int -&gt; IO ()
+</span><a href="#local-6989586621679109137"><span class="hs-identifier hs-var">copyAddrToByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621679109136"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109119"><span class="hs-identifier hs-var">arr#</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109133"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109135"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-157"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Get ()
+</span><a href="#local-6989586621679109131"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109132"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109135"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109133"><span class="hs-identifier hs-var">off</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109135"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>          </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679109135"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679109135"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#min"><span class="hs-identifier hs-var">min</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109141"><span class="hs-identifier hs-var">chunkSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109132"><span class="hs-identifier hs-var">remaining</span></a></span><span>
+</span><span id="line-159"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Get ()
+</span><a href="#local-6989586621679109131"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679109116"><span class="hs-identifier hs-var">nbytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">BCOByteArray a -&gt; Get (BCOByteArray a)
+forall a. a -&gt; Get a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(BCOByteArray a -&gt; Get (BCOByteArray a))
+-&gt; BCOByteArray a -&gt; Get (BCOByteArray a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">IO (BCOByteArray a) -&gt; BCOByteArray a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (BCOByteArray a) -&gt; BCOByteArray a)
+-&gt; IO (BCOByteArray a) -&gt; BCOByteArray a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-161"></span><span>      </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, BCOByteArray a #))
+-&gt; IO (BCOByteArray a)
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, BCOByteArray a #))
+ -&gt; IO (BCOByteArray a))
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, BCOByteArray a #))
+-&gt; IO (BCOByteArray a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679109142"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109142"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+-&gt; State# RealWorld -&gt; (# State# RealWorld, ByteArray# #)
+forall d.
+MutableByteArray# d -&gt; State# d -&gt; (# State# d, ByteArray# #)
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#unsafeFreezeByteArray%23"><span class="hs-identifier hs-var">unsafeFreezeByteArray#</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109119"><span class="hs-identifier hs-var">arr#</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109142"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-162"></span><span>          </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679109143"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109143"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679109144"><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109144"><span class="hs-identifier hs-var">bar</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109143"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteArray# -&gt; BCOByteArray a
+forall a. ByteArray# -&gt; BCOByteArray a
+</span><a href="GHCi.ResolvedBCO.html#BCOByteArray"><span class="hs-identifier hs-var">BCOByteArray</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray#
+</span><a href="#local-6989586621679109144"><span class="hs-identifier hs-var">bar</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>    </span><span id="local-6989586621679109141"><span class="annot"><span class="annottext">chunkSize :: Int
+</span><a href="#local-6989586621679109141"><span class="hs-identifier hs-var hs-var">chunkSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679108818"><span class="annot"><a href="#local-6989586621679109137"><span class="hs-identifier hs-type">copyAddrToByteArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621679108818"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#MutableByteArray%23"><span class="hs-identifier hs-type">MutableByteArray#</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#RealWorld"><span class="hs-identifier hs-type">RealWorld</span></a></span><span>
+</span><span id="line-167"></span><span>                        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679109137"><span class="annot"><span class="annottext">copyAddrToByteArray :: forall a.
+Ptr a -&gt; MutableByteArray# RealWorld -&gt; Int -&gt; Int -&gt; IO ()
+</span><a href="#local-6989586621679109137"><span class="hs-identifier hs-var hs-var">copyAddrToByteArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span id="local-6989586621679109149"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679109149"><span class="hs-identifier hs-var">src#</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679109150"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109150"><span class="hs-identifier hs-var">dst#</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-type">I#</span></a></span><span> </span><span id="local-6989586621679109151"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109151"><span class="hs-identifier hs-var">dst_off#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#I%23"><span class="hs-identifier hs-type">I#</span></a></span><span> </span><span id="local-6989586621679109152"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109152"><span class="hs-identifier hs-var">len#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ())
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679109153"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109153"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Addr#
+-&gt; MutableByteArray# RealWorld
+-&gt; Int#
+-&gt; Int#
+-&gt; State# RealWorld
+-&gt; State# RealWorld
+forall d.
+Addr#
+-&gt; MutableByteArray# d -&gt; Int# -&gt; Int# -&gt; State# d -&gt; State# d
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#copyAddrToByteArray%23"><span class="hs-identifier hs-var">copyAddrToByteArray#</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679109149"><span class="hs-identifier hs-var">src#</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679109150"><span class="hs-identifier hs-var">dst#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109151"><span class="hs-identifier hs-var">dst_off#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679109152"><span class="hs-identifier hs-var">len#</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109153"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-170"></span><span>                     </span><span id="local-6989586621679109154"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109154"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679109154"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-171"></span></pre></body></html>

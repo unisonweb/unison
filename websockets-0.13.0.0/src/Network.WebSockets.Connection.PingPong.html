@@ -1,0 +1,167 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html"><span class="hs-identifier">Network.WebSockets.Connection.PingPong</span></a></span><span>
+</span><span id="line-2"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#withPingPong"><span class="hs-identifier">withPingPong</span></a></span><span>
+</span><span id="line-3"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier">PingPongOptions</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier">PongTimeout</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#defaultPingPongOptions"><span class="hs-identifier">defaultPingPongOptions</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span> </span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Async</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">void</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html"><span class="hs-identifier">Network.WebSockets.Connection</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.html#Connection"><span class="hs-identifier">Connection</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#connectionHeartbeat"><span class="hs-identifier">connectionHeartbeat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#pingThread"><span class="hs-identifier">pingThread</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">takeMVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Timeout</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">timeout</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | Exception type used to kill connections if there</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- is a pong timeout.</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="PongTimeout"><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier hs-var">PongTimeout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PongTimeout"><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier hs-var">PongTimeout</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679091323"><span id="local-6989586621679091325"><span id="local-6989586621679091329"><span class="annot"><span class="annottext">Int -&gt; PongTimeout -&gt; ShowS
+[PongTimeout] -&gt; ShowS
+PongTimeout -&gt; String
+(Int -&gt; PongTimeout -&gt; ShowS)
+-&gt; (PongTimeout -&gt; String)
+-&gt; ([PongTimeout] -&gt; ShowS)
+-&gt; Show PongTimeout
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PongTimeout -&gt; ShowS
+showsPrec :: Int -&gt; PongTimeout -&gt; ShowS
+$cshow :: PongTimeout -&gt; String
+show :: PongTimeout -&gt; String
+$cshowList :: [PongTimeout] -&gt; ShowS
+showList :: [PongTimeout] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091338"><span id="local-6989586621679091341"><span id="local-6989586621679091344"><span id="local-6989586621679091347"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier hs-type">PongTimeout</span></a></span></span></span></span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | Options for ping-pong</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Make sure that the ping interval is less than the pong timeout,</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- for example N/2.</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="PingPongOptions"><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier hs-var">PingPongOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PingPongOptions"><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier hs-var">PingPongOptions</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-28"></span><span>    </span><span id="pingInterval"><span class="annot"><span class="annottext">PingPongOptions -&gt; Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingInterval"><span class="hs-identifier hs-var hs-var">pingInterval</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Interval in seconds</span></span><span>
+</span><span id="line-29"></span><span>    </span><span id="pongTimeout"><span class="annot"><span class="annottext">PingPongOptions -&gt; Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pongTimeout"><span class="hs-identifier hs-var hs-var">pongTimeout</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Timeout in seconds</span></span><span>
+</span><span id="line-30"></span><span>    </span><span id="pingAction"><span class="annot"><span class="annottext">PingPongOptions -&gt; IO ()
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingAction"><span class="hs-identifier hs-var hs-var">pingAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Action to perform after sending a ping</span></span><span>
+</span><span id="line-31"></span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Default options for ping-pong</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-35"></span><span class="hs-comment">--   Ping every 15 seconds, timeout after 30 seconds</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#defaultPingPongOptions"><span class="hs-identifier hs-type">defaultPingPongOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier hs-type">PingPongOptions</span></a></span><span>
+</span><span id="line-37"></span><span id="defaultPingPongOptions"><span class="annot"><span class="annottext">defaultPingPongOptions :: PingPongOptions
+</span><a href="Network.WebSockets.Connection.PingPong.html#defaultPingPongOptions"><span class="hs-identifier hs-var hs-var">defaultPingPongOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier hs-type">PingPongOptions</span></a></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">pingInterval :: Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingInterval"><span class="hs-identifier hs-var">pingInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="annottext">pongTimeout :: Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pongTimeout"><span class="hs-identifier hs-var">pongTimeout</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">30</span></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">pingAction :: IO ()
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingAction"><span class="hs-identifier hs-var">pingAction</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-special">}</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Run an application with ping-pong enabled. Raises PongTimeout if a pong is not received.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- Can used with Client and Server connections.</span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#withPingPong"><span class="hs-identifier hs-type">withPingPong</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PingPongOptions"><span class="hs-identifier hs-type">PingPongOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#Connection"><span class="hs-identifier hs-type">Connection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.html#Connection"><span class="hs-identifier hs-type">Connection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span id="withPingPong"><span class="annot"><span class="annottext">withPingPong :: PingPongOptions -&gt; Connection -&gt; (Connection -&gt; IO ()) -&gt; IO ()
+</span><a href="Network.WebSockets.Connection.PingPong.html#withPingPong"><span class="hs-identifier hs-var hs-var">withPingPong</span></a></span></span><span> </span><span id="local-6989586621679091354"><span class="annot"><span class="annottext">PingPongOptions
+</span><a href="#local-6989586621679091354"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span id="local-6989586621679091355"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679091355"><span class="hs-identifier hs-var">connection</span></a></span></span><span> </span><span id="local-6989586621679091356"><span class="annot"><span class="annottext">Connection -&gt; IO ()
+</span><a href="#local-6989586621679091356"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Async (), ()) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Async (), ()) -&gt; IO ()) -&gt; IO (Async (), ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">IO () -&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Connection -&gt; IO ()
+</span><a href="#local-6989586621679091356"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679091355"><span class="hs-identifier hs-var">connection</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ()))
+-&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091358"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091358"><span class="hs-identifier hs-var">appAsync</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">IO () -&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Connection -&gt; Int -&gt; IO () -&gt; IO ()
+</span><a href="Network.WebSockets.Connection.html#pingThread"><span class="hs-identifier hs-var">pingThread</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679091355"><span class="hs-identifier hs-var">connection</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PingPongOptions -&gt; Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingInterval"><span class="hs-identifier hs-var">pingInterval</span></a></span><span> </span><span class="annot"><span class="annottext">PingPongOptions
+</span><a href="#local-6989586621679091354"><span class="hs-identifier hs-var">options</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PingPongOptions -&gt; IO ()
+</span><a href="Network.WebSockets.Connection.PingPong.html#pingAction"><span class="hs-identifier hs-var">pingAction</span></a></span><span> </span><span class="annot"><span class="annottext">PingPongOptions
+</span><a href="#local-6989586621679091354"><span class="hs-identifier hs-var">options</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ()))
+-&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091359"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091359"><span class="hs-identifier hs-var">pingAsync</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>            </span><span class="annot"><span class="annottext">IO () -&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679091360"><span class="hs-identifier hs-var">heartbeat</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">PongTimeout -&gt; IO ()
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">PongTimeout
+</span><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier hs-var">PongTimeout</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ()))
+-&gt; (Async () -&gt; IO (Async (), ())) -&gt; IO (Async (), ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091362"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091362"><span class="hs-identifier hs-var">heartbeatAsync</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-51"></span><span>                </span><span class="annot"><span class="annottext">[Async ()] -&gt; IO (Async (), ())
+forall a. [Async a] -&gt; IO (Async a, a)
+</span><span class="hs-identifier hs-var">waitAnyCancel</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091358"><span class="hs-identifier hs-var">appAsync</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091359"><span class="hs-identifier hs-var">pingAsync</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679091362"><span class="hs-identifier hs-var">heartbeatAsync</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>        </span><span id="local-6989586621679091360"><span class="annot"><span class="annottext">heartbeat :: IO ()
+</span><a href="#local-6989586621679091360"><span class="hs-identifier hs-var hs-var">heartbeat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe ()) -&gt; IO ()
+forall a. IO (Maybe a) -&gt; IO ()
+</span><a href="#local-6989586621679091369"><span class="hs-identifier hs-var">whileJust</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe ()) -&gt; IO ()) -&gt; IO (Maybe ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO () -&gt; IO (Maybe ())
+forall a. Int -&gt; IO a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">timeout</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PingPongOptions -&gt; Int
+</span><a href="Network.WebSockets.Connection.PingPong.html#pongTimeout"><span class="hs-identifier hs-var">pongTimeout</span></a></span><span> </span><span class="annot"><span class="annottext">PingPongOptions
+</span><a href="#local-6989586621679091354"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span class="hs-special">)</span><span> </span><span>
+</span><span id="line-54"></span><span>           </span><span class="annot"><span class="annottext">(IO () -&gt; IO (Maybe ())) -&gt; IO () -&gt; IO (Maybe ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO ()
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">takeMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Connection -&gt; MVar ()
+</span><a href="Network.WebSockets.Connection.html#connectionHeartbeat"><span class="hs-identifier hs-var">connectionHeartbeat</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679091355"><span class="hs-identifier hs-var">connection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-comment">-- Loop until action returns Nothing</span><span>
+</span><span id="line-57"></span><span>        </span><span id="local-6989586621679091299"><span class="annot"><a href="#local-6989586621679091369"><span class="hs-identifier hs-type">whileJust</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679091299"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-58"></span><span>        </span><span id="local-6989586621679091369"><span class="annot"><span class="annottext">whileJust :: forall a. IO (Maybe a) -&gt; IO ()
+</span><a href="#local-6989586621679091369"><span class="hs-identifier hs-var hs-var">whileJust</span></a></span></span><span> </span><span id="local-6989586621679091373"><span class="annot"><span class="annottext">IO (Maybe a)
+</span><a href="#local-6989586621679091373"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-59"></span><span>            </span><span id="local-6989586621679091374"><span class="annot"><a href="#local-6989586621679091374"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe a)
+</span><a href="#local-6989586621679091373"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-60"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091374"><span class="hs-identifier hs-type">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-61"></span><span>                </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO (Maybe a) -&gt; IO ()
+forall a. IO (Maybe a) -&gt; IO ()
+</span><a href="#local-6989586621679091369"><span class="hs-identifier hs-var">whileJust</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe a)
+</span><a href="#local-6989586621679091373"><span class="hs-identifier hs-var">action</span></a></span></pre></body></html>

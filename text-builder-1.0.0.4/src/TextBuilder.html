@@ -1,0 +1,52 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="TextBuilder.html"><span class="hs-identifier">TextBuilder</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">TextBuilder</span></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Accessors</span></span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><span class="hs-identifier">toText</span></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Other.html#toString"><span class="hs-identifier">toString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-identifier">isEmpty</span></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Constructors</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Transformations</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#force"><span class="hs-identifier">force</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalate"><span class="hs-identifier">intercalate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalateMap"><span class="hs-identifier">intercalateMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Textual</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-identifier">text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier">lazyText</span></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">string</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.ByteString.html#unsafeUtf8ByteString"><span class="hs-identifier">unsafeUtf8ByteString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Character</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-identifier">char</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-identifier">unicodeCodepoint</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Integers</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Decimal</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#decimal"><span class="hs-identifier">decimal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#fixedLengthDecimal"><span class="hs-identifier">fixedLengthDecimal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#thousandSeparatedDecimal"><span class="hs-identifier">thousandSeparatedDecimal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Binary</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#binary"><span class="hs-identifier">binary</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedBinary"><span class="hs-identifier">prefixedBinary</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Octal</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#octal"><span class="hs-identifier">octal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedOctal"><span class="hs-identifier">prefixedOctal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Hexadecimal</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#hexadecimal"><span class="hs-identifier">hexadecimal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedHexadecimal"><span class="hs-identifier">prefixedHexadecimal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Domains.ByteString.html"><span class="hs-identifier">TextBuilder.Domains.ByteString</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html"><span class="hs-identifier">TextBuilder.Domains.Combinators</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html"><span class="hs-identifier">TextBuilder.Domains.Digits</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Other.html"><span class="hs-identifier">TextBuilder.Domains.Other</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">TextBuilderCore</span></span><span>
+</span><span id="line-52"></span></pre></body></html>

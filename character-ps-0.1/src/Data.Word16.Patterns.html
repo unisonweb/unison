@@ -1,0 +1,819 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This module provides pattern synonyms for 'Word16' in [Basic Latin block](https://compart.com/en/unicode/block/U+0000) (range @0x00-0x7f@).</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- The pattern names are inspired by Unicode (letter and digits) and PostScript names (symbols),</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- e.g. @/@ is 'SLASH', not @SOLIDUS@.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- This module is designed to be imported qualified</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- import &quot;Data.Word16.Patterns&quot; as W16</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- hello = [W16.'LOWER_H', W16.'LOWER_E', W16.'LOWER_L', W16.'LOWER_L', W16.'LOWER_O']</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- but can also be used unqualified as well.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html"><span class="hs-identifier">Data.Word16.Patterns</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- * Control characters, x00-x1f</span></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">-- | Null character (NUL)</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#NUL"><span class="hs-identifier hs-type">NUL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">pattern</span><span> </span><span id="NUL"><span id="%24mNUL"><span id="%24bNUL"><span class="annot"><span class="annottext">$mNUL :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNUL :: Word16
+</span><a href="Data.Word16.Patterns.html#NUL"><span class="hs-identifier hs-var hs-var hs-var">NUL</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x00</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><span class="hs-comment">-- | Start of Heading (SOH)</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SOH"><span class="hs-identifier hs-type">SOH</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">pattern</span><span> </span><span id="SOH"><span id="%24mSOH"><span id="%24bSOH"><span class="annot"><span class="annottext">$mSOH :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSOH :: Word16
+</span><a href="Data.Word16.Patterns.html#SOH"><span class="hs-identifier hs-var hs-var hs-var">SOH</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x01</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- | Start of Text (STX)</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#STX"><span class="hs-identifier hs-type">STX</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">pattern</span><span> </span><span id="STX"><span id="%24mSTX"><span id="%24bSTX"><span class="annot"><span class="annottext">$mSTX :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSTX :: Word16
+</span><a href="Data.Word16.Patterns.html#STX"><span class="hs-identifier hs-var hs-var hs-var">STX</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x02</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="annot"><span class="hs-comment">-- | End of Text (ETX)</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ETX"><span class="hs-identifier hs-type">ETX</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">pattern</span><span> </span><span id="ETX"><span id="%24mETX"><span id="%24bETX"><span class="annot"><span class="annottext">$mETX :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bETX :: Word16
+</span><a href="Data.Word16.Patterns.html#ETX"><span class="hs-identifier hs-var hs-var hs-var">ETX</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x03</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- | End of Transmission (EOT)</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#EOT"><span class="hs-identifier hs-type">EOT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">pattern</span><span> </span><span id="EOT"><span id="%24mEOT"><span id="%24bEOT"><span class="annot"><span class="annottext">$mEOT :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bEOT :: Word16
+</span><a href="Data.Word16.Patterns.html#EOT"><span class="hs-identifier hs-var hs-var hs-var">EOT</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x04</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | Enquiry (ENQ)</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ENQ"><span class="hs-identifier hs-type">ENQ</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">pattern</span><span> </span><span id="ENQ"><span id="%24mENQ"><span id="%24bENQ"><span class="annot"><span class="annottext">$mENQ :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bENQ :: Word16
+</span><a href="Data.Word16.Patterns.html#ENQ"><span class="hs-identifier hs-var hs-var hs-var">ENQ</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x05</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | Acknowledge (ACK)</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ACK"><span class="hs-identifier hs-type">ACK</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">pattern</span><span> </span><span id="ACK"><span id="%24mACK"><span id="%24bACK"><span class="annot"><span class="annottext">$mACK :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bACK :: Word16
+</span><a href="Data.Word16.Patterns.html#ACK"><span class="hs-identifier hs-var hs-var hs-var">ACK</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x06</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Alert (BEL)</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#BEL"><span class="hs-identifier hs-type">BEL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">pattern</span><span> </span><span id="BEL"><span id="%24mBEL"><span id="%24bBEL"><span class="annot"><span class="annottext">$mBEL :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBEL :: Word16
+</span><a href="Data.Word16.Patterns.html#BEL"><span class="hs-identifier hs-var hs-var hs-var">BEL</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x07</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | Backspace (BS)</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#BS"><span class="hs-identifier hs-type">BS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">pattern</span><span> </span><span id="BS"><span id="%24mBS"><span id="%24bBS"><span class="annot"><span class="annottext">$mBS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBS :: Word16
+</span><a href="Data.Word16.Patterns.html#BS"><span class="hs-identifier hs-var hs-var hs-var">BS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x08</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- | Character tabulation (TAB)</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#TAB"><span class="hs-identifier hs-type">TAB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">pattern</span><span> </span><span id="TAB"><span id="%24mTAB"><span id="%24bTAB"><span class="annot"><span class="annottext">$mTAB :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bTAB :: Word16
+</span><a href="Data.Word16.Patterns.html#TAB"><span class="hs-identifier hs-var hs-var hs-var">TAB</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x09</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- | End of line, line feed (LF)</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LF"><span class="hs-identifier hs-type">LF</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">pattern</span><span> </span><span id="LF"><span id="%24mLF"><span id="%24bLF"><span class="annot"><span class="annottext">$mLF :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLF :: Word16
+</span><a href="Data.Word16.Patterns.html#LF"><span class="hs-identifier hs-var hs-var hs-var">LF</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0a</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><span class="hs-comment">-- | Line tabulation, vertical tab (VT)</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#VT"><span class="hs-identifier hs-type">VT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">pattern</span><span> </span><span id="VT"><span id="%24mVT"><span id="%24bVT"><span class="annot"><span class="annottext">$mVT :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bVT :: Word16
+</span><a href="Data.Word16.Patterns.html#VT"><span class="hs-identifier hs-var hs-var hs-var">VT</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0b</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Form feed (FF)</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#FF"><span class="hs-identifier hs-type">FF</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">pattern</span><span> </span><span id="FF"><span id="%24mFF"><span id="%24bFF"><span class="annot"><span class="annottext">$mFF :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFF :: Word16
+</span><a href="Data.Word16.Patterns.html#FF"><span class="hs-identifier hs-var hs-var hs-var">FF</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0c</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Carriage Return (CR)</span></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#CR"><span class="hs-identifier hs-type">CR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">pattern</span><span> </span><span id="CR"><span id="%24mCR"><span id="%24bCR"><span class="annot"><span class="annottext">$mCR :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCR :: Word16
+</span><a href="Data.Word16.Patterns.html#CR"><span class="hs-identifier hs-var hs-var hs-var">CR</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0d</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><span class="hs-comment">-- | Locking-Shift One, Shift Out (SO)</span></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SO"><span class="hs-identifier hs-type">SO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">pattern</span><span> </span><span id="SO"><span id="%24mSO"><span id="%24bSO"><span class="annot"><span class="annottext">$mSO :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSO :: Word16
+</span><a href="Data.Word16.Patterns.html#SO"><span class="hs-identifier hs-var hs-var hs-var">SO</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0e</span></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="annot"><span class="hs-comment">-- | Locking-Shift Zero, Shift In (SI)</span></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SI"><span class="hs-identifier hs-type">SI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">pattern</span><span> </span><span id="SI"><span id="%24mSI"><span id="%24bSI"><span class="annot"><span class="annottext">$mSI :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSI :: Word16
+</span><a href="Data.Word16.Patterns.html#SI"><span class="hs-identifier hs-var hs-var hs-var">SI</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x0f</span></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><span class="hs-comment">-- | Data Link Escape (DLE)</span></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DLE"><span class="hs-identifier hs-type">DLE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">pattern</span><span> </span><span id="DLE"><span id="%24mDLE"><span id="%24bDLE"><span class="annot"><span class="annottext">$mDLE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDLE :: Word16
+</span><a href="Data.Word16.Patterns.html#DLE"><span class="hs-identifier hs-var hs-var hs-var">DLE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x10</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Device Control One, XON (DC1)</span></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DC1"><span class="hs-identifier hs-type">DC1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">pattern</span><span> </span><span id="DC1"><span id="%24mDC1"><span id="%24bDC1"><span class="annot"><span class="annottext">$mDC1 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDC1 :: Word16
+</span><a href="Data.Word16.Patterns.html#DC1"><span class="hs-identifier hs-var hs-var hs-var">DC1</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x11</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- | Device Control Two (DC2)</span></span><span>
+</span><span id="line-97"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DC2"><span class="hs-identifier hs-type">DC2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">pattern</span><span> </span><span id="DC2"><span id="%24mDC2"><span id="%24bDC2"><span class="annot"><span class="annottext">$mDC2 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDC2 :: Word16
+</span><a href="Data.Word16.Patterns.html#DC2"><span class="hs-identifier hs-var hs-var hs-var">DC2</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x12</span></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | Device Control Three, XOFF (DC3)</span></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DC3"><span class="hs-identifier hs-type">DC3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">pattern</span><span> </span><span id="DC3"><span id="%24mDC3"><span id="%24bDC3"><span class="annot"><span class="annottext">$mDC3 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDC3 :: Word16
+</span><a href="Data.Word16.Patterns.html#DC3"><span class="hs-identifier hs-var hs-var hs-var">DC3</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x13</span></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><span class="hs-comment">-- | Device Control Four (DC4)</span></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DC4"><span class="hs-identifier hs-type">DC4</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">pattern</span><span> </span><span id="DC4"><span id="%24mDC4"><span id="%24bDC4"><span class="annot"><span class="annottext">$mDC4 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDC4 :: Word16
+</span><a href="Data.Word16.Patterns.html#DC4"><span class="hs-identifier hs-var hs-var hs-var">DC4</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x14</span></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><span class="hs-comment">-- | Negative Acknowledge (NAK)</span></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#NAK"><span class="hs-identifier hs-type">NAK</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">pattern</span><span> </span><span id="NAK"><span id="%24mNAK"><span id="%24bNAK"><span class="annot"><span class="annottext">$mNAK :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNAK :: Word16
+</span><a href="Data.Word16.Patterns.html#NAK"><span class="hs-identifier hs-var hs-var hs-var">NAK</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x15</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><span class="hs-comment">-- | Syncronous Idle (SYN)</span></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SYN"><span class="hs-identifier hs-type">SYN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">pattern</span><span> </span><span id="SYN"><span id="%24mSYN"><span id="%24bSYN"><span class="annot"><span class="annottext">$mSYN :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSYN :: Word16
+</span><a href="Data.Word16.Patterns.html#SYN"><span class="hs-identifier hs-var hs-var hs-var">SYN</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x16</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | End of Transmission Block (ETB)</span></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ETB"><span class="hs-identifier hs-type">ETB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">pattern</span><span> </span><span id="ETB"><span id="%24mETB"><span id="%24bETB"><span class="annot"><span class="annottext">$mETB :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bETB :: Word16
+</span><a href="Data.Word16.Patterns.html#ETB"><span class="hs-identifier hs-var hs-var hs-var">ETB</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x17</span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><span class="hs-comment">-- | Cancel (CAN)</span></span><span>
+</span><span id="line-121"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#CAN"><span class="hs-identifier hs-type">CAN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">pattern</span><span> </span><span id="CAN"><span id="%24mCAN"><span id="%24bCAN"><span class="annot"><span class="annottext">$mCAN :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCAN :: Word16
+</span><a href="Data.Word16.Patterns.html#CAN"><span class="hs-identifier hs-var hs-var hs-var">CAN</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x18</span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><span class="hs-comment">-- | End of Medium (EOM)</span></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#EOM"><span class="hs-identifier hs-type">EOM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">pattern</span><span> </span><span id="EOM"><span id="%24mEOM"><span id="%24bEOM"><span class="annot"><span class="annottext">$mEOM :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bEOM :: Word16
+</span><a href="Data.Word16.Patterns.html#EOM"><span class="hs-identifier hs-var hs-var hs-var">EOM</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x19</span></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><span class="hs-comment">-- | Substitute (SUB)</span></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SUB"><span class="hs-identifier hs-type">SUB</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">pattern</span><span> </span><span id="SUB"><span id="%24mSUB"><span id="%24bSUB"><span class="annot"><span class="annottext">$mSUB :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSUB :: Word16
+</span><a href="Data.Word16.Patterns.html#SUB"><span class="hs-identifier hs-var hs-var hs-var">SUB</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1a</span></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | Escape (ESC)</span></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ESC"><span class="hs-identifier hs-type">ESC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-134"></span><span class="hs-keyword">pattern</span><span> </span><span id="ESC"><span id="%24mESC"><span id="%24bESC"><span class="annot"><span class="annottext">$mESC :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bESC :: Word16
+</span><a href="Data.Word16.Patterns.html#ESC"><span class="hs-identifier hs-var hs-var hs-var">ESC</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1b</span></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><span class="hs-comment">-- | File Separator (FS)</span></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-138"></span><span class="hs-keyword">pattern</span><span> </span><span id="FS"><span id="%24mFS"><span id="%24bFS"><span class="annot"><span class="annottext">$mFS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFS :: Word16
+</span><a href="Data.Word16.Patterns.html#FS"><span class="hs-identifier hs-var hs-var hs-var">FS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1c</span></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><span class="hs-comment">-- | Group Separator (GS)</span></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#GS"><span class="hs-identifier hs-type">GS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">pattern</span><span> </span><span id="GS"><span id="%24mGS"><span id="%24bGS"><span class="annot"><span class="annottext">$mGS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bGS :: Word16
+</span><a href="Data.Word16.Patterns.html#GS"><span class="hs-identifier hs-var hs-var hs-var">GS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1d</span></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><span class="hs-comment">-- | Information Separator One, Record Separator (RS)</span></span><span>
+</span><span id="line-145"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#RS"><span class="hs-identifier hs-type">RS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">pattern</span><span> </span><span id="RS"><span id="%24mRS"><span id="%24bRS"><span class="annot"><span class="annottext">$mRS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bRS :: Word16
+</span><a href="Data.Word16.Patterns.html#RS"><span class="hs-identifier hs-var hs-var hs-var">RS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1e</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><span class="hs-comment">-- | Information Separator Two, Unit Separator (US)</span></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#US"><span class="hs-identifier hs-type">US</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-150"></span><span class="hs-keyword">pattern</span><span> </span><span id="US"><span id="%24mUS"><span id="%24bUS"><span class="annot"><span class="annottext">$mUS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUS :: Word16
+</span><a href="Data.Word16.Patterns.html#US"><span class="hs-identifier hs-var hs-var hs-var">US</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x1f</span></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-153"></span><span class="annot"><span class="hs-comment">-- * Symbols 1, x20-x2f</span></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="annot"><span class="hs-comment">-- | Space (SP), @' '@.</span></span><span>
+</span><span id="line-157"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SPACE"><span class="hs-identifier hs-type">SPACE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">pattern</span><span> </span><span id="SPACE"><span id="%24mSPACE"><span id="%24bSPACE"><span class="annot"><span class="annottext">$mSPACE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSPACE :: Word16
+</span><a href="Data.Word16.Patterns.html#SPACE"><span class="hs-identifier hs-var hs-var hs-var">SPACE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x20</span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="annot"><span class="hs-comment">-- | Exclamation mark, @!@</span></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#EXCLAM"><span class="hs-identifier hs-type">EXCLAM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">pattern</span><span> </span><span id="EXCLAM"><span id="%24mEXCLAM"><span id="%24bEXCLAM"><span class="annot"><span class="annottext">$mEXCLAM :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bEXCLAM :: Word16
+</span><a href="Data.Word16.Patterns.html#EXCLAM"><span class="hs-identifier hs-var hs-var hs-var">EXCLAM</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x21</span></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | Quotation mark, double quote, @&quot;@</span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DOUBLE_QUOTE"><span class="hs-identifier hs-type">DOUBLE_QUOTE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">pattern</span><span> </span><span id="DOUBLE_QUOTE"><span id="%24mDOUBLE_QUOTE"><span id="%24bDOUBLE_QUOTE"><span class="annot"><span class="annottext">$mDOUBLE_QUOTE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDOUBLE_QUOTE :: Word16
+</span><a href="Data.Word16.Patterns.html#DOUBLE_QUOTE"><span class="hs-identifier hs-var hs-var hs-var">DOUBLE_QUOTE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x22</span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><span class="hs-comment">-- | Number sign, @#@</span></span><span>
+</span><span id="line-169"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#NUMBER"><span class="hs-identifier hs-type">NUMBER</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-170"></span><span class="hs-keyword">pattern</span><span> </span><span id="NUMBER"><span id="%24mNUMBER"><span id="%24bNUMBER"><span class="annot"><span class="annottext">$mNUMBER :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNUMBER :: Word16
+</span><a href="Data.Word16.Patterns.html#NUMBER"><span class="hs-identifier hs-var hs-var hs-var">NUMBER</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x23</span></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="annot"><span class="hs-comment">-- | Dollar sign, @$@</span></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DOLLAR"><span class="hs-identifier hs-type">DOLLAR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-174"></span><span class="hs-keyword">pattern</span><span> </span><span id="DOLLAR"><span id="%24mDOLLAR"><span id="%24bDOLLAR"><span class="annot"><span class="annottext">$mDOLLAR :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDOLLAR :: Word16
+</span><a href="Data.Word16.Patterns.html#DOLLAR"><span class="hs-identifier hs-var hs-var hs-var">DOLLAR</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x24</span></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="annot"><span class="hs-comment">-- | Percent sign, @%@</span></span><span>
+</span><span id="line-177"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#PERCENT"><span class="hs-identifier hs-type">PERCENT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-178"></span><span class="hs-keyword">pattern</span><span> </span><span id="PERCENT"><span id="%24mPERCENT"><span id="%24bPERCENT"><span class="annot"><span class="annottext">$mPERCENT :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPERCENT :: Word16
+</span><a href="Data.Word16.Patterns.html#PERCENT"><span class="hs-identifier hs-var hs-var hs-var">PERCENT</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x25</span></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="annot"><span class="hs-comment">-- | Ampersand, @&amp;@</span></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#AMPERSAND"><span class="hs-identifier hs-type">AMPERSAND</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">pattern</span><span> </span><span id="AMPERSAND"><span id="%24mAMPERSAND"><span id="%24bAMPERSAND"><span class="annot"><span class="annottext">$mAMPERSAND :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bAMPERSAND :: Word16
+</span><a href="Data.Word16.Patterns.html#AMPERSAND"><span class="hs-identifier hs-var hs-var hs-var">AMPERSAND</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x26</span></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="annot"><span class="hs-comment">-- | Apostrophe, single quote, @'@</span></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SINGLE_QUOTE"><span class="hs-identifier hs-type">SINGLE_QUOTE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-186"></span><span class="hs-keyword">pattern</span><span> </span><span id="SINGLE_QUOTE"><span id="%24mSINGLE_QUOTE"><span id="%24bSINGLE_QUOTE"><span class="annot"><span class="annottext">$mSINGLE_QUOTE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSINGLE_QUOTE :: Word16
+</span><a href="Data.Word16.Patterns.html#SINGLE_QUOTE"><span class="hs-identifier hs-var hs-var hs-var">SINGLE_QUOTE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x27</span></span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="annot"><span class="hs-comment">-- | Left parenthesis, @(@</span></span><span>
+</span><span id="line-189"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LEFT_PAREN"><span class="hs-identifier hs-type">LEFT_PAREN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-190"></span><span class="hs-keyword">pattern</span><span> </span><span id="LEFT_PAREN"><span id="%24mLEFT_PAREN"><span id="%24bLEFT_PAREN"><span class="annot"><span class="annottext">$mLEFT_PAREN :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLEFT_PAREN :: Word16
+</span><a href="Data.Word16.Patterns.html#LEFT_PAREN"><span class="hs-identifier hs-var hs-var hs-var">LEFT_PAREN</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x28</span></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="annot"><span class="hs-comment">-- | Right parenthesis, @)@</span></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#RIGHT_PAREN"><span class="hs-identifier hs-type">RIGHT_PAREN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-194"></span><span class="hs-keyword">pattern</span><span> </span><span id="RIGHT_PAREN"><span id="%24mRIGHT_PAREN"><span id="%24bRIGHT_PAREN"><span class="annot"><span class="annottext">$mRIGHT_PAREN :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bRIGHT_PAREN :: Word16
+</span><a href="Data.Word16.Patterns.html#RIGHT_PAREN"><span class="hs-identifier hs-var hs-var hs-var">RIGHT_PAREN</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x29</span></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="annot"><span class="hs-comment">-- | Asterisk, @*@</span></span><span>
+</span><span id="line-197"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#ASTERISK"><span class="hs-identifier hs-type">ASTERISK</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-198"></span><span class="hs-keyword">pattern</span><span> </span><span id="ASTERISK"><span id="%24mASTERISK"><span id="%24bASTERISK"><span class="annot"><span class="annottext">$mASTERISK :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bASTERISK :: Word16
+</span><a href="Data.Word16.Patterns.html#ASTERISK"><span class="hs-identifier hs-var hs-var hs-var">ASTERISK</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2a</span></span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="annot"><span class="hs-comment">-- | Plus sign, @+@</span></span><span>
+</span><span id="line-201"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#PLUS"><span class="hs-identifier hs-type">PLUS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">pattern</span><span> </span><span id="PLUS"><span id="%24mPLUS"><span id="%24bPLUS"><span class="annot"><span class="annottext">$mPLUS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPLUS :: Word16
+</span><a href="Data.Word16.Patterns.html#PLUS"><span class="hs-identifier hs-var hs-var hs-var">PLUS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2b</span></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="annot"><span class="hs-comment">-- | Comma, @,@</span></span><span>
+</span><span id="line-205"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#COMMA"><span class="hs-identifier hs-type">COMMA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-206"></span><span class="hs-keyword">pattern</span><span> </span><span id="COMMA"><span id="%24mCOMMA"><span id="%24bCOMMA"><span class="annot"><span class="annottext">$mCOMMA :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCOMMA :: Word16
+</span><a href="Data.Word16.Patterns.html#COMMA"><span class="hs-identifier hs-var hs-var hs-var">COMMA</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2c</span></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="annot"><span class="hs-comment">-- | Hyphen-minus, @-@</span></span><span>
+</span><span id="line-209"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#HYPHEN"><span class="hs-identifier hs-type">HYPHEN</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-210"></span><span class="hs-keyword">pattern</span><span> </span><span id="HYPHEN"><span id="%24mHYPHEN"><span id="%24bHYPHEN"><span class="annot"><span class="annottext">$mHYPHEN :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bHYPHEN :: Word16
+</span><a href="Data.Word16.Patterns.html#HYPHEN"><span class="hs-identifier hs-var hs-var hs-var">HYPHEN</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2d</span></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="annot"><span class="hs-comment">-- | Full stop, period, @.@</span></span><span>
+</span><span id="line-213"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#PERIOD"><span class="hs-identifier hs-type">PERIOD</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">pattern</span><span> </span><span id="PERIOD"><span id="%24mPERIOD"><span id="%24bPERIOD"><span class="annot"><span class="annottext">$mPERIOD :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPERIOD :: Word16
+</span><a href="Data.Word16.Patterns.html#PERIOD"><span class="hs-identifier hs-var hs-var hs-var">PERIOD</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2e</span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="annot"><span class="hs-comment">-- | Solidus, slash, @/@</span></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SLASH"><span class="hs-identifier hs-type">SLASH</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-218"></span><span class="hs-keyword">pattern</span><span> </span><span id="SLASH"><span id="%24mSLASH"><span id="%24bSLASH"><span class="annot"><span class="annottext">$mSLASH :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSLASH :: Word16
+</span><a href="Data.Word16.Patterns.html#SLASH"><span class="hs-identifier hs-var hs-var hs-var">SLASH</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x2f</span></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-221"></span><span class="annot"><span class="hs-comment">-- * Digits, x30-x39</span></span><span>
+</span><span id="line-222"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="annot"><span class="hs-comment">-- | Digit 0, @0@</span></span><span>
+</span><span id="line-225"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_0"><span class="hs-identifier hs-type">DIGIT_0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-226"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_0"><span id="%24mDIGIT_0"><span id="%24bDIGIT_0"><span class="annot"><span class="annottext">$mDIGIT_0 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_0 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_0"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_0</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x30</span></span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="annot"><span class="hs-comment">-- | Digit 1, @1@</span></span><span>
+</span><span id="line-229"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_1"><span class="hs-identifier hs-type">DIGIT_1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_1"><span id="%24mDIGIT_1"><span id="%24bDIGIT_1"><span class="annot"><span class="annottext">$mDIGIT_1 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_1 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_1"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_1</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x31</span></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><span class="hs-comment">-- | Digit 2, @2@</span></span><span>
+</span><span id="line-233"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_2"><span class="hs-identifier hs-type">DIGIT_2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-234"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_2"><span id="%24mDIGIT_2"><span id="%24bDIGIT_2"><span class="annot"><span class="annottext">$mDIGIT_2 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_2 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_2"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_2</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x32</span></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="annot"><span class="hs-comment">-- | Digit 3, @3@</span></span><span>
+</span><span id="line-237"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_3"><span class="hs-identifier hs-type">DIGIT_3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-238"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_3"><span id="%24mDIGIT_3"><span id="%24bDIGIT_3"><span class="annot"><span class="annottext">$mDIGIT_3 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_3 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_3"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_3</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x33</span></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="annot"><span class="hs-comment">-- | Digit 4, @4@</span></span><span>
+</span><span id="line-241"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_4"><span class="hs-identifier hs-type">DIGIT_4</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-242"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_4"><span id="%24mDIGIT_4"><span id="%24bDIGIT_4"><span class="annot"><span class="annottext">$mDIGIT_4 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_4 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_4"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_4</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x34</span></span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="annot"><span class="hs-comment">-- | Digit 5, @5@</span></span><span>
+</span><span id="line-245"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_5"><span class="hs-identifier hs-type">DIGIT_5</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-246"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_5"><span id="%24mDIGIT_5"><span id="%24bDIGIT_5"><span class="annot"><span class="annottext">$mDIGIT_5 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_5 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_5"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_5</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x35</span></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span class="annot"><span class="hs-comment">-- | Digit 6, @6@</span></span><span>
+</span><span id="line-249"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_6"><span class="hs-identifier hs-type">DIGIT_6</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-250"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_6"><span id="%24mDIGIT_6"><span id="%24bDIGIT_6"><span class="annot"><span class="annottext">$mDIGIT_6 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_6 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_6"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_6</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x36</span></span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="annot"><span class="hs-comment">-- | Digit 7, @7@</span></span><span>
+</span><span id="line-253"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_7"><span class="hs-identifier hs-type">DIGIT_7</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-254"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_7"><span id="%24mDIGIT_7"><span id="%24bDIGIT_7"><span class="annot"><span class="annottext">$mDIGIT_7 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_7 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_7"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_7</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x37</span></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="annot"><span class="hs-comment">-- | Digit 8, @8@</span></span><span>
+</span><span id="line-257"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_8"><span class="hs-identifier hs-type">DIGIT_8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-258"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_8"><span id="%24mDIGIT_8"><span id="%24bDIGIT_8"><span class="annot"><span class="annottext">$mDIGIT_8 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_8 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_8"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_8</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x38</span></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="annot"><span class="hs-comment">-- | Digit 9, @9@</span></span><span>
+</span><span id="line-261"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DIGIT_9"><span class="hs-identifier hs-type">DIGIT_9</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-262"></span><span class="hs-keyword">pattern</span><span> </span><span id="DIGIT_9"><span id="%24mDIGIT_9"><span id="%24bDIGIT_9"><span class="annot"><span class="annottext">$mDIGIT_9 :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDIGIT_9 :: Word16
+</span><a href="Data.Word16.Patterns.html#DIGIT_9"><span class="hs-identifier hs-var hs-var hs-var">DIGIT_9</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x39</span></span><span>
+</span><span id="line-263"></span><span>
+</span><span id="line-264"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-265"></span><span class="annot"><span class="hs-comment">-- * Symbols 2, x3a-x40</span></span><span>
+</span><span id="line-266"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-267"></span><span>
+</span><span id="line-268"></span><span class="annot"><span class="hs-comment">-- | Colon, @:@</span></span><span>
+</span><span id="line-269"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#COLON"><span class="hs-identifier hs-type">COLON</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-270"></span><span class="hs-keyword">pattern</span><span> </span><span id="COLON"><span id="%24mCOLON"><span id="%24bCOLON"><span class="annot"><span class="annottext">$mCOLON :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCOLON :: Word16
+</span><a href="Data.Word16.Patterns.html#COLON"><span class="hs-identifier hs-var hs-var hs-var">COLON</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3a</span></span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="annot"><span class="hs-comment">-- | Semicolon, @;@</span></span><span>
+</span><span id="line-273"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#SEMICOLON"><span class="hs-identifier hs-type">SEMICOLON</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-274"></span><span class="hs-keyword">pattern</span><span> </span><span id="SEMICOLON"><span id="%24mSEMICOLON"><span id="%24bSEMICOLON"><span class="annot"><span class="annottext">$mSEMICOLON :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSEMICOLON :: Word16
+</span><a href="Data.Word16.Patterns.html#SEMICOLON"><span class="hs-identifier hs-var hs-var hs-var">SEMICOLON</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3b</span></span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="annot"><span class="hs-comment">-- | Less-than sign, @&lt;@</span></span><span>
+</span><span id="line-277"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LESS"><span class="hs-identifier hs-type">LESS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-278"></span><span class="hs-keyword">pattern</span><span> </span><span id="LESS"><span id="%24mLESS"><span id="%24bLESS"><span class="annot"><span class="annottext">$mLESS :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLESS :: Word16
+</span><a href="Data.Word16.Patterns.html#LESS"><span class="hs-identifier hs-var hs-var hs-var">LESS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3c</span></span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="annot"><span class="hs-comment">-- | Equals sign, @=@</span></span><span>
+</span><span id="line-281"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#EQUAL"><span class="hs-identifier hs-type">EQUAL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-282"></span><span class="hs-keyword">pattern</span><span> </span><span id="EQUAL"><span id="%24mEQUAL"><span id="%24bEQUAL"><span class="annot"><span class="annottext">$mEQUAL :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bEQUAL :: Word16
+</span><a href="Data.Word16.Patterns.html#EQUAL"><span class="hs-identifier hs-var hs-var hs-var">EQUAL</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3d</span></span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span class="annot"><span class="hs-comment">-- | Greater-than sign, @&gt;@</span></span><span>
+</span><span id="line-285"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#GREATER"><span class="hs-identifier hs-type">GREATER</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-286"></span><span class="hs-keyword">pattern</span><span> </span><span id="GREATER"><span id="%24mGREATER"><span id="%24bGREATER"><span class="annot"><span class="annottext">$mGREATER :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bGREATER :: Word16
+</span><a href="Data.Word16.Patterns.html#GREATER"><span class="hs-identifier hs-var hs-var hs-var">GREATER</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3e</span></span><span>
+</span><span id="line-287"></span><span>
+</span><span id="line-288"></span><span class="annot"><span class="hs-comment">-- | Question mark, @?@</span></span><span>
+</span><span id="line-289"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#QUESTION"><span class="hs-identifier hs-type">QUESTION</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-290"></span><span class="hs-keyword">pattern</span><span> </span><span id="QUESTION"><span id="%24mQUESTION"><span id="%24bQUESTION"><span class="annot"><span class="annottext">$mQUESTION :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bQUESTION :: Word16
+</span><a href="Data.Word16.Patterns.html#QUESTION"><span class="hs-identifier hs-var hs-var hs-var">QUESTION</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x3f</span></span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="annot"><span class="hs-comment">-- | Commercial At, @\@@</span></span><span>
+</span><span id="line-293"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#AT"><span class="hs-identifier hs-type">AT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-294"></span><span class="hs-keyword">pattern</span><span> </span><span id="AT"><span id="%24mAT"><span id="%24bAT"><span class="annot"><span class="annottext">$mAT :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bAT :: Word16
+</span><a href="Data.Word16.Patterns.html#AT"><span class="hs-identifier hs-var hs-var hs-var">AT</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x40</span></span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-297"></span><span class="annot"><span class="hs-comment">-- * Upper case letters, x41-x5a</span></span><span>
+</span><span id="line-298"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span class="annot"><span class="hs-comment">-- | Latin small letter A, @A@</span></span><span>
+</span><span id="line-301"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_A"><span class="hs-identifier hs-type">UPPER_A</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-302"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_A"><span id="%24mUPPER_A"><span id="%24bUPPER_A"><span class="annot"><span class="annottext">$mUPPER_A :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_A :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_A"><span class="hs-identifier hs-var hs-var hs-var">UPPER_A</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x41</span></span><span>
+</span><span id="line-303"></span><span>
+</span><span id="line-304"></span><span class="annot"><span class="hs-comment">-- | Latin small letter B, @B@</span></span><span>
+</span><span id="line-305"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_B"><span class="hs-identifier hs-type">UPPER_B</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-306"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_B"><span id="%24mUPPER_B"><span id="%24bUPPER_B"><span class="annot"><span class="annottext">$mUPPER_B :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_B :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_B"><span class="hs-identifier hs-var hs-var hs-var">UPPER_B</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x42</span></span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span class="annot"><span class="hs-comment">-- | Latin small letter C, @C@</span></span><span>
+</span><span id="line-309"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_C"><span class="hs-identifier hs-type">UPPER_C</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-310"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_C"><span id="%24mUPPER_C"><span id="%24bUPPER_C"><span class="annot"><span class="annottext">$mUPPER_C :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_C :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_C"><span class="hs-identifier hs-var hs-var hs-var">UPPER_C</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x43</span></span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span class="annot"><span class="hs-comment">-- | Latin small letter D, @D@</span></span><span>
+</span><span id="line-313"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_D"><span class="hs-identifier hs-type">UPPER_D</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-314"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_D"><span id="%24mUPPER_D"><span id="%24bUPPER_D"><span class="annot"><span class="annottext">$mUPPER_D :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_D :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_D"><span class="hs-identifier hs-var hs-var hs-var">UPPER_D</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x44</span></span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span class="annot"><span class="hs-comment">-- | Latin small letter E, @E@</span></span><span>
+</span><span id="line-317"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_E"><span class="hs-identifier hs-type">UPPER_E</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-318"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_E"><span id="%24mUPPER_E"><span id="%24bUPPER_E"><span class="annot"><span class="annottext">$mUPPER_E :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_E :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_E"><span class="hs-identifier hs-var hs-var hs-var">UPPER_E</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x45</span></span><span>
+</span><span id="line-319"></span><span>
+</span><span id="line-320"></span><span class="annot"><span class="hs-comment">-- | Latin small letter F, @F@</span></span><span>
+</span><span id="line-321"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_F"><span class="hs-identifier hs-type">UPPER_F</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-322"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_F"><span id="%24mUPPER_F"><span id="%24bUPPER_F"><span class="annot"><span class="annottext">$mUPPER_F :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_F :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_F"><span class="hs-identifier hs-var hs-var hs-var">UPPER_F</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x46</span></span><span>
+</span><span id="line-323"></span><span>
+</span><span id="line-324"></span><span class="annot"><span class="hs-comment">-- | Latin small letter G, @G@</span></span><span>
+</span><span id="line-325"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_G"><span class="hs-identifier hs-type">UPPER_G</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-326"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_G"><span id="%24mUPPER_G"><span id="%24bUPPER_G"><span class="annot"><span class="annottext">$mUPPER_G :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_G :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_G"><span class="hs-identifier hs-var hs-var hs-var">UPPER_G</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x47</span></span><span>
+</span><span id="line-327"></span><span>
+</span><span id="line-328"></span><span class="annot"><span class="hs-comment">-- | Latin small letter H, @H@</span></span><span>
+</span><span id="line-329"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_H"><span class="hs-identifier hs-type">UPPER_H</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-330"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_H"><span id="%24mUPPER_H"><span id="%24bUPPER_H"><span class="annot"><span class="annottext">$mUPPER_H :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_H :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_H"><span class="hs-identifier hs-var hs-var hs-var">UPPER_H</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x48</span></span><span>
+</span><span id="line-331"></span><span>
+</span><span id="line-332"></span><span class="annot"><span class="hs-comment">-- | Latin small letter I, @I@</span></span><span>
+</span><span id="line-333"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_I"><span class="hs-identifier hs-type">UPPER_I</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-334"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_I"><span id="%24mUPPER_I"><span id="%24bUPPER_I"><span class="annot"><span class="annottext">$mUPPER_I :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_I :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_I"><span class="hs-identifier hs-var hs-var hs-var">UPPER_I</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x49</span></span><span>
+</span><span id="line-335"></span><span>
+</span><span id="line-336"></span><span class="annot"><span class="hs-comment">-- | Latin small letter J, @J@</span></span><span>
+</span><span id="line-337"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_J"><span class="hs-identifier hs-type">UPPER_J</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-338"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_J"><span id="%24mUPPER_J"><span id="%24bUPPER_J"><span class="annot"><span class="annottext">$mUPPER_J :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_J :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_J"><span class="hs-identifier hs-var hs-var hs-var">UPPER_J</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4a</span></span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="annot"><span class="hs-comment">-- | Latin small letter K, @K@</span></span><span>
+</span><span id="line-341"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_K"><span class="hs-identifier hs-type">UPPER_K</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-342"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_K"><span id="%24mUPPER_K"><span id="%24bUPPER_K"><span class="annot"><span class="annottext">$mUPPER_K :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_K :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_K"><span class="hs-identifier hs-var hs-var hs-var">UPPER_K</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4b</span></span><span>
+</span><span id="line-343"></span><span>
+</span><span id="line-344"></span><span class="annot"><span class="hs-comment">-- | Latin small letter L, @L@</span></span><span>
+</span><span id="line-345"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_L"><span class="hs-identifier hs-type">UPPER_L</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-346"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_L"><span id="%24mUPPER_L"><span id="%24bUPPER_L"><span class="annot"><span class="annottext">$mUPPER_L :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_L :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_L"><span class="hs-identifier hs-var hs-var hs-var">UPPER_L</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4c</span></span><span>
+</span><span id="line-347"></span><span>
+</span><span id="line-348"></span><span class="annot"><span class="hs-comment">-- | Latin small letter M, @M@</span></span><span>
+</span><span id="line-349"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_M"><span class="hs-identifier hs-type">UPPER_M</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-350"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_M"><span id="%24mUPPER_M"><span id="%24bUPPER_M"><span class="annot"><span class="annottext">$mUPPER_M :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_M :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_M"><span class="hs-identifier hs-var hs-var hs-var">UPPER_M</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4d</span></span><span>
+</span><span id="line-351"></span><span>
+</span><span id="line-352"></span><span class="annot"><span class="hs-comment">-- | Latin small letter N, @N@</span></span><span>
+</span><span id="line-353"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_N"><span class="hs-identifier hs-type">UPPER_N</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-354"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_N"><span id="%24mUPPER_N"><span id="%24bUPPER_N"><span class="annot"><span class="annottext">$mUPPER_N :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_N :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_N"><span class="hs-identifier hs-var hs-var hs-var">UPPER_N</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4e</span></span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span class="annot"><span class="hs-comment">-- | Latin small letter O, @O@</span></span><span>
+</span><span id="line-357"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_O"><span class="hs-identifier hs-type">UPPER_O</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-358"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_O"><span id="%24mUPPER_O"><span id="%24bUPPER_O"><span class="annot"><span class="annottext">$mUPPER_O :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_O :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_O"><span class="hs-identifier hs-var hs-var hs-var">UPPER_O</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x4f</span></span><span>
+</span><span id="line-359"></span><span>
+</span><span id="line-360"></span><span class="annot"><span class="hs-comment">-- | Latin small letter P, @P@</span></span><span>
+</span><span id="line-361"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_P"><span class="hs-identifier hs-type">UPPER_P</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-362"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_P"><span id="%24mUPPER_P"><span id="%24bUPPER_P"><span class="annot"><span class="annottext">$mUPPER_P :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_P :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_P"><span class="hs-identifier hs-var hs-var hs-var">UPPER_P</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x50</span></span><span>
+</span><span id="line-363"></span><span>
+</span><span id="line-364"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Q, @Q@</span></span><span>
+</span><span id="line-365"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_Q"><span class="hs-identifier hs-type">UPPER_Q</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-366"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_Q"><span id="%24mUPPER_Q"><span id="%24bUPPER_Q"><span class="annot"><span class="annottext">$mUPPER_Q :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_Q :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_Q"><span class="hs-identifier hs-var hs-var hs-var">UPPER_Q</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x51</span></span><span>
+</span><span id="line-367"></span><span>
+</span><span id="line-368"></span><span class="annot"><span class="hs-comment">-- | Latin small letter R, @R@</span></span><span>
+</span><span id="line-369"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_R"><span class="hs-identifier hs-type">UPPER_R</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-370"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_R"><span id="%24mUPPER_R"><span id="%24bUPPER_R"><span class="annot"><span class="annottext">$mUPPER_R :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_R :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_R"><span class="hs-identifier hs-var hs-var hs-var">UPPER_R</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x52</span></span><span>
+</span><span id="line-371"></span><span>
+</span><span id="line-372"></span><span class="annot"><span class="hs-comment">-- | Latin small letter S, @S@</span></span><span>
+</span><span id="line-373"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_S"><span class="hs-identifier hs-type">UPPER_S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-374"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_S"><span id="%24mUPPER_S"><span id="%24bUPPER_S"><span class="annot"><span class="annottext">$mUPPER_S :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_S :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_S"><span class="hs-identifier hs-var hs-var hs-var">UPPER_S</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x53</span></span><span>
+</span><span id="line-375"></span><span>
+</span><span id="line-376"></span><span class="annot"><span class="hs-comment">-- | Latin small letter T, @T@</span></span><span>
+</span><span id="line-377"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_T"><span class="hs-identifier hs-type">UPPER_T</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-378"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_T"><span id="%24mUPPER_T"><span id="%24bUPPER_T"><span class="annot"><span class="annottext">$mUPPER_T :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_T :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_T"><span class="hs-identifier hs-var hs-var hs-var">UPPER_T</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x54</span></span><span>
+</span><span id="line-379"></span><span>
+</span><span id="line-380"></span><span class="annot"><span class="hs-comment">-- | Latin small letter U, @U@</span></span><span>
+</span><span id="line-381"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_U"><span class="hs-identifier hs-type">UPPER_U</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-382"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_U"><span id="%24mUPPER_U"><span id="%24bUPPER_U"><span class="annot"><span class="annottext">$mUPPER_U :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_U :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_U"><span class="hs-identifier hs-var hs-var hs-var">UPPER_U</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x55</span></span><span>
+</span><span id="line-383"></span><span>
+</span><span id="line-384"></span><span class="annot"><span class="hs-comment">-- | Latin small letter V, @V@</span></span><span>
+</span><span id="line-385"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_V"><span class="hs-identifier hs-type">UPPER_V</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-386"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_V"><span id="%24mUPPER_V"><span id="%24bUPPER_V"><span class="annot"><span class="annottext">$mUPPER_V :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_V :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_V"><span class="hs-identifier hs-var hs-var hs-var">UPPER_V</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x56</span></span><span>
+</span><span id="line-387"></span><span>
+</span><span id="line-388"></span><span class="annot"><span class="hs-comment">-- | Latin small letter W, @W@</span></span><span>
+</span><span id="line-389"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_W"><span class="hs-identifier hs-type">UPPER_W</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-390"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_W"><span id="%24mUPPER_W"><span id="%24bUPPER_W"><span class="annot"><span class="annottext">$mUPPER_W :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_W :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_W"><span class="hs-identifier hs-var hs-var hs-var">UPPER_W</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x57</span></span><span>
+</span><span id="line-391"></span><span>
+</span><span id="line-392"></span><span class="annot"><span class="hs-comment">-- | Latin small letter X, @X@</span></span><span>
+</span><span id="line-393"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_X"><span class="hs-identifier hs-type">UPPER_X</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-394"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_X"><span id="%24mUPPER_X"><span id="%24bUPPER_X"><span class="annot"><span class="annottext">$mUPPER_X :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_X :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_X"><span class="hs-identifier hs-var hs-var hs-var">UPPER_X</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x58</span></span><span>
+</span><span id="line-395"></span><span>
+</span><span id="line-396"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Y, @Y@</span></span><span>
+</span><span id="line-397"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_Y"><span class="hs-identifier hs-type">UPPER_Y</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-398"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_Y"><span id="%24mUPPER_Y"><span id="%24bUPPER_Y"><span class="annot"><span class="annottext">$mUPPER_Y :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_Y :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_Y"><span class="hs-identifier hs-var hs-var hs-var">UPPER_Y</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x59</span></span><span>
+</span><span id="line-399"></span><span>
+</span><span id="line-400"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Z, @Z@</span></span><span>
+</span><span id="line-401"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UPPER_Z"><span class="hs-identifier hs-type">UPPER_Z</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-402"></span><span class="hs-keyword">pattern</span><span> </span><span id="UPPER_Z"><span id="%24mUPPER_Z"><span id="%24bUPPER_Z"><span class="annot"><span class="annottext">$mUPPER_Z :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUPPER_Z :: Word16
+</span><a href="Data.Word16.Patterns.html#UPPER_Z"><span class="hs-identifier hs-var hs-var hs-var">UPPER_Z</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5a</span></span><span>
+</span><span id="line-403"></span><span>
+</span><span id="line-404"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-405"></span><span class="annot"><span class="hs-comment">-- * Symbols 3, x5b-x60</span></span><span>
+</span><span id="line-406"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-407"></span><span>
+</span><span id="line-408"></span><span class="annot"><span class="hs-comment">-- | Left square bracket, @[@</span></span><span>
+</span><span id="line-409"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LEFT_SQUARE"><span class="hs-identifier hs-type">LEFT_SQUARE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-410"></span><span class="hs-keyword">pattern</span><span> </span><span id="LEFT_SQUARE"><span id="%24mLEFT_SQUARE"><span id="%24bLEFT_SQUARE"><span class="annot"><span class="annottext">$mLEFT_SQUARE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLEFT_SQUARE :: Word16
+</span><a href="Data.Word16.Patterns.html#LEFT_SQUARE"><span class="hs-identifier hs-var hs-var hs-var">LEFT_SQUARE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5b</span></span><span>
+</span><span id="line-411"></span><span>
+</span><span id="line-412"></span><span class="annot"><span class="hs-comment">-- | Reverse solidus, backslash, @\\@</span></span><span>
+</span><span id="line-413"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#BACKSLASH"><span class="hs-identifier hs-type">BACKSLASH</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-414"></span><span class="hs-keyword">pattern</span><span> </span><span id="BACKSLASH"><span id="%24mBACKSLASH"><span id="%24bBACKSLASH"><span class="annot"><span class="annottext">$mBACKSLASH :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBACKSLASH :: Word16
+</span><a href="Data.Word16.Patterns.html#BACKSLASH"><span class="hs-identifier hs-var hs-var hs-var">BACKSLASH</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5c</span></span><span>
+</span><span id="line-415"></span><span>
+</span><span id="line-416"></span><span class="annot"><span class="hs-comment">-- | Right square bracket, @]@</span></span><span>
+</span><span id="line-417"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#RIGHT_SQUARE"><span class="hs-identifier hs-type">RIGHT_SQUARE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-418"></span><span class="hs-keyword">pattern</span><span> </span><span id="RIGHT_SQUARE"><span id="%24mRIGHT_SQUARE"><span id="%24bRIGHT_SQUARE"><span class="annot"><span class="annottext">$mRIGHT_SQUARE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bRIGHT_SQUARE :: Word16
+</span><a href="Data.Word16.Patterns.html#RIGHT_SQUARE"><span class="hs-identifier hs-var hs-var hs-var">RIGHT_SQUARE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5d</span></span><span>
+</span><span id="line-419"></span><span>
+</span><span id="line-420"></span><span class="annot"><span class="hs-comment">-- | Circumflex accent, @^@</span></span><span>
+</span><span id="line-421"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#CIRCUM"><span class="hs-identifier hs-type">CIRCUM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-422"></span><span class="hs-keyword">pattern</span><span> </span><span id="CIRCUM"><span id="%24mCIRCUM"><span id="%24bCIRCUM"><span class="annot"><span class="annottext">$mCIRCUM :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCIRCUM :: Word16
+</span><a href="Data.Word16.Patterns.html#CIRCUM"><span class="hs-identifier hs-var hs-var hs-var">CIRCUM</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5e</span></span><span>
+</span><span id="line-423"></span><span>
+</span><span id="line-424"></span><span class="annot"><span class="hs-comment">-- | Low line, underscore, @_@</span></span><span>
+</span><span id="line-425"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#UNDERSCORE"><span class="hs-identifier hs-type">UNDERSCORE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-426"></span><span class="hs-keyword">pattern</span><span> </span><span id="UNDERSCORE"><span id="%24mUNDERSCORE"><span id="%24bUNDERSCORE"><span class="annot"><span class="annottext">$mUNDERSCORE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUNDERSCORE :: Word16
+</span><a href="Data.Word16.Patterns.html#UNDERSCORE"><span class="hs-identifier hs-var hs-var hs-var">UNDERSCORE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x5f</span></span><span>
+</span><span id="line-427"></span><span>
+</span><span id="line-428"></span><span class="annot"><span class="hs-comment">-- | Grave accent, @`@</span></span><span>
+</span><span id="line-429"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#GRAVE"><span class="hs-identifier hs-type">GRAVE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-430"></span><span class="hs-keyword">pattern</span><span> </span><span id="GRAVE"><span id="%24mGRAVE"><span id="%24bGRAVE"><span class="annot"><span class="annottext">$mGRAVE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bGRAVE :: Word16
+</span><a href="Data.Word16.Patterns.html#GRAVE"><span class="hs-identifier hs-var hs-var hs-var">GRAVE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x60</span></span><span>
+</span><span id="line-431"></span><span>
+</span><span id="line-432"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-433"></span><span class="annot"><span class="hs-comment">-- * Lower case letters, x61-x7a</span></span><span>
+</span><span id="line-434"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-435"></span><span>
+</span><span id="line-436"></span><span class="annot"><span class="hs-comment">-- | Latin small letter A, @a@</span></span><span>
+</span><span id="line-437"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_A"><span class="hs-identifier hs-type">LOWER_A</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-438"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_A"><span id="%24mLOWER_A"><span id="%24bLOWER_A"><span class="annot"><span class="annottext">$mLOWER_A :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_A :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_A"><span class="hs-identifier hs-var hs-var hs-var">LOWER_A</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x61</span></span><span>
+</span><span id="line-439"></span><span>
+</span><span id="line-440"></span><span class="annot"><span class="hs-comment">-- | Latin small letter B, @b@</span></span><span>
+</span><span id="line-441"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_B"><span class="hs-identifier hs-type">LOWER_B</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-442"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_B"><span id="%24mLOWER_B"><span id="%24bLOWER_B"><span class="annot"><span class="annottext">$mLOWER_B :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_B :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_B"><span class="hs-identifier hs-var hs-var hs-var">LOWER_B</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x62</span></span><span>
+</span><span id="line-443"></span><span>
+</span><span id="line-444"></span><span class="annot"><span class="hs-comment">-- | Latin small letter C, @c@</span></span><span>
+</span><span id="line-445"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_C"><span class="hs-identifier hs-type">LOWER_C</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-446"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_C"><span id="%24mLOWER_C"><span id="%24bLOWER_C"><span class="annot"><span class="annottext">$mLOWER_C :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_C :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_C"><span class="hs-identifier hs-var hs-var hs-var">LOWER_C</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x63</span></span><span>
+</span><span id="line-447"></span><span>
+</span><span id="line-448"></span><span class="annot"><span class="hs-comment">-- | Latin small letter D, @d@</span></span><span>
+</span><span id="line-449"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_D"><span class="hs-identifier hs-type">LOWER_D</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-450"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_D"><span id="%24mLOWER_D"><span id="%24bLOWER_D"><span class="annot"><span class="annottext">$mLOWER_D :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_D :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_D"><span class="hs-identifier hs-var hs-var hs-var">LOWER_D</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x64</span></span><span>
+</span><span id="line-451"></span><span>
+</span><span id="line-452"></span><span class="annot"><span class="hs-comment">-- | Latin small letter E, @e@</span></span><span>
+</span><span id="line-453"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_E"><span class="hs-identifier hs-type">LOWER_E</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-454"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_E"><span id="%24mLOWER_E"><span id="%24bLOWER_E"><span class="annot"><span class="annottext">$mLOWER_E :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_E :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_E"><span class="hs-identifier hs-var hs-var hs-var">LOWER_E</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x65</span></span><span>
+</span><span id="line-455"></span><span>
+</span><span id="line-456"></span><span class="annot"><span class="hs-comment">-- | Latin small letter F, @f@</span></span><span>
+</span><span id="line-457"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_F"><span class="hs-identifier hs-type">LOWER_F</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-458"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_F"><span id="%24mLOWER_F"><span id="%24bLOWER_F"><span class="annot"><span class="annottext">$mLOWER_F :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_F :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_F"><span class="hs-identifier hs-var hs-var hs-var">LOWER_F</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x66</span></span><span>
+</span><span id="line-459"></span><span>
+</span><span id="line-460"></span><span class="annot"><span class="hs-comment">-- | Latin small letter G, @g@</span></span><span>
+</span><span id="line-461"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_G"><span class="hs-identifier hs-type">LOWER_G</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-462"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_G"><span id="%24mLOWER_G"><span id="%24bLOWER_G"><span class="annot"><span class="annottext">$mLOWER_G :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_G :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_G"><span class="hs-identifier hs-var hs-var hs-var">LOWER_G</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x67</span></span><span>
+</span><span id="line-463"></span><span>
+</span><span id="line-464"></span><span class="annot"><span class="hs-comment">-- | Latin small letter H, @h@</span></span><span>
+</span><span id="line-465"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_H"><span class="hs-identifier hs-type">LOWER_H</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-466"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_H"><span id="%24mLOWER_H"><span id="%24bLOWER_H"><span class="annot"><span class="annottext">$mLOWER_H :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_H :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_H"><span class="hs-identifier hs-var hs-var hs-var">LOWER_H</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x68</span></span><span>
+</span><span id="line-467"></span><span>
+</span><span id="line-468"></span><span class="annot"><span class="hs-comment">-- | Latin small letter I, @i@</span></span><span>
+</span><span id="line-469"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_I"><span class="hs-identifier hs-type">LOWER_I</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-470"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_I"><span id="%24mLOWER_I"><span id="%24bLOWER_I"><span class="annot"><span class="annottext">$mLOWER_I :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_I :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_I"><span class="hs-identifier hs-var hs-var hs-var">LOWER_I</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x69</span></span><span>
+</span><span id="line-471"></span><span>
+</span><span id="line-472"></span><span class="annot"><span class="hs-comment">-- | Latin small letter J, @j@</span></span><span>
+</span><span id="line-473"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_J"><span class="hs-identifier hs-type">LOWER_J</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-474"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_J"><span id="%24mLOWER_J"><span id="%24bLOWER_J"><span class="annot"><span class="annottext">$mLOWER_J :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_J :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_J"><span class="hs-identifier hs-var hs-var hs-var">LOWER_J</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6a</span></span><span>
+</span><span id="line-475"></span><span>
+</span><span id="line-476"></span><span class="annot"><span class="hs-comment">-- | Latin small letter K, @k@</span></span><span>
+</span><span id="line-477"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_K"><span class="hs-identifier hs-type">LOWER_K</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-478"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_K"><span id="%24mLOWER_K"><span id="%24bLOWER_K"><span class="annot"><span class="annottext">$mLOWER_K :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_K :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_K"><span class="hs-identifier hs-var hs-var hs-var">LOWER_K</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6b</span></span><span>
+</span><span id="line-479"></span><span>
+</span><span id="line-480"></span><span class="annot"><span class="hs-comment">-- | Latin small letter L, @l@</span></span><span>
+</span><span id="line-481"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_L"><span class="hs-identifier hs-type">LOWER_L</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-482"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_L"><span id="%24mLOWER_L"><span id="%24bLOWER_L"><span class="annot"><span class="annottext">$mLOWER_L :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_L :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_L"><span class="hs-identifier hs-var hs-var hs-var">LOWER_L</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6c</span></span><span>
+</span><span id="line-483"></span><span>
+</span><span id="line-484"></span><span class="annot"><span class="hs-comment">-- | Latin small letter M, @m@</span></span><span>
+</span><span id="line-485"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_M"><span class="hs-identifier hs-type">LOWER_M</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-486"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_M"><span id="%24mLOWER_M"><span id="%24bLOWER_M"><span class="annot"><span class="annottext">$mLOWER_M :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_M :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_M"><span class="hs-identifier hs-var hs-var hs-var">LOWER_M</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6d</span></span><span>
+</span><span id="line-487"></span><span>
+</span><span id="line-488"></span><span class="annot"><span class="hs-comment">-- | Latin small letter N, @n@</span></span><span>
+</span><span id="line-489"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_N"><span class="hs-identifier hs-type">LOWER_N</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-490"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_N"><span id="%24mLOWER_N"><span id="%24bLOWER_N"><span class="annot"><span class="annottext">$mLOWER_N :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_N :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_N"><span class="hs-identifier hs-var hs-var hs-var">LOWER_N</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6e</span></span><span>
+</span><span id="line-491"></span><span>
+</span><span id="line-492"></span><span class="annot"><span class="hs-comment">-- | Latin small letter O, @o@</span></span><span>
+</span><span id="line-493"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_O"><span class="hs-identifier hs-type">LOWER_O</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-494"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_O"><span id="%24mLOWER_O"><span id="%24bLOWER_O"><span class="annot"><span class="annottext">$mLOWER_O :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_O :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_O"><span class="hs-identifier hs-var hs-var hs-var">LOWER_O</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x6f</span></span><span>
+</span><span id="line-495"></span><span>
+</span><span id="line-496"></span><span class="annot"><span class="hs-comment">-- | Latin small letter P, @p@</span></span><span>
+</span><span id="line-497"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_P"><span class="hs-identifier hs-type">LOWER_P</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-498"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_P"><span id="%24mLOWER_P"><span id="%24bLOWER_P"><span class="annot"><span class="annottext">$mLOWER_P :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_P :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_P"><span class="hs-identifier hs-var hs-var hs-var">LOWER_P</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x70</span></span><span>
+</span><span id="line-499"></span><span>
+</span><span id="line-500"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Q, @q@</span></span><span>
+</span><span id="line-501"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_Q"><span class="hs-identifier hs-type">LOWER_Q</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-502"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_Q"><span id="%24mLOWER_Q"><span id="%24bLOWER_Q"><span class="annot"><span class="annottext">$mLOWER_Q :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_Q :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_Q"><span class="hs-identifier hs-var hs-var hs-var">LOWER_Q</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x71</span></span><span>
+</span><span id="line-503"></span><span>
+</span><span id="line-504"></span><span class="annot"><span class="hs-comment">-- | Latin small letter R, @r@</span></span><span>
+</span><span id="line-505"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_R"><span class="hs-identifier hs-type">LOWER_R</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-506"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_R"><span id="%24mLOWER_R"><span id="%24bLOWER_R"><span class="annot"><span class="annottext">$mLOWER_R :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_R :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_R"><span class="hs-identifier hs-var hs-var hs-var">LOWER_R</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x72</span></span><span>
+</span><span id="line-507"></span><span>
+</span><span id="line-508"></span><span class="annot"><span class="hs-comment">-- | Latin small letter S, @s@</span></span><span>
+</span><span id="line-509"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_S"><span class="hs-identifier hs-type">LOWER_S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-510"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_S"><span id="%24mLOWER_S"><span id="%24bLOWER_S"><span class="annot"><span class="annottext">$mLOWER_S :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_S :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_S"><span class="hs-identifier hs-var hs-var hs-var">LOWER_S</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x73</span></span><span>
+</span><span id="line-511"></span><span>
+</span><span id="line-512"></span><span class="annot"><span class="hs-comment">-- | Latin small letter T, @t@</span></span><span>
+</span><span id="line-513"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_T"><span class="hs-identifier hs-type">LOWER_T</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-514"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_T"><span id="%24mLOWER_T"><span id="%24bLOWER_T"><span class="annot"><span class="annottext">$mLOWER_T :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_T :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_T"><span class="hs-identifier hs-var hs-var hs-var">LOWER_T</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x74</span></span><span>
+</span><span id="line-515"></span><span>
+</span><span id="line-516"></span><span class="annot"><span class="hs-comment">-- | Latin small letter U, @u@</span></span><span>
+</span><span id="line-517"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_U"><span class="hs-identifier hs-type">LOWER_U</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-518"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_U"><span id="%24mLOWER_U"><span id="%24bLOWER_U"><span class="annot"><span class="annottext">$mLOWER_U :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_U :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_U"><span class="hs-identifier hs-var hs-var hs-var">LOWER_U</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x75</span></span><span>
+</span><span id="line-519"></span><span>
+</span><span id="line-520"></span><span class="annot"><span class="hs-comment">-- | Latin small letter V, @v@</span></span><span>
+</span><span id="line-521"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_V"><span class="hs-identifier hs-type">LOWER_V</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-522"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_V"><span id="%24mLOWER_V"><span id="%24bLOWER_V"><span class="annot"><span class="annottext">$mLOWER_V :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_V :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_V"><span class="hs-identifier hs-var hs-var hs-var">LOWER_V</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x76</span></span><span>
+</span><span id="line-523"></span><span>
+</span><span id="line-524"></span><span class="annot"><span class="hs-comment">-- | Latin small letter W, @w@</span></span><span>
+</span><span id="line-525"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_W"><span class="hs-identifier hs-type">LOWER_W</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-526"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_W"><span id="%24mLOWER_W"><span id="%24bLOWER_W"><span class="annot"><span class="annottext">$mLOWER_W :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_W :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_W"><span class="hs-identifier hs-var hs-var hs-var">LOWER_W</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x77</span></span><span>
+</span><span id="line-527"></span><span>
+</span><span id="line-528"></span><span class="annot"><span class="hs-comment">-- | Latin small letter X, @x@</span></span><span>
+</span><span id="line-529"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_X"><span class="hs-identifier hs-type">LOWER_X</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-530"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_X"><span id="%24mLOWER_X"><span id="%24bLOWER_X"><span class="annot"><span class="annottext">$mLOWER_X :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_X :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_X"><span class="hs-identifier hs-var hs-var hs-var">LOWER_X</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x78</span></span><span>
+</span><span id="line-531"></span><span>
+</span><span id="line-532"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Y, @y@</span></span><span>
+</span><span id="line-533"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_Y"><span class="hs-identifier hs-type">LOWER_Y</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-534"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_Y"><span id="%24mLOWER_Y"><span id="%24bLOWER_Y"><span class="annot"><span class="annottext">$mLOWER_Y :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_Y :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_Y"><span class="hs-identifier hs-var hs-var hs-var">LOWER_Y</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x79</span></span><span>
+</span><span id="line-535"></span><span>
+</span><span id="line-536"></span><span class="annot"><span class="hs-comment">-- | Latin small letter Z, @z@</span></span><span>
+</span><span id="line-537"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LOWER_Z"><span class="hs-identifier hs-type">LOWER_Z</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-538"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOWER_Z"><span id="%24mLOWER_Z"><span id="%24bLOWER_Z"><span class="annot"><span class="annottext">$mLOWER_Z :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOWER_Z :: Word16
+</span><a href="Data.Word16.Patterns.html#LOWER_Z"><span class="hs-identifier hs-var hs-var hs-var">LOWER_Z</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7a</span></span><span>
+</span><span id="line-539"></span><span>
+</span><span id="line-540"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-541"></span><span class="annot"><span class="hs-comment">-- * Symbols 5, x7b-x7f</span></span><span>
+</span><span id="line-542"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-543"></span><span>
+</span><span id="line-544"></span><span class="annot"><span class="hs-comment">-- | Left curly bracket, @{@</span></span><span>
+</span><span id="line-545"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#LEFT_CURLY"><span class="hs-identifier hs-type">LEFT_CURLY</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-546"></span><span class="hs-keyword">pattern</span><span> </span><span id="LEFT_CURLY"><span id="%24mLEFT_CURLY"><span id="%24bLEFT_CURLY"><span class="annot"><span class="annottext">$mLEFT_CURLY :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLEFT_CURLY :: Word16
+</span><a href="Data.Word16.Patterns.html#LEFT_CURLY"><span class="hs-identifier hs-var hs-var hs-var">LEFT_CURLY</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7b</span></span><span>
+</span><span id="line-547"></span><span>
+</span><span id="line-548"></span><span class="annot"><span class="hs-comment">-- | Vertical line, vecrtical bar, @|@</span></span><span>
+</span><span id="line-549"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#BAR"><span class="hs-identifier hs-type">BAR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-550"></span><span class="hs-keyword">pattern</span><span> </span><span id="BAR"><span id="%24mBAR"><span id="%24bBAR"><span class="annot"><span class="annottext">$mBAR :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBAR :: Word16
+</span><a href="Data.Word16.Patterns.html#BAR"><span class="hs-identifier hs-var hs-var hs-var">BAR</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7c</span></span><span>
+</span><span id="line-551"></span><span>
+</span><span id="line-552"></span><span class="annot"><span class="hs-comment">-- | Right curly bracket, @}@</span></span><span>
+</span><span id="line-553"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#RIGHT_CURLY"><span class="hs-identifier hs-type">RIGHT_CURLY</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-554"></span><span class="hs-keyword">pattern</span><span> </span><span id="RIGHT_CURLY"><span id="%24mRIGHT_CURLY"><span id="%24bRIGHT_CURLY"><span class="annot"><span class="annottext">$mRIGHT_CURLY :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bRIGHT_CURLY :: Word16
+</span><a href="Data.Word16.Patterns.html#RIGHT_CURLY"><span class="hs-identifier hs-var hs-var hs-var">RIGHT_CURLY</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7d</span></span><span>
+</span><span id="line-555"></span><span>
+</span><span id="line-556"></span><span class="annot"><span class="hs-comment">-- | Tilde, @~@</span></span><span>
+</span><span id="line-557"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#TILDE"><span class="hs-identifier hs-type">TILDE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-558"></span><span class="hs-keyword">pattern</span><span> </span><span id="TILDE"><span id="%24mTILDE"><span id="%24bTILDE"><span class="annot"><span class="annottext">$mTILDE :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bTILDE :: Word16
+</span><a href="Data.Word16.Patterns.html#TILDE"><span class="hs-identifier hs-var hs-var hs-var">TILDE</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7e</span></span><span>
+</span><span id="line-559"></span><span>
+</span><span id="line-560"></span><span class="annot"><span class="hs-comment">-- | Delete (DEL)</span></span><span>
+</span><span id="line-561"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Word16.Patterns.html#DEL"><span class="hs-identifier hs-type">DEL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span>
+</span><span id="line-562"></span><span class="hs-keyword">pattern</span><span> </span><span id="DEL"><span id="%24mDEL"><span id="%24bDEL"><span class="annot"><span class="annottext">$mDEL :: forall {r}. Word16 -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDEL :: Word16
+</span><a href="Data.Word16.Patterns.html#DEL"><span class="hs-identifier hs-var hs-var hs-var">DEL</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0x7f</span></span><span>
+</span><span id="line-563"></span></pre></body></html>

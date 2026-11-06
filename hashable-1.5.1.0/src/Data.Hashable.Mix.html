@@ -1,0 +1,117 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP           #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash     #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Hashable.Mix.html"><span class="hs-identifier">Data.Hashable.Mix</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Data.Hashable.Mix.html#Salt"><span class="hs-identifier">Salt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Data.Hashable.Mix.html#mixHash"><span class="hs-identifier">mixHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;MachDeps.h&quot;
+</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeShiftR</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">xor</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">byteSwap#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">timesWord2#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">xor#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">type</span><span> </span><span id="Salt"><span class="annot"><a href="Data.Hashable.Mix.html#Salt"><span class="hs-identifier hs-var">Salt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Data.Hashable.Mix.html#mulFold"><span class="hs-identifier hs-type">mulFold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-18"></span><span id="mulFold"><span class="annot"><span class="annottext">mulFold :: Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#mulFold"><span class="hs-identifier hs-var hs-var">mulFold</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W#</span></span><span> </span><span id="local-6989586621679068087"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068087"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W#</span></span><span> </span><span id="local-6989586621679068088"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068088"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Word# -&gt; (# Word#, Word# #)
+</span><span class="hs-identifier hs-var">timesWord2#</span></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068087"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068088"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679068089"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068089"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679068090"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068090"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Word
+</span><span class="hs-identifier hs-var">W#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word# -&gt; Word#
+</span><span class="hs-identifier hs-var">xor#</span></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068089"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068090"><span class="hs-identifier hs-var">lo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Data.Hashable.Mix.html#byteSwap"><span class="hs-identifier hs-type">byteSwap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-22"></span><span id="byteSwap"><span class="annot"><span class="annottext">byteSwap :: Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#byteSwap"><span class="hs-identifier hs-var hs-var">byteSwap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">W#</span></span><span> </span><span id="local-6989586621679068092"><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068092"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word# -&gt; Word
+</span><span class="hs-identifier hs-var">W#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word# -&gt; Word#
+</span><span class="hs-identifier hs-var">byteSwap#</span></span><span> </span><span class="annot"><span class="annottext">Word#
+</span><a href="#local-6989586621679068092"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Data.Hashable.Mix.html#avalanche"><span class="hs-identifier hs-type">avalanche</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-25"></span><span id="avalanche"><span class="annot"><span class="annottext">avalanche :: Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#avalanche"><span class="hs-identifier hs-var hs-var">avalanche</span></a></span></span><span> </span><span id="local-6989586621679068094"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068094"><span class="hs-identifier hs-var">z0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span class="hs-cpp">
+#if WORD_SIZE_IN_BITS == 64
+</span><span>   </span><span class="hs-comment">-- MurmurHash3Mixer</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679068095"><span class="annot"><span class="annottext">z1 :: Word
+</span><a href="#local-6989586621679068095"><span class="hs-identifier hs-var hs-var">z1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXorMultiply"><span class="hs-identifier hs-var">shiftXorMultiply</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">33</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0xff51afd7ed558ccd</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068094"><span class="hs-identifier hs-var">z0</span></a></span><span>
+</span><span id="line-29"></span><span>        </span><span id="local-6989586621679068097"><span class="annot"><span class="annottext">z2 :: Word
+</span><a href="#local-6989586621679068097"><span class="hs-identifier hs-var hs-var">z2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXorMultiply"><span class="hs-identifier hs-var">shiftXorMultiply</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">33</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0xc4ceb9fe1a85ec53</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068095"><span class="hs-identifier hs-var">z1</span></a></span><span>
+</span><span id="line-30"></span><span>        </span><span id="local-6989586621679068098"><span class="annot"><span class="annottext">z3 :: Word
+</span><a href="#local-6989586621679068098"><span class="hs-identifier hs-var hs-var">z3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXor"><span class="hs-identifier hs-var">shiftXor</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">33</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068097"><span class="hs-identifier hs-var">z2</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068098"><span class="hs-identifier hs-var">z3</span></a></span><span class="hs-cpp">
+#else
+</span><span>   </span><span class="hs-comment">-- MurmurHash3Mixer 32bit</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">z1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">shiftXorMultiply</span><span> </span><span class="hs-number">16</span><span> </span><span class="hs-number">0x85ebca6b</span><span> </span><span class="hs-identifier">z0</span><span>
+</span><span id="line-35"></span><span>        </span><span class="hs-identifier">z2</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">shiftXorMultiply</span><span> </span><span class="hs-number">13</span><span> </span><span class="hs-number">0xc2b2ae35</span><span> </span><span class="hs-identifier">z1</span><span>
+</span><span id="line-36"></span><span>        </span><span class="hs-identifier">z3</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">shiftXor</span><span> </span><span class="hs-number">16</span><span> </span><span class="hs-identifier">z2</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-identifier">z3</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Data.Hashable.Mix.html#shiftXor"><span class="hs-identifier hs-type">shiftXor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-41"></span><span id="shiftXor"><span class="annot"><span class="annottext">shiftXor :: Int -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXor"><span class="hs-identifier hs-var hs-var">shiftXor</span></a></span></span><span> </span><span id="local-6989586621679068100"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679068100"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679068101"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068101"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068101"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068101"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int -&gt; Word
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`unsafeShiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679068100"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Data.Hashable.Mix.html#shiftXorMultiply"><span class="hs-identifier hs-type">shiftXorMultiply</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-44"></span><span id="shiftXorMultiply"><span class="annot"><span class="annottext">shiftXorMultiply :: Int -&gt; Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXorMultiply"><span class="hs-identifier hs-var hs-var">shiftXorMultiply</span></a></span></span><span> </span><span id="local-6989586621679068102"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679068102"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679068103"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068103"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679068104"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068104"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#shiftXor"><span class="hs-identifier hs-var">shiftXor</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679068102"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068104"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068103"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><span class="hs-comment">-- | Mix hash is inspired by how xxh3 works on small (&lt;=16byte) inputs.</span></span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Data.Hashable.Mix.html#mixHash"><span class="hs-identifier hs-type">mixHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-48"></span><span id="mixHash"><span class="annot"><span class="annottext">mixHash :: Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#mixHash"><span class="hs-identifier hs-var hs-var">mixHash</span></a></span></span><span> </span><span id="local-6989586621679068106"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068106"><span class="hs-identifier hs-var">hi</span></a></span></span><span> </span><span id="local-6989586621679068107"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068107"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#avalanche"><span class="hs-identifier hs-var">avalanche</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#byteSwap"><span class="hs-identifier hs-var">byteSwap</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068107"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068106"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+</span><a href="Data.Hashable.Mix.html#mulFold"><span class="hs-identifier hs-var">mulFold</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068106"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679068107"><span class="hs-identifier hs-var">lo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span></pre></body></html>

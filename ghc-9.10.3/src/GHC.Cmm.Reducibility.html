@@ -1,0 +1,687 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">{-|
+Module      : GHC.Cmm.Reducibility
+Description : Tell if a `CmmGraph` is reducible, or make it so
+
+Test a Cmm control-flow graph for reducibility.  And provide a
+function that, when given an arbitrary control-flow graph, returns an
+equivalent, reducible control-flow graph.  The equivalent graph is
+obtained by &quot;splitting&quot; (copying) nodes of the original graph.
+The resulting equivalent graph has the same dynamic behavior as the
+original, but it is larger.
+
+Documentation uses the language of control-flow analysis, in which a
+basic block is called a &quot;node.&quot;  These &quot;nodes&quot; are `CmmBlock`s or
+equivalent; they have nothing to do with a `CmmNode`.
+
+For more on reducibility and related analyses and algorithms, see
+Note [Reducibility resources]
+-}</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html"><span class="hs-identifier">GHC.Cmm.Reducibility</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#Reducibility"><span class="hs-identifier">Reducibility</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#reducibility"><span class="hs-identifier">reducibility</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#asReducible"><span class="hs-identifier">asReducible</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">splitAt</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">succ</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">nub</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Semigroup.html"><span class="hs-identifier">Data.Semigroup</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Sequence.html"><span class="hs-identifier">Data.Sequence</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Seq</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.html"><span class="hs-identifier">GHC.Cmm</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.BlockId.html"><span class="hs-identifier">GHC.Cmm.BlockId</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.html"><span class="hs-identifier">GHC.Cmm.Dataflow</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Block.html"><span class="hs-identifier">GHC.Cmm.Dataflow.Block</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html"><span class="hs-identifier">GHC.Cmm.Dominators</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Graph.html"><span class="hs-identifier">GHC.Cmm.Dataflow.Graph</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dataflow.Graph.html#addBlock"><span class="hs-identifier">addBlock</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html"><span class="hs-identifier">GHC.Cmm.Dataflow.Label</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Collapse.html"><span class="hs-identifier">GHC.Data.Graph.Collapse</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Inductive.Graph.html"><span class="hs-identifier">GHC.Data.Graph.Inductive.Graph</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Inductive.PatriciaTree.html"><span class="hs-identifier">GHC.Data.Graph.Inductive.PatriciaTree</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html"><span class="hs-identifier">GHC.Types.Unique.Supply</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- | Represents the result of a reducibility analysis.</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">data</span><span> </span><span id="Reducibility"><span class="annot"><a href="GHC.Cmm.Reducibility.html#Reducibility"><span class="hs-identifier hs-var">Reducibility</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Reducible"><span class="annot"><a href="GHC.Cmm.Reducibility.html#Reducible"><span class="hs-identifier hs-var">Reducible</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Irreducible"><span class="annot"><a href="GHC.Cmm.Reducibility.html#Irreducible"><span class="hs-identifier hs-var">Irreducible</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682689463"><span id="local-6989586621682689468"><span class="annot"><span class="annottext">Reducibility -&gt; Reducibility -&gt; Bool
+(Reducibility -&gt; Reducibility -&gt; Bool)
+-&gt; (Reducibility -&gt; Reducibility -&gt; Bool) -&gt; Eq Reducibility
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Reducibility -&gt; Reducibility -&gt; Bool
+== :: Reducibility -&gt; Reducibility -&gt; Bool
+$c/= :: Reducibility -&gt; Reducibility -&gt; Bool
+/= :: Reducibility -&gt; Reducibility -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689473"><span id="local-6989586621682689475"><span id="local-6989586621682689479"><span class="annot"><span class="annottext">Int -&gt; Reducibility -&gt; ShowS
+[Reducibility] -&gt; ShowS
+Reducibility -&gt; String
+(Int -&gt; Reducibility -&gt; ShowS)
+-&gt; (Reducibility -&gt; String)
+-&gt; ([Reducibility] -&gt; ShowS)
+-&gt; Show Reducibility
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Reducibility -&gt; ShowS
+showsPrec :: Int -&gt; Reducibility -&gt; ShowS
+$cshow :: Reducibility -&gt; String
+show :: Reducibility -&gt; String
+$cshowList :: [Reducibility] -&gt; ShowS
+showList :: [Reducibility] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Given a graph, say whether the graph is reducible.  The graph must</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- be bundled with a dominator analysis and a reverse postorder</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- numbering, as these results are needed to perform the test.</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621682689287"><span class="annot"><a href="GHC.Cmm.Reducibility.html#reducibility"><span class="hs-identifier hs-type">reducibility</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Graph.html#NonLocal"><span class="hs-identifier hs-type">NonLocal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689287"><span class="hs-identifier hs-type">node</span></a></span><span>
+</span><span id="line-62"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689287"><span class="hs-identifier hs-type">node</span></a></span><span>
+</span><span id="line-63"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#Reducibility"><span class="hs-identifier hs-type">Reducibility</span></a></span></span><span>
+</span><span id="line-64"></span><span id="reducibility"><span class="annot"><span class="annottext">reducibility :: forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+NonLocal node =&gt;
+GraphWithDominators node -&gt; Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#reducibility"><span class="hs-identifier hs-var hs-var">reducibility</span></a></span></span><span> </span><span id="local-6989586621682689494"><span class="annot"><span class="annottext">GraphWithDominators node
+</span><a href="#local-6989586621682689494"><span class="hs-identifier hs-var">gwd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">(Block node C C -&gt; Bool) -&gt; LabelMap (Block node C C) -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Block node C C -&gt; Bool
+</span><a href="#local-6989586621682689496"><span class="hs-identifier hs-var">goodBlock</span></a></span><span> </span><span class="annot"><span class="annottext">LabelMap (Block node C C)
+</span><a href="#local-6989586621682689497"><span class="hs-identifier hs-var">blockmap</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Reducible"><span class="hs-identifier hs-var">Reducible</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Irreducible"><span class="hs-identifier hs-var">Irreducible</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682689496"><span class="annot"><span class="annottext">goodBlock :: Block node C C -&gt; Bool
+</span><a href="#local-6989586621682689496"><span class="hs-identifier hs-var hs-var">goodBlock</span></a></span></span><span> </span><span id="local-6989586621682689498"><span class="annot"><span class="annottext">Block node C C
+</span><a href="#local-6989586621682689498"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Label -&gt; Bool) -&gt; [Label] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Label -&gt; Label -&gt; Bool
+</span><a href="#local-6989586621682689499"><span class="hs-identifier hs-var">goodEdge</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Block node C C -&gt; Label
+forall (x :: Extensibility). Block node C x -&gt; Label
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (x :: Extensibility).
+NonLocal thing =&gt;
+thing C x -&gt; Label
+</span><a href="GHC.Cmm.Dataflow.Graph.html#entryLabel"><span class="hs-identifier hs-var">entryLabel</span></a></span><span> </span><span class="annot"><span class="annottext">Block node C C
+</span><a href="#local-6989586621682689498"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Block node C C -&gt; [Label]
+forall (e :: Extensibility). Block node e C -&gt; [Label]
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (e :: Extensibility).
+NonLocal thing =&gt;
+thing e C -&gt; [Label]
+</span><a href="GHC.Cmm.Dataflow.Graph.html#successors"><span class="hs-identifier hs-var">successors</span></a></span><span> </span><span class="annot"><span class="annottext">Block node C C
+</span><a href="#local-6989586621682689498"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span id="local-6989586621682689499"><span class="annot"><span class="annottext">goodEdge :: Label -&gt; Label -&gt; Bool
+</span><a href="#local-6989586621682689499"><span class="hs-identifier hs-var hs-var">goodEdge</span></a></span></span><span> </span><span id="local-6989586621682689502"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689502"><span class="hs-identifier hs-var">from</span></a></span></span><span> </span><span id="local-6989586621682689503"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689503"><span class="hs-identifier hs-var">to</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Label -&gt; RPNum
+</span><a href="#local-6989586621682689504"><span class="hs-identifier hs-var">rpnum</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689503"><span class="hs-identifier hs-var">to</span></a></span><span> </span><span class="annot"><span class="annottext">RPNum -&gt; RPNum -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Label -&gt; RPNum
+</span><a href="#local-6989586621682689504"><span class="hs-identifier hs-var">rpnum</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689502"><span class="hs-identifier hs-var">from</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689503"><span class="hs-identifier hs-var">to</span></a></span><span> </span><span class="annot"><span class="annottext">Label -&gt; Label -&gt; Bool
+</span><a href="#local-6989586621682689507"><span class="hs-operator hs-var">`dominates`</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689502"><span class="hs-identifier hs-var">from</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span id="local-6989586621682689504"><span class="annot"><span class="annottext">rpnum :: Label -&gt; RPNum
+</span><a href="#local-6989586621682689504"><span class="hs-identifier hs-var hs-var">rpnum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node -&gt; Label -&gt; RPNum
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+HasDebugCallStack =&gt;
+GraphWithDominators node -&gt; Label -&gt; RPNum
+</span><a href="GHC.Cmm.Dominators.html#gwdRPNumber"><span class="hs-identifier hs-var">gwdRPNumber</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node
+</span><a href="#local-6989586621682689494"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-69"></span><span>        </span><span id="local-6989586621682689497"><span class="annot"><span class="annottext">blockmap :: LabelMap (Block node C C)
+</span><a href="#local-6989586621682689497"><span class="hs-identifier hs-var hs-var">blockmap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GenCmmGraph node -&gt; LabelMap (Block node C C)
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+GenCmmGraph n -&gt; LabelMap (Block n C C)
+</span><a href="GHC.Cmm.Dominators.html#graphMap"><span class="hs-identifier hs-var">graphMap</span></a></span><span> </span><span class="annot"><span class="annottext">(GenCmmGraph node -&gt; LabelMap (Block node C C))
+-&gt; GenCmmGraph node -&gt; LabelMap (Block node C C)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node -&gt; GenCmmGraph node
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+GraphWithDominators node -&gt; GenCmmGraph node
+</span><a href="GHC.Cmm.Dominators.html#gwd_graph"><span class="hs-identifier hs-var">gwd_graph</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node
+</span><a href="#local-6989586621682689494"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-70"></span><span>        </span><span id="local-6989586621682689511"><span class="annot"><span class="annottext">dominators :: Label -&gt; DominatorSet
+</span><a href="#local-6989586621682689511"><span class="hs-identifier hs-var hs-var">dominators</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node -&gt; Label -&gt; DominatorSet
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+HasDebugCallStack =&gt;
+GraphWithDominators node -&gt; Label -&gt; DominatorSet
+</span><a href="GHC.Cmm.Dominators.html#gwdDominatorsOf"><span class="hs-identifier hs-var">gwdDominatorsOf</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators node
+</span><a href="#local-6989586621682689494"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-71"></span><span>        </span><span id="local-6989586621682689507"><span class="annot"><span class="annottext">dominates :: Label -&gt; Label -&gt; Bool
+</span><a href="#local-6989586621682689507"><span class="hs-identifier hs-var hs-var">dominates</span></a></span></span><span> </span><span id="local-6989586621682689513"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689513"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span id="local-6989586621682689514"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689514"><span class="hs-identifier hs-var">blockname</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>            </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689513"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">Label -&gt; Label -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689514"><span class="hs-identifier hs-var">blockname</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Label -&gt; DominatorSet -&gt; Bool
+</span><a href="GHC.Cmm.Dominators.html#dominatorsMember"><span class="hs-identifier hs-var">dominatorsMember</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689513"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Label -&gt; DominatorSet
+</span><a href="#local-6989586621682689511"><span class="hs-identifier hs-var">dominators</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689514"><span class="hs-identifier hs-var">blockname</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | Given a graph, return an equivalent reducible graph, by</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &quot;splitting&quot; (copying) nodes if necessary.  The input</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- graph must be bundled with a dominator analysis and a reverse</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- postorder numbering.  The computation is monadic because when a</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- node is split, the new copy needs a fresh label.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- Use this function whenever a downstream algorithm needs a reducible</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- control-flow graph.</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#asReducible"><span class="hs-identifier hs-type">asReducible</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span>
+</span><span id="line-84"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSM"><span class="hs-identifier hs-type">UniqSM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span id="asReducible"><span class="annot"><span class="annottext">asReducible :: GraphWithDominators CmmNode -&gt; UniqSM (GraphWithDominators CmmNode)
+</span><a href="GHC.Cmm.Reducibility.html#asReducible"><span class="hs-identifier hs-var hs-var">asReducible</span></a></span></span><span> </span><span id="local-6989586621682689516"><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689516"><span class="hs-identifier hs-var">gwd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; Reducibility
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+NonLocal node =&gt;
+GraphWithDominators node -&gt; Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#reducibility"><span class="hs-identifier hs-var">reducibility</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689516"><span class="hs-identifier hs-var">gwd</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-86"></span><span>                    </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Reducible"><span class="hs-identifier hs-var">Reducible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; UniqSM (GraphWithDominators CmmNode)
+forall a. a -&gt; UniqSM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689516"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-87"></span><span>                    </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Irreducible"><span class="hs-identifier hs-var">Irreducible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; GraphWithDominators CmmNode
+</span><a href="GHC.Cmm.Reducibility.html#assertReducible"><span class="hs-identifier hs-var">assertReducible</span></a></span><span> </span><span class="annot"><span class="annottext">(GraphWithDominators CmmNode -&gt; GraphWithDominators CmmNode)
+-&gt; UniqSM (GraphWithDominators CmmNode)
+-&gt; UniqSM (GraphWithDominators CmmNode)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; UniqSM (GraphWithDominators CmmNode)
+</span><a href="GHC.Cmm.Reducibility.html#nodeSplit"><span class="hs-identifier hs-var">nodeSplit</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689516"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#assertReducible"><span class="hs-identifier hs-type">assertReducible</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span>
+</span><span id="line-90"></span><span id="assertReducible"><span class="annot"><span class="annottext">assertReducible :: GraphWithDominators CmmNode -&gt; GraphWithDominators CmmNode
+</span><a href="GHC.Cmm.Reducibility.html#assertReducible"><span class="hs-identifier hs-var hs-var">assertReducible</span></a></span></span><span> </span><span id="local-6989586621682689520"><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689520"><span class="hs-identifier hs-var">gwd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; Reducibility
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+NonLocal node =&gt;
+GraphWithDominators node -&gt; Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#reducibility"><span class="hs-identifier hs-var">reducibility</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689520"><span class="hs-identifier hs-var">gwd</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>                        </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Reducible"><span class="hs-identifier hs-var">Reducible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689520"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-92"></span><span>                        </span><span class="annot"><span class="annottext">Reducibility
+</span><a href="GHC.Cmm.Reducibility.html#Irreducible"><span class="hs-identifier hs-var">Irreducible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; GraphWithDominators CmmNode
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;result not reducible&quot;</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Split one or more nodes of the given graph, which must be</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- irreducible.</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#nodeSplit"><span class="hs-identifier hs-type">nodeSplit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span>
+</span><span id="line-100"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSM"><span class="hs-identifier hs-type">UniqSM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dominators.html#GraphWithDominators"><span class="hs-identifier hs-type">GraphWithDominators</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmNode"><span class="hs-identifier hs-type">CmmNode</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span id="nodeSplit"><span class="annot"><span class="annottext">nodeSplit :: GraphWithDominators CmmNode -&gt; UniqSM (GraphWithDominators CmmNode)
+</span><a href="GHC.Cmm.Reducibility.html#nodeSplit"><span class="hs-identifier hs-var hs-var">nodeSplit</span></a></span></span><span> </span><span id="local-6989586621682689522"><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689522"><span class="hs-identifier hs-var">gwd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="annottext">GenCmmGraph CmmNode -&gt; GraphWithDominators CmmNode
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+(NonLocal node, HasDebugCallStack) =&gt;
+GenCmmGraph node -&gt; GraphWithDominators node
+</span><a href="GHC.Cmm.Dominators.html#graphWithDominators"><span class="hs-identifier hs-var">graphWithDominators</span></a></span><span> </span><span class="annot"><span class="annottext">(GenCmmGraph CmmNode -&gt; GraphWithDominators CmmNode)
+-&gt; (Gr CmmSuper () -&gt; GenCmmGraph CmmNode)
+-&gt; Gr CmmSuper ()
+-&gt; GraphWithDominators CmmNode
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Label -&gt; Gr CmmSuper () -&gt; GenCmmGraph CmmNode
+</span><a href="GHC.Cmm.Reducibility.html#inflate"><span class="hs-identifier hs-var">inflate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GenCmmGraph CmmNode -&gt; Label
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+GenCmmGraph n -&gt; Label
+</span><a href="GHC.Cmm.html#g_entry"><span class="hs-identifier hs-var">g_entry</span></a></span><span> </span><span class="annot"><span class="annottext">GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689526"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Gr CmmSuper () -&gt; GraphWithDominators CmmNode)
+-&gt; UniqSM (Gr CmmSuper ()) -&gt; UniqSM (GraphWithDominators CmmNode)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">NullCollapseViz (Gr CmmSuper ()) -&gt; UniqSM (Gr CmmSuper ())
+forall a. NullCollapseViz a -&gt; UniqSM a
+</span><a href="GHC.Data.Graph.Collapse.html#runNullCollapse"><span class="hs-identifier hs-var">runNullCollapse</span></a></span><span> </span><span class="annot"><span class="annottext">NullCollapseViz (Gr CmmSuper ())
+</span><a href="#local-6989586621682689528"><span class="hs-identifier hs-var">collapsed</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682689526"><span class="annot"><span class="annottext">g :: GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689526"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode -&gt; GenCmmGraph CmmNode
+forall (node :: Extensibility -&gt; Extensibility -&gt; *).
+GraphWithDominators node -&gt; GenCmmGraph node
+</span><a href="GHC.Cmm.Dominators.html#gwd_graph"><span class="hs-identifier hs-var">gwd_graph</span></a></span><span> </span><span class="annot"><span class="annottext">GraphWithDominators CmmNode
+</span><a href="#local-6989586621682689522"><span class="hs-identifier hs-var">gwd</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><a href="#local-6989586621682689528"><span class="hs-identifier hs-type">collapsed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Collapse.html#NullCollapseViz"><span class="hs-identifier hs-type">NullCollapseViz</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Graph.Inductive.PatriciaTree.html#Gr"><span class="hs-identifier hs-type">Gr</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>        </span><span id="local-6989586621682689528"><span class="annot"><span class="annottext">collapsed :: NullCollapseViz (Gr CmmSuper ())
+</span><a href="#local-6989586621682689528"><span class="hs-identifier hs-var hs-var">collapsed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gr CmmSuper () -&gt; NullCollapseViz (Gr CmmSuper ())
+forall (gr :: * -&gt; * -&gt; *) s (m :: * -&gt; *).
+(DynGraph gr, Supernode s m, VizCollapseMonad m gr s) =&gt;
+gr s () -&gt; m (gr s ())
+</span><a href="GHC.Data.Graph.Collapse.html#collapseInductiveGraph"><span class="hs-identifier hs-var">collapseInductiveGraph</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GenCmmGraph CmmNode -&gt; Gr CmmSuper ()
+</span><a href="GHC.Cmm.Reducibility.html#cgraphOfCmm"><span class="hs-identifier hs-var">cgraphOfCmm</span></a></span><span> </span><span class="annot"><span class="annottext">GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689526"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">type</span><span> </span><span id="CGraph"><span class="annot"><a href="GHC.Cmm.Reducibility.html#CGraph"><span class="hs-identifier hs-var">CGraph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Inductive.PatriciaTree.html#Gr"><span class="hs-identifier hs-type">Gr</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="annot"><span class="hs-comment">-- | Turn a collapsed supernode back into a control-flow graph</span></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#inflate"><span class="hs-identifier hs-type">inflate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CGraph"><span class="hs-identifier hs-type">CGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmGraph"><span class="hs-identifier hs-type">CmmGraph</span></a></span><span>
+</span><span id="line-111"></span><span id="inflate"><span class="annot"><span class="annottext">inflate :: Label -&gt; Gr CmmSuper () -&gt; GenCmmGraph CmmNode
+</span><a href="GHC.Cmm.Reducibility.html#inflate"><span class="hs-identifier hs-var hs-var">inflate</span></a></span></span><span> </span><span id="local-6989586621682689532"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689532"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span id="local-6989586621682689533"><span class="annot"><span class="annottext">Gr CmmSuper ()
+</span><a href="#local-6989586621682689533"><span class="hs-identifier hs-var">cg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Graph CmmNode C C -&gt; GenCmmGraph CmmNode
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+Label -&gt; Graph n C C -&gt; GenCmmGraph n
+</span><a href="GHC.Cmm.html#CmmGraph"><span class="hs-identifier hs-var">CmmGraph</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689532"><span class="hs-identifier hs-var">entry</span></a></span><span> </span><span class="annot"><span class="annottext">Graph CmmNode C C
+</span><a href="#local-6989586621682689534"><span class="hs-identifier hs-var">graph</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682689534"><span class="annot"><span class="annottext">graph :: Graph CmmNode C C
+</span><a href="#local-6989586621682689534"><span class="hs-identifier hs-var hs-var">graph</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MaybeO C (Block CmmNode O C)
+-&gt; Body' Block CmmNode
+-&gt; MaybeO C (Block CmmNode C O)
+-&gt; Graph CmmNode C C
+forall (e :: Extensibility)
+       (block :: (Extensibility -&gt; Extensibility -&gt; *)
+                 -&gt; Extensibility -&gt; Extensibility -&gt; *)
+       (n :: Extensibility -&gt; Extensibility -&gt; *) (x :: Extensibility).
+MaybeO e (block n O C)
+-&gt; Body' block n -&gt; MaybeO x (block n C O) -&gt; Graph' block n e x
+</span><a href="GHC.Cmm.Dataflow.Graph.html#GMany"><span class="hs-identifier hs-var">GMany</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeO C (Block CmmNode O C)
+forall t. MaybeO C t
+</span><a href="GHC.Cmm.Dataflow.Block.html#NothingO"><span class="hs-identifier hs-var">NothingO</span></a></span><span> </span><span class="annot"><span class="annottext">Body' Block CmmNode
+</span><a href="#local-6989586621682689537"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeO C (Block CmmNode C O)
+forall t. MaybeO C t
+</span><a href="GHC.Cmm.Dataflow.Block.html#NothingO"><span class="hs-identifier hs-var">NothingO</span></a></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><a href="#local-6989586621682689537"><span class="hs-identifier hs-type">body</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#LabelMap"><span class="hs-identifier hs-type">LabelMap</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span>
+</span><span id="line-114"></span><span>        </span><span id="local-6989586621682689537"><span class="annot"><span class="annottext">body :: Body' Block CmmNode
+</span><a href="#local-6989586621682689537"><span class="hs-identifier hs-var hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Body' Block CmmNode -&gt; CmmBlock -&gt; Body' Block CmmNode)
+-&gt; Body' Block CmmNode -&gt; Seq CmmBlock -&gt; Body' Block CmmNode
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Seq a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682689539"><span class="annot"><span class="annottext">Body' Block CmmNode
+</span><a href="#local-6989586621682689539"><span class="hs-identifier hs-var">map</span></a></span></span><span> </span><span id="local-6989586621682689540"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689540"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Label -&gt; CmmBlock -&gt; Body' Block CmmNode -&gt; Body' Block CmmNode
+forall v. Label -&gt; v -&gt; LabelMap v -&gt; LabelMap v
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapInsert"><span class="hs-identifier hs-var">mapInsert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmmBlock -&gt; Label
+forall (x :: Extensibility). Block CmmNode C x -&gt; Label
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (x :: Extensibility).
+NonLocal thing =&gt;
+thing C x -&gt; Label
+</span><a href="GHC.Cmm.Dataflow.Graph.html#entryLabel"><span class="hs-identifier hs-var">entryLabel</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689540"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689540"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="annot"><span class="annottext">Body' Block CmmNode
+</span><a href="#local-6989586621682689539"><span class="hs-identifier hs-var">map</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Body' Block CmmNode
+forall v. LabelMap v
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapEmpty"><span class="hs-identifier hs-var">mapEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">(Seq CmmBlock -&gt; Body' Block CmmNode)
+-&gt; Seq CmmBlock -&gt; Body' Block CmmNode
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-115"></span><span>               </span><span class="annot"><span class="annottext">CmmSuper -&gt; Seq CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#blocks"><span class="hs-identifier hs-var">blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689544"><span class="hs-identifier hs-var">super</span></a></span><span>
+</span><span id="line-116"></span><span>        </span><span id="local-6989586621682689544"><span class="annot"><span class="annottext">super :: CmmSuper
+</span><a href="#local-6989586621682689544"><span class="hs-identifier hs-var hs-var">super</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Gr CmmSuper () -&gt; [LNode CmmSuper]
+forall a b. Gr a b -&gt; [LNode a]
+forall (gr :: * -&gt; * -&gt; *) a b. Graph gr =&gt; gr a b -&gt; [LNode a]
+</span><a href="GHC.Data.Graph.Inductive.Graph.html#labNodes"><span class="hs-identifier hs-var">labNodes</span></a></span><span> </span><span class="annot"><span class="annottext">Gr CmmSuper ()
+</span><a href="#local-6989586621682689533"><span class="hs-identifier hs-var">cg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-117"></span><span>                  </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689546"><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689546"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689546"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-118"></span><span>                  </span><span class="annot"><span class="annottext">[LNode CmmSuper]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; CmmSuper
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#panic"><span class="hs-identifier hs-var">panic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;graph given to `inflate` is not singleton&quot;</span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | Convert a `CmmGraph` into an inductive graph.</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- (The function coalesces duplicate edges into a single edge.)</span><span>
+</span><span id="line-123"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#cgraphOfCmm"><span class="hs-identifier hs-type">cgraphOfCmm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmGraph"><span class="hs-identifier hs-type">CmmGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CGraph"><span class="hs-identifier hs-type">CGraph</span></a></span><span>
+</span><span id="line-124"></span><span id="cgraphOfCmm"><span class="annot"><span class="annottext">cgraphOfCmm :: GenCmmGraph CmmNode -&gt; Gr CmmSuper ()
+</span><a href="GHC.Cmm.Reducibility.html#cgraphOfCmm"><span class="hs-identifier hs-var hs-var">cgraphOfCmm</span></a></span></span><span> </span><span id="local-6989586621682689547"><span class="annot"><span class="annottext">GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689547"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Gr CmmSuper () -&gt; (Int, CmmBlock) -&gt; Gr CmmSuper ())
+-&gt; Gr CmmSuper () -&gt; [(Int, CmmBlock)] -&gt; Gr CmmSuper ()
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Gr CmmSuper () -&gt; (Int, CmmBlock) -&gt; Gr CmmSuper ()
+</span><a href="#local-6989586621682689549"><span class="hs-identifier hs-var">addSuccEdges</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[LNode CmmSuper] -&gt; [LEdge ()] -&gt; Gr CmmSuper ()
+forall a b. [LNode a] -&gt; [LEdge b] -&gt; Gr a b
+forall (gr :: * -&gt; * -&gt; *) a b.
+Graph gr =&gt;
+[LNode a] -&gt; [LEdge b] -&gt; gr a b
+</span><a href="GHC.Data.Graph.Inductive.Graph.html#mkGraph"><span class="hs-identifier hs-var">mkGraph</span></a></span><span> </span><span class="annot"><span class="annottext">[LNode CmmSuper]
+</span><a href="#local-6989586621682689551"><span class="hs-identifier hs-var">cnodes</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Int, CmmBlock)]
+</span><a href="#local-6989586621682689552"><span class="hs-identifier hs-var">blocks</span></a></span><span>
+</span><span id="line-125"></span><span>   </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682689552"><span class="annot"><span class="annottext">blocks :: [(Int, CmmBlock)]
+</span><a href="#local-6989586621682689552"><span class="hs-identifier hs-var hs-var">blocks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [CmmBlock] -&gt; [(Int, CmmBlock)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">([CmmBlock] -&gt; [(Int, CmmBlock)])
+-&gt; [CmmBlock] -&gt; [(Int, CmmBlock)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Body' Block CmmNode -&gt; Label -&gt; [CmmBlock]
+forall (block :: Extensibility -&gt; Extensibility -&gt; *).
+NonLocal block =&gt;
+LabelMap (block C C) -&gt; Label -&gt; [block C C]
+</span><a href="GHC.Cmm.Dataflow.Graph.html#revPostorderFrom"><span class="hs-identifier hs-var">revPostorderFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GenCmmGraph CmmNode -&gt; Body' Block CmmNode
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+GenCmmGraph n -&gt; LabelMap (Block n C C)
+</span><a href="GHC.Cmm.Dominators.html#graphMap"><span class="hs-identifier hs-var">graphMap</span></a></span><span> </span><span class="annot"><span class="annottext">GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689547"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GenCmmGraph CmmNode -&gt; Label
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+GenCmmGraph n -&gt; Label
+</span><a href="GHC.Cmm.html#g_entry"><span class="hs-identifier hs-var">g_entry</span></a></span><span> </span><span class="annot"><span class="annottext">GenCmmGraph CmmNode
+</span><a href="#local-6989586621682689547"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>         </span><span id="local-6989586621682689551"><span class="annot"><span class="annottext">cnodes :: [LNode CmmSuper]
+</span><a href="#local-6989586621682689551"><span class="hs-identifier hs-var hs-var">cnodes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682689554"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CmmBlock -&gt; CmmSuper
+</span><a href="#local-6989586621682689555"><span class="hs-identifier hs-var">super</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689556"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682689554"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682689554"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689556"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689556"><span class="hs-identifier hs-var">block</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Int, CmmBlock)]
+</span><a href="#local-6989586621682689552"><span class="hs-identifier hs-var">blocks</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-127"></span><span>          </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682689555"><span class="annot"><span class="annottext">super :: CmmBlock -&gt; CmmSuper
+</span><a href="#local-6989586621682689555"><span class="hs-identifier hs-var hs-var">super</span></a></span></span><span> </span><span id="local-6989586621682689559"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689559"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Seq CmmBlock -&gt; CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#Nodes"><span class="hs-identifier hs-var">Nodes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmmBlock -&gt; Label
+forall (x :: Extensibility). Block CmmNode C x -&gt; Label
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (x :: Extensibility).
+NonLocal thing =&gt;
+thing C x -&gt; Label
+</span><a href="GHC.Cmm.Dataflow.Graph.html#entryLabel"><span class="hs-identifier hs-var">entryLabel</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689559"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmmBlock -&gt; Seq CmmBlock
+forall a. a -&gt; Seq a
+</span><a href="../../containers-0.7-71fc/src/Data.Sequence.Internal.html#singleton"><span class="hs-identifier hs-var">Seq.singleton</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689559"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>         </span><span id="local-6989586621682689562"><span class="annot"><span class="annottext">labelNumber :: Label -&gt; Int
+</span><a href="#local-6989586621682689562"><span class="hs-identifier hs-var hs-var">labelNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682689563"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689563"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; Int
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Label -&gt; LabelMap Int -&gt; Maybe Int
+forall a. Label -&gt; LabelMap a -&gt; Maybe a
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapLookup"><span class="hs-identifier hs-var">mapLookup</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689563"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">LabelMap Int
+</span><a href="#local-6989586621682689566"><span class="hs-identifier hs-var">numbers</span></a></span><span>
+</span><span id="line-129"></span><span>             </span><span class="hs-keyword">where</span><span> </span><span class="annot"><a href="#local-6989586621682689566"><span class="hs-identifier hs-type">numbers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#LabelMap"><span class="hs-identifier hs-type">LabelMap</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-130"></span><span>                   </span><span id="local-6989586621682689566"><span class="annot"><span class="annottext">numbers :: LabelMap Int
+</span><a href="#local-6989586621682689566"><span class="hs-identifier hs-var hs-var">numbers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Label, Int)] -&gt; LabelMap Int
+forall v. [(Label, v)] -&gt; LabelMap v
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapFromList"><span class="hs-identifier hs-var">mapFromList</span></a></span><span> </span><span class="annot"><span class="annottext">([(Label, Int)] -&gt; LabelMap Int) -&gt; [(Label, Int)] -&gt; LabelMap Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((Int, CmmBlock) -&gt; (Label, Int))
+-&gt; [(Int, CmmBlock)] -&gt; [(Label, Int)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Int, CmmBlock) -&gt; (Label, Int)
+forall {thing :: Extensibility -&gt; Extensibility -&gt; *} {b}
+       {x :: Extensibility}.
+NonLocal thing =&gt;
+(b, thing C x) -&gt; (Label, b)
+</span><a href="#local-6989586621682689568"><span class="hs-identifier hs-var">swap</span></a></span><span> </span><span class="annot"><span class="annottext">[(Int, CmmBlock)]
+</span><a href="#local-6989586621682689552"><span class="hs-identifier hs-var">blocks</span></a></span><span>
+</span><span id="line-131"></span><span>                   </span><span id="local-6989586621682689568"><span class="annot"><span class="annottext">swap :: (b, thing C x) -&gt; (Label, b)
+</span><a href="#local-6989586621682689568"><span class="hs-identifier hs-var hs-var">swap</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682689571"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682689571"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689572"><span class="annot"><span class="annottext">thing C x
+</span><a href="#local-6989586621682689572"><span class="hs-identifier hs-var">block</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">thing C x -&gt; Label
+forall (x :: Extensibility). thing C x -&gt; Label
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (x :: Extensibility).
+NonLocal thing =&gt;
+thing C x -&gt; Label
+</span><a href="GHC.Cmm.Dataflow.Graph.html#entryLabel"><span class="hs-identifier hs-var">entryLabel</span></a></span><span> </span><span class="annot"><span class="annottext">thing C x
+</span><a href="#local-6989586621682689572"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621682689571"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>         </span><span class="annot"><a href="#local-6989586621682689549"><span class="hs-identifier hs-type">addSuccEdges</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CGraph"><span class="hs-identifier hs-type">CGraph</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Graph.Inductive.Graph.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CGraph"><span class="hs-identifier hs-type">CGraph</span></a></span><span>
+</span><span id="line-133"></span><span>         </span><span id="local-6989586621682689549"><span class="annot"><span class="annottext">addSuccEdges :: Gr CmmSuper () -&gt; (Int, CmmBlock) -&gt; Gr CmmSuper ()
+</span><a href="#local-6989586621682689549"><span class="hs-identifier hs-var hs-var">addSuccEdges</span></a></span></span><span> </span><span id="local-6989586621682689574"><span class="annot"><span class="annottext">Gr CmmSuper ()
+</span><a href="#local-6989586621682689574"><span class="hs-identifier hs-var">graph</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682689575"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682689575"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689576"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689576"><span class="hs-identifier hs-var">block</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>             </span><span class="annot"><span class="annottext">[LEdge ()] -&gt; Gr CmmSuper () -&gt; Gr CmmSuper ()
+forall (gr :: * -&gt; * -&gt; *) b a.
+DynGraph gr =&gt;
+[LEdge b] -&gt; gr a b -&gt; gr a b
+</span><a href="GHC.Data.Graph.Inductive.Graph.html#insEdges"><span class="hs-identifier hs-var">insEdges</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682689575"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Int
+</span><a href="#local-6989586621682689562"><span class="hs-identifier hs-var">labelNumber</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689578"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621682689578"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689578"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Label] -&gt; [Label]
+forall a. Eq a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">nub</span></span><span> </span><span class="annot"><span class="annottext">([Label] -&gt; [Label]) -&gt; [Label] -&gt; [Label]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CmmBlock -&gt; [Label]
+forall (e :: Extensibility). Block CmmNode e C -&gt; [Label]
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (e :: Extensibility).
+NonLocal thing =&gt;
+thing e C -&gt; [Label]
+</span><a href="GHC.Cmm.Dataflow.Graph.html#successors"><span class="hs-identifier hs-var">successors</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689576"><span class="hs-identifier hs-var">block</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Gr CmmSuper ()
+</span><a href="#local-6989586621682689574"><span class="hs-identifier hs-var">graph</span></a></span><span>
+</span><span id="line-135"></span><span class="hs-comment">{-
+Note [Reducibility resources]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*Flow Analysis of Computer Programs.* Matthew S. Hecht North Holland, 1977.
+Available to borrow from archive.org.
+
+Matthew S. Hecht and Jeffrey D. Ullman (1972).
+Flow Graph Reducibility. SIAM J. Comput., 1(2), 188&#8211;202.
+https://doi.org/10.1137/0201014
+
+Johan Janssen and Henk Corporaal. 1997. Making graphs reducible with
+controlled node splitting. ACM TOPLAS 19, 6 (Nov. 1997),
+1031&#8211;1052. DOI:https://doi.org/10.1145/267959.269971
+
+Sebastian Unger and Frank Mueller. 2002. Handling irreducible loops:
+optimized node splitting versus DJ-graphs. ACM TOPLAS 24, 4 (July
+2002), 299&#8211;333. https://doi.org/10.1145/567097.567098.  (This one
+contains the most detailed account of how the Hecht/Ullman algorithm
+is used to modify an actual control-flow graph.  But still not much detail.)
+
+https://rgrig.blogspot.com/2009/10/dtfloatleftclearleft-summary-of-some.html
+ (Nice summary of useful facts)
+
+-}</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-keyword">type</span><span> </span><span id="Seq"><span class="annot"><a href="GHC.Cmm.Reducibility.html#Seq"><span class="hs-identifier hs-var">Seq</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.Sequence.Internal.html#Seq"><span class="hs-identifier hs-type">Seq.Seq</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- | A &quot;supernode&quot; contains a single-entry, multiple-exit, reducible subgraph.</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- The entry point is the given label, and the block with that label</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- dominates all the other blocks in the supernode.  When an entire</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- graph is collapsed into a single supernode, the graph is reducible.</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- More detail can be found in &quot;GHC.Data.Graph.Collapse&quot;.</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-keyword">data</span><span> </span><span id="CmmSuper"><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-var">CmmSuper</span></a></span></span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Nodes"><span class="annot"><a href="GHC.Cmm.Reducibility.html#Nodes"><span class="hs-identifier hs-var">Nodes</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="label"><span class="annot"><span class="annottext">CmmSuper -&gt; Label
+</span><a href="GHC.Cmm.Reducibility.html#label"><span class="hs-keyword hs-var hs-var">label</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span>
+</span><span id="line-173"></span><span>            </span><span class="hs-special">,</span><span> </span><span id="blocks"><span class="annot"><span class="annottext">CmmSuper -&gt; Seq CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#blocks"><span class="hs-identifier hs-var hs-var">blocks</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#Seq"><span class="hs-identifier hs-type">Seq</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682689582"><span id="local-6989586621682689586"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>  </span><span id="local-6989586621682689593"><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689593"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621682689594"><span class="annot"><span class="annottext">&lt;&gt; :: CmmSuper -&gt; CmmSuper -&gt; CmmSuper
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span id="local-6989586621682689595"><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689595"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Seq CmmBlock -&gt; CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#Nodes"><span class="hs-identifier hs-var">Nodes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmmSuper -&gt; Label
+</span><a href="GHC.Cmm.Reducibility.html#label"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689593"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmmSuper -&gt; Seq CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#blocks"><span class="hs-identifier hs-var">blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689593"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Seq CmmBlock -&gt; Seq CmmBlock -&gt; Seq CmmBlock
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">CmmSuper -&gt; Seq CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#blocks"><span class="hs-identifier hs-var">blocks</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689595"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Collapse.html#PureSupernode"><span class="hs-identifier hs-type">PureSupernode</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>  </span><span id="local-6989586621682689602"><span class="annot"><span class="annottext">superLabel :: CmmSuper -&gt; Label
+</span><a href="#local-6989586621682689602"><span class="hs-identifier hs-var hs-var hs-var">superLabel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmSuper -&gt; Label
+</span><a href="GHC.Cmm.Reducibility.html#label"><span class="hs-keyword hs-var">label</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span id="local-6989586621682689604"><span class="annot"><span class="annottext">mapLabels :: (Label -&gt; Label) -&gt; CmmSuper -&gt; CmmSuper
+</span><a href="#local-6989586621682689604"><span class="hs-identifier hs-var hs-var hs-var">mapLabels</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Label -&gt; Label) -&gt; CmmSuper -&gt; CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#changeLabels"><span class="hs-identifier hs-var">changeLabels</span></a></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Data.Graph.Collapse.html#Supernode"><span class="hs-identifier hs-type">Supernode</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="annot"><a href="GHC.Data.Graph.Collapse.html#NullCollapseViz"><span class="hs-identifier hs-type">NullCollapseViz</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-184"></span><span>  </span><span id="local-6989586621682689616"><span class="annot"><span class="annottext">freshen :: CmmSuper -&gt; NullCollapseViz CmmSuper
+</span><a href="#local-6989586621682689616"><span class="hs-identifier hs-var hs-var hs-var">freshen</span></a></span></span><span> </span><span id="local-6989586621682689618"><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689618"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UniqSM CmmSuper -&gt; NullCollapseViz CmmSuper
+forall a. UniqSM a -&gt; NullCollapseViz a
+forall (m :: * -&gt; *) a. MonadUniqSM m =&gt; UniqSM a -&gt; m a
+</span><a href="GHC.Data.Graph.Collapse.html#liftUniqSM"><span class="hs-identifier hs-var">liftUniqSM</span></a></span><span> </span><span class="annot"><span class="annottext">(UniqSM CmmSuper -&gt; NullCollapseViz CmmSuper)
+-&gt; UniqSM CmmSuper -&gt; NullCollapseViz CmmSuper
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CmmSuper -&gt; UniqSM CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#relabel"><span class="hs-identifier hs-var">relabel</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689618"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="annot"><span class="hs-comment">-- | Return all labels defined within a supernode.</span></span><span>
+</span><span id="line-188"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#definedLabels"><span class="hs-identifier hs-type">definedLabels</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#Seq"><span class="hs-identifier hs-type">Seq</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span>
+</span><span id="line-189"></span><span id="definedLabels"><span class="annot"><span class="annottext">definedLabels :: CmmSuper -&gt; Seq Label
+</span><a href="GHC.Cmm.Reducibility.html#definedLabels"><span class="hs-identifier hs-var hs-var">definedLabels</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(CmmBlock -&gt; Label) -&gt; Seq CmmBlock -&gt; Seq Label
+forall a b. (a -&gt; b) -&gt; Seq a -&gt; Seq b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">CmmBlock -&gt; Label
+forall (x :: Extensibility). Block CmmNode C x -&gt; Label
+forall (thing :: Extensibility -&gt; Extensibility -&gt; *)
+       (x :: Extensibility).
+NonLocal thing =&gt;
+thing C x -&gt; Label
+</span><a href="GHC.Cmm.Dataflow.Graph.html#entryLabel"><span class="hs-identifier hs-var">entryLabel</span></a></span><span> </span><span class="annot"><span class="annottext">(Seq CmmBlock -&gt; Seq Label)
+-&gt; (CmmSuper -&gt; Seq CmmBlock) -&gt; CmmSuper -&gt; Seq Label
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CmmSuper -&gt; Seq CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#blocks"><span class="hs-identifier hs-var">blocks</span></a></span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- | Map the given function over every use and definition of a label</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- in the given supernode.</span><span>
+</span><span id="line-195"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#changeLabels"><span class="hs-identifier hs-type">changeLabels</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span id="changeLabels"><span class="annot"><span class="annottext">changeLabels :: (Label -&gt; Label) -&gt; CmmSuper -&gt; CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#changeLabels"><span class="hs-identifier hs-var hs-var">changeLabels</span></a></span></span><span> </span><span id="local-6989586621682689623"><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689623"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reducibility.html#Nodes"><span class="hs-identifier hs-type">Nodes</span></a></span><span> </span><span id="local-6989586621682689624"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689624"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621682689625"><span class="annot"><span class="annottext">Seq CmmBlock
+</span><a href="#local-6989586621682689625"><span class="hs-identifier hs-var">blocks</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Seq CmmBlock -&gt; CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#Nodes"><span class="hs-identifier hs-var">Nodes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689623"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689624"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(CmmBlock -&gt; CmmBlock) -&gt; Seq CmmBlock -&gt; Seq CmmBlock
+forall a b. (a -&gt; b) -&gt; Seq a -&gt; Seq b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Label -&gt; Label) -&gt; CmmBlock -&gt; CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#changeBlockLabels"><span class="hs-identifier hs-var">changeBlockLabels</span></a></span><span> </span><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689623"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Seq CmmBlock
+</span><a href="#local-6989586621682689625"><span class="hs-identifier hs-var">blocks</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | Map the given function over every use and definition of a label</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- in the given block.</span><span>
+</span><span id="line-200"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#changeBlockLabels"><span class="hs-identifier hs-type">changeBlockLabels</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.html#CmmBlock"><span class="hs-identifier hs-type">CmmBlock</span></a></span><span>
+</span><span id="line-201"></span><span id="changeBlockLabels"><span class="annot"><span class="annottext">changeBlockLabels :: (Label -&gt; Label) -&gt; CmmBlock -&gt; CmmBlock
+</span><a href="GHC.Cmm.Reducibility.html#changeBlockLabels"><span class="hs-identifier hs-var hs-var">changeBlockLabels</span></a></span></span><span> </span><span id="local-6989586621682689627"><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689627"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682689628"><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689628"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmNode C O -&gt; Block CmmNode O O -&gt; CmmNode O C -&gt; CmmBlock
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+n C O -&gt; Block n O O -&gt; n O C -&gt; Block n C C
+</span><a href="GHC.Cmm.Dataflow.Block.html#blockJoin"><span class="hs-identifier hs-var">blockJoin</span></a></span><span> </span><span class="annot"><span class="annottext">CmmNode C O
+</span><a href="#local-6989586621682689630"><span class="hs-identifier hs-var">entry'</span></a></span><span> </span><span class="annot"><span class="annottext">Block CmmNode O O
+</span><a href="#local-6989586621682689631"><span class="hs-identifier hs-var">middle</span></a></span><span> </span><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689632"><span class="hs-identifier hs-var">exit'</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682689633"><span class="annot"><span class="annottext">CmmNode C O
+</span><a href="#local-6989586621682689633"><span class="hs-identifier hs-var">entry</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689631"><span class="annot"><span class="annottext">Block CmmNode O O
+</span><a href="#local-6989586621682689631"><span class="hs-identifier hs-var">middle</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682689634"><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689634"><span class="hs-identifier hs-var">exit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmBlock -&gt; (CmmNode C O, Block CmmNode O O, CmmNode O C)
+forall (n :: Extensibility -&gt; Extensibility -&gt; *).
+Block n C C -&gt; (n C O, Block n O O, n O C)
+</span><a href="GHC.Cmm.Dataflow.Block.html#blockSplit"><span class="hs-identifier hs-var">blockSplit</span></a></span><span> </span><span class="annot"><span class="annottext">CmmBlock
+</span><a href="#local-6989586621682689628"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-203"></span><span>        </span><span id="local-6989586621682689630"><span class="annot"><span class="annottext">entry' :: CmmNode C O
+</span><a href="#local-6989586621682689630"><span class="hs-identifier hs-var hs-var">entry'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmEntry"><span class="hs-identifier hs-type">CmmEntry</span></a></span><span> </span><span id="local-6989586621682689639"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689639"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621682689640"><span class="annot"><span class="annottext">CmmTickScope
+</span><a href="#local-6989586621682689640"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmNode C O
+</span><a href="#local-6989586621682689633"><span class="hs-identifier hs-var">entry</span></a></span><span>
+</span><span id="line-204"></span><span>                 </span><span class="hs-keyword">in</span><span>  </span><span class="annot"><span class="annottext">Label -&gt; CmmTickScope -&gt; CmmNode C O
+</span><a href="GHC.Cmm.Node.html#CmmEntry"><span class="hs-identifier hs-var">CmmEntry</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689627"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689639"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CmmTickScope
+</span><a href="#local-6989586621682689640"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-205"></span><span>        </span><span id="local-6989586621682689632"><span class="annot"><span class="annottext">exit' :: CmmNode O C
+</span><a href="#local-6989586621682689632"><span class="hs-identifier hs-var hs-var">exit'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689634"><span class="hs-identifier hs-var">exit</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-206"></span><span>                  </span><span class="hs-comment">-- unclear why mapSuccessors doesn't touch these</span><span>
+</span><span id="line-207"></span><span>                  </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmCall"><span class="hs-identifier hs-type">CmmCall</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cml_cont :: CmmNode O C -&gt; Maybe Label
+</span><a href="GHC.Cmm.Node.html#cml_cont"><span class="hs-identifier hs-var">cml_cont</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682689645"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689645"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689634"><span class="hs-identifier hs-var">exit</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#cml_cont"><span class="hs-identifier hs-var">cml_cont</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682689627"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689645"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-208"></span><span>                  </span><span class="annot"><a href="GHC.Cmm.Node.html#CmmForeignCall"><span class="hs-identifier hs-type">CmmForeignCall</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">succ :: CmmNode O C -&gt; Label
+</span><a href="GHC.Cmm.Node.html#succ"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682689650"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689650"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689634"><span class="hs-identifier hs-var">exit</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Cmm.Node.html#succ"><span class="hs-identifier hs-var">succ</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621682689627"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689650"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-209"></span><span>                  </span><span class="annot"><span class="annottext">CmmNode O C
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Label -&gt; Label) -&gt; CmmNode O C -&gt; CmmNode O C
+</span><a href="GHC.Cmm.Node.html#mapSuccessors"><span class="hs-identifier hs-var">mapSuccessors</span></a></span><span> </span><span class="annot"><span class="annottext">Label -&gt; Label
+</span><a href="#local-6989586621682689627"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">CmmNode O C
+</span><a href="#local-6989586621682689634"><span class="hs-identifier hs-var">exit</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- | Within the given supernode, replace every defined label (and all</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- of its uses) with a fresh label.</span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="annot"><a href="GHC.Cmm.Reducibility.html#relabel"><span class="hs-identifier hs-type">relabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSM"><span class="hs-identifier hs-type">UniqSM</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#CmmSuper"><span class="hs-identifier hs-type">CmmSuper</span></a></span><span>
+</span><span id="line-216"></span><span id="relabel"><span class="annot"><span class="annottext">relabel :: CmmSuper -&gt; UniqSM CmmSuper
+</span><a href="GHC.Cmm.Reducibility.html#relabel"><span class="hs-identifier hs-var hs-var">relabel</span></a></span></span><span> </span><span id="local-6989586621682689652"><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689652"><span class="hs-identifier hs-var">node</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-217"></span><span>     </span><span id="local-6989586621682689653"><span class="annot"><a href="#local-6989586621682689653"><span class="hs-identifier hs-var">finite_map</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(LabelMap Label -&gt; Label -&gt; UniqSM (LabelMap Label))
+-&gt; LabelMap Label -&gt; Seq Label -&gt; UniqSM (LabelMap Label)
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="annot"><span class="annottext">LabelMap Label -&gt; Label -&gt; UniqSM (LabelMap Label)
+</span><a href="#local-6989586621682689655"><span class="hs-identifier hs-var">addPair</span></a></span><span> </span><span class="annot"><span class="annottext">LabelMap Label
+forall v. LabelMap v
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapEmpty"><span class="hs-identifier hs-var">mapEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">(Seq Label -&gt; UniqSM (LabelMap Label))
+-&gt; Seq Label -&gt; UniqSM (LabelMap Label)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CmmSuper -&gt; Seq Label
+</span><a href="GHC.Cmm.Reducibility.html#definedLabels"><span class="hs-identifier hs-var">definedLabels</span></a></span><span> </span><span class="annot"><span class="annottext">CmmSuper
+</span><a href="#local-6989586621682689652"><span class="hs-identifier hs-var">node</span></a></span><span>
+</span><span id="line-218"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reducibility.html#changeLabels"><span class="hs-identifier hs-type">changeLabels</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682689656"><span class="hs-identifier hs-type">labelChanger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689653"><span class="hs-identifier hs-type">finite_map</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682689652"><span class="hs-identifier hs-type">node</span></a></span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span class="annot"><a href="#local-6989586621682689655"><span class="hs-identifier hs-type">addPair</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#LabelMap"><span class="hs-identifier hs-type">LabelMap</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSM"><span class="hs-identifier hs-type">UniqSM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#LabelMap"><span class="hs-identifier hs-type">LabelMap</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>        </span><span id="local-6989586621682689655"><span class="annot"><span class="annottext">addPair :: LabelMap Label -&gt; Label -&gt; UniqSM (LabelMap Label)
+</span><a href="#local-6989586621682689655"><span class="hs-identifier hs-var hs-var">addPair</span></a></span></span><span> </span><span id="local-6989586621682689657"><span class="annot"><span class="annottext">LabelMap Label
+</span><a href="#local-6989586621682689657"><span class="hs-identifier hs-var">map</span></a></span></span><span> </span><span id="local-6989586621682689658"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689658"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682689659"><span class="annot"><a href="#local-6989586621682689659"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UniqSM Label
+forall (m :: * -&gt; *). MonadUnique m =&gt; m Label
+</span><a href="GHC.Cmm.BlockId.html#newBlockId"><span class="hs-identifier hs-var">newBlockId</span></a></span><span>
+</span><span id="line-221"></span><span>                             </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#mapInsert"><span class="hs-identifier hs-type">mapInsert</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689658"><span class="hs-identifier hs-type">old</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689659"><span class="hs-identifier hs-type">new</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682689657"><span class="hs-identifier hs-type">map</span></a></span><span>
+</span><span id="line-222"></span><span>        </span><span class="annot"><a href="#local-6989586621682689656"><span class="hs-identifier hs-type">labelChanger</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#LabelMap"><span class="hs-identifier hs-type">LabelMap</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Dataflow.Label.html#Label"><span class="hs-identifier hs-type">Label</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>        </span><span id="local-6989586621682689656"><span class="annot"><span class="annottext">labelChanger :: LabelMap Label -&gt; Label -&gt; Label
+</span><a href="#local-6989586621682689656"><span class="hs-identifier hs-var hs-var">labelChanger</span></a></span></span><span> </span><span id="local-6989586621682689661"><span class="annot"><span class="annottext">LabelMap Label
+</span><a href="#local-6989586621682689661"><span class="hs-identifier hs-var">mapping</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682689662"><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689662"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Label -&gt; Label -&gt; LabelMap Label -&gt; Label
+forall a. a -&gt; Label -&gt; LabelMap a -&gt; a
+</span><a href="GHC.Cmm.Dataflow.Label.html#mapFindWithDefault"><span class="hs-identifier hs-var">mapFindWithDefault</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689662"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">Label
+</span><a href="#local-6989586621682689662"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">LabelMap Label
+</span><a href="#local-6989586621682689661"><span class="hs-identifier hs-var">mapping</span></a></span><span>
+</span><span id="line-224"></span></pre></body></html>

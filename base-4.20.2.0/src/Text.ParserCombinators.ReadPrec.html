@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Text.ParserCombinators.ReadPrec</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2002</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  non-portable (uses Text.ParserCombinators.ReadP)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This module defines parser combinators for precedence parsing.</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Text.ParserCombinators.ReadPrec.html"><span class="hs-identifier">Text.ParserCombinators.ReadPrec</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#ReadPrec"><span class="hs-identifier">ReadPrec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Precedences</span></span><span>
+</span><span id="line-18"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#Prec"><span class="hs-identifier">Prec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#minPrec"><span class="hs-identifier">minPrec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Precedence operations</span></span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#lift"><span class="hs-identifier">lift</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#prec"><span class="hs-identifier">prec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#step"><span class="hs-identifier">step</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#reset"><span class="hs-identifier">reset</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Other operations</span></span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><span class="hs-comment">-- |  All are based directly on their similarly-named 'ReadP' counterparts.</span></span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#get"><span class="hs-identifier">get</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#look"><span class="hs-identifier">look</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#%2B%2B%2B"><span class="hs-operator">(+++)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#%3C%2B%2B"><span class="hs-operator">(&lt;++)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#pfail"><span class="hs-identifier">pfail</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#choice"><span class="hs-identifier">choice</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Converters</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#readPrec_to_P"><span class="hs-identifier">readPrec_to_P</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#readP_to_Prec"><span class="hs-identifier">readP_to_Prec</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#readPrec_to_S"><span class="hs-identifier">readPrec_to_S</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html#readS_to_Prec"><span class="hs-identifier">readS_to_Prec</span></a></span><span>
+</span><span id="line-38"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Text.ParserCombinators.ReadPrec.html"><span class="hs-identifier">GHC.Internal.Text.ParserCombinators.ReadPrec</span></a></span><span>
+</span><span id="line-41"></span></pre></body></html>

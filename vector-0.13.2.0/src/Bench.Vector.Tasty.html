@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Tasty integration for vector benchmarks.</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Bench.Vector.Tasty.html"><span class="hs-identifier">Bench.Vector.Tasty</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier">VectorSize</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier">RandomSeed</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Tasty.Options</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="annot"><span class="hs-comment">-- | Size of vector used in benchmarks</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">newtype</span><span> </span><span id="VectorSize"><span class="annot"><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier hs-var">VectorSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="VectorSize"><span class="annot"><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier hs-var">VectorSize</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072591"><span id="local-6989586621679072595"><span class="annot"><span class="hs-identifier hs-type">IsOption</span></span><span> </span><span class="annot"><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier hs-type">VectorSize</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>  </span><span id="local-6989586621679072598"><span class="annot"><span class="annottext">defaultValue :: VectorSize
+</span><a href="#local-6989586621679072598"><span class="hs-identifier hs-var hs-var hs-var">defaultValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; VectorSize
+</span><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier hs-var">VectorSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2000000</span></span><span>
+</span><span id="line-16"></span><span>  </span><span id="local-6989586621679072604"><span class="annot"><span class="annottext">parseValue :: String -&gt; Maybe VectorSize
+</span><a href="#local-6989586621679072604"><span class="hs-identifier hs-var hs-var hs-var">parseValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; VectorSize) -&gt; Maybe Int -&gt; Maybe VectorSize
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; VectorSize
+</span><a href="Bench.Vector.Tasty.html#VectorSize"><span class="hs-identifier hs-var">VectorSize</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Maybe VectorSize)
+-&gt; (String -&gt; Maybe Int) -&gt; String -&gt; Maybe VectorSize
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Int
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">safeRead</span></span><span>
+</span><span id="line-17"></span><span>  </span><span id="local-6989586621679072610"><span class="annot"><span class="annottext">optionName :: Tagged VectorSize String
+</span><a href="#local-6989586621679072610"><span class="hs-identifier hs-var hs-var hs-var">optionName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Tagged VectorSize String
+forall a. a -&gt; Tagged VectorSize a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;size&quot;</span></span><span>
+</span><span id="line-18"></span><span>  </span><span id="local-6989586621679072613"><span class="annot"><span class="annottext">optionHelp :: Tagged VectorSize String
+</span><a href="#local-6989586621679072613"><span class="hs-identifier hs-var hs-var hs-var">optionHelp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Tagged VectorSize String
+forall a. a -&gt; Tagged VectorSize a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Size of vectors used in benchmarks&quot;</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | Random seed used for generation of the test data</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">newtype</span><span> </span><span id="RandomSeed"><span class="annot"><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier hs-var">RandomSeed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RandomSeed"><span class="annot"><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier hs-var">RandomSeed</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072623"><span id="local-6989586621679072627"><span class="annot"><span class="hs-identifier hs-type">IsOption</span></span><span> </span><span class="annot"><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier hs-type">RandomSeed</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679072629"><span class="annot"><span class="annottext">defaultValue :: RandomSeed
+</span><span class="hs-identifier hs-var hs-var hs-var">defaultValue</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; RandomSeed
+</span><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier hs-var">RandomSeed</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">42</span></span><span>
+</span><span id="line-25"></span><span>  </span><span id="local-6989586621679072632"><span class="annot"><span class="annottext">parseValue :: String -&gt; Maybe RandomSeed
+</span><span class="hs-identifier hs-var hs-var hs-var">parseValue</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; RandomSeed) -&gt; Maybe Int -&gt; Maybe RandomSeed
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; RandomSeed
+</span><a href="Bench.Vector.Tasty.html#RandomSeed"><span class="hs-identifier hs-var">RandomSeed</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Maybe RandomSeed)
+-&gt; (String -&gt; Maybe Int) -&gt; String -&gt; Maybe RandomSeed
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Int
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">safeRead</span></span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679072634"><span class="annot"><span class="annottext">optionName :: Tagged RandomSeed String
+</span><span class="hs-identifier hs-var hs-var hs-var">optionName</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Tagged RandomSeed String
+forall a. a -&gt; Tagged RandomSeed a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;seed&quot;</span></span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679072636"><span class="annot"><span class="annottext">optionHelp :: Tagged RandomSeed String
+</span><span class="hs-identifier hs-var hs-var hs-var">optionHelp</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Tagged RandomSeed String
+forall a. a -&gt; Tagged RandomSeed a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Random seed used for generation of the test data&quot;</span></span><span>
+</span><span id="line-28"></span></pre></body></html>

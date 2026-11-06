@@ -1,0 +1,218 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances   #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiWayIf          #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings   #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | An internal module that contains common decoding functionality</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- that is shared between Lazy and Strict decoders, as well as</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- generic 'Get' monad helpers.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Get.html"><span class="hs-identifier">Data.Avro.Internal.Get</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">replicateM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Get</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.IEEE754</span></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IEEE</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>                    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html"><span class="hs-identifier">Data.Avro.Internal.DecodeRaw</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getBoolean"><span class="hs-identifier hs-type">getBoolean</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-29"></span><span id="getBoolean"><span class="annot"><span class="annottext">getBoolean :: Get Bool
+</span><a href="Data.Avro.Internal.Get.html#getBoolean"><span class="hs-identifier hs-var hs-var">getBoolean</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-30"></span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679514535"><span class="annot"><a href="#local-6989586621679514535"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get Word8
+</span><span class="hs-identifier hs-var">G.getWord8</span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679514535"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-number">0x01</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- |Get a 32-bit int (zigzag encoded, max of 5 bytes)</span></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getInt"><span class="hs-identifier hs-type">getInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span>
+</span><span id="line-35"></span><span id="getInt"><span class="annot"><span class="annottext">getInt :: Get Int32
+</span><a href="Data.Avro.Internal.Get.html#getInt"><span class="hs-identifier hs-var hs-var">getInt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Int32
+forall i. (Bits i, Integral i, DecodeRaw i) =&gt; Get i
+</span><a href="Data.Avro.Internal.Get.html#getZigZag"><span class="hs-identifier hs-var">getZigZag</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- |Get a 64 bit int (zigzag encoded, max of 10 bytes)</span></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-type">getLong</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-39"></span><span id="getLong"><span class="annot"><span class="annottext">getLong :: Get Int64
+</span><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-var hs-var">getLong</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Int64
+forall i. (Bits i, Integral i, DecodeRaw i) =&gt; Get i
+</span><a href="Data.Avro.Internal.Get.html#getZigZag"><span class="hs-identifier hs-var">getZigZag</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">-- |Get an zigzag encoded integral value consuming bytes till the msb is 0.</span></span><span>
+</span><span id="line-42"></span><span id="local-6989586621679514452"><span class="annot"><a href="Data.Avro.Internal.Get.html#getZigZag"><span class="hs-identifier hs-type">getZigZag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679514452"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514452"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Internal.DecodeRaw.html#DecodeRaw"><span class="hs-identifier hs-type">DecodeRaw</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514452"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514452"><span class="hs-identifier hs-type">i</span></a></span></span><span>
+</span><span id="line-43"></span><span id="getZigZag"><span class="annot"><span class="annottext">getZigZag :: forall i. (Bits i, Integral i, DecodeRaw i) =&gt; Get i
+</span><a href="Data.Avro.Internal.Get.html#getZigZag"><span class="hs-identifier hs-var hs-var">getZigZag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get i
+forall a. DecodeRaw a =&gt; Get a
+</span><a href="Data.Avro.Internal.DecodeRaw.html#decodeRaw"><span class="hs-identifier hs-var">decodeRaw</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getBytes"><span class="hs-identifier hs-type">getBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-46"></span><span id="getBytes"><span class="annot"><span class="annottext">getBytes :: Get ByteString
+</span><a href="Data.Avro.Internal.Get.html#getBytes"><span class="hs-identifier hs-var hs-var">getBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Int64
+</span><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-var">getLong</span></a></span><span> </span><span class="annot"><span class="annottext">Get Int64 -&gt; (Int64 -&gt; Get ByteString) -&gt; Get ByteString
+forall a b. Get a -&gt; (a -&gt; Get b) -&gt; Get b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Get ByteString
+</span><span class="hs-identifier hs-var">G.getByteString</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Get ByteString)
+-&gt; (Int64 -&gt; Int) -&gt; Int64 -&gt; Get ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getBytesLazy"><span class="hs-identifier hs-type">getBytesLazy</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-49"></span><span id="getBytesLazy"><span class="annot"><span class="annottext">getBytesLazy :: Get ByteString
+</span><a href="Data.Avro.Internal.Get.html#getBytesLazy"><span class="hs-identifier hs-var hs-var">getBytesLazy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Int64
+</span><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-var">getLong</span></a></span><span> </span><span class="annot"><span class="annottext">Get Int64 -&gt; (Int64 -&gt; Get ByteString) -&gt; Get ByteString
+forall a b. Get a -&gt; (a -&gt; Get b) -&gt; Get b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64 -&gt; Get ByteString
+</span><span class="hs-identifier hs-var">G.getLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; Get ByteString)
+-&gt; (Int64 -&gt; Int64) -&gt; Int64 -&gt; Get ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getString"><span class="hs-identifier hs-type">getString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-52"></span><span id="getString"><span class="annot"><span class="annottext">getString :: Get Text
+</span><a href="Data.Avro.Internal.Get.html#getString"><span class="hs-identifier hs-var hs-var">getString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679514552"><span class="annot"><a href="#local-6989586621679514552"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get ByteString
+</span><a href="Data.Avro.Internal.Get.html#getBytes"><span class="hs-identifier hs-var">getBytes</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.decodeUtf8'</span></span><span> </span><span class="annot"><a href="#local-6989586621679514552"><span class="hs-identifier hs-type">bytes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679514554"><span class="annot"><span class="annottext">UnicodeException
+</span><a href="#local-6989586621679514554"><span class="hs-identifier hs-var">unicodeExc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Get Text
+forall a. String -&gt; Get a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UnicodeException -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">UnicodeException
+</span><a href="#local-6989586621679514554"><span class="hs-identifier hs-var">unicodeExc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679514556"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679514556"><span class="hs-identifier hs-var">text</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Get Text
+forall a. a -&gt; Get a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679514556"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- a la Java:</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--  Bit 31 (the bit that is selected by the mask 0x80000000) represents the</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--  sign of the floating-point number. Bits 30-23 (the bits that are</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--  selected by the mask 0x7f800000) represent the exponent. Bits 22-0 (the</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--  bits that are selected by the mask 0x007fffff) represent the</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--  significand (sometimes called the mantissa) of the floating-point</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--  number.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--  If the argument is positive infinity, the result is 0x7f800000.</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--  If the argument is negative infinity, the result is 0xff800000.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--  If the argument is NaN, the result is 0x7fc00000.</span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getFloat"><span class="hs-identifier hs-type">getFloat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-72"></span><span id="getFloat"><span class="annot"><span class="annottext">getFloat :: Get Float
+</span><a href="Data.Avro.Internal.Get.html#getFloat"><span class="hs-identifier hs-var hs-var">getFloat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Float
+</span><span class="hs-identifier hs-var">IEEE.wordToFloat</span></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Float) -&gt; Get Word32 -&gt; Get Float
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get Word32
+</span><span class="hs-identifier hs-var">G.getWord32le</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- As in Java:</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--  Bit 63 (the bit that is selected by the mask 0x8000000000000000L)</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--  represents the sign of the floating-point number. Bits 62-52 (the bits</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--  that are selected by the mask 0x7ff0000000000000L) represent the</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--  exponent. Bits 51-0 (the bits that are selected by the mask</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--  0x000fffffffffffffL) represent the significand (sometimes called the</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--  mantissa) of the floating-point number.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--  If the argument is positive infinity, the result is</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--  0x7ff0000000000000L.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--  If the argument is negative infinity, the result is</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--  0xfff0000000000000L.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--  If the argument is NaN, the result is 0x7ff8000000000000L</span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#getDouble"><span class="hs-identifier hs-type">getDouble</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-90"></span><span id="getDouble"><span class="annot"><span class="annottext">getDouble :: Get Double
+</span><a href="Data.Avro.Internal.Get.html#getDouble"><span class="hs-identifier hs-var hs-var">getDouble</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Double
+</span><span class="hs-identifier hs-var">IEEE.wordToDouble</span></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Double) -&gt; Get Word64 -&gt; Get Double
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get Word64
+</span><span class="hs-identifier hs-var">G.getWord64le</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | Avro encodes arrays and maps as a series of blocks. Each block</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- starts with a count of the elements in the block. A series of</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- blocks is always terminated with an empty block (encoded as a 0).</span><span>
+</span><span id="line-95"></span><span id="local-6989586621679514471"><span class="annot"><a href="Data.Avro.Internal.Get.html#decodeBlocks"><span class="hs-identifier hs-type">decodeBlocks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679514471"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679514471"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-96"></span><span id="decodeBlocks"><span class="annot"><span class="annottext">decodeBlocks :: forall a. Get a -&gt; Get [a]
+</span><a href="Data.Avro.Internal.Get.html#decodeBlocks"><span class="hs-identifier hs-var hs-var">decodeBlocks</span></a></span></span><span> </span><span id="local-6989586621679514591"><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514591"><span class="hs-identifier hs-var">element</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621679514592"><span class="annot"><a href="#local-6989586621679514592"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get Int64
+</span><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-var">getLong</span></a></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679514592"><span class="hs-identifier hs-type">count</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>     </span><span class="hs-comment">-- negative counts are followed by the number of *bytes* in the</span><span>
+</span><span id="line-101"></span><span>     </span><span class="hs-comment">-- array block</span><span>
+</span><span id="line-102"></span><span>     </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679514592"><span class="hs-identifier hs-type">count</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>         </span><span id="local-6989586621679514594"><span class="annot"><a href="#local-6989586621679514594"><span class="hs-identifier hs-var">_bytes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Get.html#getLong"><span class="hs-identifier hs-type">getLong</span></a></span><span>
+</span><span id="line-104"></span><span>         </span><span id="local-6989586621679514595"><span class="annot"><a href="#local-6989586621679514595"><span class="hs-identifier hs-var">items</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">replicateM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">abs</span></span><span> </span><span class="annot"><a href="#local-6989586621679514592"><span class="hs-identifier hs-type">count</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679514597"><span class="hs-identifier hs-type">element'</span></a></span><span>
+</span><span id="line-105"></span><span>         </span><span id="local-6989586621679514598"><span class="annot"><a href="#local-6989586621679514598"><span class="hs-identifier hs-var">rest</span></a></span></span><span>   </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Get.html#decodeBlocks"><span class="hs-identifier hs-type">decodeBlocks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514591"><span class="hs-identifier hs-type">element</span></a></span><span>
+</span><span id="line-106"></span><span>         </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679514595"><span class="hs-identifier hs-type">items</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679514598"><span class="hs-identifier hs-type">rest</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>     </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">otherwise</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>         </span><span id="local-6989586621679514599"><span class="annot"><a href="#local-6989586621679514599"><span class="hs-identifier hs-var">items</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">replicateM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514592"><span class="hs-identifier hs-type">count</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679514597"><span class="hs-identifier hs-type">element'</span></a></span><span>
+</span><span id="line-110"></span><span>         </span><span id="local-6989586621679514600"><span class="annot"><a href="#local-6989586621679514600"><span class="hs-identifier hs-var">rest</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Get.html#decodeBlocks"><span class="hs-identifier hs-type">decodeBlocks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514591"><span class="hs-identifier hs-type">element</span></a></span><span>
+</span><span id="line-111"></span><span>         </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679514599"><span class="hs-identifier hs-type">items</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679514600"><span class="hs-identifier hs-type">rest</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679514597"><span class="annot"><span class="annottext">element' :: Get a
+</span><a href="#local-6989586621679514597"><span class="hs-identifier hs-var hs-var">element'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>          </span><span class="hs-glyph">!</span><span id="local-6989586621679514603"><span class="annot"><a href="#local-6989586621679514603"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679514591"><span class="hs-identifier hs-var">element</span></a></span><span>
+</span><span id="line-114"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621679514603"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- Safe-ish from integral</span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Data.Avro.Internal.Get.html#sFromIntegral"><span class="hs-identifier hs-type">sFromIntegral</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679514486"><span class="annot"><a href="#local-6989586621679514486"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679514487"><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span id="local-6989586621679514485"><span class="annot"><a href="#local-6989586621679514485"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679514485"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="annot"><a href="#local-6989586621679514486"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514486"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679514486"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679514485"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-118"></span><span id="sFromIntegral"><span class="annot"><span class="annottext">sFromIntegral :: forall a b (m :: * -&gt; *).
+(Monad m, Bounded a, Bounded b, Integral a, Integral b) =&gt;
+a -&gt; m b
+</span><a href="Data.Avro.Internal.Get.html#sFromIntegral"><span class="hs-identifier hs-var hs-var">sFromIntegral</span></a></span></span><span> </span><span id="local-6989586621679514637"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514637"><span class="hs-identifier hs-var">a</span></a></span></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514638"><span class="hs-identifier hs-var">aI</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679514638"><span class="hs-identifier hs-var">aI</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679514487"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m b
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Integral overflow.&quot;</span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; m b
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514637"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679514638"><span class="annot"><span class="annottext">aI :: Integer
+</span><a href="#local-6989586621679514638"><span class="hs-identifier hs-var hs-var">aI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514637"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-123"></span></pre></body></html>

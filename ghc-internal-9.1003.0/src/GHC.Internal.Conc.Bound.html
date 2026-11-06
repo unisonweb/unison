@@ -1,0 +1,347 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE UnliftedFFITypes #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE Unsafe #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Module      :  GHC.Internal.Conc.Bound</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Portability :  non-portable (concurrency)</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Bound thread support.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html"><span class="hs-identifier">GHC.Internal.Conc.Bound</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS"><span class="hs-identifier">forkOS</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOSWithUnmask"><span class="hs-identifier">forkOSWithUnmask</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#isCurrentThreadBound"><span class="hs-identifier">isCurrentThreadBound</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#runInBoundThread"><span class="hs-identifier">runInBoundThread</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#runInUnboundThread"><span class="hs-identifier">runInUnboundThread</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#rtsSupportsBoundThreads"><span class="hs-identifier">rtsSupportsBoundThreads</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- JavaScript platform doesn't support bound threads</span><span class="hs-cpp">
+#if !defined(javascript_HOST_ARCH)
+</span><span class="hs-cpp">#define SUPPORT_BOUND_THREADS
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">
+#if !defined(SUPPORT_BOUND_THREADS)
+</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Base</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Conc.Sync</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ThreadId</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-identifier">forkOS</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ThreadId</span><span>
+</span><span id="line-45"></span><span class="hs-identifier">forkOS</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;forkOS not supported on this architecture&quot;</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-identifier">forkOSWithUnmask</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">ThreadId</span><span>
+</span><span id="line-48"></span><span class="hs-identifier">forkOSWithUnmask</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">error</span><span> </span><span class="hs-string">&quot;forkOS not supported on this architecture&quot;</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-identifier">isCurrentThreadBound</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-51"></span><span class="hs-identifier">isCurrentThreadBound</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">pure</span><span> </span><span class="hs-identifier">False</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-identifier">runInBoundThread</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-54"></span><span class="hs-identifier">runInBoundThread</span><span> </span><span class="hs-identifier">action</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">action</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-identifier">runInUnboundThread</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-57"></span><span class="hs-identifier">runInUnboundThread</span><span> </span><span class="hs-identifier">action</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">action</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-identifier">rtsSupportsBoundThreads</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-60"></span><span class="hs-identifier">rtsSupportsBoundThreads</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">False</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.StablePtr.html"><span class="hs-identifier">GHC.Internal.Foreign.StablePtr</span></a></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html"><span class="hs-identifier">GHC.Internal.Foreign.C.Types</span></a></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Control.Monad.Fail.html"><span class="hs-identifier">GHC.Internal.Control.Monad.Fail</span></a></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Either.html"><span class="hs-identifier">GHC.Internal.Data.Either</span></a></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.Control.Exception.Base.html"><span class="hs-identifier">GHC.Internal.Control.Exception.Base</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Exception</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Sync.html"><span class="hs-identifier">GHC.Internal.Conc.Sync</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IO.html"><span class="hs-identifier">GHC.Internal.IO</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.html"><span class="hs-identifier">GHC.Internal.Exception</span></a></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IORef.html"><span class="hs-identifier">GHC.Internal.IORef</span></a></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.MVar.html"><span class="hs-identifier">GHC.Internal.MVar</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | 'True' if bound threads are supported.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- If @rtsSupportsBoundThreads@ is 'False', 'isCurrentThreadBound'</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- will always return 'False' and both 'forkOS' and 'runInBoundThread' will</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- fail.</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span id="rtsSupportsBoundThreads"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#rtsSupportsBoundThreads"><span class="hs-identifier hs-var">rtsSupportsBoundThreads</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><span class="hs-comment">{- |
+Like 'forkIO', this sparks off a new thread to run the 'IO'
+computation passed as the first argument, and returns the 'ThreadId'
+of the newly created thread.
+
+However, 'forkOS' creates a /bound/ thread, which is necessary if you
+need to call foreign (non-Haskell) libraries that make use of
+thread-local state, such as OpenGL (see &quot;Control.Concurrent#boundthreads&quot;).
+
+Using 'forkOS' instead of 'forkIO' makes no difference at all to the
+scheduling behaviour of the Haskell runtime system.  It is a common
+misconception that you need to use 'forkOS' instead of 'forkIO' to
+avoid blocking all the Haskell threads when making a foreign call;
+this isn't the case.  To allow foreign calls to be made without
+blocking all the Haskell threads (with GHC), it is only necessary to
+use the @-threaded@ option when linking your program, and to make sure
+the foreign import is not marked @unsafe@.
+-}</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS"><span class="hs-identifier hs-type">forkOS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Sync.html#ThreadId"><span class="hs-identifier hs-type">ThreadId</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">export</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS_entry"><span class="hs-identifier hs-type">forkOS_entry</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stable.html#StablePtr"><span class="hs-identifier hs-type">StablePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-string">&quot;forkOS_entry&quot;</span></span><span> </span><span id="forkOS_entry_reimported"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS_entry_reimported"><span class="hs-identifier hs-var">forkOS_entry_reimported</span></a></span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stable.html#StablePtr"><span class="hs-identifier hs-type">StablePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS_entry"><span class="hs-identifier hs-type">forkOS_entry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stable.html#StablePtr"><span class="hs-identifier hs-type">StablePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span id="forkOS_entry"><span class="annot"><span class="annottext">forkOS_entry :: StablePtr (IO ()) -&gt; IO ()
+</span><a href="GHC.Internal.Conc.Bound.html#forkOS_entry"><span class="hs-identifier hs-var hs-var">forkOS_entry</span></a></span></span><span> </span><span id="local-6989586621679670367"><span class="annot"><span class="annottext">StablePtr (IO ())
+</span><a href="#local-6989586621679670367"><span class="hs-identifier hs-var">stableAction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>        </span><span id="local-6989586621679670368"><span class="annot"><a href="#local-6989586621679670368"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StablePtr (IO ()) -&gt; IO (IO ())
+forall a. StablePtr a -&gt; IO a
+</span><a href="GHC.Internal.Stable.html#deRefStablePtr"><span class="hs-identifier hs-var">deRefStablePtr</span></a></span><span> </span><span class="annot"><span class="annottext">StablePtr (IO ())
+</span><a href="#local-6989586621679670367"><span class="hs-identifier hs-var">stableAction</span></a></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><a href="#local-6989586621679670368"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span id="forkOS_createThread"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS_createThread"><span class="hs-identifier hs-var">forkOS_createThread</span></a></span></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stable.html#StablePtr"><span class="hs-identifier hs-type">StablePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.Types.html#CInt"><span class="hs-identifier hs-type">CInt</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span id="local-6989586621679670281"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#failNonThreaded"><span class="hs-identifier hs-type">failNonThreaded</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670281"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-119"></span><span id="failNonThreaded"><span class="annot"><span class="annottext">failNonThreaded :: forall a. IO a
+</span><a href="GHC.Internal.Conc.Bound.html#failNonThreaded"><span class="hs-identifier hs-var hs-var">failNonThreaded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO a
+forall a. String -&gt; IO a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><a href="GHC.Internal.Control.Monad.Fail.html#fail"><span class="hs-identifier hs-var">fail</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO a) -&gt; String -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RTS doesn't support multiple OS threads &quot;</span></span><span>
+</span><span id="line-120"></span><span>                       </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;(use ghc -threaded when linking)&quot;</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span id="forkOS"><span class="annot"><span class="annottext">forkOS :: IO () -&gt; IO ThreadId
+</span><a href="GHC.Internal.Conc.Bound.html#forkOS"><span class="hs-identifier hs-var hs-var">forkOS</span></a></span></span><span> </span><span id="local-6989586621679670373"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679670373"><span class="hs-identifier hs-var">action0</span></a></span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Conc.Bound.html#rtsSupportsBoundThreads"><span class="hs-identifier hs-var">rtsSupportsBoundThreads</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>        </span><span id="local-6989586621679670374"><span class="annot"><a href="#local-6989586621679670374"><span class="hs-identifier hs-var">mv</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (MVar ThreadId)
+forall a. IO (MVar a)
+</span><a href="GHC.Internal.MVar.html#newEmptyMVar"><span class="hs-identifier hs-var">newEmptyMVar</span></a></span><span>
+</span><span id="line-125"></span><span>        </span><span id="local-6989586621679670376"><span class="annot"><a href="#local-6989586621679670376"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.IO.html#getMaskingState"><span class="hs-identifier hs-type">Exception.getMaskingState</span></a></span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-keyword">let</span><span>
+</span><span id="line-127"></span><span>            </span><span class="hs-comment">-- async exceptions are masked in the child if they are masked</span><span>
+</span><span id="line-128"></span><span>            </span><span class="hs-comment">-- in the parent, as for forkIO (see #1048). forkOS_createThread</span><span>
+</span><span id="line-129"></span><span>            </span><span class="hs-comment">-- creates a thread with exceptions masked by default.</span><span>
+</span><span id="line-130"></span><span>            </span><span id="local-6989586621679670378"><span class="annot"><a href="#local-6989586621679670378"><span class="hs-identifier hs-var hs-var">action1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MaskingState
+</span><a href="#local-6989586621679670376"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-131"></span><span>                        </span><span class="annot"><span class="annottext">MaskingState
+</span><a href="GHC.Internal.IO.html#Unmasked"><span class="hs-identifier hs-var">Unmasked</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="GHC.Internal.IO.html#unsafeUnmask"><span class="hs-identifier hs-var">unsafeUnmask</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679670373"><span class="hs-identifier hs-var">action0</span></a></span><span>
+</span><span id="line-132"></span><span>                        </span><span class="annot"><span class="annottext">MaskingState
+</span><a href="GHC.Internal.IO.html#MaskedInterruptible"><span class="hs-identifier hs-var">MaskedInterruptible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679670373"><span class="hs-identifier hs-var">action0</span></a></span><span>
+</span><span id="line-133"></span><span>                        </span><span class="annot"><span class="annottext">MaskingState
+</span><a href="GHC.Internal.IO.html#MaskedUninterruptible"><span class="hs-identifier hs-var">MaskedUninterruptible</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="GHC.Internal.IO.html#uninterruptibleMask_"><span class="hs-identifier hs-var">uninterruptibleMask_</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679670373"><span class="hs-identifier hs-var">action0</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>            </span><span id="local-6989586621679670386"><span class="annot"><a href="#local-6989586621679670386"><span class="hs-identifier hs-var hs-var">action_plus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; (SomeException -&gt; IO ()) -&gt; IO ()
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.IO.html#catch"><span class="hs-identifier hs-var">catch</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679670378"><span class="hs-identifier hs-var">action1</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; IO ()
+</span><a href="GHC.Internal.Conc.Sync.html#childHandler"><span class="hs-identifier hs-var">childHandler</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>        </span><span id="local-6989586621679670389"><span class="annot"><a href="#local-6989586621679670389"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.Stable.html#newStablePtr"><span class="hs-identifier hs-type">newStablePtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Conc.Sync.html#myThreadId"><span class="hs-identifier hs-type">myThreadId</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-type">&gt;&gt;=</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.MVar.html#putMVar"><span class="hs-identifier hs-type">putMVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670374"><span class="hs-identifier hs-type">mv</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%3E%3E"><span class="hs-operator hs-type">&gt;&gt;</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670386"><span class="hs-identifier hs-type">action_plus</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>        </span><span id="local-6989586621679670392"><span class="annot"><a href="#local-6989586621679670392"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOS_createThread"><span class="hs-identifier hs-type">forkOS_createThread</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670389"><span class="hs-identifier hs-type">entry</span></a></span><span>
+</span><span id="line-139"></span><span>        </span><span class="annot"><a href="GHC.Internal.Base.html#when"><span class="hs-identifier hs-type">when</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679670392"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%2F%3D"><span class="hs-operator hs-type">/=</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Control.Monad.Fail.html#fail"><span class="hs-identifier hs-type">fail</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;Cannot create OS thread.&quot;</span></span><span>
+</span><span id="line-140"></span><span>        </span><span id="local-6989586621679670395"><span class="annot"><a href="#local-6989586621679670395"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.MVar.html#takeMVar"><span class="hs-identifier hs-type">takeMVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670374"><span class="hs-identifier hs-type">mv</span></a></span><span>
+</span><span id="line-141"></span><span>        </span><span class="annot"><a href="GHC.Internal.Stable.html#freeStablePtr"><span class="hs-identifier hs-type">freeStablePtr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670389"><span class="hs-identifier hs-type">entry</span></a></span><span>
+</span><span id="line-142"></span><span>        </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670395"><span class="hs-identifier hs-type">tid</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO ThreadId
+forall a. IO a
+</span><a href="GHC.Internal.Conc.Bound.html#failNonThreaded"><span class="hs-identifier hs-var">failNonThreaded</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | Like 'forkIOWithUnmask', but the child thread is a bound thread,</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- as with 'forkOS'.</span><span>
+</span><span id="line-147"></span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#forkOSWithUnmask"><span class="hs-identifier hs-type">forkOSWithUnmask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679670399"><span class="annot"><a href="#local-6989586621679670399"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670399"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670399"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Sync.html#ThreadId"><span class="hs-identifier hs-type">ThreadId</span></a></span><span>
+</span><span id="line-148"></span><span id="forkOSWithUnmask"><span class="annot"><span class="annottext">forkOSWithUnmask :: ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ThreadId
+</span><a href="GHC.Internal.Conc.Bound.html#forkOSWithUnmask"><span class="hs-identifier hs-var hs-var">forkOSWithUnmask</span></a></span></span><span> </span><span id="local-6989586621679670400"><span class="annot"><span class="annottext">(forall a. IO a -&gt; IO a) -&gt; IO ()
+</span><a href="#local-6989586621679670400"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><a href="GHC.Internal.Conc.Bound.html#forkOS"><span class="hs-identifier hs-var">forkOS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall a. IO a -&gt; IO a) -&gt; IO ()
+</span><a href="#local-6989586621679670400"><span class="hs-identifier hs-var">io</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><a href="GHC.Internal.IO.html#unsafeUnmask"><span class="hs-identifier hs-var">unsafeUnmask</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- | Returns 'True' if the calling thread is /bound/, that is, if it is</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- safe to use foreign libraries that rely on thread-local state from the</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- calling thread.</span><span>
+</span><span id="line-153"></span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#isCurrentThreadBound"><span class="hs-identifier hs-type">isCurrentThreadBound</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-154"></span><span id="isCurrentThreadBound"><span class="annot"><span class="annottext">isCurrentThreadBound :: IO Bool
+</span><a href="GHC.Internal.Conc.Bound.html#isCurrentThreadBound"><span class="hs-identifier hs-var hs-var">isCurrentThreadBound</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, Bool #)) -&gt; IO Bool
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, Bool #)) -&gt; IO Bool)
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, Bool #)) -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679670401"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679670401"><span class="hs-identifier hs-var">s#</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">State# RealWorld -&gt; (# State# RealWorld, Int# #)
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#isCurrentThreadBound%23"><span class="hs-identifier hs-var">isCurrentThreadBound#</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679670401"><span class="hs-identifier hs-var">s#</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>        </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679670402"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679670402"><span class="hs-identifier hs-var">s2#</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679670403"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679670403"><span class="hs-identifier hs-var">flg</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679670402"><span class="hs-identifier hs-var">s2#</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#isTrue%23"><span class="hs-identifier hs-var">isTrue#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679670403"><span class="hs-identifier hs-var">flg</span></a></span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#%2F%3D%23"><span class="hs-operator hs-var">/=#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">{- |
+Run the 'IO' computation passed as the first argument. If the calling thread
+is not /bound/, a bound thread is created temporarily. @runInBoundThread@
+doesn't finish until the 'IO' computation finishes.
+
+You can wrap a series of foreign function calls that rely on thread-local state
+with @runInBoundThread@ so that you can use them without knowing whether the
+current thread is /bound/.
+-}</span></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679670405"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#runInBoundThread"><span class="hs-identifier hs-type">runInBoundThread</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670405"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670405"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span id="runInBoundThread"><span class="annot"><span class="annottext">runInBoundThread :: forall a. IO a -&gt; IO a
+</span><a href="GHC.Internal.Conc.Bound.html#runInBoundThread"><span class="hs-identifier hs-var hs-var">runInBoundThread</span></a></span></span><span> </span><span id="local-6989586621679670412"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679670412"><span class="hs-identifier hs-var">action</span></a></span></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Conc.Bound.html#rtsSupportsBoundThreads"><span class="hs-identifier hs-var">rtsSupportsBoundThreads</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-172"></span><span>        </span><span id="local-6989586621679670413"><span class="annot"><a href="#local-6989586621679670413"><span class="hs-identifier hs-var">bound</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Bool
+</span><a href="GHC.Internal.Conc.Bound.html#isCurrentThreadBound"><span class="hs-identifier hs-var">isCurrentThreadBound</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679670413"><span class="hs-identifier hs-type">bound</span></a></span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="#local-6989586621679670412"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-175"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-176"></span><span>                </span><span id="local-6989586621679670414"><span class="annot"><a href="#local-6989586621679670414"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.IORef.html#newIORef"><span class="hs-identifier hs-type">newIORef</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Err.html#undefined"><span class="hs-identifier hs-type">undefined</span></a></span><span>
+</span><span id="line-177"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679670422"><span class="annot"><a href="#local-6989586621679670422"><span class="hs-identifier hs-var hs-var">action_plus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO (Either SomeException a)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><a href="GHC.Internal.Control.Exception.Base.html#try"><span class="hs-identifier hs-var">Exception.try</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679670412"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException a)
+-&gt; (Either SomeException a -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">IORef (Either SomeException a) -&gt; Either SomeException a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><a href="GHC.Internal.IORef.html#writeIORef"><span class="hs-identifier hs-var">writeIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef (Either SomeException a)
+</span><a href="#local-6989586621679670414"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-178"></span><span>                </span><span class="annot"><a href="GHC.Internal.IO.html#bracket"><span class="hs-identifier hs-type">bracket</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stable.html#newStablePtr"><span class="hs-identifier hs-type">newStablePtr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670422"><span class="hs-identifier hs-type">action_plus</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>                        </span><span class="annot"><a href="GHC.Internal.Stable.html#freeStablePtr"><span class="hs-identifier hs-type">freeStablePtr</span></a></span><span>
+</span><span id="line-180"></span><span>                        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679670426"><span class="annot"><span class="annottext">StablePtr (IO ())
+</span><a href="#local-6989586621679670426"><span class="hs-identifier hs-var">cEntry</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StablePtr (IO ()) -&gt; IO ()
+</span><a href="GHC.Internal.Conc.Bound.html#forkOS_entry_reimported"><span class="hs-identifier hs-var">forkOS_entry_reimported</span></a></span><span> </span><span class="annot"><span class="annottext">StablePtr (IO ())
+</span><a href="#local-6989586621679670426"><span class="hs-identifier hs-var">cEntry</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Either SomeException a) -&gt; IO (Either SomeException a)
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><a href="GHC.Internal.Base.html#%3E%3E"><span class="hs-operator hs-var">&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IORef (Either SomeException a) -&gt; IO (Either SomeException a)
+forall a. IORef a -&gt; IO a
+</span><a href="GHC.Internal.IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef (Either SomeException a)
+</span><a href="#local-6989586621679670414"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-type">&gt;&gt;=</span></a></span><span>
+</span><span id="line-181"></span><span>                  </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#unsafeResult"><span class="hs-identifier hs-type">unsafeResult</span></a></span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a
+forall a. IO a
+</span><a href="GHC.Internal.Conc.Bound.html#failNonThreaded"><span class="hs-identifier hs-var">failNonThreaded</span></a></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="annot"><span class="hs-comment">{- |
+Run the 'IO' computation passed as the first argument. If the calling thread
+is /bound/, an unbound thread is created temporarily using 'forkIO'.
+@runInBoundThread@ doesn't finish until the 'IO' computation finishes.
+
+Use this function /only/ in the rare case that you have actually observed a
+performance loss due to the use of bound threads. A program that
+doesn't need its main thread to be bound and makes /heavy/ use of concurrency
+(e.g. a web server), might want to wrap its @main@ action in
+@runInUnboundThread@.
+
+Note that exceptions which are thrown to the current thread are thrown in turn
+to the thread that is executing the given computation. This ensures there's
+always a way of killing the forked thread.
+-}</span></span><span>
+</span><span id="line-199"></span><span id="local-6989586621679670429"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#runInUnboundThread"><span class="hs-identifier hs-type">runInUnboundThread</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670429"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670429"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span id="runInUnboundThread"><span class="annot"><span class="annottext">runInUnboundThread :: forall a. IO a -&gt; IO a
+</span><a href="GHC.Internal.Conc.Bound.html#runInUnboundThread"><span class="hs-identifier hs-var hs-var">runInUnboundThread</span></a></span></span><span> </span><span id="local-6989586621679670436"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679670436"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-202"></span><span>  </span><span id="local-6989586621679670437"><span class="annot"><a href="#local-6989586621679670437"><span class="hs-identifier hs-var">bound</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Bool
+</span><a href="GHC.Internal.Conc.Bound.html#isCurrentThreadBound"><span class="hs-identifier hs-var">isCurrentThreadBound</span></a></span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679670437"><span class="hs-identifier hs-type">bound</span></a></span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-205"></span><span>      </span><span id="local-6989586621679670438"><span class="annot"><a href="#local-6989586621679670438"><span class="hs-identifier hs-var">mv</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.MVar.html#newEmptyMVar"><span class="hs-identifier hs-type">newEmptyMVar</span></a></span><span>
+</span><span id="line-206"></span><span>      </span><span class="annot"><a href="GHC.Internal.IO.html#mask"><span class="hs-identifier hs-type">mask</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679670440"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679670440"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-207"></span><span>        </span><span id="local-6989586621679670441"><span class="annot"><a href="#local-6989586621679670441"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><a href="GHC.Internal.Conc.Sync.html#forkIO"><span class="hs-identifier hs-var">forkIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ThreadId) -&gt; IO () -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO (Either SomeException a)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><a href="GHC.Internal.Control.Exception.Base.html#try"><span class="hs-identifier hs-var">Exception.try</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679670440"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679670436"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException a)
+-&gt; (Either SomeException a -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a) -&gt; Either SomeException a -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><a href="GHC.Internal.MVar.html#putMVar"><span class="hs-identifier hs-var">putMVar</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621679670438"><span class="hs-identifier hs-var">mv</span></a></span><span>
+</span><span id="line-208"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679670445"><span class="annot"><a href="#local-6989586621679670445"><span class="hs-identifier hs-var hs-var">wait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a) -&gt; IO (Either SomeException a)
+forall a. MVar a -&gt; IO a
+</span><a href="GHC.Internal.MVar.html#takeMVar"><span class="hs-identifier hs-var">takeMVar</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621679670438"><span class="hs-identifier hs-var">mv</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException a)
+-&gt; (SomeException -&gt; IO (Either SomeException a))
+-&gt; IO (Either SomeException a)
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.IO.html#catchException"><span class="hs-operator hs-var">`catchException`</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679670447"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679670447"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>                     </span><span class="annot"><span class="annottext">ThreadId -&gt; SomeException -&gt; IO ()
+forall e. Exception e =&gt; ThreadId -&gt; e -&gt; IO ()
+</span><a href="GHC.Internal.Conc.Sync.html#throwTo"><span class="hs-identifier hs-var">Exception.throwTo</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679670441"><span class="hs-identifier hs-var">tid</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679670447"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Either SomeException a) -&gt; IO (Either SomeException a)
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><a href="GHC.Internal.Base.html#%3E%3E"><span class="hs-operator hs-var">&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException a)
+</span><a href="#local-6989586621679670445"><span class="hs-identifier hs-var">wait</span></a></span><span>
+</span><span id="line-210"></span><span>        </span><span class="annot"><a href="#local-6989586621679670445"><span class="hs-identifier hs-type">wait</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-type">&gt;&gt;=</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Conc.Bound.html#unsafeResult"><span class="hs-identifier hs-type">unsafeResult</span></a></span><span>
+</span><span id="line-211"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="#local-6989586621679670436"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span id="local-6989586621679670327"><span class="annot"><a href="GHC.Internal.Conc.Bound.html#unsafeResult"><span class="hs-identifier hs-type">unsafeResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Either.html#Either"><span class="hs-identifier hs-type">Either</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Type.html#SomeException"><span class="hs-identifier hs-type">SomeException</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670327"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679670327"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-214"></span><span id="unsafeResult"><span class="annot"><span class="annottext">unsafeResult :: forall a. Either SomeException a -&gt; IO a
+</span><a href="GHC.Internal.Conc.Bound.html#unsafeResult"><span class="hs-identifier hs-var hs-var">unsafeResult</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; IO a)
+-&gt; (a -&gt; IO a) -&gt; Either SomeException a -&gt; IO a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><a href="GHC.Internal.Data.Either.html#either"><span class="hs-identifier hs-var">either</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><a href="GHC.Internal.IO.html#throwIO"><span class="hs-identifier hs-var">Exception.throwIO</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

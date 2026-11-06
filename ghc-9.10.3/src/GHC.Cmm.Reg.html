@@ -1,0 +1,893 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html"><span class="hs-identifier">GHC.Cmm.Reg</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Cmm Registers</span></span><span>
+</span><span id="line-7"></span><span>      </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier">CmmReg</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#cmmRegType"><span class="hs-identifier">cmmRegType</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#cmmRegWidth"><span class="hs-identifier">cmmRegWidth</span></a></span><span>
+</span><span id="line-10"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Local registers</span></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier">LocalReg</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#localRegType"><span class="hs-identifier">localRegType</span></a></span><span>
+</span><span id="line-13"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Global registers</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier">GlobalReg</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier">isArgReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#globalRegSpillType"><span class="hs-identifier">globalRegSpillType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier">pprGlobalReg</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#spReg"><span class="hs-identifier">spReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpReg"><span class="hs-identifier">hpReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#spLimReg"><span class="hs-identifier">spLimReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpLimReg"><span class="hs-identifier">hpLimReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#nodeReg"><span class="hs-identifier">nodeReg</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#currentTSOReg"><span class="hs-identifier">currentTSOReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#currentNurseryReg"><span class="hs-identifier">currentNurseryReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpAllocReg"><span class="hs-identifier">hpAllocReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#cccsReg"><span class="hs-identifier">cccsReg</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#node"><span class="hs-identifier">node</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#baseReg"><span class="hs-identifier">baseReg</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier">GlobalRegUse</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalRegUse"><span class="hs-identifier">pprGlobalRegUse</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html"><span class="hs-identifier">GHC.Cmm.Type</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--              Cmm registers</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">{- Note [GlobalReg vs GlobalRegUse]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+We distinguish GlobalReg, which describes registers in the STG abstract machine,
+with GlobalRegUse, which describes an usage of such a register to store values
+of a particular CmmType.
+
+For example, we might want to load/store an 8-bit integer in a register that
+can store 32-bit integers.
+
+The width of the type must fit in the register, i.e. for a usage
+@GlobalRegUse reg ty@ we must have that
+
+  &gt; typeWidth ty &lt;= typeWidth (globalRegSpillType reg)
+
+The restrictions about what categories of types can be stored in a given
+register are less easily stated. Some examples are:
+
+  - Vanilla registers can contain both pointers (gcWord) and non-pointers (bWord),
+    as well as sub-word sized values (e.g. b16).
+  - On x86_64, SIMD registers can be used to hold vectors of both floating
+    and integral values (e.g. XmmReg may store 2 Double values or 4 Int32 values).
+-}</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | A use of a global register at a particular type.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- While a 'GlobalReg' identifies a global register in the STG machine,</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- a 'GlobalRegUse' also contains information about the type we are storing</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- in the register.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- See Note [GlobalReg vs GlobalRegUse] for more information.</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="GlobalRegUse"><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="GlobalRegUse"><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="globalRegUseGlobalReg"><span class="annot"><span class="annottext">GlobalRegUse -&gt; GlobalReg
+</span><a href="GHC.Cmm.Reg.html#globalRegUseGlobalReg"><span class="hs-identifier hs-var hs-var">globalRegUseGlobalReg</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The underlying 'GlobalReg'</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="globalRegUseType"><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#globalRegUseType"><span class="hs-identifier hs-var hs-var">globalRegUseType</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Cmm.Type.html#CmmType"><span class="hs-identifier hs-type">CmmType</span></a></span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-comment">-- ^ The 'CmmType' at which we are using the 'GlobalReg'.</span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-comment">-- Its width must be less than the width of the 'GlobalReg':</span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- &gt; typeWidth ty &lt;= typeWidth (globalRegSpillType reg)</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682386328"><span id="local-6989586621682386336"><span id="local-6989586621682386340"><span class="annot"><span class="annottext">Int -&gt; GlobalRegUse -&gt; ShowS
+[GlobalRegUse] -&gt; ShowS
+GlobalRegUse -&gt; String
+(Int -&gt; GlobalRegUse -&gt; ShowS)
+-&gt; (GlobalRegUse -&gt; String)
+-&gt; ([GlobalRegUse] -&gt; ShowS)
+-&gt; Show GlobalRegUse
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GlobalRegUse -&gt; ShowS
+showsPrec :: Int -&gt; GlobalRegUse -&gt; ShowS
+$cshow :: GlobalRegUse -&gt; String
+show :: GlobalRegUse -&gt; String
+$cshowList :: [GlobalRegUse] -&gt; ShowS
+showList :: [GlobalRegUse] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621682386349"><span class="annot"><span class="annottext">ppr :: GlobalRegUse -&gt; SDoc
+</span><a href="#local-6989586621682386349"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386351"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386351"><span class="hs-identifier hs-var">reg</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386351"><span class="hs-identifier hs-var">reg</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span id="local-6989586621682386256"><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalRegUse"><span class="hs-identifier hs-type">pprGlobalRegUse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682386256"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682386256"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-79"></span><span id="pprGlobalRegUse"><span class="annot"><span class="annottext">pprGlobalRegUse :: forall doc. IsLine doc =&gt; GlobalRegUse -&gt; doc
+</span><a href="GHC.Cmm.Reg.html#pprGlobalRegUse"><span class="hs-identifier hs-var hs-var">pprGlobalRegUse</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386354"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386354"><span class="hs-identifier hs-var">reg</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; doc
+forall doc. IsLine doc =&gt; GlobalReg -&gt; doc
+</span><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier hs-var">pprGlobalReg</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386354"><span class="hs-identifier hs-var">reg</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- TODO: these instances should be removed in favour</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- of more surgical uses of equality.</span><span>
+</span><span id="line-83"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682386357"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386363"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386363"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682386364"><span class="annot"><span class="annottext">== :: GlobalRegUse -&gt; GlobalRegUse -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386365"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386365"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386363"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; GlobalReg -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386365"><span class="hs-identifier hs-var">r2</span></a></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682386370"><span id="local-6989586621682386374"><span id="local-6989586621682386377"><span id="local-6989586621682386380"><span id="local-6989586621682386383"><span id="local-6989586621682386386"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386391"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386391"><span class="hs-identifier hs-var">r1</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682386392"><span class="annot"><span class="annottext">compare :: GlobalRegUse -&gt; GlobalRegUse -&gt; Ordering
+</span><a href="#local-6989586621682386392"><span class="hs-operator hs-var hs-var hs-var">`compare`</span></a></span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386394"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386394"><span class="hs-identifier hs-var">r2</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; GlobalReg -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386391"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386394"><span class="hs-identifier hs-var">r2</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">data</span><span> </span><span id="CmmReg"><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-var">CmmReg</span></a></span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CmmLocal"><span class="annot"><a href="GHC.Cmm.Reg.html#CmmLocal"><span class="hs-identifier hs-var">CmmLocal</span></a></span></span><span>  </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CmmGlobal"><span class="annot"><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682386398"><span id="local-6989586621682386406"><span class="annot"><span class="annottext">CmmReg -&gt; CmmReg -&gt; Bool
+(CmmReg -&gt; CmmReg -&gt; Bool)
+-&gt; (CmmReg -&gt; CmmReg -&gt; Bool) -&gt; Eq CmmReg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CmmReg -&gt; CmmReg -&gt; Bool
+== :: CmmReg -&gt; CmmReg -&gt; Bool
+$c/= :: CmmReg -&gt; CmmReg -&gt; Bool
+/= :: CmmReg -&gt; CmmReg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682386412"><span id="local-6989586621682386417"><span id="local-6989586621682386421"><span id="local-6989586621682386425"><span id="local-6989586621682386428"><span id="local-6989586621682386431"><span id="local-6989586621682386434"><span class="annot"><span class="annottext">Eq CmmReg
+Eq CmmReg =&gt;
+(CmmReg -&gt; CmmReg -&gt; Ordering)
+-&gt; (CmmReg -&gt; CmmReg -&gt; Bool)
+-&gt; (CmmReg -&gt; CmmReg -&gt; Bool)
+-&gt; (CmmReg -&gt; CmmReg -&gt; Bool)
+-&gt; (CmmReg -&gt; CmmReg -&gt; Bool)
+-&gt; (CmmReg -&gt; CmmReg -&gt; CmmReg)
+-&gt; (CmmReg -&gt; CmmReg -&gt; CmmReg)
+-&gt; Ord CmmReg
+CmmReg -&gt; CmmReg -&gt; Bool
+CmmReg -&gt; CmmReg -&gt; Ordering
+CmmReg -&gt; CmmReg -&gt; CmmReg
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: CmmReg -&gt; CmmReg -&gt; Ordering
+compare :: CmmReg -&gt; CmmReg -&gt; Ordering
+$c&lt; :: CmmReg -&gt; CmmReg -&gt; Bool
+&lt; :: CmmReg -&gt; CmmReg -&gt; Bool
+$c&lt;= :: CmmReg -&gt; CmmReg -&gt; Bool
+&lt;= :: CmmReg -&gt; CmmReg -&gt; Bool
+$c&gt; :: CmmReg -&gt; CmmReg -&gt; Bool
+&gt; :: CmmReg -&gt; CmmReg -&gt; Bool
+$c&gt;= :: CmmReg -&gt; CmmReg -&gt; Bool
+&gt;= :: CmmReg -&gt; CmmReg -&gt; Bool
+$cmax :: CmmReg -&gt; CmmReg -&gt; CmmReg
+max :: CmmReg -&gt; CmmReg -&gt; CmmReg
+$cmin :: CmmReg -&gt; CmmReg -&gt; CmmReg
+min :: CmmReg -&gt; CmmReg -&gt; CmmReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682386440"><span id="local-6989586621682386447"><span id="local-6989586621682386451"><span class="annot"><span class="annottext">Int -&gt; CmmReg -&gt; ShowS
+[CmmReg] -&gt; ShowS
+CmmReg -&gt; String
+(Int -&gt; CmmReg -&gt; ShowS)
+-&gt; (CmmReg -&gt; String) -&gt; ([CmmReg] -&gt; ShowS) -&gt; Show CmmReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CmmReg -&gt; ShowS
+showsPrec :: Int -&gt; CmmReg -&gt; ShowS
+$cshow :: CmmReg -&gt; String
+show :: CmmReg -&gt; String
+$cshowList :: [CmmReg] -&gt; ShowS
+showList :: [CmmReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-type">CmmReg</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621682386455"><span class="annot"><span class="annottext">ppr :: CmmReg -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682386456"><span class="annot"><span class="annottext">CmmReg
+</span><a href="#local-6989586621682386456"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmReg -&gt; SDoc
+</span><a href="GHC.Cmm.Reg.html#pprReg"><span class="hs-identifier hs-var">pprReg</span></a></span><span> </span><span class="annot"><span class="annottext">CmmReg
+</span><a href="#local-6989586621682386456"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><a href="GHC.Cmm.Reg.html#pprReg"><span class="hs-identifier hs-type">pprReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-type">CmmReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-97"></span><span id="pprReg"><span class="annot"><span class="annottext">pprReg :: CmmReg -&gt; SDoc
+</span><a href="GHC.Cmm.Reg.html#pprReg"><span class="hs-identifier hs-var hs-var">pprReg</span></a></span></span><span> </span><span id="local-6989586621682386458"><span class="annot"><span class="annottext">CmmReg
+</span><a href="#local-6989586621682386458"><span class="hs-identifier hs-var">r</span></a></span></span><span>
+</span><span id="line-98"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CmmReg
+</span><a href="#local-6989586621682386458"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmLocal"><span class="hs-identifier hs-type">CmmLocal</span></a></span><span>  </span><span id="local-6989586621682386459"><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386459"><span class="hs-identifier hs-var">local</span></a></span></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LocalReg -&gt; SDoc
+</span><a href="GHC.Cmm.Reg.html#pprLocalReg"><span class="hs-identifier hs-var">pprLocalReg</span></a></span><span>  </span><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386459"><span class="hs-identifier hs-var">local</span></a></span><span>
+</span><span id="line-100"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-type">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-type">GlobalRegUse</span></a></span><span> </span><span id="local-6989586621682386461"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386461"><span class="hs-identifier hs-var">global</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; SDoc
+forall doc. IsLine doc =&gt; GlobalReg -&gt; doc
+</span><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier hs-var">pprGlobalReg</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386461"><span class="hs-identifier hs-var">global</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><a href="GHC.Cmm.Reg.html#cmmRegType"><span class="hs-identifier hs-type">cmmRegType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-type">CmmReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html#CmmType"><span class="hs-identifier hs-type">CmmType</span></a></span><span>
+</span><span id="line-103"></span><span id="cmmRegType"><span class="annot"><span class="annottext">cmmRegType :: CmmReg -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#cmmRegType"><span class="hs-identifier hs-var hs-var">cmmRegType</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmLocal"><span class="hs-identifier hs-type">CmmLocal</span></a></span><span>  </span><span id="local-6989586621682386462"><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386462"><span class="hs-identifier hs-var">reg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LocalReg -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#localRegType"><span class="hs-identifier hs-var">localRegType</span></a></span><span> </span><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386462"><span class="hs-identifier hs-var">reg</span></a></span><span>
+</span><span id="line-104"></span><span class="annot"><a href="GHC.Cmm.Reg.html#cmmRegType"><span class="hs-identifier hs-var">cmmRegType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-type">CmmGlobal</span></a></span><span> </span><span id="local-6989586621682386463"><span class="annot"><span class="annottext">GlobalRegUse
+</span><a href="#local-6989586621682386463"><span class="hs-identifier hs-var">reg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#globalRegUseType"><span class="hs-identifier hs-var">globalRegUseType</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalRegUse
+</span><a href="#local-6989586621682386463"><span class="hs-identifier hs-var">reg</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.Cmm.Reg.html#cmmRegWidth"><span class="hs-identifier hs-type">cmmRegWidth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-type">CmmReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html#Width"><span class="hs-identifier hs-type">Width</span></a></span><span>
+</span><span id="line-107"></span><span id="cmmRegWidth"><span class="annot"><span class="annottext">cmmRegWidth :: CmmReg -&gt; Width
+</span><a href="GHC.Cmm.Reg.html#cmmRegWidth"><span class="hs-identifier hs-var hs-var">cmmRegWidth</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmType -&gt; Width
+</span><a href="GHC.Cmm.Type.html#typeWidth"><span class="hs-identifier hs-var">typeWidth</span></a></span><span> </span><span class="annot"><span class="annottext">(CmmType -&gt; Width) -&gt; (CmmReg -&gt; CmmType) -&gt; CmmReg -&gt; Width
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CmmReg -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#cmmRegType"><span class="hs-identifier hs-var">cmmRegType</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--              Local registers</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">data</span><span> </span><span id="LocalReg"><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-var">LocalReg</span></a></span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="LocalReg"><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-var">LocalReg</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier hs-type">Unique</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Cmm.Type.html#CmmType"><span class="hs-identifier hs-type">CmmType</span></a></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-comment">-- ^ Parameters:</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-comment">--   1. Identifier</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-comment">--   2. Type</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682386468"><span id="local-6989586621682386474"><span id="local-6989586621682386477"><span class="annot"><span class="annottext">Int -&gt; LocalReg -&gt; ShowS
+[LocalReg] -&gt; ShowS
+LocalReg -&gt; String
+(Int -&gt; LocalReg -&gt; ShowS)
+-&gt; (LocalReg -&gt; String) -&gt; ([LocalReg] -&gt; ShowS) -&gt; Show LocalReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; LocalReg -&gt; ShowS
+showsPrec :: Int -&gt; LocalReg -&gt; ShowS
+$cshow :: LocalReg -&gt; String
+show :: LocalReg -&gt; String
+$cshowList :: [LocalReg] -&gt; ShowS
+showList :: [LocalReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682386481"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386485"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386485"><span class="hs-identifier hs-var">u1</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682386486"><span class="annot"><span class="annottext">== :: LocalReg -&gt; LocalReg -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386487"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386487"><span class="hs-identifier hs-var">u2</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386485"><span class="hs-identifier hs-var">u1</span></a></span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Unique -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386487"><span class="hs-identifier hs-var">u2</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621682386490"><span class="annot"><span class="annottext">ppr :: LocalReg -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682386491"><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386491"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LocalReg -&gt; SDoc
+</span><a href="GHC.Cmm.Reg.html#pprLocalReg"><span class="hs-identifier hs-var">pprLocalReg</span></a></span><span> </span><span class="annot"><span class="annottext">LocalReg
+</span><a href="#local-6989586621682386491"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- This is non-deterministic but we do not currently support deterministic</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- code-generation. See Note [Unique Determinism and code generation]</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- See Note [No Ord for Unique]</span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682386496"><span id="local-6989586621682386499"><span id="local-6989586621682386502"><span id="local-6989586621682386505"><span id="local-6989586621682386508"><span id="local-6989586621682386511"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621682386513"><span class="annot"><span class="annottext">compare :: LocalReg -&gt; LocalReg -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386514"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386514"><span class="hs-identifier hs-var">u1</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386515"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386515"><span class="hs-identifier hs-var">u2</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Unique -&gt; Ordering
+</span><a href="GHC.Types.Unique.html#nonDetCmpUnique"><span class="hs-identifier hs-var">nonDetCmpUnique</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386514"><span class="hs-identifier hs-var">u1</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386515"><span class="hs-identifier hs-var">u2</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621682386520"><span class="annot"><span class="annottext">getUnique :: LocalReg -&gt; Unique
+</span><a href="#local-6989586621682386520"><span class="hs-identifier hs-var hs-var hs-var">getUnique</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386522"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386522"><span class="hs-identifier hs-var">uniq</span></a></span></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386522"><span class="hs-identifier hs-var">uniq</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="GHC.Cmm.Reg.html#localRegType"><span class="hs-identifier hs-type">localRegType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html#CmmType"><span class="hs-identifier hs-type">CmmType</span></a></span><span>
+</span><span id="line-136"></span><span id="localRegType"><span class="annot"><span class="annottext">localRegType :: LocalReg -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#localRegType"><span class="hs-identifier hs-var hs-var">localRegType</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682386523"><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386523"><span class="hs-identifier hs-var">rep</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386523"><span class="hs-identifier hs-var">rep</span></a></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- We only print the type of the local reg if it isn't wordRep</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="annot"><a href="GHC.Cmm.Reg.html#pprLocalReg"><span class="hs-identifier hs-type">pprLocalReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-142"></span><span id="pprLocalReg"><span class="annot"><span class="annottext">pprLocalReg :: LocalReg -&gt; SDoc
+</span><a href="GHC.Cmm.Reg.html#pprLocalReg"><span class="hs-identifier hs-var hs-var">pprLocalReg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LocalReg"><span class="hs-identifier hs-type">LocalReg</span></a></span><span> </span><span id="local-6989586621682386524"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386524"><span class="hs-identifier hs-var">uniq</span></a></span></span><span> </span><span id="local-6989586621682386525"><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386525"><span class="hs-identifier hs-var">rep</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--   = ppr rep &lt;&gt; char '_' &lt;&gt; ppr uniq</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- Temp Jan08</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="annottext">Char -&gt; SDoc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Unique -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="#local-6989586621682386528"><span class="hs-identifier hs-var">pprUnique</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621682386524"><span class="hs-identifier hs-var">uniq</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span>
+</span><span id="line-146"></span><span>       </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CmmType -&gt; Bool
+</span><a href="GHC.Cmm.Type.html#isWord32"><span class="hs-identifier hs-var">isWord32</span></a></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386525"><span class="hs-identifier hs-var">rep</span></a></span><span> </span><span class="hs-comment">-- &amp;&amp; not (isGcPtrType rep) -- Temp Jan08               -- sigh</span><span>
+</span><span id="line-147"></span><span>                    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#dcolon"><span class="hs-identifier hs-var">dcolon</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682386531"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">CmmType -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386525"><span class="hs-identifier hs-var">rep</span></a></span><span>
+</span><span id="line-148"></span><span>                    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#dcolon"><span class="hs-identifier hs-var">dcolon</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682386531"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">CmmType -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">CmmType
+</span><a href="#local-6989586621682386525"><span class="hs-identifier hs-var">rep</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>     </span><span id="local-6989586621682386528"><span class="annot"><span class="annottext">pprUnique :: a -&gt; SDoc
+</span><a href="#local-6989586621682386528"><span class="hs-identifier hs-var hs-var">pprUnique</span></a></span></span><span> </span><span id="local-6989586621682386535"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682386535"><span class="hs-identifier hs-var">unique</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SDocContext -&gt; Bool) -&gt; (Bool -&gt; SDoc) -&gt; SDoc
+forall a. (SDocContext -&gt; a) -&gt; (a -&gt; SDoc) -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#sdocOption"><span class="hs-identifier hs-var">sdocOption</span></a></span><span> </span><span class="annot"><span class="annottext">SDocContext -&gt; Bool
+</span><a href="GHC.Utils.Outputable.html#sdocSuppressUniques"><span class="hs-identifier hs-var">sdocSuppressUniques</span></a></span><span> </span><span class="annot"><span class="annottext">((Bool -&gt; SDoc) -&gt; SDoc) -&gt; (Bool -&gt; SDoc) -&gt; SDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-151"></span><span>       </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;_locVar_&quot;</span></span><span>
+</span><span id="line-152"></span><span>       </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682386535"><span class="hs-identifier hs-var">unique</span></a></span><span>
+</span><span id="line-153"></span><span>     </span><span id="local-6989586621682386531"><span class="annot"><span class="annottext">ptr :: SDoc
+</span><a href="#local-6989586621682386531"><span class="hs-identifier hs-var hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-154"></span><span>         </span><span class="hs-comment">--if isGcPtrType rep</span><span>
+</span><span id="line-155"></span><span>         </span><span class="hs-comment">--      then doubleQuotes (text &quot;ptr&quot;)</span><span>
+</span><span id="line-156"></span><span>         </span><span class="hs-comment">--      else empty</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--              Global STG registers</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-161"></span><span class="hs-comment">{-
+Note [Overlapping global registers]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The backend might not faithfully implement the abstraction of the STG
+machine with independent registers for different values of type
+GlobalReg. Specifically, certain pairs of registers (r1, r2) may
+overlap in the sense that a store to r1 invalidates the value in r2,
+and vice versa.
+
+Currently this occurs only on the x86_64 architecture where FloatReg n
+and DoubleReg n are assigned the same microarchitectural register, in
+order to allow functions to receive more Float# or Double# arguments
+in registers (as opposed to on the stack).
+
+There are no specific rules about which registers might overlap with
+which other registers, but presumably it's safe to assume that nothing
+will overlap with special registers like Sp or BaseReg.
+
+Use GHC.Cmm.Utils.regsOverlap to determine whether two GlobalRegs overlap
+on a particular platform. The instance Eq GlobalReg is syntactic
+equality of STG registers and does not take overlap into
+account. However it is still used in UserOfRegs/DefinerOfRegs and
+there are likely still bugs there, beware!
+-}</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | An abstract global register for the STG machine.</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- See also 'GlobalRegUse', which denotes a usage of a register at a particular</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- type (e.g. using a 32-bit wide register to store an 8-bit wide value), as per</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- Note [GlobalReg vs GlobalRegUse].</span><span>
+</span><span id="line-191"></span><span class="hs-keyword">data</span><span> </span><span id="GlobalReg"><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-var">GlobalReg</span></a></span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-comment">-- Argument and return registers</span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="VanillaReg"><span class="annot"><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-var">VanillaReg</span></a></span></span><span>                  </span><span class="hs-comment">-- pointers, unboxed ints and chars</span><span>
+</span><span id="line-194"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FloatReg"><span class="annot"><a href="GHC.Cmm.Reg.html#FloatReg"><span class="hs-identifier hs-var">FloatReg</span></a></span></span><span>            </span><span class="hs-comment">-- single-precision floating-point registers</span><span>
+</span><span id="line-197"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DoubleReg"><span class="annot"><a href="GHC.Cmm.Reg.html#DoubleReg"><span class="hs-identifier hs-var">DoubleReg</span></a></span></span><span>           </span><span class="hs-comment">-- double-precision floating-point registers</span><span>
+</span><span id="line-200"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LongReg"><span class="annot"><a href="GHC.Cmm.Reg.html#LongReg"><span class="hs-identifier hs-var">LongReg</span></a></span></span><span>             </span><span class="hs-comment">-- long int registers (64-bit, really)</span><span>
+</span><span id="line-203"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="XmmReg"><span class="annot"><a href="GHC.Cmm.Reg.html#XmmReg"><span class="hs-identifier hs-var">XmmReg</span></a></span></span><span>                      </span><span class="hs-comment">-- 128-bit SIMD vector register</span><span>
+</span><span id="line-206"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="YmmReg"><span class="annot"><a href="GHC.Cmm.Reg.html#YmmReg"><span class="hs-identifier hs-var">YmmReg</span></a></span></span><span>                      </span><span class="hs-comment">-- 256-bit SIMD vector register</span><span>
+</span><span id="line-209"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ZmmReg"><span class="annot"><a href="GHC.Cmm.Reg.html#ZmmReg"><span class="hs-identifier hs-var">ZmmReg</span></a></span></span><span>                      </span><span class="hs-comment">-- 512-bit SIMD vector register</span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>     </span><span class="hs-comment">-- its number</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-comment">-- STG registers</span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Sp"><span class="annot"><a href="GHC.Cmm.Reg.html#Sp"><span class="hs-identifier hs-var">Sp</span></a></span></span><span>                  </span><span class="hs-comment">-- Stack ptr; points to last occupied stack location.</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SpLim"><span class="annot"><a href="GHC.Cmm.Reg.html#SpLim"><span class="hs-identifier hs-var">SpLim</span></a></span></span><span>               </span><span class="hs-comment">-- Stack limit</span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Hp"><span class="annot"><a href="GHC.Cmm.Reg.html#Hp"><span class="hs-identifier hs-var">Hp</span></a></span></span><span>                  </span><span class="hs-comment">-- Heap ptr; points to last occupied heap location.</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HpLim"><span class="annot"><a href="GHC.Cmm.Reg.html#HpLim"><span class="hs-identifier hs-var">HpLim</span></a></span></span><span>               </span><span class="hs-comment">-- Heap limit register</span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CCCS"><span class="annot"><a href="GHC.Cmm.Reg.html#CCCS"><span class="hs-identifier hs-var">CCCS</span></a></span></span><span>                </span><span class="hs-comment">-- Current cost-centre stack</span><span>
+</span><span id="line-220"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CurrentTSO"><span class="annot"><a href="GHC.Cmm.Reg.html#CurrentTSO"><span class="hs-identifier hs-var">CurrentTSO</span></a></span></span><span>          </span><span class="hs-comment">-- pointer to current thread's TSO</span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="CurrentNursery"><span class="annot"><a href="GHC.Cmm.Reg.html#CurrentNursery"><span class="hs-identifier hs-var">CurrentNursery</span></a></span></span><span>      </span><span class="hs-comment">-- pointer to allocation area</span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HpAlloc"><span class="annot"><a href="GHC.Cmm.Reg.html#HpAlloc"><span class="hs-identifier hs-var">HpAlloc</span></a></span></span><span>             </span><span class="hs-comment">-- allocation count for heap check failure</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span>                </span><span class="hs-comment">-- We keep the address of some commonly-called</span><span>
+</span><span id="line-225"></span><span>                </span><span class="hs-comment">-- functions in the register table, to keep code</span><span>
+</span><span id="line-226"></span><span>                </span><span class="hs-comment">-- size down:</span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EagerBlackholeInfo"><span class="annot"><a href="GHC.Cmm.Reg.html#EagerBlackholeInfo"><span class="hs-identifier hs-var">EagerBlackholeInfo</span></a></span></span><span>  </span><span class="hs-comment">-- stg_EAGER_BLACKHOLE_info</span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GCEnter1"><span class="annot"><a href="GHC.Cmm.Reg.html#GCEnter1"><span class="hs-identifier hs-var">GCEnter1</span></a></span></span><span>            </span><span class="hs-comment">-- stg_gc_enter_1</span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GCFun"><span class="annot"><a href="GHC.Cmm.Reg.html#GCFun"><span class="hs-identifier hs-var">GCFun</span></a></span></span><span>               </span><span class="hs-comment">-- stg_gc_fun</span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-comment">-- Base offset for the register table, used for accessing registers</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-comment">-- which do not have real registers assigned to them.  This register</span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-comment">-- will only appear after we have expanded GlobalReg into memory accesses</span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-comment">-- (where necessary) in the native code generator.</span><span>
+</span><span id="line-235"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BaseReg"><span class="annot"><a href="GHC.Cmm.Reg.html#BaseReg"><span class="hs-identifier hs-var">BaseReg</span></a></span></span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span>  </span><span class="hs-comment">-- The register used by the platform for the C stack pointer. This is</span><span>
+</span><span id="line-238"></span><span>  </span><span class="hs-comment">-- a break in the STG abstraction used exclusively to setup stack unwinding</span><span>
+</span><span id="line-239"></span><span>  </span><span class="hs-comment">-- information.</span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MachSp"><span class="annot"><a href="GHC.Cmm.Reg.html#MachSp"><span class="hs-identifier hs-var">MachSp</span></a></span></span><span>
+</span><span id="line-241"></span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-comment">-- The is a dummy register used to indicate to the stack unwinder where</span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-comment">-- a routine would return to.</span><span>
+</span><span id="line-244"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UnwindReturnReg"><span class="annot"><a href="GHC.Cmm.Reg.html#UnwindReturnReg"><span class="hs-identifier hs-var">UnwindReturnReg</span></a></span></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span>  </span><span class="hs-comment">-- Base Register for PIC (position-independent code) calculations</span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-comment">-- Only used inside the native code generator. It's exact meaning differs</span><span>
+</span><span id="line-248"></span><span>  </span><span class="hs-comment">-- from platform to platform (see module PositionIndependentCode).</span><span>
+</span><span id="line-249"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PicBaseReg"><span class="annot"><a href="GHC.Cmm.Reg.html#PicBaseReg"><span class="hs-identifier hs-var">PicBaseReg</span></a></span></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-keyword">deriving</span><span class="hs-special">(</span><span> </span><span id="local-6989586621682386565"><span id="local-6989586621682386577"><span class="annot"><span class="annottext">GlobalReg -&gt; GlobalReg -&gt; Bool
+(GlobalReg -&gt; GlobalReg -&gt; Bool)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; Bool) -&gt; Eq GlobalReg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: GlobalReg -&gt; GlobalReg -&gt; Bool
+== :: GlobalReg -&gt; GlobalReg -&gt; Bool
+$c/= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+/= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682386582"><span id="local-6989586621682386598"><span id="local-6989586621682386601"><span id="local-6989586621682386604"><span id="local-6989586621682386607"><span id="local-6989586621682386610"><span id="local-6989586621682386613"><span class="annot"><span class="annottext">Eq GlobalReg
+Eq GlobalReg =&gt;
+(GlobalReg -&gt; GlobalReg -&gt; Ordering)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; Bool)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; Bool)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; Bool)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; Bool)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; GlobalReg)
+-&gt; (GlobalReg -&gt; GlobalReg -&gt; GlobalReg)
+-&gt; Ord GlobalReg
+GlobalReg -&gt; GlobalReg -&gt; Bool
+GlobalReg -&gt; GlobalReg -&gt; Ordering
+GlobalReg -&gt; GlobalReg -&gt; GlobalReg
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: GlobalReg -&gt; GlobalReg -&gt; Ordering
+compare :: GlobalReg -&gt; GlobalReg -&gt; Ordering
+$c&lt; :: GlobalReg -&gt; GlobalReg -&gt; Bool
+&lt; :: GlobalReg -&gt; GlobalReg -&gt; Bool
+$c&lt;= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+&lt;= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+$c&gt; :: GlobalReg -&gt; GlobalReg -&gt; Bool
+&gt; :: GlobalReg -&gt; GlobalReg -&gt; Bool
+$c&gt;= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+&gt;= :: GlobalReg -&gt; GlobalReg -&gt; Bool
+$cmax :: GlobalReg -&gt; GlobalReg -&gt; GlobalReg
+max :: GlobalReg -&gt; GlobalReg -&gt; GlobalReg
+$cmin :: GlobalReg -&gt; GlobalReg -&gt; GlobalReg
+min :: GlobalReg -&gt; GlobalReg -&gt; GlobalReg
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682386616"><span id="local-6989586621682386633"><span id="local-6989586621682386636"><span class="annot"><span class="annottext">Int -&gt; GlobalReg -&gt; ShowS
+[GlobalReg] -&gt; ShowS
+GlobalReg -&gt; String
+(Int -&gt; GlobalReg -&gt; ShowS)
+-&gt; (GlobalReg -&gt; String)
+-&gt; ([GlobalReg] -&gt; ShowS)
+-&gt; Show GlobalReg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; GlobalReg -&gt; ShowS
+showsPrec :: Int -&gt; GlobalReg -&gt; ShowS
+$cshow :: GlobalReg -&gt; String
+show :: GlobalReg -&gt; String
+$cshowList :: [GlobalReg] -&gt; ShowS
+showList :: [GlobalReg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>    </span><span class="hs-comment">-- NOTE: the Ord instance affects the tuple layout in GHCi, see</span><span>
+</span><span id="line-253"></span><span>    </span><span class="hs-comment">--       Note [GHCi and native call registers]</span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-256"></span><span>    </span><span id="local-6989586621682386640"><span class="annot"><span class="annottext">ppr :: GlobalReg -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682386641"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386641"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; SDoc
+forall doc. IsLine doc =&gt; GlobalReg -&gt; doc
+</span><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier hs-var">pprGlobalReg</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386641"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682386285"><span class="annot"><a href="GHC.Utils.Outputable.html#OutputableP"><span class="hs-identifier hs-type">OutputableP</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682386285"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-259"></span><span>    </span><span id="local-6989586621682386646"><span class="annot"><span class="annottext">pdoc :: env -&gt; GlobalReg -&gt; SDoc
+</span><a href="#local-6989586621682386646"><span class="hs-identifier hs-var hs-var hs-var">pdoc</span></a></span></span><span> </span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalReg -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span id="local-6989586621682386258"><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier hs-type">pprGlobalReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682386258"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682386258"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-262"></span><span id="pprGlobalReg"><span class="annot"><span class="annottext">pprGlobalReg :: forall doc. IsLine doc =&gt; GlobalReg -&gt; doc
+</span><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-identifier hs-var hs-var">pprGlobalReg</span></a></span></span><span> </span><span id="local-6989586621682386685"><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386685"><span class="hs-identifier hs-var">gr</span></a></span></span><span>
+</span><span id="line-263"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="#local-6989586621682386685"><span class="hs-identifier hs-var">gr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-264"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-type">VanillaReg</span></a></span><span> </span><span id="local-6989586621682386686"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386686"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'R'</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386686"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-265"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#FloatReg"><span class="hs-identifier hs-type">FloatReg</span></a></span><span>   </span><span id="local-6989586621682386688"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386688"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'F'</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386688"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-266"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#DoubleReg"><span class="hs-identifier hs-type">DoubleReg</span></a></span><span>  </span><span id="local-6989586621682386689"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386689"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'D'</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386689"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-267"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#LongReg"><span class="hs-identifier hs-type">LongReg</span></a></span><span>    </span><span id="local-6989586621682386690"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386690"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'L'</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386690"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-268"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#XmmReg"><span class="hs-identifier hs-type">XmmReg</span></a></span><span>     </span><span id="local-6989586621682386691"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386691"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;XMM&quot;</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386691"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-269"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#YmmReg"><span class="hs-identifier hs-type">YmmReg</span></a></span><span>     </span><span id="local-6989586621682386692"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386692"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;YMM&quot;</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386692"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-270"></span><span>        </span><span class="annot"><a href="GHC.Cmm.Reg.html#ZmmReg"><span class="hs-identifier hs-type">ZmmReg</span></a></span><span>     </span><span id="local-6989586621682386693"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386693"><span class="hs-identifier hs-var">n</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ZMM&quot;</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; doc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682386693"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-271"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#Sp"><span class="hs-identifier hs-var">Sp</span></a></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Sp&quot;</span></span><span>
+</span><span id="line-272"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#SpLim"><span class="hs-identifier hs-var">SpLim</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SpLim&quot;</span></span><span>
+</span><span id="line-273"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#Hp"><span class="hs-identifier hs-var">Hp</span></a></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Hp&quot;</span></span><span>
+</span><span id="line-274"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#HpLim"><span class="hs-identifier hs-var">HpLim</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HpLim&quot;</span></span><span>
+</span><span id="line-275"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#MachSp"><span class="hs-identifier hs-var">MachSp</span></a></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MachSp&quot;</span></span><span>
+</span><span id="line-276"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#UnwindReturnReg"><span class="hs-identifier hs-var">UnwindReturnReg</span></a></span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;UnwindReturnReg&quot;</span></span><span>
+</span><span id="line-277"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CCCS"><span class="hs-identifier hs-var">CCCS</span></a></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CCCS&quot;</span></span><span>
+</span><span id="line-278"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CurrentTSO"><span class="hs-identifier hs-var">CurrentTSO</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CurrentTSO&quot;</span></span><span>
+</span><span id="line-279"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CurrentNursery"><span class="hs-identifier hs-var">CurrentNursery</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CurrentNursery&quot;</span></span><span>
+</span><span id="line-280"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#HpAlloc"><span class="hs-identifier hs-var">HpAlloc</span></a></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HpAlloc&quot;</span></span><span>
+</span><span id="line-281"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#EagerBlackholeInfo"><span class="hs-identifier hs-var">EagerBlackholeInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;stg_EAGER_BLACKHOLE_info&quot;</span></span><span>
+</span><span id="line-282"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#GCEnter1"><span class="hs-identifier hs-var">GCEnter1</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;stg_gc_enter_1&quot;</span></span><span>
+</span><span id="line-283"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#GCFun"><span class="hs-identifier hs-var">GCFun</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;stg_gc_fun&quot;</span></span><span>
+</span><span id="line-284"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#BaseReg"><span class="hs-identifier hs-var">BaseReg</span></a></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;BaseReg&quot;</span></span><span>
+</span><span id="line-285"></span><span>        </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#PicBaseReg"><span class="hs-identifier hs-var">PicBaseReg</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; doc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PicBaseReg&quot;</span></span><span>
+</span><span id="line-286"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-pragma hs-type">pprGlobalReg</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-pragma hs-type">GlobalReg</span></a></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-pragma hs-type">SDoc</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-287"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#pprGlobalReg"><span class="hs-pragma hs-type">pprGlobalReg</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-pragma hs-type">GlobalReg</span></a></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#HLine"><span class="hs-pragma hs-type">HLine</span></a></span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- see Note [SPECIALIZE to HDoc] in GHC.Utils.Outputable</span><span>
+</span><span id="line-288"></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- convenient aliases</span><span>
+</span><span id="line-291"></span><span class="annot"><a href="GHC.Cmm.Reg.html#baseReg"><span class="hs-identifier hs-type">baseReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#spReg"><span class="hs-identifier hs-type">spReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpReg"><span class="hs-identifier hs-type">hpReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#spLimReg"><span class="hs-identifier hs-type">spLimReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpLimReg"><span class="hs-identifier hs-type">hpLimReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#nodeReg"><span class="hs-identifier hs-type">nodeReg</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-292"></span><span>  </span><span class="annot"><a href="GHC.Cmm.Reg.html#currentTSOReg"><span class="hs-identifier hs-type">currentTSOReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#currentNurseryReg"><span class="hs-identifier hs-type">currentNurseryReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#hpAllocReg"><span class="hs-identifier hs-type">hpAllocReg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#cccsReg"><span class="hs-identifier hs-type">cccsReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#CmmReg"><span class="hs-identifier hs-type">CmmReg</span></a></span><span>
+</span><span id="line-293"></span><span id="baseReg"><span class="annot"><span class="annottext">baseReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#baseReg"><span class="hs-identifier hs-var hs-var">baseReg</span></a></span></span><span>           </span><span id="local-6989586621682386694"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386694"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#BaseReg"><span class="hs-identifier hs-var">BaseReg</span></a></span><span>        </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386694"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span id="spReg"><span class="annot"><span class="annottext">spReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#spReg"><span class="hs-identifier hs-var hs-var">spReg</span></a></span></span><span>             </span><span id="local-6989586621682386696"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386696"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#Sp"><span class="hs-identifier hs-var">Sp</span></a></span><span>             </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386696"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-295"></span><span id="hpReg"><span class="annot"><span class="annottext">hpReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#hpReg"><span class="hs-identifier hs-var hs-var">hpReg</span></a></span></span><span>             </span><span id="local-6989586621682386697"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386697"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#Hp"><span class="hs-identifier hs-var">Hp</span></a></span><span>             </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#gcWord"><span class="hs-identifier hs-var">gcWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386697"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-296"></span><span id="hpLimReg"><span class="annot"><span class="annottext">hpLimReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#hpLimReg"><span class="hs-identifier hs-var hs-var">hpLimReg</span></a></span></span><span>          </span><span id="local-6989586621682386699"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386699"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#HpLim"><span class="hs-identifier hs-var">HpLim</span></a></span><span>          </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386699"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span id="spLimReg"><span class="annot"><span class="annottext">spLimReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#spLimReg"><span class="hs-identifier hs-var hs-var">spLimReg</span></a></span></span><span>          </span><span id="local-6989586621682386700"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386700"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#SpLim"><span class="hs-identifier hs-var">SpLim</span></a></span><span>          </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386700"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-298"></span><span id="nodeReg"><span class="annot"><span class="annottext">nodeReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#nodeReg"><span class="hs-identifier hs-var hs-var">nodeReg</span></a></span></span><span>           </span><span id="local-6989586621682386701"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386701"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; GlobalReg
+</span><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-var">VanillaReg</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#gcWord"><span class="hs-identifier hs-var">gcWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386701"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-299"></span><span id="currentTSOReg"><span class="annot"><span class="annottext">currentTSOReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#currentTSOReg"><span class="hs-identifier hs-var hs-var">currentTSOReg</span></a></span></span><span>     </span><span id="local-6989586621682386702"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386702"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CurrentTSO"><span class="hs-identifier hs-var">CurrentTSO</span></a></span><span>     </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386702"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span id="currentNurseryReg"><span class="annot"><span class="annottext">currentNurseryReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#currentNurseryReg"><span class="hs-identifier hs-var hs-var">currentNurseryReg</span></a></span></span><span> </span><span id="local-6989586621682386703"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386703"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CurrentNursery"><span class="hs-identifier hs-var">CurrentNursery</span></a></span><span> </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386703"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-301"></span><span id="hpAllocReg"><span class="annot"><span class="annottext">hpAllocReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#hpAllocReg"><span class="hs-identifier hs-var hs-var">hpAllocReg</span></a></span></span><span>        </span><span id="local-6989586621682386704"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386704"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#HpAlloc"><span class="hs-identifier hs-var">HpAlloc</span></a></span><span>        </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386704"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-302"></span><span id="cccsReg"><span class="annot"><span class="annottext">cccsReg :: Platform -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#cccsReg"><span class="hs-identifier hs-var hs-var">cccsReg</span></a></span></span><span>           </span><span id="local-6989586621682386705"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386705"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GlobalRegUse -&gt; CmmReg
+</span><a href="GHC.Cmm.Reg.html#CmmGlobal"><span class="hs-identifier hs-var">CmmGlobal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GlobalReg -&gt; CmmType -&gt; GlobalRegUse
+</span><a href="GHC.Cmm.Reg.html#GlobalRegUse"><span class="hs-identifier hs-var">GlobalRegUse</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#CCCS"><span class="hs-identifier hs-var">CCCS</span></a></span><span>           </span><span class="annot"><span class="annottext">(CmmType -&gt; GlobalRegUse) -&gt; CmmType -&gt; GlobalRegUse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386705"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-303"></span><span>
+</span><span id="line-304"></span><span class="annot"><a href="GHC.Cmm.Reg.html#node"><span class="hs-identifier hs-type">node</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span>
+</span><span id="line-305"></span><span id="node"><span class="annot"><span class="annottext">node :: GlobalReg
+</span><a href="GHC.Cmm.Reg.html#node"><span class="hs-identifier hs-var hs-var">node</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; GlobalReg
+</span><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-var">VanillaReg</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span class="annot"><a href="GHC.Cmm.Reg.html#globalRegSpillType"><span class="hs-identifier hs-type">globalRegSpillType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html#CmmType"><span class="hs-identifier hs-type">CmmType</span></a></span><span>
+</span><span id="line-308"></span><span id="globalRegSpillType"><span class="annot"><span class="annottext">globalRegSpillType :: Platform -&gt; GlobalReg -&gt; CmmType
+</span><a href="GHC.Cmm.Reg.html#globalRegSpillType"><span class="hs-identifier hs-var hs-var">globalRegSpillType</span></a></span></span><span> </span><span id="local-6989586621682386706"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386706"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-309"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-type">VanillaReg</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#gcWord"><span class="hs-identifier hs-var">gcWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386706"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-310"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#FloatReg"><span class="hs-identifier hs-type">FloatReg</span></a></span><span>   </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmFloat"><span class="hs-identifier hs-var">cmmFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W32"><span class="hs-identifier hs-var">W32</span></a></span><span>
+</span><span id="line-311"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#DoubleReg"><span class="hs-identifier hs-type">DoubleReg</span></a></span><span>  </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmFloat"><span class="hs-identifier hs-var">cmmFloat</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W64"><span class="hs-identifier hs-var">W64</span></a></span><span>
+</span><span id="line-312"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#LongReg"><span class="hs-identifier hs-type">LongReg</span></a></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmBits"><span class="hs-identifier hs-var">cmmBits</span></a></span><span>  </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W64"><span class="hs-identifier hs-var">W64</span></a></span><span>
+</span><span id="line-313"></span><span>
+</span><span id="line-314"></span><span>   </span><span class="hs-comment">-- TODO: improve the internal model of SIMD/vectorized registers</span><span>
+</span><span id="line-315"></span><span>   </span><span class="hs-comment">-- the right design SHOULD improve handling of float and double code too.</span><span>
+</span><span id="line-316"></span><span>   </span><span class="hs-comment">-- see remarks in Note [SIMD Design for the future] in GHC.StgToCmm.Prim</span><span>
+</span><span id="line-317"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#XmmReg"><span class="hs-identifier hs-type">XmmReg</span></a></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CmmType -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmVec"><span class="hs-identifier hs-var">cmmVec</span></a></span><span>  </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmBits"><span class="hs-identifier hs-var">cmmBits</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W32"><span class="hs-identifier hs-var">W32</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-318"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#YmmReg"><span class="hs-identifier hs-type">YmmReg</span></a></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CmmType -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmVec"><span class="hs-identifier hs-var">cmmVec</span></a></span><span>  </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmBits"><span class="hs-identifier hs-var">cmmBits</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W32"><span class="hs-identifier hs-var">W32</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-319"></span><span>   </span><span class="annot"><a href="GHC.Cmm.Reg.html#ZmmReg"><span class="hs-identifier hs-type">ZmmReg</span></a></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; CmmType -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmVec"><span class="hs-identifier hs-var">cmmVec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Width -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#cmmBits"><span class="hs-identifier hs-var">cmmBits</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="GHC.Cmm.Type.html#W32"><span class="hs-identifier hs-var">W32</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span>   </span><span class="annot"><span class="annottext">GlobalReg
+</span><a href="GHC.Cmm.Reg.html#Hp"><span class="hs-identifier hs-var">Hp</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#gcWord"><span class="hs-identifier hs-var">gcWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386706"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="hs-comment">-- The initialiser for all</span><span>
+</span><span id="line-322"></span><span>                                  </span><span class="hs-comment">-- dynamically allocated closures</span><span>
+</span><span id="line-323"></span><span>   </span><span class="annot"><span class="annottext">GlobalReg
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; CmmType
+</span><a href="GHC.Cmm.Type.html#bWord"><span class="hs-identifier hs-var">bWord</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682386706"><span class="hs-identifier hs-var">platform</span></a></span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-type">isArgReg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Reg.html#GlobalReg"><span class="hs-identifier hs-type">GlobalReg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-326"></span><span id="isArgReg"><span class="annot"><span class="annottext">isArgReg :: GlobalReg -&gt; Bool
+</span><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var hs-var">isArgReg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#VanillaReg"><span class="hs-identifier hs-type">VanillaReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-327"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#FloatReg"><span class="hs-identifier hs-type">FloatReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-328"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#DoubleReg"><span class="hs-identifier hs-type">DoubleReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-329"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#LongReg"><span class="hs-identifier hs-type">LongReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-330"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#XmmReg"><span class="hs-identifier hs-type">XmmReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-331"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#YmmReg"><span class="hs-identifier hs-type">YmmReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-332"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.Reg.html#ZmmReg"><span class="hs-identifier hs-type">ZmmReg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-333"></span><span class="annot"><a href="GHC.Cmm.Reg.html#isArgReg"><span class="hs-identifier hs-var">isArgReg</span></a></span><span> </span><span class="annot"><span class="annottext">GlobalReg
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-334"></span></pre></body></html>

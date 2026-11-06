@@ -1,0 +1,519 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Token definitions.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html"><span class="hs-identifier">Data.Aeson.Decoding.Tokens</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier">Tokens</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Lit"><span class="hs-identifier">Lit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Number"><span class="hs-identifier">Number</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier">TkArray</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier">TkRecord</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Aeson.Key.html"><span class="hs-identifier">Data.Aeson.Key</span></a></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Key.html#Key"><span class="hs-identifier">Key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">bifoldMapDefault</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">bimapDefault</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Scientific</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Scientific</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | A well-formed JSON token stream.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- /Note/: 'Lit' exists to make 'Tokens' have only 6 constructors.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- This may or may not have impact on performance.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- @since 2.1.2.0</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="Tokens"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-var">Tokens</span></a></span></span><span> </span><span id="local-6989586621679219732"><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679219733"><span class="annot"><a href="#local-6989586621679219733"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="TkLit"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkLit"><span class="hs-identifier hs-var">TkLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Lit"><span class="hs-identifier hs-type">Lit</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkText"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkText"><span class="hs-identifier hs-var">TkText</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkNumber"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkNumber"><span class="hs-identifier hs-var">TkNumber</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Number"><span class="hs-identifier hs-type">Number</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkArrayOpen"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayOpen"><span class="hs-identifier hs-var">TkArrayOpen</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219733"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkRecordOpen"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordOpen"><span class="hs-identifier hs-var">TkRecordOpen</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219732"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219733"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkErr"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkErr"><span class="hs-identifier hs-var">TkErr</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679219733"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219762"><span id="local-6989586621679219781"><span class="annot"><span class="annottext">Tokens k e -&gt; Tokens k e -&gt; Bool
+(Tokens k e -&gt; Tokens k e -&gt; Bool)
+-&gt; (Tokens k e -&gt; Tokens k e -&gt; Bool) -&gt; Eq (Tokens k e)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k e. (Eq k, Eq e) =&gt; Tokens k e -&gt; Tokens k e -&gt; Bool
+$c== :: forall k e. (Eq k, Eq e) =&gt; Tokens k e -&gt; Tokens k e -&gt; Bool
+== :: Tokens k e -&gt; Tokens k e -&gt; Bool
+$c/= :: forall k e. (Eq k, Eq e) =&gt; Tokens k e -&gt; Tokens k e -&gt; Bool
+/= :: Tokens k e -&gt; Tokens k e -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219788"><span id="local-6989586621679219811"><span id="local-6989586621679219815"><span class="annot"><span class="annottext">Int -&gt; Tokens k e -&gt; ShowS
+[Tokens k e] -&gt; ShowS
+Tokens k e -&gt; String
+(Int -&gt; Tokens k e -&gt; ShowS)
+-&gt; (Tokens k e -&gt; String)
+-&gt; ([Tokens k e] -&gt; ShowS)
+-&gt; Show (Tokens k e)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k e. (Show k, Show e) =&gt; Int -&gt; Tokens k e -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; [Tokens k e] -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; Tokens k e -&gt; String
+$cshowsPrec :: forall k e. (Show k, Show e) =&gt; Int -&gt; Tokens k e -&gt; ShowS
+showsPrec :: Int -&gt; Tokens k e -&gt; ShowS
+$cshow :: forall k e. (Show k, Show e) =&gt; Tokens k e -&gt; String
+show :: Tokens k e -&gt; String
+$cshowList :: forall k e. (Show k, Show e) =&gt; [Tokens k e] -&gt; ShowS
+showList :: [Tokens k e] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Literals. @null@, @true@, @false@.</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="Lit"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Lit"><span class="hs-identifier hs-var">Lit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LitNull"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#LitNull"><span class="hs-identifier hs-var">LitNull</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="LitTrue"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#LitTrue"><span class="hs-identifier hs-var">LitTrue</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="LitFalse"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#LitFalse"><span class="hs-identifier hs-var">LitFalse</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219823"><span id="local-6989586621679219827"><span class="annot"><span class="annottext">Lit -&gt; Lit -&gt; Bool
+(Lit -&gt; Lit -&gt; Bool) -&gt; (Lit -&gt; Lit -&gt; Bool) -&gt; Eq Lit
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Lit -&gt; Lit -&gt; Bool
+== :: Lit -&gt; Lit -&gt; Bool
+$c/= :: Lit -&gt; Lit -&gt; Bool
+/= :: Lit -&gt; Lit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219830"><span id="local-6989586621679219832"><span id="local-6989586621679219835"><span class="annot"><span class="annottext">Int -&gt; Lit -&gt; ShowS
+[Lit] -&gt; ShowS
+Lit -&gt; String
+(Int -&gt; Lit -&gt; ShowS)
+-&gt; (Lit -&gt; String) -&gt; ([Lit] -&gt; ShowS) -&gt; Show Lit
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Lit -&gt; ShowS
+showsPrec :: Int -&gt; Lit -&gt; ShowS
+$cshow :: Lit -&gt; String
+show :: Lit -&gt; String
+$cshowList :: [Lit] -&gt; ShowS
+showList :: [Lit] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | Numbers</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- We preserve whether the number was integral, decimal or in scientific form.</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="Number"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Number"><span class="hs-identifier hs-var">Number</span></a></span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="NumInteger"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#NumInteger"><span class="hs-identifier hs-var">NumInteger</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ e.g. @123@</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NumDecimal"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#NumDecimal"><span class="hs-identifier hs-var">NumDecimal</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ e.g. @123.456@</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NumScientific"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#NumScientific"><span class="hs-identifier hs-var">NumScientific</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Scientific</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ e.g. @123e456@, @123e-456@ or @123.456E-967@</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219841"><span id="local-6989586621679219850"><span class="annot"><span class="annottext">Number -&gt; Number -&gt; Bool
+(Number -&gt; Number -&gt; Bool)
+-&gt; (Number -&gt; Number -&gt; Bool) -&gt; Eq Number
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Number -&gt; Number -&gt; Bool
+== :: Number -&gt; Number -&gt; Bool
+$c/= :: Number -&gt; Number -&gt; Bool
+/= :: Number -&gt; Number -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219853"><span id="local-6989586621679219863"><span id="local-6989586621679219866"><span class="annot"><span class="annottext">Int -&gt; Number -&gt; ShowS
+[Number] -&gt; ShowS
+Number -&gt; String
+(Int -&gt; Number -&gt; ShowS)
+-&gt; (Number -&gt; String) -&gt; ([Number] -&gt; ShowS) -&gt; Show Number
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Number -&gt; ShowS
+showsPrec :: Int -&gt; Number -&gt; ShowS
+$cshow :: Number -&gt; String
+show :: Number -&gt; String
+$cshowList :: [Number] -&gt; ShowS
+showList :: [Number] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | Array tokens.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">data</span><span> </span><span id="TkArray"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-var">TkArray</span></a></span></span><span> </span><span id="local-6989586621679219742"><span class="annot"><a href="#local-6989586621679219742"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679219743"><span class="annot"><a href="#local-6989586621679219743"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="TkItem"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkItem"><span class="hs-identifier hs-var">TkItem</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219742"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219743"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679219743"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkArrayEnd"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayEnd"><span class="hs-identifier hs-var">TkArrayEnd</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679219742"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkArrayErr"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayErr"><span class="hs-identifier hs-var">TkArrayErr</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679219743"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219874"><span id="local-6989586621679219882"><span class="annot"><span class="annottext">TkArray k e -&gt; TkArray k e -&gt; Bool
+(TkArray k e -&gt; TkArray k e -&gt; Bool)
+-&gt; (TkArray k e -&gt; TkArray k e -&gt; Bool) -&gt; Eq (TkArray k e)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k e. (Eq k, Eq e) =&gt; TkArray k e -&gt; TkArray k e -&gt; Bool
+$c== :: forall k e. (Eq k, Eq e) =&gt; TkArray k e -&gt; TkArray k e -&gt; Bool
+== :: TkArray k e -&gt; TkArray k e -&gt; Bool
+$c/= :: forall k e. (Eq k, Eq e) =&gt; TkArray k e -&gt; TkArray k e -&gt; Bool
+/= :: TkArray k e -&gt; TkArray k e -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219887"><span id="local-6989586621679219896"><span id="local-6989586621679219899"><span class="annot"><span class="annottext">Int -&gt; TkArray k e -&gt; ShowS
+[TkArray k e] -&gt; ShowS
+TkArray k e -&gt; String
+(Int -&gt; TkArray k e -&gt; ShowS)
+-&gt; (TkArray k e -&gt; String)
+-&gt; ([TkArray k e] -&gt; ShowS)
+-&gt; Show (TkArray k e)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k e. (Show k, Show e) =&gt; Int -&gt; TkArray k e -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; [TkArray k e] -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; TkArray k e -&gt; String
+$cshowsPrec :: forall k e. (Show k, Show e) =&gt; Int -&gt; TkArray k e -&gt; ShowS
+showsPrec :: Int -&gt; TkArray k e -&gt; ShowS
+$cshow :: forall k e. (Show k, Show e) =&gt; TkArray k e -&gt; String
+show :: TkArray k e -&gt; String
+$cshowList :: forall k e. (Show k, Show e) =&gt; [TkArray k e] -&gt; ShowS
+showList :: [TkArray k e] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- | Record tokens.</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="TkRecord"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-var">TkRecord</span></a></span></span><span> </span><span id="local-6989586621679219749"><span class="annot"><a href="#local-6989586621679219749"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679219750"><span class="annot"><a href="#local-6989586621679219750"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="TkPair"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkPair"><span class="hs-identifier hs-var">TkPair</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Aeson.Key.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219749"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219750"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679219750"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkRecordEnd"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordEnd"><span class="hs-identifier hs-var">TkRecordEnd</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679219749"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TkRecordErr"><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordErr"><span class="hs-identifier hs-var">TkRecordErr</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679219750"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679219907"><span id="local-6989586621679219917"><span class="annot"><span class="annottext">TkRecord k e -&gt; TkRecord k e -&gt; Bool
+(TkRecord k e -&gt; TkRecord k e -&gt; Bool)
+-&gt; (TkRecord k e -&gt; TkRecord k e -&gt; Bool) -&gt; Eq (TkRecord k e)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k e. (Eq k, Eq e) =&gt; TkRecord k e -&gt; TkRecord k e -&gt; Bool
+$c== :: forall k e. (Eq k, Eq e) =&gt; TkRecord k e -&gt; TkRecord k e -&gt; Bool
+== :: TkRecord k e -&gt; TkRecord k e -&gt; Bool
+$c/= :: forall k e. (Eq k, Eq e) =&gt; TkRecord k e -&gt; TkRecord k e -&gt; Bool
+/= :: TkRecord k e -&gt; TkRecord k e -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679219922"><span id="local-6989586621679219933"><span id="local-6989586621679219936"><span class="annot"><span class="annottext">Int -&gt; TkRecord k e -&gt; ShowS
+[TkRecord k e] -&gt; ShowS
+TkRecord k e -&gt; String
+(Int -&gt; TkRecord k e -&gt; ShowS)
+-&gt; (TkRecord k e -&gt; String)
+-&gt; ([TkRecord k e] -&gt; ShowS)
+-&gt; Show (TkRecord k e)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k e. (Show k, Show e) =&gt; Int -&gt; TkRecord k e -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; [TkRecord k e] -&gt; ShowS
+forall k e. (Show k, Show e) =&gt; TkRecord k e -&gt; String
+$cshowsPrec :: forall k e. (Show k, Show e) =&gt; Int -&gt; TkRecord k e -&gt; ShowS
+showsPrec :: Int -&gt; TkRecord k e -&gt; ShowS
+$cshow :: forall k e. (Show k, Show e) =&gt; TkRecord k e -&gt; String
+show :: TkRecord k e -&gt; String
+$cshowList :: forall k e. (Show k, Show e) =&gt; [TkRecord k e] -&gt; ShowS
+showList :: [TkRecord k e] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219563"><span id="local-6989586621679219940"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219563"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679219946"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Tokens k a -&gt; Tokens k b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Tokens k a -&gt; Tokens k b
+forall b c a. (b -&gt; c) -&gt; Tokens a b -&gt; Tokens a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219572"><span id="local-6989586621679219950"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219572"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679219955"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; TkArray k a -&gt; TkArray k b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; TkArray k a -&gt; TkArray k b
+forall b c a. (b -&gt; c) -&gt; TkArray a b -&gt; TkArray a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219576"><span id="local-6989586621679219958"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219576"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679219963"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; TkRecord k a -&gt; TkRecord k b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; TkRecord k a -&gt; TkRecord k b
+forall b c a. (b -&gt; c) -&gt; TkRecord a b -&gt; TkRecord a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219602"><span id="local-6989586621679219965"><span id="local-6989586621679219972"><span id="local-6989586621679219977"><span id="local-6989586621679219980"><span id="local-6989586621679219983"><span id="local-6989586621679219986"><span id="local-6989586621679219989"><span id="local-6989586621679219992"><span id="local-6989586621679219995"><span id="local-6989586621679219998"><span id="local-6989586621679220001"><span id="local-6989586621679220004"><span id="local-6989586621679220009"><span id="local-6989586621679220014"><span id="local-6989586621679220019"><span id="local-6989586621679220024"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219602"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220034"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Tokens k a -&gt; m
+</span><a href="#local-6989586621679220034"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; m) -&gt; (a -&gt; m) -&gt; Tokens k a -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Tokens a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; k -&gt; m
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219621"><span id="local-6989586621679220039"><span id="local-6989586621679220046"><span id="local-6989586621679220051"><span id="local-6989586621679220054"><span id="local-6989586621679220057"><span id="local-6989586621679220060"><span id="local-6989586621679220063"><span id="local-6989586621679220066"><span id="local-6989586621679220069"><span id="local-6989586621679220072"><span id="local-6989586621679220075"><span id="local-6989586621679220078"><span id="local-6989586621679220083"><span id="local-6989586621679220088"><span id="local-6989586621679220093"><span id="local-6989586621679220098"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219621"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220107"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TkArray k a -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; m) -&gt; (a -&gt; m) -&gt; TkArray k a -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; TkArray a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; k -&gt; m
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219632"><span id="local-6989586621679220109"><span id="local-6989586621679220116"><span id="local-6989586621679220121"><span id="local-6989586621679220124"><span id="local-6989586621679220127"><span id="local-6989586621679220130"><span id="local-6989586621679220133"><span id="local-6989586621679220136"><span id="local-6989586621679220139"><span id="local-6989586621679220142"><span id="local-6989586621679220145"><span id="local-6989586621679220148"><span id="local-6989586621679220153"><span id="local-6989586621679220158"><span id="local-6989586621679220163"><span id="local-6989586621679220168"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219632"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220177"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TkRecord k a -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; m) -&gt; (a -&gt; m) -&gt; TkRecord k a -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; TkRecord a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; k -&gt; m
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219650"><span id="local-6989586621679220184"><span id="local-6989586621679220190"><span id="local-6989586621679220195"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219650"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220205"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Tokens k a -&gt; f (Tokens k b)
+</span><a href="#local-6989586621679220205"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; f k) -&gt; (a -&gt; f b) -&gt; Tokens k a -&gt; f (Tokens k b)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Tokens a b -&gt; f (Tokens c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; f k
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219667"><span id="local-6989586621679220214"><span id="local-6989586621679220220"><span id="local-6989586621679220225"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219667"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220234"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TkArray k a -&gt; f (TkArray k b)
+</span><span class="hs-identifier hs-var hs-var hs-var">traverse</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; f k) -&gt; (a -&gt; f b) -&gt; TkArray k a -&gt; f (TkArray k b)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; f k
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679219675"><span id="local-6989586621679220241"><span id="local-6989586621679220247"><span id="local-6989586621679220252"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679219675"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220261"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TkRecord k a -&gt; f (TkRecord k b)
+</span><span class="hs-identifier hs-var hs-var hs-var">traverse</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(k -&gt; f k) -&gt; (a -&gt; f b) -&gt; TkRecord k a -&gt; f (TkRecord k b)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; f k
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220266"><span id="local-6989586621679220269"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220273"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Tokens a c -&gt; Tokens b d
+</span><a href="#local-6989586621679220273"><span class="hs-identifier hs-var hs-var hs-var">bimap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (c -&gt; d) -&gt; Tokens a c -&gt; Tokens b d
+forall (t :: * -&gt; * -&gt; *) a b c d.
+Bitraversable t =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; t a c -&gt; t b d
+</span><span class="hs-identifier hs-var">bimapDefault</span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220279"><span id="local-6989586621679220282"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220285"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; TkArray a c -&gt; TkArray b d
+</span><span class="hs-identifier hs-var hs-var hs-var">bimap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (c -&gt; d) -&gt; TkArray a c -&gt; TkArray b d
+forall (t :: * -&gt; * -&gt; *) a b c d.
+Bitraversable t =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; t a c -&gt; t b d
+</span><span class="hs-identifier hs-var">bimapDefault</span></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220290"><span id="local-6989586621679220293"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220296"><span class="annot"><span class="annottext">bimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; TkRecord a c -&gt; TkRecord b d
+</span><span class="hs-identifier hs-var hs-var hs-var">bimap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (c -&gt; d) -&gt; TkRecord a c -&gt; TkRecord b d
+forall (t :: * -&gt; * -&gt; *) a b c d.
+Bitraversable t =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; t a c -&gt; t b d
+</span><span class="hs-identifier hs-var">bimapDefault</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220298"><span id="local-6989586621679220304"><span id="local-6989586621679220307"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220313"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Tokens a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (b -&gt; m) -&gt; Tokens a b -&gt; m
+forall (t :: * -&gt; * -&gt; *) m a b.
+(Bitraversable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; t a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMapDefault</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220315"><span id="local-6989586621679220321"><span id="local-6989586621679220324"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220329"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; TkArray a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (b -&gt; m) -&gt; TkArray a b -&gt; m
+forall (t :: * -&gt; * -&gt; *) m a b.
+(Bitraversable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; t a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMapDefault</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679220331"><span id="local-6989586621679220337"><span id="local-6989586621679220340"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679220345"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; TkRecord a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (b -&gt; m) -&gt; TkRecord a b -&gt; m
+forall (t :: * -&gt; * -&gt; *) m a b.
+(Bitraversable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; t a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMapDefault</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#Tokens"><span class="hs-identifier hs-type">Tokens</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679220365"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Tokens a b -&gt; f (Tokens c d)
+</span><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679220366"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220366"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkLit"><span class="hs-identifier hs-type">TkLit</span></a></span><span> </span><span id="local-6989586621679220367"><span class="annot"><span class="annottext">Lit
+</span><a href="#local-6989586621679220367"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679220368"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220368"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Lit -&gt; c -&gt; Tokens c d
+forall k e. Lit -&gt; k -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkLit"><span class="hs-identifier hs-var">TkLit</span></a></span><span> </span><span class="annot"><span class="annottext">Lit
+</span><a href="#local-6989586621679220367"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; Tokens c d) -&gt; f c -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220366"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220368"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220370"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220370"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkText"><span class="hs-identifier hs-type">TkText</span></a></span><span> </span><span id="local-6989586621679220371"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679220371"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679220372"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220372"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; c -&gt; Tokens c d
+forall k e. Text -&gt; k -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkText"><span class="hs-identifier hs-var">TkText</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679220371"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; Tokens c d) -&gt; f c -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220370"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220372"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220373"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220373"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkNumber"><span class="hs-identifier hs-type">TkNumber</span></a></span><span> </span><span id="local-6989586621679220374"><span class="annot"><span class="annottext">Number
+</span><a href="#local-6989586621679220374"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679220375"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220375"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Number -&gt; c -&gt; Tokens c d
+forall k e. Number -&gt; k -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkNumber"><span class="hs-identifier hs-var">TkNumber</span></a></span><span> </span><span class="annot"><span class="annottext">Number
+</span><a href="#local-6989586621679220374"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; Tokens c d) -&gt; f c -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220373"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220375"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220376"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220376"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679220377"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220377"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayOpen"><span class="hs-identifier hs-type">TkArrayOpen</span></a></span><span> </span><span id="local-6989586621679220378"><span class="annot"><span class="annottext">TkArray a b
+</span><a href="#local-6989586621679220378"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TkArray c d -&gt; Tokens c d
+forall k e. TkArray k e -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkArrayOpen"><span class="hs-identifier hs-var">TkArrayOpen</span></a></span><span> </span><span class="annot"><span class="annottext">(TkArray c d -&gt; Tokens c d) -&gt; f (TkArray c d) -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220376"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220377"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">TkArray a b
+</span><a href="#local-6989586621679220378"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220379"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220379"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679220380"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220380"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordOpen"><span class="hs-identifier hs-type">TkRecordOpen</span></a></span><span> </span><span id="local-6989586621679220381"><span class="annot"><span class="annottext">TkRecord a b
+</span><a href="#local-6989586621679220381"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TkRecord c d -&gt; Tokens c d
+forall k e. TkRecord k e -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkRecordOpen"><span class="hs-identifier hs-var">TkRecordOpen</span></a></span><span> </span><span class="annot"><span class="annottext">(TkRecord c d -&gt; Tokens c d) -&gt; f (TkRecord c d) -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220379"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220380"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">TkRecord a b
+</span><a href="#local-6989586621679220381"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679220382"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220382"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkErr"><span class="hs-identifier hs-type">TkErr</span></a></span><span> </span><span id="local-6989586621679220383"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220383"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">d -&gt; Tokens c d
+forall k e. e -&gt; Tokens k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkErr"><span class="hs-identifier hs-var">TkErr</span></a></span><span> </span><span class="annot"><span class="annottext">(d -&gt; Tokens c d) -&gt; f d -&gt; f (Tokens c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220382"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220383"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArray"><span class="hs-identifier hs-type">TkArray</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679220398"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+</span><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679220399"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220399"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679220400"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220400"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkItem"><span class="hs-identifier hs-type">TkItem</span></a></span><span> </span><span id="local-6989586621679220401"><span class="annot"><span class="annottext">Tokens (TkArray a b) b
+</span><a href="#local-6989586621679220401"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tokens (TkArray c d) d -&gt; TkArray c d
+forall k e. Tokens (TkArray k e) e -&gt; TkArray k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkItem"><span class="hs-identifier hs-var">TkItem</span></a></span><span> </span><span class="annot"><span class="annottext">(Tokens (TkArray c d) d -&gt; TkArray c d)
+-&gt; f (Tokens (TkArray c d) d) -&gt; f (TkArray c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(TkArray a b -&gt; f (TkArray c d))
+-&gt; (b -&gt; f d)
+-&gt; Tokens (TkArray a b) b
+-&gt; f (Tokens (TkArray c d) d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Tokens a b -&gt; f (Tokens c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkArray a b -&gt; f (TkArray c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220399"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220400"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220400"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Tokens (TkArray a b) b
+</span><a href="#local-6989586621679220401"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220402"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220402"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayEnd"><span class="hs-identifier hs-type">TkArrayEnd</span></a></span><span> </span><span id="local-6989586621679220403"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220403"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; TkArray c d
+forall k e. k -&gt; TkArray k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkArrayEnd"><span class="hs-identifier hs-var">TkArrayEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; TkArray c d) -&gt; f c -&gt; f (TkArray c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220402"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220403"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679220404"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220404"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkArrayErr"><span class="hs-identifier hs-type">TkArrayErr</span></a></span><span> </span><span id="local-6989586621679220405"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220405"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">d -&gt; TkArray c d
+forall k e. e -&gt; TkArray k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkArrayErr"><span class="hs-identifier hs-var">TkArrayErr</span></a></span><span> </span><span class="annot"><span class="annottext">(d -&gt; TkArray c d) -&gt; f d -&gt; f (TkArray c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220404"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220405"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecord"><span class="hs-identifier hs-type">TkRecord</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679220420"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+</span><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679220421"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220421"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679220422"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220422"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkPair"><span class="hs-identifier hs-type">TkPair</span></a></span><span> </span><span id="local-6989586621679220423"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679220423"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679220424"><span class="annot"><span class="annottext">Tokens (TkRecord a b) b
+</span><a href="#local-6989586621679220424"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Tokens (TkRecord c d) d -&gt; TkRecord c d
+forall k e. Key -&gt; Tokens (TkRecord k e) e -&gt; TkRecord k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkPair"><span class="hs-identifier hs-var">TkPair</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679220423"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">(Tokens (TkRecord c d) d -&gt; TkRecord c d)
+-&gt; f (Tokens (TkRecord c d) d) -&gt; f (TkRecord c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(TkRecord a b -&gt; f (TkRecord c d))
+-&gt; (b -&gt; f d)
+-&gt; Tokens (TkRecord a b) b
+-&gt; f (Tokens (TkRecord c d) d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Tokens a b -&gt; f (Tokens c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; TkRecord a b -&gt; f (TkRecord c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220421"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220422"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220422"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Tokens (TkRecord a b) b
+</span><a href="#local-6989586621679220424"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679220425"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220425"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordEnd"><span class="hs-identifier hs-type">TkRecordEnd</span></a></span><span> </span><span id="local-6989586621679220426"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220426"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; TkRecord c d
+forall k e. k -&gt; TkRecord k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkRecordEnd"><span class="hs-identifier hs-var">TkRecordEnd</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; TkRecord c d) -&gt; f c -&gt; f (TkRecord c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679220425"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679220426"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679220427"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220427"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Aeson.Decoding.Tokens.html#TkRecordErr"><span class="hs-identifier hs-type">TkRecordErr</span></a></span><span> </span><span id="local-6989586621679220428"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220428"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">d -&gt; TkRecord c d
+forall k e. e -&gt; TkRecord k e
+</span><a href="Data.Aeson.Decoding.Tokens.html#TkRecordErr"><span class="hs-identifier hs-var">TkRecordErr</span></a></span><span> </span><span class="annot"><span class="annottext">(d -&gt; TkRecord c d) -&gt; f d -&gt; f (TkRecord c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679220427"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679220428"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-98"></span></pre></body></html>

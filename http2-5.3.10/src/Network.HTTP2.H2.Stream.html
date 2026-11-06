@@ -1,0 +1,595 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NamedFieldPuns #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Stream.html"><span class="hs-identifier">Network.HTTP2.H2.Stream</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Control</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.IO</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.html"><span class="hs-identifier">Network.HTTP2.Frame</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.StreamTable.html"><span class="hs-identifier">Network.HTTP2.H2.StreamTable</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html"><span class="hs-identifier">Network.HTTP2.H2.Types</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isIdle"><span class="hs-identifier hs-type">isIdle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-25"></span><span id="isIdle"><span class="annot"><span class="annottext">isIdle :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isIdle"><span class="hs-identifier hs-var hs-var">isIdle</span></a></span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Idle"><span class="hs-identifier hs-var">Idle</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isIdle"><span class="hs-identifier hs-var">isIdle</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isOpen"><span class="hs-identifier hs-type">isOpen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-29"></span><span id="isOpen"><span class="annot"><span class="annottext">isOpen :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isOpen"><span class="hs-identifier hs-var hs-var">isOpen</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-30"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isOpen"><span class="hs-identifier hs-var">isOpen</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedRemote"><span class="hs-identifier hs-type">isHalfClosedRemote</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-33"></span><span id="isHalfClosedRemote"><span class="annot"><span class="annottext">isHalfClosedRemote :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isHalfClosedRemote"><span class="hs-identifier hs-var hs-var">isHalfClosedRemote</span></a></span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#HalfClosedRemote"><span class="hs-identifier hs-var">HalfClosedRemote</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedRemote"><span class="hs-identifier hs-var">isHalfClosedRemote</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedRemote"><span class="hs-identifier hs-var">isHalfClosedRemote</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedLocal"><span class="hs-identifier hs-type">isHalfClosedLocal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-38"></span><span id="isHalfClosedLocal"><span class="annot"><span class="annottext">isHalfClosedLocal :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isHalfClosedLocal"><span class="hs-identifier hs-var hs-var">isHalfClosedLocal</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OpenState
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedLocal"><span class="hs-identifier hs-var">isHalfClosedLocal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ClosedCode
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isHalfClosedLocal"><span class="hs-identifier hs-var">isHalfClosedLocal</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isClosed"><span class="hs-identifier hs-type">isClosed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-43"></span><span id="isClosed"><span class="annot"><span class="annottext">isClosed :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isClosed"><span class="hs-identifier hs-var hs-var">isClosed</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isClosed"><span class="hs-identifier hs-var">isClosed</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isReserved"><span class="hs-identifier hs-type">isReserved</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-47"></span><span id="isReserved"><span class="annot"><span class="annottext">isReserved :: StreamState -&gt; Bool
+</span><a href="Network.HTTP2.H2.Stream.html#isReserved"><span class="hs-identifier hs-var hs-var">isReserved</span></a></span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Reserved"><span class="hs-identifier hs-var">Reserved</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#isReserved"><span class="hs-identifier hs-var">isReserved</span></a></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#newOddStream"><span class="hs-identifier hs-type">newOddStream</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WindowSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WindowSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>
+</span><span id="line-53"></span><span id="newOddStream"><span class="annot"><span class="annottext">newOddStream :: StreamId -&gt; StreamId -&gt; StreamId -&gt; IO Stream
+</span><a href="Network.HTTP2.H2.Stream.html#newOddStream"><span class="hs-identifier hs-var hs-var">newOddStream</span></a></span></span><span> </span><span id="local-6989586621679132753"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132753"><span class="hs-identifier hs-var">sid</span></a></span></span><span> </span><span id="local-6989586621679132754"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132754"><span class="hs-identifier hs-var">txwin</span></a></span></span><span> </span><span id="local-6989586621679132755"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132755"><span class="hs-identifier hs-var">rxwin</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">StreamId
+-&gt; IORef StreamState
+-&gt; MVar (Either SomeException InpObj)
+-&gt; TVar TxFlow
+-&gt; IORef RxFlow
+-&gt; IORef (Maybe RxQ)
+-&gt; Stream
+</span><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132753"><span class="hs-identifier hs-var">sid</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">(IORef StreamState
+ -&gt; MVar (Either SomeException InpObj)
+ -&gt; TVar TxFlow
+ -&gt; IORef RxFlow
+ -&gt; IORef (Maybe RxQ)
+ -&gt; Stream)
+-&gt; IO (IORef StreamState)
+-&gt; IO
+     (MVar (Either SomeException InpObj)
+      -&gt; TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">StreamState -&gt; IO (IORef StreamState)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Idle"><span class="hs-identifier hs-var">Idle</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">IO
+  (MVar (Either SomeException InpObj)
+   -&gt; TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (MVar (Either SomeException InpObj))
+-&gt; IO (TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar (Either SomeException InpObj))
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">IO (TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (TVar TxFlow)
+-&gt; IO (IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">TxFlow -&gt; IO (TVar TxFlow)
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamId -&gt; TxFlow
+</span><span class="hs-identifier hs-var">newTxFlow</span></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132754"><span class="hs-identifier hs-var">txwin</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="annottext">IO (IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (IORef RxFlow) -&gt; IO (IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">RxFlow -&gt; IO (IORef RxFlow)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamId -&gt; RxFlow
+</span><span class="hs-identifier hs-var">newRxFlow</span></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132755"><span class="hs-identifier hs-var">rxwin</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">IO (IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (IORef (Maybe RxQ)) -&gt; IO Stream
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe RxQ -&gt; IO (IORef (Maybe RxQ))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Maybe RxQ
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#newEvenStream"><span class="hs-identifier hs-type">newEvenStream</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#StreamId"><span class="hs-identifier hs-type">StreamId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WindowSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WindowSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>
+</span><span id="line-62"></span><span id="newEvenStream"><span class="annot"><span class="annottext">newEvenStream :: StreamId -&gt; StreamId -&gt; StreamId -&gt; IO Stream
+</span><a href="Network.HTTP2.H2.Stream.html#newEvenStream"><span class="hs-identifier hs-var hs-var">newEvenStream</span></a></span></span><span> </span><span id="local-6989586621679132764"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132764"><span class="hs-identifier hs-var">sid</span></a></span></span><span> </span><span id="local-6989586621679132765"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132765"><span class="hs-identifier hs-var">txwin</span></a></span></span><span> </span><span id="local-6989586621679132766"><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132766"><span class="hs-identifier hs-var">rxwin</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">StreamId
+-&gt; IORef StreamState
+-&gt; MVar (Either SomeException InpObj)
+-&gt; TVar TxFlow
+-&gt; IORef RxFlow
+-&gt; IORef (Maybe RxQ)
+-&gt; Stream
+</span><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132764"><span class="hs-identifier hs-var">sid</span></a></span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><span class="annottext">(IORef StreamState
+ -&gt; MVar (Either SomeException InpObj)
+ -&gt; TVar TxFlow
+ -&gt; IORef RxFlow
+ -&gt; IORef (Maybe RxQ)
+ -&gt; Stream)
+-&gt; IO (IORef StreamState)
+-&gt; IO
+     (MVar (Either SomeException InpObj)
+      -&gt; TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">StreamState -&gt; IO (IORef StreamState)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="Network.HTTP2.H2.Types.html#Reserved"><span class="hs-identifier hs-var">Reserved</span></a></span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">IO
+  (MVar (Either SomeException InpObj)
+   -&gt; TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (MVar (Either SomeException InpObj))
+-&gt; IO (TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar (Either SomeException InpObj))
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">IO (TVar TxFlow -&gt; IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (TVar TxFlow)
+-&gt; IO (IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">TxFlow -&gt; IO (TVar TxFlow)
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamId -&gt; TxFlow
+</span><span class="hs-identifier hs-var">newTxFlow</span></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132765"><span class="hs-identifier hs-var">txwin</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">IO (IORef RxFlow -&gt; IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (IORef RxFlow) -&gt; IO (IORef (Maybe RxQ) -&gt; Stream)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">RxFlow -&gt; IO (IORef RxFlow)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamId -&gt; RxFlow
+</span><span class="hs-identifier hs-var">newRxFlow</span></span><span> </span><span class="annot"><span class="annottext">StreamId
+</span><a href="#local-6989586621679132766"><span class="hs-identifier hs-var">rxwin</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">IO (IORef (Maybe RxQ) -&gt; Stream)
+-&gt; IO (IORef (Maybe RxQ)) -&gt; IO Stream
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe RxQ -&gt; IO (IORef (Maybe RxQ))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Maybe RxQ
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#readStreamState"><span class="hs-pragma hs-type">readStreamState</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#readStreamState"><span class="hs-identifier hs-type">readStreamState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span>
+</span><span id="line-74"></span><span id="readStreamState"><span class="annot"><span class="annottext">readStreamState :: Stream -&gt; IO StreamState
+</span><a href="Network.HTTP2.H2.Stream.html#readStreamState"><span class="hs-identifier hs-var hs-var">readStreamState</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span class="hs-special">{</span><span id="local-6989586621679132768"><span class="annot"><span class="annottext">IORef StreamState
+streamState :: IORef StreamState
+streamState :: Stream -&gt; IORef StreamState
+</span><a href="#local-6989586621679132768"><span class="hs-identifier hs-var hs-var">streamState</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO StreamState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679132768"><span class="hs-identifier hs-var">streamState</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#closeAllStreams"><span class="hs-identifier hs-type">closeAllStreams</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.StreamTable.html#OddStreamTable"><span class="hs-identifier hs-type">OddStreamTable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.StreamTable.html#EvenStreamTable"><span class="hs-identifier hs-type">EvenStreamTable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span id="closeAllStreams"><span class="annot"><span class="annottext">closeAllStreams :: TVar OddStreamTable
+-&gt; TVar EvenStreamTable -&gt; Maybe SomeException -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Stream.html#closeAllStreams"><span class="hs-identifier hs-var hs-var">closeAllStreams</span></a></span></span><span> </span><span id="local-6989586621679132772"><span class="annot"><span class="annottext">TVar OddStreamTable
+</span><a href="#local-6989586621679132772"><span class="hs-identifier hs-var">ovar</span></a></span></span><span> </span><span id="local-6989586621679132773"><span class="annot"><span class="annottext">TVar EvenStreamTable
+</span><a href="#local-6989586621679132773"><span class="hs-identifier hs-var">evar</span></a></span></span><span> </span><span id="local-6989586621679132774"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132774"><span class="hs-identifier hs-var">mErr'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679132775"><span class="annot"><a href="#local-6989586621679132775"><span class="hs-identifier hs-var">ostrms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar OddStreamTable -&gt; IO (IntMap Stream)
+</span><a href="Network.HTTP2.H2.StreamTable.html#clearOddStreamTable"><span class="hs-identifier hs-var">clearOddStreamTable</span></a></span><span> </span><span class="annot"><span class="annottext">TVar OddStreamTable
+</span><a href="#local-6989586621679132772"><span class="hs-identifier hs-var">ovar</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">mapM_</span></span><span> </span><span class="annot"><a href="#local-6989586621679132778"><span class="hs-identifier hs-type">finalize</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132775"><span class="hs-identifier hs-type">ostrms</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679132779"><span class="annot"><a href="#local-6989586621679132779"><span class="hs-identifier hs-var">estrms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.StreamTable.html#clearEvenStreamTable"><span class="hs-identifier hs-type">clearEvenStreamTable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132773"><span class="hs-identifier hs-type">evar</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">mapM_</span></span><span> </span><span class="annot"><a href="#local-6989586621679132778"><span class="hs-identifier hs-type">finalize</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132779"><span class="hs-identifier hs-type">estrms</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679132778"><span class="annot"><span class="annottext">finalize :: Stream -&gt; IO ()
+</span><a href="#local-6989586621679132778"><span class="hs-identifier hs-var hs-var">finalize</span></a></span></span><span> </span><span id="local-6989586621679132787"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679132787"><span class="hs-identifier hs-var">strm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>        </span><span id="local-6989586621679132788"><span class="annot"><a href="#local-6989586621679132788"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO StreamState
+</span><a href="Network.HTTP2.H2.Stream.html#readStreamState"><span class="hs-identifier hs-var">readStreamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679132787"><span class="hs-identifier hs-var">strm</span></a></span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">void</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">tryPutMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#streamInput"><span class="hs-identifier hs-var">streamInput</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132787"><span class="hs-identifier hs-type">strm</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679132792"><span class="hs-identifier hs-type">err</span></a></span><span>
+</span><span id="line-89"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679132788"><span class="hs-identifier hs-type">st</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ClosedCode
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Body"><span class="hs-identifier hs-type">Body</span></a></span><span> </span><span id="local-6989586621679132794"><span class="annot"><span class="annottext">RxQ
+</span><a href="#local-6989586621679132794"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe StreamId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">IORef StreamId
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">IORef (Maybe TokenHeaderTable)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-91"></span><span>                </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">RxQ -&gt; Either SomeException (ByteString, Bool) -&gt; STM ()
+forall a. TQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">RxQ
+</span><a href="#local-6989586621679132794"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">(Either SomeException (ByteString, Bool) -&gt; STM ())
+-&gt; Either SomeException (ByteString, Bool) -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Either SomeException (ByteString, Bool)
+-&gt; (SomeException -&gt; Either SomeException (ByteString, Bool))
+-&gt; Maybe SomeException
+-&gt; Either SomeException (ByteString, Bool)
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ByteString, Bool) -&gt; Either SomeException (ByteString, Bool)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException (ByteString, Bool)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132798"><span class="hs-identifier hs-var">mErr</span></a></span><span>
+</span><span id="line-92"></span><span>            </span><span id="local-6989586621679132799"><span class="annot"><span class="annottext">StreamState
+</span><a href="#local-6989586621679132799"><span class="hs-identifier hs-var">_otherwise</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-93"></span><span>                </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><a href="#local-6989586621679132798"><span class="hs-identifier hs-type">mErr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679132798"><span class="annot"><span class="annottext">mErr :: Maybe SomeException
+</span><a href="#local-6989586621679132798"><span class="hs-identifier hs-var hs-var">mErr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132774"><span class="hs-identifier hs-var">mErr'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679132800"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679132800"><span class="hs-identifier hs-var">e</span></a></span></span><span>
+</span><span id="line-98"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionIsClosed"><span class="hs-identifier hs-var">ConnectionIsClosed</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe HTTP2Error
+forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679132800"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-99"></span><span>                </span><span class="annot"><span class="annottext">Maybe SomeException
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-100"></span><span>        </span><span id="local-6989586621679132803"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132803"><span class="hs-identifier hs-var">_otherwise</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-101"></span><span>            </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132774"><span class="hs-identifier hs-var">mErr'</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679132678"><span class="annot"><a href="#local-6989586621679132792"><span class="hs-identifier hs-type">err</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621679132678"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-104"></span><span>    </span><span id="local-6989586621679132792"><span class="annot"><span class="annottext">err :: forall a. Either SomeException a
+</span><a href="#local-6989586621679132792"><span class="hs-identifier hs-var hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException a)
+-&gt; SomeException -&gt; Either SomeException a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeException -&gt; SomeException
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HTTP2Error -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="annot"><span class="annottext">HTTP2Error
+</span><a href="Network.HTTP2.H2.Types.html#ConnectionIsClosed"><span class="hs-identifier hs-var">ConnectionIsClosed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132798"><span class="hs-identifier hs-var">mErr</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">data</span><span> </span><span id="StreamTerminated"><span class="annot"><a href="Network.HTTP2.H2.Stream.html#StreamTerminated"><span class="hs-identifier hs-var">StreamTerminated</span></a></span></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="StreamPushedFinal"><span class="annot"><a href="Network.HTTP2.H2.Stream.html#StreamPushedFinal"><span class="hs-identifier hs-var">StreamPushedFinal</span></a></span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StreamCancelled"><span class="annot"><a href="Network.HTTP2.H2.Stream.html#StreamCancelled"><span class="hs-identifier hs-var">StreamCancelled</span></a></span></span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StreamOutOfScope"><span class="annot"><a href="Network.HTTP2.H2.Stream.html#StreamOutOfScope"><span class="hs-identifier hs-var">StreamOutOfScope</span></a></span></span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132810"><span id="local-6989586621679132812"><span id="local-6989586621679132816"><span class="annot"><span class="annottext">StreamId -&gt; StreamTerminated -&gt; ShowS
+[StreamTerminated] -&gt; ShowS
+StreamTerminated -&gt; String
+(StreamId -&gt; StreamTerminated -&gt; ShowS)
+-&gt; (StreamTerminated -&gt; String)
+-&gt; ([StreamTerminated] -&gt; ShowS)
+-&gt; Show StreamTerminated
+forall a.
+(StreamId -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: StreamId -&gt; StreamTerminated -&gt; ShowS
+showsPrec :: StreamId -&gt; StreamTerminated -&gt; ShowS
+$cshow :: StreamTerminated -&gt; String
+show :: StreamTerminated -&gt; String
+$cshowList :: [StreamTerminated] -&gt; ShowS
+showList :: [StreamTerminated] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679132825"><span id="local-6989586621679132829"><span id="local-6989586621679132832"><span id="local-6989586621679132835"><span class="annot"><span class="annottext">Show StreamTerminated
+Typeable StreamTerminated
+(Typeable StreamTerminated, Show StreamTerminated) =&gt;
+(StreamTerminated -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe StreamTerminated)
+-&gt; (StreamTerminated -&gt; String)
+-&gt; (StreamTerminated -&gt; Bool)
+-&gt; Exception StreamTerminated
+SomeException -&gt; Maybe StreamTerminated
+StreamTerminated -&gt; Bool
+StreamTerminated -&gt; String
+StreamTerminated -&gt; SomeException
+forall e.
+(Typeable e, Show e) =&gt;
+(e -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe e)
+-&gt; (e -&gt; String)
+-&gt; (e -&gt; Bool)
+-&gt; Exception e
+$ctoException :: StreamTerminated -&gt; SomeException
+toException :: StreamTerminated -&gt; SomeException
+$cfromException :: SomeException -&gt; Maybe StreamTerminated
+fromException :: SomeException -&gt; Maybe StreamTerminated
+$cdisplayException :: StreamTerminated -&gt; String
+displayException :: StreamTerminated -&gt; String
+$cbacktraceDesired :: StreamTerminated -&gt; Bool
+backtraceDesired :: StreamTerminated -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Exception</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span id="local-6989586621679132701"><span class="annot"><a href="Network.HTTP2.H2.Stream.html#withOutBodyIface"><span class="hs-identifier hs-type">withOutBodyIface</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TBQueue</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StreamingChunk</span></span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679132699"><span class="annot"><a href="#local-6989586621679132699"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679132699"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679132699"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">OutBodyIface</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679132701"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679132701"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-120"></span><span id="withOutBodyIface"><span class="annot"><span class="annottext">withOutBodyIface :: forall r.
+TBQueue StreamingChunk
+-&gt; (forall a. IO a -&gt; IO a) -&gt; (OutBodyIface -&gt; IO r) -&gt; IO r
+</span><a href="Network.HTTP2.H2.Stream.html#withOutBodyIface"><span class="hs-identifier hs-var hs-var">withOutBodyIface</span></a></span></span><span> </span><span id="local-6989586621679132840"><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span></span><span> </span><span id="local-6989586621679132841"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679132841"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span id="local-6989586621679132842"><span class="annot"><span class="annottext">OutBodyIface -&gt; IO r
+</span><a href="#local-6989586621679132842"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679132843"><span class="annot"><a href="#local-6989586621679132843"><span class="hs-identifier hs-var">terminated</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe StreamTerminated -&gt; IO (TVar (Maybe StreamTerminated))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Maybe StreamTerminated
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679132847"><span class="annot"><a href="#local-6989586621679132847"><span class="hs-identifier hs-var hs-var">whenNotTerminated</span></a></span></span><span> </span><span id="local-6989586621679132848"><span class="annot"><span class="annottext">STM b
+</span><a href="#local-6989586621679132848"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>            </span><span id="local-6989586621679132849"><span class="annot"><a href="#local-6989586621679132849"><span class="hs-identifier hs-var">mTerminated</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated) -&gt; STM (Maybe StreamTerminated)
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated)
+</span><a href="#local-6989586621679132843"><span class="hs-identifier hs-var">terminated</span></a></span><span>
+</span><span id="line-124"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679132849"><span class="hs-identifier hs-type">mTerminated</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-125"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679132851"><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="#local-6989586621679132851"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>                    </span><span class="annot"><span class="annottext">StreamTerminated -&gt; STM b
+forall e a. Exception e =&gt; e -&gt; STM a
+</span><span class="hs-identifier hs-var">throwSTM</span></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="#local-6989586621679132851"><span class="hs-identifier hs-var">reason</span></a></span><span>
+</span><span id="line-127"></span><span>                </span><span class="annot"><span class="annottext">Maybe StreamTerminated
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-128"></span><span>                    </span><span class="annot"><span class="annottext">STM b
+</span><a href="#local-6989586621679132848"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span>        </span><span id="local-6989586621679132856"><span class="annot"><a href="#local-6989586621679132856"><span class="hs-identifier hs-var hs-var">terminateWith</span></a></span></span><span> </span><span id="local-6989586621679132857"><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="#local-6989586621679132857"><span class="hs-identifier hs-var">reason</span></a></span></span><span> </span><span id="local-6989586621679132858"><span class="annot"><span class="annottext">STM ()
+</span><a href="#local-6989586621679132858"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>            </span><span id="local-6989586621679132859"><span class="annot"><a href="#local-6989586621679132859"><span class="hs-identifier hs-var">mTerminated</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated) -&gt; STM (Maybe StreamTerminated)
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated)
+</span><a href="#local-6989586621679132843"><span class="hs-identifier hs-var">terminated</span></a></span><span>
+</span><span id="line-132"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679132859"><span class="hs-identifier hs-type">mTerminated</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-133"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-134"></span><span>                    </span><span class="hs-comment">-- Already terminated</span><span>
+</span><span id="line-135"></span><span>                    </span><span class="annot"><span class="annottext">() -&gt; STM ()
+forall a. a -&gt; STM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>                </span><span class="annot"><span class="annottext">Maybe StreamTerminated
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>                    </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated) -&gt; Maybe StreamTerminated -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated)
+</span><a href="#local-6989586621679132843"><span class="hs-identifier hs-var">terminated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamTerminated -&gt; Maybe StreamTerminated
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="#local-6989586621679132857"><span class="hs-identifier hs-var">reason</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>                    </span><span class="annot"><span class="annottext">STM ()
+</span><a href="#local-6989586621679132858"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>        </span><span id="local-6989586621679132863"><span class="annot"><a href="#local-6989586621679132863"><span class="hs-identifier hs-var hs-var">iface</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">OutBodyIface</span></span><span>
+</span><span id="line-142"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">outBodyUnmask :: forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679132865"><span class="hs-identifier hs-var">outBodyUnmask</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO x -&gt; IO x
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679132841"><span class="hs-identifier hs-var">unmask</span></a></span><span>
+</span><span id="line-143"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">outBodyPush :: Builder -&gt; IO ()
+</span><a href="#local-6989586621679132866"><span class="hs-identifier hs-var">outBodyPush</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679132867"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679132867"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-144"></span><span>                    </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-145"></span><span>                        </span><span class="annot"><span class="annottext">STM () -&gt; STM ()
+forall {b}. STM b -&gt; STM b
+</span><a href="#local-6989586621679132847"><span class="hs-identifier hs-var">whenNotTerminated</span></a></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; STM ()) -&gt; STM () -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-146"></span><span>                            </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="annot"><span class="annottext">(StreamingChunk -&gt; STM ()) -&gt; StreamingChunk -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-147"></span><span>                                </span><span class="annot"><span class="annottext">Builder -&gt; IsEndOfStream -&gt; StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingBuilder</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679132867"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">IsEndOfStream
+</span><span class="hs-identifier hs-var">NotEndOfStream</span></span><span>
+</span><span id="line-148"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">outBodyPushFinal :: Builder -&gt; IO ()
+</span><a href="#local-6989586621679132871"><span class="hs-identifier hs-var">outBodyPushFinal</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679132872"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679132872"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-149"></span><span>                    </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM () -&gt; STM ()
+forall {b}. STM b -&gt; STM b
+</span><a href="#local-6989586621679132847"><span class="hs-identifier hs-var">whenNotTerminated</span></a></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; STM ()) -&gt; STM () -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>                        </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated) -&gt; Maybe StreamTerminated -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe StreamTerminated)
+</span><a href="#local-6989586621679132843"><span class="hs-identifier hs-var">terminated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StreamTerminated -&gt; Maybe StreamTerminated
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="Network.HTTP2.H2.Stream.html#StreamPushedFinal"><span class="hs-identifier hs-var">StreamPushedFinal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>                        </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="annot"><span class="annottext">(StreamingChunk -&gt; STM ()) -&gt; StreamingChunk -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; IsEndOfStream -&gt; StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingBuilder</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679132872"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (IO ()) -&gt; IsEndOfStream
+</span><span class="hs-identifier hs-var">EndOfStream</span></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>                        </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="annot"><span class="annottext">(StreamingChunk -&gt; STM ()) -&gt; StreamingChunk -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ()) -&gt; StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingFinished</span></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-153"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">outBodyFlush :: IO ()
+</span><a href="#local-6989586621679132875"><span class="hs-identifier hs-var">outBodyFlush</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>                    </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-155"></span><span>                        </span><span class="annot"><span class="annottext">STM () -&gt; STM ()
+forall {b}. STM b -&gt; STM b
+</span><a href="#local-6989586621679132847"><span class="hs-identifier hs-var">whenNotTerminated</span></a></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; STM ()) -&gt; STM () -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-156"></span><span>                            </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="annot"><span class="annottext">StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingFlush</span></span><span>
+</span><span id="line-157"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">outBodyCancel :: Maybe SomeException -&gt; IO ()
+</span><a href="#local-6989586621679132877"><span class="hs-identifier hs-var">outBodyCancel</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679132878"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132878"><span class="hs-identifier hs-var">mErr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-158"></span><span>                    </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-159"></span><span>                        </span><span class="annot"><span class="annottext">StreamTerminated -&gt; STM () -&gt; STM ()
+</span><a href="#local-6989586621679132856"><span class="hs-identifier hs-var">terminateWith</span></a></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="Network.HTTP2.H2.Stream.html#StreamCancelled"><span class="hs-identifier hs-var">StreamCancelled</span></a></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; STM ()) -&gt; STM () -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-160"></span><span>                            </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe SomeException -&gt; StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingCancelled</span></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679132878"><span class="hs-identifier hs-var">mErr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-162"></span><span>        </span><span id="local-6989586621679132880"><span class="annot"><a href="#local-6989586621679132880"><span class="hs-identifier hs-var hs-var">finished</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-163"></span><span>            </span><span class="annot"><span class="annottext">StreamTerminated -&gt; STM () -&gt; STM ()
+</span><a href="#local-6989586621679132856"><span class="hs-identifier hs-var">terminateWith</span></a></span><span> </span><span class="annot"><span class="annottext">StreamTerminated
+</span><a href="Network.HTTP2.H2.Stream.html#StreamOutOfScope"><span class="hs-identifier hs-var">StreamOutOfScope</span></a></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; STM ()) -&gt; STM () -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-164"></span><span>                </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; StreamingChunk -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132840"><span class="hs-identifier hs-var">tbq</span></a></span><span> </span><span class="annot"><span class="annottext">(StreamingChunk -&gt; STM ()) -&gt; StreamingChunk -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-165"></span><span>                    </span><span class="annot"><span class="annottext">Maybe (IO ()) -&gt; StreamingChunk
+</span><span class="hs-identifier hs-var">StreamingFinished</span></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><a href="#local-6989586621679132842"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679132863"><span class="hs-identifier hs-type">iface</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`finally`</span></span><span> </span><span class="annot"><a href="#local-6989586621679132880"><span class="hs-identifier hs-type">finished</span></a></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><a href="Network.HTTP2.H2.Stream.html#nextForStreaming"><span class="hs-identifier hs-type">nextForStreaming</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TBQueue</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StreamingChunk</span></span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DynaNext</span></span><span>
+</span><span id="line-171"></span><span id="nextForStreaming"><span class="annot"><span class="annottext">nextForStreaming :: TBQueue StreamingChunk -&gt; DynaNext
+</span><a href="Network.HTTP2.H2.Stream.html#nextForStreaming"><span class="hs-identifier hs-var hs-var">nextForStreaming</span></a></span></span><span> </span><span id="local-6989586621679132883"><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132883"><span class="hs-identifier hs-var">tbq</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679132884"><span class="annot"><span class="annottext">takeQ :: IO (Maybe StreamingChunk)
+</span><a href="#local-6989586621679132884"><span class="hs-identifier hs-var hs-var">takeQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM (Maybe StreamingChunk) -&gt; IO (Maybe StreamingChunk)
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM (Maybe StreamingChunk) -&gt; IO (Maybe StreamingChunk))
+-&gt; STM (Maybe StreamingChunk) -&gt; IO (Maybe StreamingChunk)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk -&gt; STM (Maybe StreamingChunk)
+forall a. TBQueue a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">tryReadTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue StreamingChunk
+</span><a href="#local-6989586621679132883"><span class="hs-identifier hs-var">tbq</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span id="local-6989586621679132886"><span class="annot"><span class="annottext">next :: DynaNext
+</span><a href="#local-6989586621679132886"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe StreamingChunk) -&gt; DynaNext
+</span><span class="hs-identifier hs-var">fillStreamBodyGetNext</span></span><span> </span><span class="annot"><span class="annottext">IO (Maybe StreamingChunk)
+</span><a href="#local-6989586621679132884"><span class="hs-identifier hs-var">takeQ</span></a></span><span>
+</span><span id="line-174"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">DynaNext
+</span><a href="#local-6989586621679132886"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-175"></span></pre></body></html>

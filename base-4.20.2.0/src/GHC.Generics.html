@@ -1,0 +1,695 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ExplicitNamespaces #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  GHC.Generics</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) Universiteit Utrecht 2010-2011, University of Oxford 2012-2014</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  non-portable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- @since 4.6.0.0</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- If you're using @GHC.Generics@, you should consider using the</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- &lt;http://hackage.haskell.org/package/generic-deriving&gt; package, which</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- contains many useful generic functions.</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- * Introduction</span></span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Datatype-generic functions are based on the idea of converting values of</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- a datatype @T@ into corresponding values of a (nearly) isomorphic type @'Rep' T@.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- The type @'Rep' T@ is</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- built from a limited set of type constructors, all provided by this module. A</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- datatype-generic function is then an overloaded function with instances</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- for most of these type constructors, together with a wrapper that performs</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- the mapping between @T@ and @'Rep' T@. By using this technique, we merely need</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- a few generic instances in order to implement functionality that works for any</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- representable type.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- Representable types are collected in the 'Generic' class, which defines the</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- associated type 'Rep' as well as conversion functions 'from' and 'to'.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Typically, you will not define 'Generic' instances by hand, but have the compiler</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- derive them for you.</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- ** Representing datatypes</span></span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- The key to defining your own datatype-generic functions is to understand how to</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- represent datatypes using the given set of type constructors.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- Let us look at an example first:</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- data Tree a = Leaf a | Node (Tree a) (Tree a)</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   deriving 'Generic'</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- The above declaration (which requires the language pragma @DeriveGeneric@)</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- causes the following representation to be generated:</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- instance 'Generic' (Tree a) where</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--   type 'Rep' (Tree a) =</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;Tree\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;Leaf\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--          ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--                 ('Rec0' a))</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--        ':+:'</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--        'C1' ('MetaCons \&quot;Node\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--          ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--                ('Rec0' (Tree a))</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--           ':*:'</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--           'S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--                ('Rec0' (Tree a))))</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--   ...</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- /Hint:/ You can obtain information about the code being generated from GHC by passing</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- the @-ddump-deriv@ flag. In GHCi, you can expand a type family such as 'Rep' using</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- the @:kind!@ command.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- This is a lot of information! However, most of it is actually merely meta-information</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- that makes names of datatypes and constructors and more available on the type level.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- Here is a reduced representation for @Tree@ with nearly all meta-information removed,</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- for now keeping only the most essential aspects:</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- instance 'Generic' (Tree a) where</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--   type 'Rep' (Tree a) =</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--     'Rec0' a</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--     ':+:'</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--     ('Rec0' (Tree a) ':*:' 'Rec0' (Tree a))</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- The @Tree@ datatype has two constructors. The representation of individual constructors</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- is combined using the binary type constructor ':+:'.</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- The first constructor consists of a single field, which is the parameter @a@. This is</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- represented as @'Rec0' a@.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- The second constructor consists of two fields. Each is a recursive field of type @Tree a@,</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- represented as @'Rec0' (Tree a)@. Representations of individual fields are combined using</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- the binary type constructor ':*:'.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- Now let us explain the additional tags being used in the complete representation:</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--    * The @'S1' ('MetaSel 'Nothing 'NoSourceUnpackedness 'NoSourceStrictness</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--      'DecidedLazy)@ tag indicates several things. The @'Nothing@ indicates</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--      that there is no record field selector associated with this field of</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--      the constructor (if there were, it would have been marked @'Just</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--      \&quot;recordName\&quot;@ instead). The other types contain meta-information on</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--      the field's strictness:</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--      * There is no @{\-\# UNPACK \#-\}@ or @{\-\# NOUNPACK \#-\}@ annotation</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--        in the source, so it is tagged with @'NoSourceUnpackedness@.</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--      * There is no strictness (@!@) or laziness (@~@) annotation in the</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--        source, so it is tagged with @'NoSourceStrictness@.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--      * The compiler infers that the field is lazy, so it is tagged with</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--        @'DecidedLazy@. Bear in mind that what the compiler decides may be</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--        quite different from what is written in the source. See</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--        'DecidedStrictness' for a more detailed explanation.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--      The @'MetaSel@ type is also an instance of the type class 'Selector',</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--      which can be used to obtain information about the field at the value</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--      level.</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--    * The @'C1' ('MetaCons \&quot;Leaf\&quot; 'PrefixI 'False)@ and</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--      @'C1' ('MetaCons \&quot;Node\&quot; 'PrefixI 'False)@ invocations indicate that the enclosed part is</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--      the representation of the first and second constructor of datatype @Tree@, respectively.</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--      Here, the meta-information regarding constructor names, fixity and whether</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--      it has named fields or not is encoded at the type level. The @'MetaCons@</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--      type is also an instance of the type class 'Constructor'. This type class can be used</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--      to obtain information about the constructor at the value level.</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--    * The @'D1' ('MetaData \&quot;Tree\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)@ tag</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--      indicates that the enclosed part is the representation of the</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--      datatype @Tree@. Again, the meta-information is encoded at the type level.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--      The @'MetaData@ type is an instance of class 'Datatype', which</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--      can be used to obtain the name of a datatype, the module it has been</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--      defined in, the package it is located under, and whether it has been</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--      defined using @data@ or @newtype@ at the value level.</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><span class="hs-comment">-- ** Derived and fundamental representation types</span></span><span>
+</span><span id="line-152"></span><span class="hs-comment">--</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- There are many datatype-generic functions that do not distinguish between positions that</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- are parameters or positions that are recursive calls. There are also many datatype-generic</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- functions that do not care about the names of datatypes and constructors at all. To keep</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- the number of cases to consider in generic functions in such a situation to a minimum,</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- it turns out that many of the type constructors introduced above are actually synonyms,</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- defining them to be variants of a smaller set of constructors.</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="annot"><span class="hs-comment">-- *** Individual fields of constructors: 'K1'</span></span><span>
+</span><span id="line-163"></span><span class="hs-comment">--</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- The type constructor 'Rec0' is a variant of 'K1':</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- type 'Rec0' = 'K1' 'R'</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- Here, 'R' is a type-level proxy that does not have any associated values.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- There used to be another variant of 'K1' (namely @Par0@), but it has since</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- been deprecated.</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><span class="hs-comment">-- *** Meta information: 'M1'</span></span><span>
+</span><span id="line-178"></span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- The type constructors 'S1', 'C1' and 'D1' are all variants of 'M1':</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- type 'S1' = 'M1' 'S'</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- type 'C1' = 'M1' 'C'</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- type 'D1' = 'M1' 'D'</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-188"></span><span class="hs-comment">--</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- The types 'S', 'C' and 'D' are once again type-level proxies, just used to create</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- several variants of 'M1'.</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="annot"><span class="hs-comment">-- *** Additional generic representation type constructors</span></span><span>
+</span><span id="line-193"></span><span class="hs-comment">--</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- Next to 'K1', 'M1', ':+:' and ':*:' there are a few more type constructors that occur</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- in the representations of other datatypes.</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="annot"><span class="hs-comment">-- **** Empty datatypes: 'V1'</span></span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- For empty datatypes, 'V1' is used as a representation. For example,</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- data Empty deriving 'Generic'</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- yields</span><span>
+</span><span id="line-210"></span><span class="hs-comment">--</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- instance 'Generic' Empty where</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--   type 'Rep' Empty =</span><span>
+</span><span id="line-214"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;Empty\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False) 'V1'</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="annot"><span class="hs-comment">-- **** Constructors without fields: 'U1'</span></span><span>
+</span><span id="line-218"></span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-220"></span><span class="hs-comment">--</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- If a constructor has no arguments, then 'U1' is used as its representation. For example</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- the representation of 'Bool' is</span><span>
+</span><span id="line-223"></span><span class="hs-comment">--</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- instance 'Generic' Bool where</span><span>
+</span><span id="line-226"></span><span class="hs-comment">--   type 'Rep' Bool =</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;Bool\&quot; \&quot;Data.Bool\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;False\&quot; 'PrefixI 'False) 'U1' ':+:' 'C1' ('MetaCons \&quot;True\&quot; 'PrefixI 'False) 'U1')</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-230"></span><span>
+</span><span id="line-231"></span><span class="annot"><span class="hs-comment">-- *** Representation of types with many constructors or many fields</span></span><span>
+</span><span id="line-232"></span><span class="hs-comment">--</span><span>
+</span><span id="line-233"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-234"></span><span class="hs-comment">--</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- As ':+:' and ':*:' are just binary operators, one might ask what happens if the</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- datatype has more than two constructors, or a constructor with more than two</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- fields. The answer is simple: the operators are used several times, to combine</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- all the constructors and fields as needed. However, users /should not rely on</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- a specific nesting strategy/ for ':+:' and ':*:' being used. The compiler is</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- free to choose any nesting it prefers. (In practice, the current implementation</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- tries to produce a more-or-less balanced nesting, so that the traversal of</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- the structure of the datatype from the root to a particular component can be</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- performed in logarithmic rather than linear time.)</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="annot"><span class="hs-comment">-- ** Defining datatype-generic functions</span></span><span>
+</span><span id="line-246"></span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-248"></span><span class="hs-comment">--</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- A datatype-generic function comprises two parts:</span><span>
+</span><span id="line-250"></span><span class="hs-comment">--</span><span>
+</span><span id="line-251"></span><span class="hs-comment">--    1. /Generic instances/ for the function, implementing it for most of the representation</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--       type constructors introduced above.</span><span>
+</span><span id="line-253"></span><span class="hs-comment">--</span><span>
+</span><span id="line-254"></span><span class="hs-comment">--    2. A /wrapper/ that for any datatype that is in `Generic`, performs the conversion</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--       between the original value and its `Rep`-based representation and then invokes the</span><span>
+</span><span id="line-256"></span><span class="hs-comment">--       generic instances.</span><span>
+</span><span id="line-257"></span><span class="hs-comment">--</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- As an example, let us look at a function @encode@ that produces a naive, but lossless</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- bit encoding of values of various datatypes. So we are aiming to define a function</span><span>
+</span><span id="line-260"></span><span class="hs-comment">--</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- encode :: 'Generic' a =&gt; a -&gt; [Bool]</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- where we use 'Bool' as our datatype for bits.</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- For part 1, we define a class @Encode'@. Perhaps surprisingly, this class is parameterized</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- over a type constructor @f@ of kind @* -&gt; *@. This is a technicality: all the representation</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- type constructors operate with kind @* -&gt; *@ as base kind. But the type argument is never</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- being used. This may be changed at some point in the future. The class has a single method,</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- and we use the type we want our final function to have, but we replace the occurrences of</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- the generic type argument @a@ with @f p@ (where the @p@ is any argument; it will not be used).</span><span>
+</span><span id="line-273"></span><span class="hs-comment">--</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- &gt; class Encode' f where</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- &gt;   encode' :: f p -&gt; [Bool]</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- With the goal in mind to make @encode@ work on @Tree@ and other datatypes, we now define</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- instances for the representation type constructors 'V1', 'U1', ':+:', ':*:', 'K1', and 'M1'.</span><span>
+</span><span id="line-279"></span><span>
+</span><span id="line-280"></span><span class="annot"><span class="hs-comment">-- *** Definition of the generic representation types</span></span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- In order to be able to do this, we need to know the actual definitions of these types:</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- data    'V1'        p                       -- lifted version of Empty</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- data    'U1'        p = 'U1'                  -- lifted version of ()</span><span>
+</span><span id="line-289"></span><span class="hs-comment">-- data    (':+:') f g p = 'L1' (f p) | 'R1' (g p) -- lifted version of 'Either'</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- data    (':*:') f g p = (f p) ':*:' (g p)     -- lifted version of (,)</span><span>
+</span><span id="line-291"></span><span class="hs-comment">-- newtype 'K1'    i c p = 'K1' { 'unK1' :: c }    -- a container for a c</span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- newtype 'M1'  i t f p = 'M1' { 'unM1' :: f p }  -- a wrapper</span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-294"></span><span class="hs-comment">--</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- So, 'U1' is just the unit type, ':+:' is just a binary choice like 'Either',</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- ':*:' is a binary pair like the pair constructor @(,)@, and 'K1' is a value</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- of a specific type @c@, and 'M1' wraps a value of the generic type argument,</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- which in the lifted world is an @f p@ (where we do not care about @p@).</span><span>
+</span><span id="line-299"></span><span>
+</span><span id="line-300"></span><span class="annot"><span class="hs-comment">-- *** Generic instances</span></span><span>
+</span><span id="line-301"></span><span class="hs-comment">--</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- To deal with the 'V1' case, we use the following code (which requires the pragma @EmptyCase@):</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- instance Encode' 'V1' where</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--   encode' x = case x of { }</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-310"></span><span class="hs-comment">--</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- There are no values of type @V1 p@ to pass, so it is impossible for this</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- function to be invoked. One can ask why it is useful to define an instance</span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- for 'V1' at all in this case? Well, an empty type can be used as an argument</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- to a non-empty type, and you might still want to encode the resulting type.</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- As a somewhat contrived example, consider @[Empty]@, which is not an empty</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- type, but contains just the empty list. The 'V1' instance ensures that we</span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- can call the generic function on such types.</span><span>
+</span><span id="line-318"></span><span class="hs-comment">--</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- There is exactly one value of type 'U1', so encoding it requires no</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- knowledge, and we can use zero bits:</span><span>
+</span><span id="line-321"></span><span class="hs-comment">--</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- instance Encode' 'U1' where</span><span>
+</span><span id="line-324"></span><span class="hs-comment">--   encode' 'U1' = []</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-326"></span><span class="hs-comment">--</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- In the case for ':+:', we produce 'False' or 'True' depending on whether</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- the constructor of the value provided is located on the left or on the right:</span><span>
+</span><span id="line-329"></span><span class="hs-comment">--</span><span>
+</span><span id="line-330"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- instance (Encode' f, Encode' g) =&gt; Encode' (f ':+:' g) where</span><span>
+</span><span id="line-332"></span><span class="hs-comment">--   encode' ('L1' x) = False : encode' x</span><span>
+</span><span id="line-333"></span><span class="hs-comment">--   encode' ('R1' x) = True  : encode' x</span><span>
+</span><span id="line-334"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-335"></span><span class="hs-comment">--</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- (Note that this encoding strategy may not be reliable across different</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- versions of GHC. Recall that the compiler is free to choose any nesting</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- of ':+:' it chooses, so if GHC chooses @(a ':+:' b) ':+:' c@, then the</span><span>
+</span><span id="line-339"></span><span class="hs-comment">-- encoding for @a@ would be @[False, False]@, @b@ would be @[False, True]@,</span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- and @c@ would be @[True]@. However, if GHC chooses @a ':+:' (b ':+:' c)@,</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-- then the encoding for @a@ would be @[False]@, @b@ would be @[True, False]@,</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- and @c@ would be @[True, True]@.)</span><span>
+</span><span id="line-343"></span><span class="hs-comment">--</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- In the case for ':*:', we append the encodings of the two subcomponents:</span><span>
+</span><span id="line-345"></span><span class="hs-comment">--</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-347"></span><span class="hs-comment">-- instance (Encode' f, Encode' g) =&gt; Encode' (f ':*:' g) where</span><span>
+</span><span id="line-348"></span><span class="hs-comment">--   encode' (x ':*:' y) = encode' x ++ encode' y</span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-350"></span><span class="hs-comment">--</span><span>
+</span><span id="line-351"></span><span class="hs-comment">-- The case for 'K1' is rather interesting. Here, we call the final function</span><span>
+</span><span id="line-352"></span><span class="hs-comment">-- @encode@ that we yet have to define, recursively. We will use another type</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-- class @Encode@ for that function:</span><span>
+</span><span id="line-354"></span><span class="hs-comment">--</span><span>
+</span><span id="line-355"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-356"></span><span class="hs-comment">-- instance (Encode c) =&gt; Encode' ('K1' i c) where</span><span>
+</span><span id="line-357"></span><span class="hs-comment">--   encode' ('K1' x) = encode x</span><span>
+</span><span id="line-358"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-359"></span><span class="hs-comment">--</span><span>
+</span><span id="line-360"></span><span class="hs-comment">-- Note how we can define a uniform instance for 'M1', because we completely</span><span>
+</span><span id="line-361"></span><span class="hs-comment">-- disregard all meta-information:</span><span>
+</span><span id="line-362"></span><span class="hs-comment">--</span><span>
+</span><span id="line-363"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-364"></span><span class="hs-comment">-- instance (Encode' f) =&gt; Encode' ('M1' i t f) where</span><span>
+</span><span id="line-365"></span><span class="hs-comment">--   encode' ('M1' x) = encode' x</span><span>
+</span><span id="line-366"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-367"></span><span class="hs-comment">--</span><span>
+</span><span id="line-368"></span><span class="hs-comment">-- Unlike in 'K1', the instance for 'M1' refers to @encode'@, not @encode@.</span><span>
+</span><span id="line-369"></span><span>
+</span><span id="line-370"></span><span class="annot"><span class="hs-comment">-- *** The wrapper and generic default</span></span><span>
+</span><span id="line-371"></span><span class="hs-comment">--</span><span>
+</span><span id="line-372"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-373"></span><span class="hs-comment">--</span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- We now define class @Encode@ for the actual @encode@ function:</span><span>
+</span><span id="line-375"></span><span class="hs-comment">--</span><span>
+</span><span id="line-376"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-377"></span><span class="hs-comment">-- class Encode a where</span><span>
+</span><span id="line-378"></span><span class="hs-comment">--   encode :: a -&gt; [Bool]</span><span>
+</span><span id="line-379"></span><span class="hs-comment">--   default encode :: (Generic a, Encode' (Rep a)) =&gt; a -&gt; [Bool]</span><span>
+</span><span id="line-380"></span><span class="hs-comment">--   encode x = encode' ('from' x)</span><span>
+</span><span id="line-381"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-382"></span><span class="hs-comment">--</span><span>
+</span><span id="line-383"></span><span class="hs-comment">-- The incoming @x@ is converted using 'from', then we dispatch to the</span><span>
+</span><span id="line-384"></span><span class="hs-comment">-- generic instances using @encode'@. We use this as a default definition</span><span>
+</span><span id="line-385"></span><span class="hs-comment">-- for @encode@. We need the @default encode@ signature because ordinary</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- Haskell default methods must not introduce additional class constraints,</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- but our generic default does.</span><span>
+</span><span id="line-388"></span><span class="hs-comment">--</span><span>
+</span><span id="line-389"></span><span class="hs-comment">-- Defining a particular instance is now as simple as saying</span><span>
+</span><span id="line-390"></span><span class="hs-comment">--</span><span>
+</span><span id="line-391"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-392"></span><span class="hs-comment">-- instance (Encode a) =&gt; Encode (Tree a)</span><span>
+</span><span id="line-393"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-394"></span><span class="hs-comment">--</span><span>
+</span><span id="line-395"></span><span class="hs-comment">-- The generic default is being used. In the future, it will hopefully be</span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- possible to use @deriving Encode@ as well, but GHC does not yet support</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- that syntax for this situation.</span><span>
+</span><span id="line-398"></span><span class="hs-comment">--</span><span>
+</span><span id="line-399"></span><span class="hs-comment">-- Having @Encode@ as a class has the advantage that we can define</span><span>
+</span><span id="line-400"></span><span class="hs-comment">-- non-generic special cases, which is particularly useful for abstract</span><span>
+</span><span id="line-401"></span><span class="hs-comment">-- datatypes that have no structural representation. For example, given</span><span>
+</span><span id="line-402"></span><span class="hs-comment">-- a suitable integer encoding function @encodeInt@, we can define</span><span>
+</span><span id="line-403"></span><span class="hs-comment">--</span><span>
+</span><span id="line-404"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-405"></span><span class="hs-comment">-- instance Encode Int where</span><span>
+</span><span id="line-406"></span><span class="hs-comment">--   encode = encodeInt</span><span>
+</span><span id="line-407"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-408"></span><span>
+</span><span id="line-409"></span><span class="annot"><span class="hs-comment">-- *** Omitting generic instances</span></span><span>
+</span><span id="line-410"></span><span class="hs-comment">--</span><span>
+</span><span id="line-411"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-412"></span><span class="hs-comment">--</span><span>
+</span><span id="line-413"></span><span class="hs-comment">-- It is not always required to provide instances for all the generic</span><span>
+</span><span id="line-414"></span><span class="hs-comment">-- representation types, but omitting instances restricts the set of</span><span>
+</span><span id="line-415"></span><span class="hs-comment">-- datatypes the functions will work for:</span><span>
+</span><span id="line-416"></span><span class="hs-comment">--</span><span>
+</span><span id="line-417"></span><span class="hs-comment">--    * If no ':+:' instance is given, the function may still work for</span><span>
+</span><span id="line-418"></span><span class="hs-comment">--      empty datatypes or datatypes that have a single constructor,</span><span>
+</span><span id="line-419"></span><span class="hs-comment">--      but will fail on datatypes with more than one constructor.</span><span>
+</span><span id="line-420"></span><span class="hs-comment">--</span><span>
+</span><span id="line-421"></span><span class="hs-comment">--    * If no ':*:' instance is given, the function may still work for</span><span>
+</span><span id="line-422"></span><span class="hs-comment">--      datatypes where each constructor has just zero or one field,</span><span>
+</span><span id="line-423"></span><span class="hs-comment">--      in particular for enumeration types.</span><span>
+</span><span id="line-424"></span><span class="hs-comment">--</span><span>
+</span><span id="line-425"></span><span class="hs-comment">--    * If no 'K1' instance is given, the function may still work for</span><span>
+</span><span id="line-426"></span><span class="hs-comment">--      enumeration types, where no constructor has any fields.</span><span>
+</span><span id="line-427"></span><span class="hs-comment">--</span><span>
+</span><span id="line-428"></span><span class="hs-comment">--    * If no 'V1' instance is given, the function may still work for</span><span>
+</span><span id="line-429"></span><span class="hs-comment">--      any datatype that is not empty.</span><span>
+</span><span id="line-430"></span><span class="hs-comment">--</span><span>
+</span><span id="line-431"></span><span class="hs-comment">--    * If no 'U1' instance is given, the function may still work for</span><span>
+</span><span id="line-432"></span><span class="hs-comment">--      any datatype where each constructor has at least one field.</span><span>
+</span><span id="line-433"></span><span class="hs-comment">--</span><span>
+</span><span id="line-434"></span><span class="hs-comment">-- An 'M1' instance is always required (but it can just ignore the</span><span>
+</span><span id="line-435"></span><span class="hs-comment">-- meta-information, as is the case for @encode@ above).</span><span>
+</span><span id="line-436"></span><span class="hs-comment">--</span><span>
+</span><span id="line-437"></span><span class="hs-comment">-- ** Generic constructor classes</span><span>
+</span><span id="line-438"></span><span class="hs-comment">--</span><span>
+</span><span id="line-439"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-440"></span><span class="hs-comment">--</span><span>
+</span><span id="line-441"></span><span class="hs-comment">-- Datatype-generic functions as defined above work for a large class</span><span>
+</span><span id="line-442"></span><span class="hs-comment">-- of datatypes, including parameterized datatypes. (We have used @Tree@</span><span>
+</span><span id="line-443"></span><span class="hs-comment">-- as our example above, which is of kind @* -&gt; *@.) However, the</span><span>
+</span><span id="line-444"></span><span class="hs-comment">-- 'Generic' class ranges over types of kind @*@, and therefore, the</span><span>
+</span><span id="line-445"></span><span class="hs-comment">-- resulting generic functions (such as @encode@) must be parameterized</span><span>
+</span><span id="line-446"></span><span class="hs-comment">-- by a generic type argument of kind @*@.</span><span>
+</span><span id="line-447"></span><span class="hs-comment">--</span><span>
+</span><span id="line-448"></span><span class="hs-comment">-- What if we want to define generic classes that range over type</span><span>
+</span><span id="line-449"></span><span class="hs-comment">-- constructors (such as 'Data.Functor.Functor',</span><span>
+</span><span id="line-450"></span><span class="hs-comment">-- 'Data.Traversable.Traversable', or 'Data.Foldable.Foldable')?</span><span>
+</span><span id="line-451"></span><span>
+</span><span id="line-452"></span><span class="annot"><span class="hs-comment">-- *** The 'Generic1' class</span></span><span>
+</span><span id="line-453"></span><span class="hs-comment">--</span><span>
+</span><span id="line-454"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-455"></span><span class="hs-comment">--</span><span>
+</span><span id="line-456"></span><span class="hs-comment">-- Like 'Generic', there is a class 'Generic1' that defines a</span><span>
+</span><span id="line-457"></span><span class="hs-comment">-- representation 'Rep1' and conversion functions 'from1' and 'to1',</span><span>
+</span><span id="line-458"></span><span class="hs-comment">-- only that 'Generic1' ranges over types of kind @* -&gt; *@. (More generally,</span><span>
+</span><span id="line-459"></span><span class="hs-comment">-- it can range over types of kind @k -&gt; *@, for any kind @k@, if the</span><span>
+</span><span id="line-460"></span><span class="hs-comment">-- @PolyKinds@ extension is enabled. More on this later.)</span><span>
+</span><span id="line-461"></span><span class="hs-comment">-- The 'Generic1' class is also derivable.</span><span>
+</span><span id="line-462"></span><span class="hs-comment">--</span><span>
+</span><span id="line-463"></span><span class="hs-comment">-- The representation 'Rep1' is ever so slightly different from 'Rep'.</span><span>
+</span><span id="line-464"></span><span class="hs-comment">-- Let us look at @Tree@ as an example again:</span><span>
+</span><span id="line-465"></span><span class="hs-comment">--</span><span>
+</span><span id="line-466"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-467"></span><span class="hs-comment">-- data Tree a = Leaf a | Node (Tree a) (Tree a)</span><span>
+</span><span id="line-468"></span><span class="hs-comment">--   deriving 'Generic1'</span><span>
+</span><span id="line-469"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-470"></span><span class="hs-comment">--</span><span>
+</span><span id="line-471"></span><span class="hs-comment">-- The above declaration causes the following representation to be generated:</span><span>
+</span><span id="line-472"></span><span class="hs-comment">--</span><span>
+</span><span id="line-473"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-474"></span><span class="hs-comment">-- instance 'Generic1' Tree where</span><span>
+</span><span id="line-475"></span><span class="hs-comment">--   type 'Rep1' Tree =</span><span>
+</span><span id="line-476"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;Tree\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-477"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;Leaf\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-478"></span><span class="hs-comment">--          ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-479"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-480"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-481"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-482"></span><span class="hs-comment">--                'Par1')</span><span>
+</span><span id="line-483"></span><span class="hs-comment">--        ':+:'</span><span>
+</span><span id="line-484"></span><span class="hs-comment">--        'C1' ('MetaCons \&quot;Node\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-485"></span><span class="hs-comment">--          ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-486"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-487"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-488"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-489"></span><span class="hs-comment">--                ('Rec1' Tree)</span><span>
+</span><span id="line-490"></span><span class="hs-comment">--           ':*:'</span><span>
+</span><span id="line-491"></span><span class="hs-comment">--           'S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-492"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-493"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-494"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-495"></span><span class="hs-comment">--                ('Rec1' Tree)))</span><span>
+</span><span id="line-496"></span><span class="hs-comment">--   ...</span><span>
+</span><span id="line-497"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-498"></span><span class="hs-comment">--</span><span>
+</span><span id="line-499"></span><span class="hs-comment">-- The representation reuses 'D1', 'C1', 'S1' (and thereby 'M1') as well</span><span>
+</span><span id="line-500"></span><span class="hs-comment">-- as ':+:' and ':*:' from 'Rep'. (This reusability is the reason that we</span><span>
+</span><span id="line-501"></span><span class="hs-comment">-- carry around the dummy type argument for kind-@*@-types, but there are</span><span>
+</span><span id="line-502"></span><span class="hs-comment">-- already enough different names involved without duplicating each of</span><span>
+</span><span id="line-503"></span><span class="hs-comment">-- these.)</span><span>
+</span><span id="line-504"></span><span class="hs-comment">--</span><span>
+</span><span id="line-505"></span><span class="hs-comment">-- What's different is that we now use 'Par1' to refer to the parameter</span><span>
+</span><span id="line-506"></span><span class="hs-comment">-- (and that parameter, which used to be @a@), is not mentioned explicitly</span><span>
+</span><span id="line-507"></span><span class="hs-comment">-- by name anywhere; and we use 'Rec1' to refer to a recursive use of @Tree a@.</span><span>
+</span><span id="line-508"></span><span>
+</span><span id="line-509"></span><span class="annot"><span class="hs-comment">-- *** Representation of @* -&gt; *@ types</span></span><span>
+</span><span id="line-510"></span><span class="hs-comment">--</span><span>
+</span><span id="line-511"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-512"></span><span class="hs-comment">--</span><span>
+</span><span id="line-513"></span><span class="hs-comment">-- Unlike 'Rec0', the 'Par1' and 'Rec1' type constructors do not</span><span>
+</span><span id="line-514"></span><span class="hs-comment">-- map to 'K1'. They are defined directly, as follows:</span><span>
+</span><span id="line-515"></span><span class="hs-comment">--</span><span>
+</span><span id="line-516"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-517"></span><span class="hs-comment">-- newtype 'Par1'   p = 'Par1' { 'unPar1' ::   p } -- gives access to parameter p</span><span>
+</span><span id="line-518"></span><span class="hs-comment">-- newtype 'Rec1' f p = 'Rec1' { 'unRec1' :: f p } -- a wrapper</span><span>
+</span><span id="line-519"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-520"></span><span class="hs-comment">--</span><span>
+</span><span id="line-521"></span><span class="hs-comment">-- In 'Par1', the parameter @p@ is used for the first time, whereas 'Rec1' simply</span><span>
+</span><span id="line-522"></span><span class="hs-comment">-- wraps an application of @f@ to @p@.</span><span>
+</span><span id="line-523"></span><span class="hs-comment">--</span><span>
+</span><span id="line-524"></span><span class="hs-comment">-- Note that 'K1' (in the guise of 'Rec0') can still occur in a 'Rep1' representation,</span><span>
+</span><span id="line-525"></span><span class="hs-comment">-- namely when the datatype has a field that does not mention the parameter.</span><span>
+</span><span id="line-526"></span><span class="hs-comment">--</span><span>
+</span><span id="line-527"></span><span class="hs-comment">-- The declaration</span><span>
+</span><span id="line-528"></span><span class="hs-comment">--</span><span>
+</span><span id="line-529"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-530"></span><span class="hs-comment">-- data WithInt a = WithInt Int a</span><span>
+</span><span id="line-531"></span><span class="hs-comment">--   deriving 'Generic1'</span><span>
+</span><span id="line-532"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-533"></span><span class="hs-comment">--</span><span>
+</span><span id="line-534"></span><span class="hs-comment">-- yields</span><span>
+</span><span id="line-535"></span><span class="hs-comment">--</span><span>
+</span><span id="line-536"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-537"></span><span class="hs-comment">-- instance 'Generic1' WithInt where</span><span>
+</span><span id="line-538"></span><span class="hs-comment">--   type 'Rep1' WithInt =</span><span>
+</span><span id="line-539"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;WithInt\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-540"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;WithInt\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-541"></span><span class="hs-comment">--         ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-542"></span><span class="hs-comment">--                         'NoSourceUnpackedness</span><span>
+</span><span id="line-543"></span><span class="hs-comment">--                         'NoSourceStrictness</span><span>
+</span><span id="line-544"></span><span class="hs-comment">--                         'DecidedLazy)</span><span>
+</span><span id="line-545"></span><span class="hs-comment">--               ('Rec0' Int)</span><span>
+</span><span id="line-546"></span><span class="hs-comment">--          ':*:'</span><span>
+</span><span id="line-547"></span><span class="hs-comment">--          'S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-548"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-549"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-550"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-551"></span><span class="hs-comment">--               'Par1'))</span><span>
+</span><span id="line-552"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-553"></span><span class="hs-comment">--</span><span>
+</span><span id="line-554"></span><span class="hs-comment">-- If the parameter @a@ appears underneath a composition of other type constructors,</span><span>
+</span><span id="line-555"></span><span class="hs-comment">-- then the representation involves composition, too:</span><span>
+</span><span id="line-556"></span><span class="hs-comment">--</span><span>
+</span><span id="line-557"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-558"></span><span class="hs-comment">-- data Rose a = Fork a [Rose a]</span><span>
+</span><span id="line-559"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-560"></span><span class="hs-comment">--</span><span>
+</span><span id="line-561"></span><span class="hs-comment">-- yields</span><span>
+</span><span id="line-562"></span><span class="hs-comment">--</span><span>
+</span><span id="line-563"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-564"></span><span class="hs-comment">-- instance 'Generic1' Rose where</span><span>
+</span><span id="line-565"></span><span class="hs-comment">--   type 'Rep1' Rose =</span><span>
+</span><span id="line-566"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;Rose\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-567"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;Fork\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-568"></span><span class="hs-comment">--         ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-569"></span><span class="hs-comment">--                         'NoSourceUnpackedness</span><span>
+</span><span id="line-570"></span><span class="hs-comment">--                         'NoSourceStrictness</span><span>
+</span><span id="line-571"></span><span class="hs-comment">--                         'DecidedLazy)</span><span>
+</span><span id="line-572"></span><span class="hs-comment">--               'Par1'</span><span>
+</span><span id="line-573"></span><span class="hs-comment">--          ':*:'</span><span>
+</span><span id="line-574"></span><span class="hs-comment">--          'S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-575"></span><span class="hs-comment">--                          'NoSourceUnpackedness</span><span>
+</span><span id="line-576"></span><span class="hs-comment">--                          'NoSourceStrictness</span><span>
+</span><span id="line-577"></span><span class="hs-comment">--                          'DecidedLazy)</span><span>
+</span><span id="line-578"></span><span class="hs-comment">--               ([] ':.:' 'Rec1' Rose)))</span><span>
+</span><span id="line-579"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-580"></span><span class="hs-comment">--</span><span>
+</span><span id="line-581"></span><span class="hs-comment">-- where</span><span>
+</span><span id="line-582"></span><span class="hs-comment">--</span><span>
+</span><span id="line-583"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-584"></span><span class="hs-comment">-- newtype (':.:') f g p = 'Comp1' { 'unComp1' :: f (g p) }</span><span>
+</span><span id="line-585"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-586"></span><span>
+</span><span id="line-587"></span><span class="annot"><span class="hs-comment">-- *** Representation of @k -&gt; *@ types</span></span><span>
+</span><span id="line-588"></span><span class="hs-comment">--</span><span>
+</span><span id="line-589"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-590"></span><span class="hs-comment">--</span><span>
+</span><span id="line-591"></span><span class="hs-comment">-- The 'Generic1' class can be generalized to range over types of kind</span><span>
+</span><span id="line-592"></span><span class="hs-comment">-- @k -&gt; *@, for any kind @k@. To do so, derive a 'Generic1' instance with the</span><span>
+</span><span id="line-593"></span><span class="hs-comment">-- @PolyKinds@ extension enabled. For example, the declaration</span><span>
+</span><span id="line-594"></span><span class="hs-comment">--</span><span>
+</span><span id="line-595"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-596"></span><span class="hs-comment">-- data Proxy (a :: k) = Proxy deriving 'Generic1'</span><span>
+</span><span id="line-597"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-598"></span><span class="hs-comment">--</span><span>
+</span><span id="line-599"></span><span class="hs-comment">-- yields a slightly different instance depending on whether @PolyKinds@ is</span><span>
+</span><span id="line-600"></span><span class="hs-comment">-- enabled. If compiled without @PolyKinds@, then @'Rep1' Proxy :: * -&gt; *@, but</span><span>
+</span><span id="line-601"></span><span class="hs-comment">-- if compiled with @PolyKinds@, then @'Rep1' Proxy :: k -&gt; *@.</span><span>
+</span><span id="line-602"></span><span>
+</span><span id="line-603"></span><span class="annot"><span class="hs-comment">-- *** Representation of unlifted types</span></span><span>
+</span><span id="line-604"></span><span class="hs-comment">--</span><span>
+</span><span id="line-605"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-606"></span><span class="hs-comment">--</span><span>
+</span><span id="line-607"></span><span class="hs-comment">-- If one were to attempt to derive a Generic instance for a datatype with an</span><span>
+</span><span id="line-608"></span><span class="hs-comment">-- unlifted argument (for example, 'Int#'), one might expect the occurrence of</span><span>
+</span><span id="line-609"></span><span class="hs-comment">-- the 'Int#' argument to be marked with @'Rec0' 'Int#'@. This won't work,</span><span>
+</span><span id="line-610"></span><span class="hs-comment">-- though, since 'Int#' is of an unlifted kind, and 'Rec0' expects a type of</span><span>
+</span><span id="line-611"></span><span class="hs-comment">-- kind @*@.</span><span>
+</span><span id="line-612"></span><span class="hs-comment">--</span><span>
+</span><span id="line-613"></span><span class="hs-comment">-- One solution would be to represent an occurrence of 'Int#' with 'Rec0 Int'</span><span>
+</span><span id="line-614"></span><span class="hs-comment">-- instead. With this approach, however, the programmer has no way of knowing</span><span>
+</span><span id="line-615"></span><span class="hs-comment">-- whether the 'Int' is actually an 'Int#' in disguise.</span><span>
+</span><span id="line-616"></span><span class="hs-comment">--</span><span>
+</span><span id="line-617"></span><span class="hs-comment">-- Instead of reusing 'Rec0', a separate data family 'URec' is used to mark</span><span>
+</span><span id="line-618"></span><span class="hs-comment">-- occurrences of common unlifted types:</span><span>
+</span><span id="line-619"></span><span class="hs-comment">--</span><span>
+</span><span id="line-620"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-621"></span><span class="hs-comment">-- data family URec a p</span><span>
+</span><span id="line-622"></span><span class="hs-comment">--</span><span>
+</span><span id="line-623"></span><span class="hs-comment">-- data instance 'URec' ('Ptr' ()) p = 'UAddr'   { 'uAddr#'   :: 'Addr#'   }</span><span>
+</span><span id="line-624"></span><span class="hs-comment">-- data instance 'URec' 'Char'     p = 'UChar'   { 'uChar#'   :: 'Char#'   }</span><span>
+</span><span id="line-625"></span><span class="hs-comment">-- data instance 'URec' 'Double'   p = 'UDouble' { 'uDouble#' :: 'Double#' }</span><span>
+</span><span id="line-626"></span><span class="hs-comment">-- data instance 'URec' 'Int'      p = 'UFloat'  { 'uFloat#'  :: 'Float#'  }</span><span>
+</span><span id="line-627"></span><span class="hs-comment">-- data instance 'URec' 'Float'    p = 'UInt'    { 'uInt#'    :: 'Int#'    }</span><span>
+</span><span id="line-628"></span><span class="hs-comment">-- data instance 'URec' 'Word'     p = 'UWord'   { 'uWord#'   :: 'Word#'   }</span><span>
+</span><span id="line-629"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-630"></span><span class="hs-comment">--</span><span>
+</span><span id="line-631"></span><span class="hs-comment">-- Several type synonyms are provided for convenience:</span><span>
+</span><span id="line-632"></span><span class="hs-comment">--</span><span>
+</span><span id="line-633"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-634"></span><span class="hs-comment">-- type 'UAddr'   = 'URec' ('Ptr' ())</span><span>
+</span><span id="line-635"></span><span class="hs-comment">-- type 'UChar'   = 'URec' 'Char'</span><span>
+</span><span id="line-636"></span><span class="hs-comment">-- type 'UDouble' = 'URec' 'Double'</span><span>
+</span><span id="line-637"></span><span class="hs-comment">-- type 'UFloat'  = 'URec' 'Float'</span><span>
+</span><span id="line-638"></span><span class="hs-comment">-- type 'UInt'    = 'URec' 'Int'</span><span>
+</span><span id="line-639"></span><span class="hs-comment">-- type 'UWord'   = 'URec' 'Word'</span><span>
+</span><span id="line-640"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-641"></span><span class="hs-comment">--</span><span>
+</span><span id="line-642"></span><span class="hs-comment">-- The declaration</span><span>
+</span><span id="line-643"></span><span class="hs-comment">--</span><span>
+</span><span id="line-644"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-645"></span><span class="hs-comment">-- data IntHash = IntHash Int#</span><span>
+</span><span id="line-646"></span><span class="hs-comment">--   deriving 'Generic'</span><span>
+</span><span id="line-647"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-648"></span><span class="hs-comment">--</span><span>
+</span><span id="line-649"></span><span class="hs-comment">-- yields</span><span>
+</span><span id="line-650"></span><span class="hs-comment">--</span><span>
+</span><span id="line-651"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-652"></span><span class="hs-comment">-- instance 'Generic' IntHash where</span><span>
+</span><span id="line-653"></span><span class="hs-comment">--   type 'Rep' IntHash =</span><span>
+</span><span id="line-654"></span><span class="hs-comment">--     'D1' ('MetaData \&quot;IntHash\&quot; \&quot;Main\&quot; \&quot;package-name\&quot; 'False)</span><span>
+</span><span id="line-655"></span><span class="hs-comment">--       ('C1' ('MetaCons \&quot;IntHash\&quot; 'PrefixI 'False)</span><span>
+</span><span id="line-656"></span><span class="hs-comment">--         ('S1' ('MetaSel 'Nothing</span><span>
+</span><span id="line-657"></span><span class="hs-comment">--                         'NoSourceUnpackedness</span><span>
+</span><span id="line-658"></span><span class="hs-comment">--                         'NoSourceStrictness</span><span>
+</span><span id="line-659"></span><span class="hs-comment">--                         'DecidedLazy)</span><span>
+</span><span id="line-660"></span><span class="hs-comment">--               'UInt'))</span><span>
+</span><span id="line-661"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-662"></span><span class="hs-comment">--</span><span>
+</span><span id="line-663"></span><span class="hs-comment">-- Currently, only the six unlifted types listed above are generated, but this</span><span>
+</span><span id="line-664"></span><span class="hs-comment">-- may be extended to encompass more unlifted types in the future.</span><span>
+</span><span id="line-665"></span><span>
+</span><span id="line-666"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Generic representation types</span></span><span>
+</span><span id="line-667"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#V1"><span class="hs-identifier">V1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#U1"><span class="hs-identifier">U1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Par1"><span class="hs-identifier">Par1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Rec1"><span class="hs-identifier">Rec1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#K1"><span class="hs-identifier">K1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#M1"><span class="hs-identifier">M1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-668"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#%3A%2B%3A"><span class="hs-operator">(:+:)</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#%3A%2A%3A"><span class="hs-operator">(:*:)</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#%3A.%3A"><span class="hs-operator">(:.:)</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-669"></span><span>
+</span><span id="line-670"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unboxed representation types</span></span><span>
+</span><span id="line-671"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#URec"><span class="hs-identifier">URec</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-672"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UAddr"><span class="hs-identifier">UAddr</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UChar"><span class="hs-identifier">UChar</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UDouble"><span class="hs-identifier">UDouble</span></a></span><span>
+</span><span id="line-673"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UFloat"><span class="hs-identifier">UFloat</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UInt"><span class="hs-identifier">UInt</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#UWord"><span class="hs-identifier">UWord</span></a></span><span>
+</span><span id="line-674"></span><span>
+</span><span id="line-675"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Synonyms for convenience</span></span><span>
+</span><span id="line-676"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Rec0"><span class="hs-identifier">Rec0</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#R"><span class="hs-identifier">R</span></a></span><span>
+</span><span id="line-677"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#D1"><span class="hs-identifier">D1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#C1"><span class="hs-identifier">C1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#S1"><span class="hs-identifier">S1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#D"><span class="hs-identifier">D</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#C"><span class="hs-identifier">C</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#S"><span class="hs-identifier">S</span></a></span><span>
+</span><span id="line-678"></span><span>
+</span><span id="line-679"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Meta-information</span></span><span>
+</span><span id="line-680"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Datatype"><span class="hs-identifier">Datatype</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Constructor"><span class="hs-identifier">Constructor</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Selector"><span class="hs-identifier">Selector</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-681"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Fixity"><span class="hs-identifier">Fixity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#FixityI"><span class="hs-identifier">FixityI</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Associativity"><span class="hs-identifier">Associativity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#prec"><span class="hs-identifier">prec</span></a></span><span>
+</span><span id="line-682"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#SourceUnpackedness"><span class="hs-identifier">SourceUnpackedness</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#SourceStrictness"><span class="hs-identifier">SourceStrictness</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#DecidedStrictness"><span class="hs-identifier">DecidedStrictness</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-683"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Meta"><span class="hs-identifier">Meta</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-684"></span><span>
+</span><span id="line-685"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Generic type classes</span></span><span>
+</span><span id="line-686"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic"><span class="hs-identifier">Generic</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-687"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generic1"><span class="hs-identifier">Generic1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-688"></span><span>
+</span><span id="line-689"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Generic wrapper</span></span><span>
+</span><span id="line-690"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generically"><span class="hs-identifier">Generically</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-691"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html#Generically1"><span class="hs-identifier">Generically1</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-692"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-693"></span><span>
+</span><span id="line-694"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Generics.html"><span class="hs-identifier">GHC.Internal.Generics</span></a></span><span>
+</span><span id="line-695"></span></pre></body></html>

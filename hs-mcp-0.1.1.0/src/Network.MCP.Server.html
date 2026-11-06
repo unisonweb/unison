@@ -1,0 +1,1119 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.MCP.Server.html"><span class="hs-identifier">Network.MCP.Server</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier">Server</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.Types.html#ServerHandler"><span class="hs-identifier">ServerHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.Types.html#ResourceReadHandler"><span class="hs-identifier">ResourceReadHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.Types.html#ToolCallHandler"><span class="hs-identifier">ToolCallHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.Types.html#PromptHandler"><span class="hs-identifier">PromptHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#createServer"><span class="hs-identifier">createServer</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerResources"><span class="hs-identifier">registerResources</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerResourceReadHandler"><span class="hs-identifier">registerResourceReadHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerTools"><span class="hs-identifier">registerTools</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerToolCallHandler"><span class="hs-identifier">registerToolCallHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerPrompts"><span class="hs-identifier">registerPrompts</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#registerPromptHandler"><span class="hs-identifier">registerPromptHandler</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#runServerWithTransport"><span class="hs-identifier">runServerWithTransport</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#withTransportServer"><span class="hs-identifier">withTransportServer</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#handleRequest"><span class="hs-identifier">handleRequest</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Network.MCP.Server.html#handleMessage"><span class="hs-identifier">handleMessage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Async</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SomeException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">try</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html"><span class="hs-identifier">Network.MCP.Server.Types</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html"><span class="hs-identifier">Network.MCP.Transport.Types</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.MCP.Types.html"><span class="hs-identifier">Network.MCP.Types</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO.Async</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Network.MCP.Server.html#createServer"><span class="hs-identifier hs-type">createServer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Types.html#ServerInfo"><span class="hs-identifier hs-type">ServerInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Types.html#ServerCapabilities"><span class="hs-identifier hs-type">ServerCapabilities</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span>
+</span><span id="line-40"></span><span id="createServer"><span class="annot"><span class="annottext">createServer :: ServerInfo -&gt; ServerCapabilities -&gt; Text -&gt; IO Server
+</span><a href="Network.MCP.Server.html#createServer"><span class="hs-identifier hs-var hs-var">createServer</span></a></span></span><span> </span><span id="local-6989586621679128452"><span class="annot"><span class="annottext">ServerInfo
+</span><a href="#local-6989586621679128452"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span id="local-6989586621679128453"><span class="annot"><span class="annottext">ServerCapabilities
+</span><a href="#local-6989586621679128453"><span class="hs-identifier hs-var">caps</span></a></span></span><span> </span><span id="local-6989586621679128454"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679128454"><span class="hs-identifier hs-var">instructions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621679128455"><span class="annot"><span class="annottext">TVar [Resource]
+</span><a href="#local-6989586621679128455"><span class="hs-identifier hs-var">resourcesVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Resource] -&gt; IO (TVar [Resource])
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679128457"><span class="annot"><span class="annottext">TVar [Tool]
+</span><a href="#local-6989586621679128457"><span class="hs-identifier hs-var">toolsVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Tool] -&gt; IO (TVar [Tool])
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679128458"><span class="annot"><span class="annottext">TVar [Prompt]
+</span><a href="#local-6989586621679128458"><span class="hs-identifier hs-var">promptsVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Prompt] -&gt; IO (TVar [Prompt])
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679128459"><span class="annot"><span class="annottext">TVar (Maybe ResourceReadHandler)
+</span><a href="#local-6989586621679128459"><span class="hs-identifier hs-var">resourceHandlerVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe ResourceReadHandler -&gt; IO (TVar (Maybe ResourceReadHandler))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Maybe ResourceReadHandler
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679128460"><span class="annot"><span class="annottext">TVar (Maybe ToolCallHandler)
+</span><a href="#local-6989586621679128460"><span class="hs-identifier hs-var">toolHandlerVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe ToolCallHandler -&gt; IO (TVar (Maybe ToolCallHandler))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Maybe ToolCallHandler
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679128461"><span class="annot"><span class="annottext">TVar (Maybe PromptHandler)
+</span><a href="#local-6989586621679128461"><span class="hs-identifier hs-var">promptHandlerVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe PromptHandler -&gt; IO (TVar (Maybe PromptHandler))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Maybe PromptHandler
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-comment">-- Initialize message handlers map</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679128462"><span class="annot"><span class="annottext">TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="#local-6989586621679128462"><span class="hs-identifier hs-var">handlersVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO
+     (TVar
+        (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128464"><span class="annot"><span class="annottext">server :: Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span>
+</span><span id="line-53"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">serverInfo :: ServerInfo
+</span><a href="Network.MCP.Server.Types.html#serverInfo"><span class="hs-identifier hs-var">serverInfo</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerInfo
+</span><a href="#local-6989586621679128452"><span class="hs-identifier hs-var">info</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>            </span><span class="annot"><span class="annottext">serverCapabilities :: ServerCapabilities
+</span><a href="Network.MCP.Server.Types.html#serverCapabilities"><span class="hs-identifier hs-var">serverCapabilities</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerCapabilities
+</span><a href="#local-6989586621679128453"><span class="hs-identifier hs-var">caps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>            </span><span class="annot"><span class="annottext">serverResources :: TVar [Resource]
+</span><a href="Network.MCP.Server.Types.html#serverResources"><span class="hs-identifier hs-var">serverResources</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar [Resource]
+</span><a href="#local-6989586621679128455"><span class="hs-identifier hs-var">resourcesVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>            </span><span class="annot"><span class="annottext">serverTools :: TVar [Tool]
+</span><a href="Network.MCP.Server.Types.html#serverTools"><span class="hs-identifier hs-var">serverTools</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar [Tool]
+</span><a href="#local-6989586621679128457"><span class="hs-identifier hs-var">toolsVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>            </span><span class="annot"><span class="annottext">serverPrompts :: TVar [Prompt]
+</span><a href="Network.MCP.Server.Types.html#serverPrompts"><span class="hs-identifier hs-var">serverPrompts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar [Prompt]
+</span><a href="#local-6989586621679128458"><span class="hs-identifier hs-var">promptsVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>            </span><span class="annot"><span class="annottext">serverInstructions :: Text
+</span><a href="Network.MCP.Server.Types.html#serverInstructions"><span class="hs-identifier hs-var">serverInstructions</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679128454"><span class="hs-identifier hs-var">instructions</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>            </span><span class="annot"><span class="annottext">serverResourceReadHandler :: TVar (Maybe ResourceReadHandler)
+</span><a href="Network.MCP.Server.Types.html#serverResourceReadHandler"><span class="hs-identifier hs-var">serverResourceReadHandler</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ResourceReadHandler)
+</span><a href="#local-6989586621679128459"><span class="hs-identifier hs-var">resourceHandlerVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>            </span><span class="annot"><span class="annottext">serverToolCallHandler :: TVar (Maybe ToolCallHandler)
+</span><a href="Network.MCP.Server.Types.html#serverToolCallHandler"><span class="hs-identifier hs-var">serverToolCallHandler</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ToolCallHandler)
+</span><a href="#local-6989586621679128460"><span class="hs-identifier hs-var">toolHandlerVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>            </span><span class="annot"><span class="annottext">serverPromptHandler :: TVar (Maybe PromptHandler)
+</span><a href="Network.MCP.Server.Types.html#serverPromptHandler"><span class="hs-identifier hs-var">serverPromptHandler</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe PromptHandler)
+</span><a href="#local-6989586621679128461"><span class="hs-identifier hs-var">promptHandlerVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>            </span><span class="annot"><span class="annottext">serverMessageHandlers :: TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="Network.MCP.Server.Types.html#serverMessageHandlers"><span class="hs-identifier hs-var">serverMessageHandlers</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="#local-6989586621679128462"><span class="hs-identifier hs-var">handlersVar</span></a></span><span>
+</span><span id="line-63"></span><span>          </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- Register standard request handlers</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerInitializeHandler"><span class="hs-identifier hs-var">registerInitializeHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListResourcesHandler"><span class="hs-identifier hs-var">registerListResourcesHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerReadResourceHandler"><span class="hs-identifier hs-var">registerReadResourceHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListToolsHandler"><span class="hs-identifier hs-var">registerListToolsHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerCallToolHandler"><span class="hs-identifier hs-var">registerCallToolHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListPromptsHandler"><span class="hs-identifier hs-var">registerListPromptsHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="annottext">Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerGetPromptHandler"><span class="hs-identifier hs-var">registerGetPromptHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128464"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Register available resources</span></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Network.MCP.Server.html#registerResources"><span class="hs-identifier hs-type">registerResources</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.MCP.Types.html#Resource"><span class="hs-identifier hs-type">Resource</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span id="registerResources"><span class="annot"><span class="annottext">registerResources :: Server -&gt; [Resource] -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerResources"><span class="hs-identifier hs-var hs-var">registerResources</span></a></span></span><span> </span><span id="local-6989586621679128483"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128483"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128484"><span class="annot"><span class="annottext">[Resource]
+</span><a href="#local-6989586621679128484"><span class="hs-identifier hs-var">resources</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar [Resource] -&gt; [Resource] -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Resource]
+</span><a href="Network.MCP.Server.Types.html#serverResources"><span class="hs-identifier hs-var">serverResources</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128483"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Resource]
+</span><a href="#local-6989586621679128484"><span class="hs-identifier hs-var">resources</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><span class="hs-comment">-- | Register resource read handler</span></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Network.MCP.Server.html#registerResourceReadHandler"><span class="hs-identifier hs-type">registerResourceReadHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#ResourceReadHandler"><span class="hs-identifier hs-type">ResourceReadHandler</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span id="registerResourceReadHandler"><span class="annot"><span class="annottext">registerResourceReadHandler :: Server -&gt; ResourceReadHandler -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerResourceReadHandler"><span class="hs-identifier hs-var hs-var">registerResourceReadHandler</span></a></span></span><span> </span><span id="local-6989586621679128487"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128487"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128488"><span class="annot"><span class="annottext">ResourceReadHandler
+</span><a href="#local-6989586621679128488"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ResourceReadHandler)
+-&gt; Maybe ResourceReadHandler -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe ResourceReadHandler)
+</span><a href="Network.MCP.Server.Types.html#serverResourceReadHandler"><span class="hs-identifier hs-var">serverResourceReadHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128487"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ResourceReadHandler -&gt; Maybe ResourceReadHandler
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ResourceReadHandler
+</span><a href="#local-6989586621679128488"><span class="hs-identifier hs-var">handler</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="annot"><span class="hs-comment">-- | Register available tools</span></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Network.MCP.Server.html#registerTools"><span class="hs-identifier hs-type">registerTools</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.MCP.Types.html#Tool"><span class="hs-identifier hs-type">Tool</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span id="registerTools"><span class="annot"><span class="annottext">registerTools :: Server -&gt; [Tool] -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerTools"><span class="hs-identifier hs-var hs-var">registerTools</span></a></span></span><span> </span><span id="local-6989586621679128489"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128489"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128490"><span class="annot"><span class="annottext">[Tool]
+</span><a href="#local-6989586621679128490"><span class="hs-identifier hs-var">tools</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar [Tool] -&gt; [Tool] -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Tool]
+</span><a href="Network.MCP.Server.Types.html#serverTools"><span class="hs-identifier hs-var">serverTools</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128489"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Tool]
+</span><a href="#local-6989586621679128490"><span class="hs-identifier hs-var">tools</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><span class="hs-comment">-- | Register tool call handler</span></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Network.MCP.Server.html#registerToolCallHandler"><span class="hs-identifier hs-type">registerToolCallHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#ToolCallHandler"><span class="hs-identifier hs-type">ToolCallHandler</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span id="registerToolCallHandler"><span class="annot"><span class="annottext">registerToolCallHandler :: Server -&gt; ToolCallHandler -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerToolCallHandler"><span class="hs-identifier hs-var hs-var">registerToolCallHandler</span></a></span></span><span> </span><span id="local-6989586621679128491"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128491"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128492"><span class="annot"><span class="annottext">ToolCallHandler
+</span><a href="#local-6989586621679128492"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ToolCallHandler) -&gt; Maybe ToolCallHandler -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe ToolCallHandler)
+</span><a href="Network.MCP.Server.Types.html#serverToolCallHandler"><span class="hs-identifier hs-var">serverToolCallHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128491"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ToolCallHandler -&gt; Maybe ToolCallHandler
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ToolCallHandler
+</span><a href="#local-6989586621679128492"><span class="hs-identifier hs-var">handler</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Register available prompts</span></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Network.MCP.Server.html#registerPrompts"><span class="hs-identifier hs-type">registerPrompts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.MCP.Types.html#Prompt"><span class="hs-identifier hs-type">Prompt</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span id="registerPrompts"><span class="annot"><span class="annottext">registerPrompts :: Server -&gt; [Prompt] -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerPrompts"><span class="hs-identifier hs-var hs-var">registerPrompts</span></a></span></span><span> </span><span id="local-6989586621679128493"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128493"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128494"><span class="annot"><span class="annottext">[Prompt]
+</span><a href="#local-6989586621679128494"><span class="hs-identifier hs-var">prompts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar [Prompt] -&gt; [Prompt] -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Prompt]
+</span><a href="Network.MCP.Server.Types.html#serverPrompts"><span class="hs-identifier hs-var">serverPrompts</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128493"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Prompt]
+</span><a href="#local-6989586621679128494"><span class="hs-identifier hs-var">prompts</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- | Register prompt handler</span></span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Network.MCP.Server.html#registerPromptHandler"><span class="hs-identifier hs-type">registerPromptHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#PromptHandler"><span class="hs-identifier hs-type">PromptHandler</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span id="registerPromptHandler"><span class="annot"><span class="annottext">registerPromptHandler :: Server -&gt; PromptHandler -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerPromptHandler"><span class="hs-identifier hs-var hs-var">registerPromptHandler</span></a></span></span><span> </span><span id="local-6989586621679128495"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128495"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128496"><span class="annot"><span class="annottext">PromptHandler
+</span><a href="#local-6989586621679128496"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe PromptHandler) -&gt; Maybe PromptHandler -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe PromptHandler)
+</span><a href="Network.MCP.Server.Types.html#serverPromptHandler"><span class="hs-identifier hs-var">serverPromptHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128495"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PromptHandler -&gt; Maybe PromptHandler
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">PromptHandler
+</span><a href="#local-6989586621679128496"><span class="hs-identifier hs-var">handler</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | Run the server, handling messages until the transport mechanism shuts down.</span></span><span>
+</span><span id="line-101"></span><span id="local-6989586621679128263"><span class="annot"><a href="Network.MCP.Server.html#runServerWithTransport"><span class="hs-identifier hs-type">runServerWithTransport</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#Transport"><span class="hs-identifier hs-type">Transport</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679128263"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679128263"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-102"></span><span id="runServerWithTransport"><span class="annot"><span class="annottext">runServerWithTransport :: forall t. Transport t =&gt; Server -&gt; t -&gt; IO ()
+</span><a href="Network.MCP.Server.html#runServerWithTransport"><span class="hs-identifier hs-var hs-var">runServerWithTransport</span></a></span></span><span> </span><span id="local-6989586621679128499"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128499"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128500"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679128500"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="annottext">t -&gt; (Message -&gt; IO (Maybe Message)) -&gt; IO ()
+forall t.
+Transport t =&gt;
+t -&gt; (Message -&gt; IO (Maybe Message)) -&gt; IO ()
+</span><a href="Network.MCP.Transport.Types.html#handleMessages"><span class="hs-identifier hs-var">handleMessages</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679128500"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; Message -&gt; IO (Maybe Message)
+</span><a href="Network.MCP.Server.html#handleMessage"><span class="hs-identifier hs-var">handleMessage</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128499"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | Run a transport server while the action is executed.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- If the action throws an exception or terminates the server will be stopped.</span><span>
+</span><span id="line-107"></span><span id="local-6989586621679128267"><span id="local-6989586621679128269"><span class="annot"><a href="Network.MCP.Server.html#withTransportServer"><span class="hs-identifier hs-type">withTransportServer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.MCP.Transport.Types.html#Transport"><span class="hs-identifier hs-type">Transport</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679128267"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679128267"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">UnliftIO.Async</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679128269"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679128269"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-108"></span><span id="withTransportServer"><span class="annot"><span class="annottext">withTransportServer :: forall t a.
+Transport t =&gt;
+Server -&gt; t -&gt; (Async () -&gt; IO a) -&gt; IO a
+</span><a href="Network.MCP.Server.html#withTransportServer"><span class="hs-identifier hs-var hs-var">withTransportServer</span></a></span></span><span> </span><span id="local-6989586621679128504"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128504"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128505"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679128505"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679128506"><span class="annot"><span class="annottext">Async () -&gt; IO a
+</span><a href="#local-6989586621679128506"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128507"><span class="annot"><span class="annottext">runServer :: IO ()
+</span><a href="#local-6989586621679128507"><span class="hs-identifier hs-var hs-var">runServer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-comment">-- Run the server with the provided transport</span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><span class="annottext">Server -&gt; t -&gt; IO ()
+forall t. Transport t =&gt; Server -&gt; t -&gt; IO ()
+</span><a href="Network.MCP.Server.html#runServerWithTransport"><span class="hs-identifier hs-var">runServerWithTransport</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128504"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679128505"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">IO () -&gt; (Async () -&gt; IO a) -&gt; IO a
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">Async.withAsync</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679128507"><span class="hs-identifier hs-var">runServer</span></a></span><span> </span><span class="annot"><span class="annottext">((Async () -&gt; IO a) -&gt; IO a) -&gt; (Async () -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679128509"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679128509"><span class="hs-identifier hs-var">handle</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-comment">-- Execute the action with the server running</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-comment">-- The server will be terminated when the action completes</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="annottext">Async () -&gt; IO a
+</span><a href="#local-6989586621679128506"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679128509"><span class="hs-identifier hs-var">handle</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- Helper to process a message</span><span>
+</span><span id="line-118"></span><span class="annot"><a href="Network.MCP.Server.html#handleMessage"><span class="hs-identifier hs-type">handleMessage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span id="handleMessage"><span class="annot"><span class="annottext">handleMessage :: Server -&gt; Message -&gt; IO (Maybe Message)
+</span><a href="Network.MCP.Server.html#handleMessage"><span class="hs-identifier hs-var hs-var">handleMessage</span></a></span></span><span> </span><span id="local-6989586621679128510"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128510"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128511"><span class="annot"><span class="annottext">Message
+</span><a href="#local-6989586621679128511"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Message
+</span><a href="#local-6989586621679128511"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><a href="Network.MCP.Transport.Types.html#RequestMessage"><span class="hs-identifier hs-type">RequestMessage</span></a></span><span> </span><span id="local-6989586621679128513"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128513"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">Server -&gt; Request -&gt; IO (Either SomeException Response)
+</span><a href="Network.MCP.Server.html#handleRequest"><span class="hs-identifier hs-var">handleRequest</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128510"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128513"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException Response)
+-&gt; (Either SomeException Response -&gt; IO (Maybe Message))
+-&gt; IO (Maybe Message)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-122"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679128514"><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679128514"><span class="hs-identifier hs-var">response</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Message -&gt; IO (Maybe Message)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Message -&gt; IO (Maybe Message))
+-&gt; (Message -&gt; Maybe Message) -&gt; Message -&gt; IO (Maybe Message)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Message -&gt; Maybe Message
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Message -&gt; IO (Maybe Message)) -&gt; Message -&gt; IO (Maybe Message)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Response -&gt; Message
+</span><a href="Network.MCP.Transport.Types.html#ResponseMessage"><span class="hs-identifier hs-var">ResponseMessage</span></a></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679128514"><span class="hs-identifier hs-var">response</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679128517"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128517"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Message -&gt; IO (Maybe Message)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Message -&gt; IO (Maybe Message))
+-&gt; (Message -&gt; Maybe Message) -&gt; Message -&gt; IO (Maybe Message)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Message -&gt; Maybe Message
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Message -&gt; IO (Maybe Message)) -&gt; Message -&gt; IO (Maybe Message)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Request -&gt; SomeException -&gt; Message
+</span><a href="Network.MCP.Server.html#mkErrorResponse"><span class="hs-identifier hs-var">mkErrorResponse</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128513"><span class="hs-identifier hs-var">request</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128517"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><a href="Network.MCP.Transport.Types.html#NotificationMessage"><span class="hs-identifier hs-type">NotificationMessage</span></a></span><span> </span><span id="local-6989586621679128520"><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679128520"><span class="hs-identifier hs-var">notification</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">Server -&gt; Notification -&gt; IO ()
+</span><a href="Network.MCP.Server.html#handleNotification"><span class="hs-identifier hs-var">handleNotification</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128510"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679128520"><span class="hs-identifier hs-var">notification</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">Maybe Message
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="annottext">Message
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">TransportError -&gt; IO (Maybe Message)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">(TransportError -&gt; IO (Maybe Message))
+-&gt; TransportError -&gt; IO (Maybe Message)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; TransportError
+</span><a href="Network.MCP.Transport.Types.html#TransportError"><span class="hs-identifier hs-var">TransportError</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; TransportError) -&gt; [Char] -&gt; TransportError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Received unexpected message type in handleMessage: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Message -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Message
+</span><a href="#local-6989586621679128511"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- Helper to send error responses</span><span>
+</span><span id="line-131"></span><span class="annot"><a href="Network.MCP.Server.html#mkErrorResponse"><span class="hs-identifier hs-type">mkErrorResponse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Message"><span class="hs-identifier hs-type">Message</span></a></span><span>
+</span><span id="line-132"></span><span id="mkErrorResponse"><span class="annot"><span class="annottext">mkErrorResponse :: Request -&gt; SomeException -&gt; Message
+</span><a href="Network.MCP.Server.html#mkErrorResponse"><span class="hs-identifier hs-var hs-var">mkErrorResponse</span></a></span></span><span> </span><span id="local-6989586621679128524"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128524"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span id="local-6989586621679128525"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128525"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128526"><span class="annot"><span class="annottext">errorResponse :: Response
+</span><a href="#local-6989586621679128526"><span class="hs-identifier hs-var hs-var">errorResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>        </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-135"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">responseJsonrpc :: JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#responseJsonrpc"><span class="hs-identifier hs-var">responseJsonrpc</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;2.0&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-136"></span><span>            </span><span class="annot"><span class="annottext">responseId :: Value
+</span><a href="Network.MCP.Transport.Types.html#responseId"><span class="hs-identifier hs-var">responseId</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Value
+</span><a href="Network.MCP.Transport.Types.html#requestId"><span class="hs-identifier hs-var">requestId</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128524"><span class="hs-identifier hs-var">request</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>            </span><span class="annot"><span class="annottext">responseResult :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#responseResult"><span class="hs-identifier hs-var">responseResult</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>            </span><span class="annot"><span class="annottext">responseError :: Maybe ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#responseError"><span class="hs-identifier hs-var">responseError</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>              </span><span class="annot"><span class="annottext">ErrorResponse -&gt; Maybe ErrorResponse
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ErrorResponse -&gt; Maybe ErrorResponse)
+-&gt; ErrorResponse -&gt; Maybe ErrorResponse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-140"></span><span>                </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span><span>
+</span><span id="line-141"></span><span>                  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errorCode :: Int
+</span><a href="Network.MCP.Transport.Types.html#errorCode"><span class="hs-identifier hs-var">errorCode</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32603</span></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>                    </span><span class="annot"><span class="annottext">errorMessage :: Text
+</span><a href="Network.MCP.Transport.Types.html#errorMessage"><span class="hs-identifier hs-var">errorMessage</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Text) -&gt; [Char] -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128525"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-143"></span><span>                    </span><span class="annot"><span class="annottext">errorData :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#errorData"><span class="hs-identifier hs-var">errorData</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-144"></span><span>                  </span><span class="hs-special">}</span><span>
+</span><span id="line-145"></span><span>          </span><span class="hs-special">}</span><span>
+</span><span id="line-146"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Response -&gt; Message
+</span><a href="Network.MCP.Transport.Types.html#ResponseMessage"><span class="hs-identifier hs-var">ResponseMessage</span></a></span><span> </span><span class="annot"><span class="annottext">Response
+</span><a href="#local-6989586621679128526"><span class="hs-identifier hs-var">errorResponse</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><span class="hs-comment">-- | Handle a request</span></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Network.MCP.Server.html#handleRequest"><span class="hs-identifier hs-type">handleRequest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span id="handleRequest"><span class="annot"><span class="annottext">handleRequest :: Server -&gt; Request -&gt; IO (Either SomeException Response)
+</span><a href="Network.MCP.Server.html#handleRequest"><span class="hs-identifier hs-var hs-var">handleRequest</span></a></span></span><span> </span><span id="local-6989586621679128539"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128539"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128540"><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128540"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128541"><span class="annot"><span class="annottext">method :: Text
+</span><a href="#local-6989586621679128541"><span class="hs-identifier hs-var hs-var">method</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#requestMethod"><span class="hs-identifier hs-var">requestMethod</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128540"><span class="hs-identifier hs-var">request</span></a></span><span>
+</span><span id="line-152"></span><span>      </span><span id="local-6989586621679128543"><span class="annot"><span class="annottext">params :: Value
+</span><a href="#local-6989586621679128543"><span class="hs-identifier hs-var hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Maybe Value -&gt; Value
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Request -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#requestParams"><span class="hs-identifier hs-var">requestParams</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128540"><span class="hs-identifier hs-var">request</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621679128546"><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+</span><a href="#local-6989586621679128546"><span class="hs-identifier hs-var">handlers</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+-&gt; IO
+     (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server
+-&gt; TVar
+     (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="Network.MCP.Server.Types.html#serverMessageHandlers"><span class="hs-identifier hs-var">serverMessageHandlers</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128539"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; Maybe (Value -&gt; Server -&gt; IO (Either SomeException Value))
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679128541"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+</span><a href="#local-6989586621679128546"><span class="hs-identifier hs-var">handlers</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679128549"><span class="annot"><span class="annottext">Value -&gt; Server -&gt; IO (Either SomeException Value)
+</span><a href="#local-6989586621679128549"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>      </span><span id="local-6989586621679128550"><span class="annot"><span class="annottext">Either SomeException (Either SomeException Value)
+</span><a href="#local-6989586621679128550"><span class="hs-identifier hs-var">e'result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException Value)
+-&gt; IO (Either SomeException (Either SomeException Value))
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">(IO (Either SomeException Value)
+ -&gt; IO (Either SomeException (Either SomeException Value)))
+-&gt; IO (Either SomeException Value)
+-&gt; IO (Either SomeException (Either SomeException Value))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Server -&gt; IO (Either SomeException Value)
+</span><a href="#local-6989586621679128549"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128543"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128539"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-158"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either SomeException (Either SomeException Value)
+</span><a href="#local-6989586621679128550"><span class="hs-identifier hs-var">e'result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679128551"><span class="annot"><span class="annottext">Either SomeException Value
+</span><a href="#local-6989586621679128551"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-160"></span><span>          </span><span class="annot"><span class="annottext">Either SomeException Response -&gt; IO (Either SomeException Response)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Response
+ -&gt; IO (Either SomeException Response))
+-&gt; Either SomeException Response
+-&gt; IO (Either SomeException Response)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-161"></span><span>            </span><span class="annot"><span class="annottext">Response -&gt; Either SomeException Response
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Response -&gt; Either SomeException Response)
+-&gt; Response -&gt; Either SomeException Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-162"></span><span>              </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-163"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">responseJsonrpc :: JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#responseJsonrpc"><span class="hs-identifier hs-var">responseJsonrpc</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;2.0&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-164"></span><span>                  </span><span class="annot"><span class="annottext">responseId :: Value
+</span><a href="Network.MCP.Transport.Types.html#responseId"><span class="hs-identifier hs-var">responseId</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Value
+</span><a href="Network.MCP.Transport.Types.html#requestId"><span class="hs-identifier hs-var">requestId</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128540"><span class="hs-identifier hs-var">request</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-165"></span><span>                  </span><span class="annot"><span class="annottext">responseResult :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#responseResult"><span class="hs-identifier hs-var">responseResult</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value
+</span><a href="#local-6989586621679128551"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679128552"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128552"><span class="hs-identifier hs-var">_err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe Value
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128552"><span class="hs-identifier hs-var">_err</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- WAT?</span><span>
+</span><span id="line-167"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679128554"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128554"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Maybe Value
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128554"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-168"></span><span>                  </span><span class="annot"><span class="annottext">responseError :: Maybe ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#responseError"><span class="hs-identifier hs-var">responseError</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ErrorResponse
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-169"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-170"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679128555"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128555"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Response -&gt; IO (Either SomeException Response)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Response
+ -&gt; IO (Either SomeException Response))
+-&gt; Either SomeException Response
+-&gt; IO (Either SomeException Response)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Response
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679128555"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Value -&gt; Server -&gt; IO (Either SomeException Value))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-172"></span><span>      </span><span class="annot"><span class="annottext">Either SomeException Response -&gt; IO (Either SomeException Response)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Response
+ -&gt; IO (Either SomeException Response))
+-&gt; Either SomeException Response
+-&gt; IO (Either SomeException Response)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-173"></span><span>        </span><span class="annot"><span class="annottext">Response -&gt; Either SomeException Response
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Response -&gt; Either SomeException Response)
+-&gt; Response -&gt; Either SomeException Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-174"></span><span>          </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Response"><span class="hs-identifier hs-type">Response</span></a></span><span>
+</span><span id="line-175"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">responseJsonrpc :: JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#responseJsonrpc"><span class="hs-identifier hs-var">responseJsonrpc</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; JSONRPC
+</span><a href="Network.MCP.Transport.Types.html#JSONRPC"><span class="hs-identifier hs-var">JSONRPC</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;2.0&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-176"></span><span>              </span><span class="annot"><span class="annottext">responseId :: Value
+</span><a href="Network.MCP.Transport.Types.html#responseId"><span class="hs-identifier hs-var">responseId</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Request -&gt; Value
+</span><a href="Network.MCP.Transport.Types.html#requestId"><span class="hs-identifier hs-var">requestId</span></a></span><span> </span><span class="annot"><span class="annottext">Request
+</span><a href="#local-6989586621679128540"><span class="hs-identifier hs-var">request</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-177"></span><span>              </span><span class="annot"><span class="annottext">responseResult :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#responseResult"><span class="hs-identifier hs-var">responseResult</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span>
+</span><span id="line-178"></span><span>              </span><span class="annot"><span class="annottext">responseError :: Maybe ErrorResponse
+</span><a href="Network.MCP.Transport.Types.html#responseError"><span class="hs-identifier hs-var">responseError</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>                </span><span class="annot"><span class="annottext">ErrorResponse -&gt; Maybe ErrorResponse
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ErrorResponse -&gt; Maybe ErrorResponse)
+-&gt; ErrorResponse -&gt; Maybe ErrorResponse
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-180"></span><span>                  </span><span class="annot"><a href="Network.MCP.Transport.Types.html#ErrorResponse"><span class="hs-identifier hs-type">ErrorResponse</span></a></span><span>
+</span><span id="line-181"></span><span>                    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">errorCode :: Int
+</span><a href="Network.MCP.Transport.Types.html#errorCode"><span class="hs-identifier hs-var">errorCode</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32601</span></span><span class="hs-special">,</span><span>
+</span><span id="line-182"></span><span>                      </span><span class="annot"><span class="annottext">errorMessage :: Text
+</span><a href="Network.MCP.Transport.Types.html#errorMessage"><span class="hs-identifier hs-var">errorMessage</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Method not found&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-183"></span><span>                      </span><span class="annot"><span class="annottext">errorData :: Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#errorData"><span class="hs-identifier hs-var">errorData</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-184"></span><span>                    </span><span class="hs-special">}</span><span>
+</span><span id="line-185"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="annot"><span class="hs-comment">-- | Handle a notification</span></span><span>
+</span><span id="line-188"></span><span class="annot"><a href="Network.MCP.Server.html#handleNotification"><span class="hs-identifier hs-type">handleNotification</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Transport.Types.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span id="handleNotification"><span class="annot"><span class="annottext">handleNotification :: Server -&gt; Notification -&gt; IO ()
+</span><a href="Network.MCP.Server.html#handleNotification"><span class="hs-identifier hs-var hs-var">handleNotification</span></a></span></span><span> </span><span id="local-6989586621679128556"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128556"><span class="hs-identifier hs-var">_server</span></a></span></span><span> </span><span id="local-6989586621679128557"><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679128557"><span class="hs-identifier hs-var">notification</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128558"><span class="annot"><span class="annottext">_method :: Text
+</span><a href="#local-6989586621679128558"><span class="hs-identifier hs-var hs-var">_method</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Notification -&gt; Text
+</span><a href="Network.MCP.Transport.Types.html#notificationMethod"><span class="hs-identifier hs-var">notificationMethod</span></a></span><span> </span><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679128557"><span class="hs-identifier hs-var">notification</span></a></span><span>
+</span><span id="line-191"></span><span>      </span><span id="local-6989586621679128560"><span class="annot"><span class="annottext">_params :: Value
+</span><a href="#local-6989586621679128560"><span class="hs-identifier hs-var hs-var">_params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Maybe Value -&gt; Value
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Notification -&gt; Maybe Value
+</span><a href="Network.MCP.Transport.Types.html#notificationParams"><span class="hs-identifier hs-var">notificationParams</span></a></span><span> </span><span class="annot"><span class="annottext">Notification
+</span><a href="#local-6989586621679128557"><span class="hs-identifier hs-var">notification</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-comment">-- TODO: Implement notification handling logic</span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="annot"><span class="hs-comment">-- | Register a request handler</span></span><span>
+</span><span id="line-198"></span><span class="annot"><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-type">registerRequestHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span id="registerRequestHandler"><span class="annot"><span class="annottext">registerRequestHandler :: Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var hs-var">registerRequestHandler</span></a></span></span><span> </span><span id="local-6989586621679128563"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128563"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span id="local-6989586621679128564"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679128564"><span class="hs-identifier hs-var">method</span></a></span></span><span> </span><span id="local-6989586621679128565"><span class="annot"><span class="annottext">Value -&gt; Server -&gt; IO (Either SomeException Value)
+</span><a href="#local-6989586621679128565"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-200"></span><span>  </span><span id="local-6989586621679128566"><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+</span><a href="#local-6989586621679128566"><span class="hs-identifier hs-var">handlers</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+-&gt; STM
+     (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server
+-&gt; TVar
+     (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="Network.MCP.Server.Types.html#serverMessageHandlers"><span class="hs-identifier hs-var">serverMessageHandlers</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128563"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><span class="annottext">TVar
+  (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+-&gt; Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server
+-&gt; TVar
+     (Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value)))
+</span><a href="Network.MCP.Server.Types.html#serverMessageHandlers"><span class="hs-identifier hs-var">serverMessageHandlers</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128563"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679128564"><span class="hs-identifier hs-var">method</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Server -&gt; IO (Either SomeException Value)
+</span><a href="#local-6989586621679128565"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">Map Text (Value -&gt; Server -&gt; IO (Either SomeException Value))
+</span><a href="#local-6989586621679128566"><span class="hs-identifier hs-var">handlers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="annot"><span class="hs-comment">-- | Register initialize handler</span></span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Network.MCP.Server.html#registerInitializeHandler"><span class="hs-identifier hs-type">registerInitializeHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span id="registerInitializeHandler"><span class="annot"><span class="annottext">registerInitializeHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerInitializeHandler"><span class="hs-identifier hs-var hs-var">registerInitializeHandler</span></a></span></span><span> </span><span id="local-6989586621679128569"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128569"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128569"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;initialize&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679128570"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128570"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span class="annot"><span class="annottext">Server
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result ClientInitializeOptions
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128570"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-207"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679128573"><span class="annot"><span class="annottext">ClientInitializeOptions
+</span><a href="#local-6989586621679128573"><span class="hs-identifier hs-var">_clientOptions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Types.html#ClientInitializeOptions"><span class="hs-identifier hs-type">ClientInitializeOptions</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-208"></span><span>      </span><span class="hs-comment">-- TODO: Verify protocol version compatibility</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128574"><span class="annot"><span class="annottext">serverOptions :: ServerInitializeOptions
+</span><a href="#local-6989586621679128574"><span class="hs-identifier hs-var hs-var">serverOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-211"></span><span>            </span><span class="annot"><a href="Network.MCP.Types.html#ServerInitializeOptions"><span class="hs-identifier hs-type">ServerInitializeOptions</span></a></span><span>
+</span><span id="line-212"></span><span>              </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">serverInitProtocolVersion :: Text
+</span><a href="Network.MCP.Types.html#serverInitProtocolVersion"><span class="hs-identifier hs-var">serverInitProtocolVersion</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="Network.MCP.Types.html#supportedVersions"><span class="hs-identifier hs-var">supportedVersions</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-213"></span><span>                </span><span class="annot"><span class="annottext">serverInitInfo :: ServerInfo
+</span><a href="Network.MCP.Types.html#serverInitInfo"><span class="hs-identifier hs-var">serverInitInfo</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server -&gt; ServerInfo
+</span><a href="Network.MCP.Server.Types.html#serverInfo"><span class="hs-identifier hs-var">serverInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128569"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-214"></span><span>                </span><span class="annot"><span class="annottext">serverInitCapabilities :: ServerCapabilities
+</span><a href="Network.MCP.Types.html#serverInitCapabilities"><span class="hs-identifier hs-var">serverInitCapabilities</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server -&gt; ServerCapabilities
+</span><a href="Network.MCP.Server.Types.html#serverCapabilities"><span class="hs-identifier hs-var">serverCapabilities</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128569"><span class="hs-identifier hs-var">server</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-215"></span><span>                </span><span class="annot"><span class="annottext">serverInitInstructions :: Text
+</span><a href="Network.MCP.Types.html#serverInitInstructions"><span class="hs-identifier hs-var">serverInitInstructions</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server -&gt; Text
+</span><a href="Network.MCP.Server.Types.html#serverInstructions"><span class="hs-identifier hs-var">serverInstructions</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128569"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-216"></span><span>              </span><span class="hs-special">}</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span>      </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ServerInitializeOptions -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ServerInitializeOptions
+</span><a href="#local-6989586621679128574"><span class="hs-identifier hs-var">serverOptions</span></a></span><span>
+</span><span id="line-219"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621679128584"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128584"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; IOError) -&gt; [Char] -&gt; IOError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Invalid initialize parameters: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128584"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="annot"><span class="hs-comment">-- | Register list resources handler</span></span><span>
+</span><span id="line-222"></span><span class="annot"><a href="Network.MCP.Server.html#registerListResourcesHandler"><span class="hs-identifier hs-type">registerListResourcesHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span id="registerListResourcesHandler"><span class="annot"><span class="annottext">registerListResourcesHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListResourcesHandler"><span class="hs-identifier hs-var hs-var">registerListResourcesHandler</span></a></span></span><span> </span><span id="local-6989586621679128586"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128586"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128586"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;resources/list&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679128587"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128587"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621679128588"><span class="annot"><span class="annottext">[Resource]
+</span><a href="#local-6989586621679128588"><span class="hs-identifier hs-var">resources</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar [Resource] -&gt; IO [Resource]
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Resource]
+</span><a href="Network.MCP.Server.Types.html#serverResources"><span class="hs-identifier hs-var">serverResources</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128587"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128589"><span class="annot"><span class="annottext">result :: ListResourcesResult
+</span><a href="#local-6989586621679128589"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Resource] -&gt; ListResourcesResult
+</span><a href="Network.MCP.Types.html#ListResourcesResult"><span class="hs-identifier hs-var">ListResourcesResult</span></a></span><span> </span><span class="annot"><span class="annottext">[Resource]
+</span><a href="#local-6989586621679128588"><span class="hs-identifier hs-var">resources</span></a></span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ListResourcesResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ListResourcesResult
+</span><a href="#local-6989586621679128589"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="annot"><span class="hs-comment">-- | Register read resource handler</span></span><span>
+</span><span id="line-229"></span><span class="annot"><a href="Network.MCP.Server.html#registerReadResourceHandler"><span class="hs-identifier hs-type">registerReadResourceHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span id="registerReadResourceHandler"><span class="annot"><span class="annottext">registerReadResourceHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerReadResourceHandler"><span class="hs-identifier hs-var hs-var">registerReadResourceHandler</span></a></span></span><span> </span><span id="local-6989586621679128591"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128591"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128591"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;resources/read&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679128592"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128592"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621679128593"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128593"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-231"></span><span>  </span><span id="local-6989586621679128594"><span class="annot"><span class="annottext">Maybe ResourceReadHandler
+</span><a href="#local-6989586621679128594"><span class="hs-identifier hs-var">handlerM</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ResourceReadHandler) -&gt; IO (Maybe ResourceReadHandler)
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe ResourceReadHandler)
+</span><a href="Network.MCP.Server.Types.html#serverResourceReadHandler"><span class="hs-identifier hs-var">serverResourceReadHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128593"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ResourceReadHandler
+</span><a href="#local-6989586621679128594"><span class="hs-identifier hs-var">handlerM</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-233"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679128595"><span class="annot"><span class="annottext">ResourceReadHandler
+</span><a href="#local-6989586621679128595"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result ReadResourceRequest
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128592"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-234"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621679128596"><span class="annot"><span class="annottext">ReadResourceRequest
+</span><a href="#local-6989586621679128596"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-235"></span><span>        </span><span id="local-6989586621679128597"><span class="annot"><span class="annottext">ReadResourceResult
+</span><a href="#local-6989586621679128597"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ResourceReadHandler
+</span><a href="#local-6989586621679128595"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">ReadResourceRequest
+</span><a href="#local-6989586621679128596"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-236"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ReadResourceResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReadResourceResult
+</span><a href="#local-6989586621679128597"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-237"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621679128598"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128598"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; IOError) -&gt; [Char] -&gt; IOError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Invalid resource read parameters: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128598"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>    </span><span class="annot"><span class="annottext">Maybe ResourceReadHandler
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;No resource read handler registered&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="annot"><span class="hs-comment">-- | Register list tools handler</span></span><span>
+</span><span id="line-241"></span><span class="annot"><a href="Network.MCP.Server.html#registerListToolsHandler"><span class="hs-identifier hs-type">registerListToolsHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span id="registerListToolsHandler"><span class="annot"><span class="annottext">registerListToolsHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListToolsHandler"><span class="hs-identifier hs-var hs-var">registerListToolsHandler</span></a></span></span><span> </span><span id="local-6989586621679128599"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128599"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128599"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;tools/list&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679128600"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128600"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-243"></span><span>  </span><span id="local-6989586621679128601"><span class="annot"><span class="annottext">[Tool]
+</span><a href="#local-6989586621679128601"><span class="hs-identifier hs-var">tools</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar [Tool] -&gt; IO [Tool]
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Tool]
+</span><a href="Network.MCP.Server.Types.html#serverTools"><span class="hs-identifier hs-var">serverTools</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128600"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128602"><span class="annot"><span class="annottext">result :: ListToolsResult
+</span><a href="#local-6989586621679128602"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Tool] -&gt; ListToolsResult
+</span><a href="Network.MCP.Types.html#ListToolsResult"><span class="hs-identifier hs-var">ListToolsResult</span></a></span><span> </span><span class="annot"><span class="annottext">[Tool]
+</span><a href="#local-6989586621679128601"><span class="hs-identifier hs-var">tools</span></a></span><span>
+</span><span id="line-245"></span><span>  </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ListToolsResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ListToolsResult
+</span><a href="#local-6989586621679128602"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="annot"><span class="hs-comment">-- | Register call tool handler</span></span><span>
+</span><span id="line-248"></span><span class="annot"><a href="Network.MCP.Server.html#registerCallToolHandler"><span class="hs-identifier hs-type">registerCallToolHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span id="registerCallToolHandler"><span class="annot"><span class="annottext">registerCallToolHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerCallToolHandler"><span class="hs-identifier hs-var hs-var">registerCallToolHandler</span></a></span></span><span> </span><span id="local-6989586621679128604"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128604"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128604"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;tools/call&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679128605"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128605"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621679128606"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128606"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-250"></span><span>  </span><span id="local-6989586621679128607"><span class="annot"><span class="annottext">Maybe ToolCallHandler
+</span><a href="#local-6989586621679128607"><span class="hs-identifier hs-var">handlerM</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe ToolCallHandler) -&gt; IO (Maybe ToolCallHandler)
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe ToolCallHandler)
+</span><a href="Network.MCP.Server.Types.html#serverToolCallHandler"><span class="hs-identifier hs-var">serverToolCallHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128606"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ToolCallHandler
+</span><a href="#local-6989586621679128607"><span class="hs-identifier hs-var">handlerM</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-252"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679128608"><span class="annot"><span class="annottext">ToolCallHandler
+</span><a href="#local-6989586621679128608"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result CallToolRequest
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128605"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-253"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621679128609"><span class="annot"><span class="annottext">CallToolRequest
+</span><a href="#local-6989586621679128609"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-254"></span><span>        </span><span id="local-6989586621679128610"><span class="annot"><span class="annottext">CallToolResult
+</span><a href="#local-6989586621679128610"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ToolCallHandler
+</span><a href="#local-6989586621679128608"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">CallToolRequest
+</span><a href="#local-6989586621679128609"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-255"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CallToolResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">CallToolResult
+</span><a href="#local-6989586621679128610"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-256"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621679128611"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128611"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; IOError) -&gt; [Char] -&gt; IOError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Invalid tool call parameters: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128611"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>    </span><span class="annot"><span class="annottext">Maybe ToolCallHandler
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;No tool call handler registered&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-258"></span><span>
+</span><span id="line-259"></span><span class="annot"><span class="hs-comment">-- | Register list prompts handler</span></span><span>
+</span><span id="line-260"></span><span class="annot"><a href="Network.MCP.Server.html#registerListPromptsHandler"><span class="hs-identifier hs-type">registerListPromptsHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span id="registerListPromptsHandler"><span class="annot"><span class="annottext">registerListPromptsHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerListPromptsHandler"><span class="hs-identifier hs-var hs-var">registerListPromptsHandler</span></a></span></span><span> </span><span id="local-6989586621679128612"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128612"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128612"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;prompts/list&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679128613"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128613"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-262"></span><span>  </span><span id="local-6989586621679128614"><span class="annot"><span class="annottext">[Prompt]
+</span><a href="#local-6989586621679128614"><span class="hs-identifier hs-var">prompts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar [Prompt] -&gt; IO [Prompt]
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar [Prompt]
+</span><a href="Network.MCP.Server.Types.html#serverPrompts"><span class="hs-identifier hs-var">serverPrompts</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128613"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679128615"><span class="annot"><span class="annottext">result :: ListPromptsResult
+</span><a href="#local-6989586621679128615"><span class="hs-identifier hs-var hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Prompt] -&gt; ListPromptsResult
+</span><a href="Network.MCP.Types.html#ListPromptsResult"><span class="hs-identifier hs-var">ListPromptsResult</span></a></span><span> </span><span class="annot"><span class="annottext">[Prompt]
+</span><a href="#local-6989586621679128614"><span class="hs-identifier hs-var">prompts</span></a></span><span>
+</span><span id="line-264"></span><span>  </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ListPromptsResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ListPromptsResult
+</span><a href="#local-6989586621679128615"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span class="annot"><span class="hs-comment">-- | Register get prompt handler</span></span><span>
+</span><span id="line-267"></span><span class="annot"><a href="Network.MCP.Server.html#registerGetPromptHandler"><span class="hs-identifier hs-type">registerGetPromptHandler</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Server.Types.html#Server"><span class="hs-identifier hs-type">Server</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span id="registerGetPromptHandler"><span class="annot"><span class="annottext">registerGetPromptHandler :: Server -&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerGetPromptHandler"><span class="hs-identifier hs-var hs-var">registerGetPromptHandler</span></a></span></span><span> </span><span id="local-6989586621679128617"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128617"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Server
+-&gt; Text
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value))
+-&gt; IO ()
+</span><a href="Network.MCP.Server.html#registerRequestHandler"><span class="hs-identifier hs-var">registerRequestHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128617"><span class="hs-identifier hs-var">server</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;prompts/get&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ())
+-&gt; (Value -&gt; Server -&gt; IO (Either SomeException Value)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679128618"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128618"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621679128619"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128619"><span class="hs-identifier hs-var">svr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-269"></span><span>  </span><span id="local-6989586621679128620"><span class="annot"><span class="annottext">Maybe PromptHandler
+</span><a href="#local-6989586621679128620"><span class="hs-identifier hs-var">handlerM</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe PromptHandler) -&gt; IO (Maybe PromptHandler)
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Server -&gt; TVar (Maybe PromptHandler)
+</span><a href="Network.MCP.Server.Types.html#serverPromptHandler"><span class="hs-identifier hs-var">serverPromptHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679128619"><span class="hs-identifier hs-var">svr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe PromptHandler
+</span><a href="#local-6989586621679128620"><span class="hs-identifier hs-var">handlerM</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-271"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679128621"><span class="annot"><span class="annottext">PromptHandler
+</span><a href="#local-6989586621679128621"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result GetPromptRequest
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679128618"><span class="hs-identifier hs-var">params</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-272"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621679128622"><span class="annot"><span class="annottext">GetPromptRequest
+</span><a href="#local-6989586621679128622"><span class="hs-identifier hs-var">req</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-273"></span><span>        </span><span id="local-6989586621679128623"><span class="annot"><span class="annottext">GetPromptResult
+</span><a href="#local-6989586621679128623"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PromptHandler
+</span><a href="#local-6989586621679128621"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">GetPromptRequest
+</span><a href="#local-6989586621679128622"><span class="hs-identifier hs-var">req</span></a></span><span>
+</span><span id="line-274"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either SomeException Value
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Either SomeException Value)
+-&gt; Value -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GetPromptResult -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">GetPromptResult
+</span><a href="#local-6989586621679128623"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-275"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621679128624"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128624"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; IOError) -&gt; [Char] -&gt; IOError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Invalid get prompt parameters: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679128624"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>    </span><span class="annot"><span class="annottext">Maybe PromptHandler
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either SomeException Value -&gt; IO (Either SomeException Value))
+-&gt; Either SomeException Value -&gt; IO (Either SomeException Value)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Either SomeException Value
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Either SomeException Value)
+-&gt; SomeException -&gt; Either SomeException Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IOError -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">toException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;No prompt handler registered&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span></pre></body></html>

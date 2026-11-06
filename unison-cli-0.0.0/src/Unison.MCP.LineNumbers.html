@@ -1,0 +1,473 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | UCM quotes the line it is complaining about with a number that counts from the start of the code block it was</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- given (@2 | double n = n * &quot;two&quot;@). Rewrite those numbers to count from the start of the transcript, so that the caller</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- can go straight to the line without adding anything up.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Only messages about the transcript's own @unison@ blocks are touched. Messages about a file that a command loaded,</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- like @load foo.u@, already have that file's line numbers and are left alone.</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.LineNumbers.html"><span class="hs-identifier">Unison.MCP.LineNumbers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.MCP.LineNumbers.html#absolutizeLineNumbers"><span class="hs-identifier">absolutizeLineNumbers</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#unisonBlockStarts"><span class="hs-identifier">unisonBlockStarts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">CMark</span></span><span> </span><span class="hs-keyword">qualified</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isDigit</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html"><span class="hs-identifier">Unison.Codebase.Transcript</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><span class="hs-comment">-- | Where the code of each @unison@ block in the source starts, 1-based: the line after its opening fence.</span></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Unison.MCP.LineNumbers.html#unisonBlockStarts"><span class="hs-identifier hs-type">unisonBlockStarts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-17"></span><span id="unisonBlockStarts"><span class="annot"><span class="annottext">unisonBlockStarts :: Text -&gt; [Int]
+</span><a href="Unison.MCP.LineNumbers.html#unisonBlockStarts"><span class="hs-identifier hs-var hs-var">unisonBlockStarts</span></a></span></span><span> </span><span id="local-6989586621681591356"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591356"><span class="hs-identifier hs-var">source</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591357"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">NodeType
+</span><span class="hs-identifier hs-var">CMark.DOCUMENT</span></span><span> </span><span id="local-6989586621681591361"><span class="annot"><span class="annottext">[Node]
+</span><a href="#local-6989586621681591361"><span class="hs-identifier hs-var">blocks</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[CMarkOption] -&gt; Text -&gt; Node
+</span><span class="hs-identifier hs-var">CMark.commonmarkToNode</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CMarkOption
+</span><span class="hs-identifier hs-var">CMark.optSourcePos</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591356"><span class="hs-identifier hs-var">source</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CMark.PosInfo</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">startLine :: PosInfo -&gt; Int
+</span><span class="hs-identifier hs-var">CMark.startLine</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621681591357"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591357"><span class="hs-identifier hs-var">line</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CMark.CODE_BLOCK</span></span><span> </span><span id="local-6989586621681591367"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591367"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Node]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Node]
+</span><a href="#local-6989586621681591361"><span class="hs-identifier hs-var">blocks</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;unison&quot;</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.words</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591367"><span class="hs-identifier hs-var">info</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | The transcript that was run (its output), the source it was run from, and what to call that source (for the note</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- this adds when it changes something). If the blocks can't be matched up with the source, nothing is changed.</span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Unison.MCP.LineNumbers.html#absolutizeLineNumbers"><span class="hs-identifier hs-type">absolutizeLineNumbers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-type">Transcript</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-type">Transcript</span></a></span><span>
+</span><span id="line-27"></span><span id="absolutizeLineNumbers"><span class="annot"><span class="annottext">absolutizeLineNumbers :: Text -&gt; Text -&gt; Transcript -&gt; Transcript
+</span><a href="Unison.MCP.LineNumbers.html#absolutizeLineNumbers"><span class="hs-identifier hs-var hs-var">absolutizeLineNumbers</span></a></span></span><span> </span><span id="local-6989586621681591369"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591369"><span class="hs-identifier hs-var">sourceName</span></a></span></span><span> </span><span id="local-6989586621681591370"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591370"><span class="hs-identifier hs-var">source</span></a></span></span><span> </span><span id="local-6989586621681591371"><span class="annot"><span class="annottext">transcript :: Transcript
+</span><a href="#local-6989586621681591371"><span class="hs-identifier hs-var">transcript</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-type">Transcript</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681591373"><span class="annot"><span class="annottext">[Stanza]
+stanzas :: [Stanza]
+stanzas :: Transcript -&gt; [Stanza]
+</span><a href="#local-6989586621681591373"><span class="hs-identifier hs-var hs-var">stanzas</span></a></span></span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591376"><span class="hs-identifier hs-var">starts</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">[()] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[()]
+</span><a href="#local-6989586621681591378"><span class="hs-identifier hs-var">userUnisonBlocks</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681591371"><span class="hs-identifier hs-var">transcript</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591380"><span class="hs-identifier hs-var">changed</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681591371"><span class="hs-identifier hs-var">transcript</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681591371"><span class="hs-identifier hs-var">transcript</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Codebase.Transcript.html#stanzas"><span class="hs-identifier hs-var">stanzas</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681591381"><span class="hs-identifier hs-type">rewritten</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621681591382"><span class="hs-identifier hs-type">note</span></a></span><span class="hs-special">]</span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621681591376"><span class="annot"><span class="annottext">starts :: [Int]
+</span><a href="#local-6989586621681591376"><span class="hs-identifier hs-var hs-var">starts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Int]
+</span><a href="Unison.MCP.LineNumbers.html#unisonBlockStarts"><span class="hs-identifier hs-var">unisonBlockStarts</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591370"><span class="hs-identifier hs-var">source</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621681591378"><span class="annot"><span class="annottext">userUnisonBlocks :: [()]
+</span><a href="#local-6989586621681591378"><span class="hs-identifier hs-var hs-var">userUnisonBlocks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-type">Unison</span></a></span><span> </span><span id="local-6989586621681591384"><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681591384"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591373"><span class="hs-identifier hs-var">stanzas</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InfoTags (Maybe Text) -&gt; Bool
+forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#generated"><span class="hs-identifier hs-var">generated</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681591384"><span class="hs-identifier hs-var">tags</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681591381"><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591381"><span class="hs-identifier hs-var">rewritten</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591380"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591380"><span class="hs-identifier hs-var">changed</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; [Stanza] -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591386"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591376"><span class="hs-identifier hs-var">starts</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591373"><span class="hs-identifier hs-var">stanzas</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621681591382"><span class="annot"><span class="annottext">note :: Stanza
+</span><a href="#local-6989586621681591382"><span class="hs-identifier hs-var hs-var">note</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="annottext">Node -&gt; Stanza
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(Node -&gt; Stanza) -&gt; ([Node] -&gt; Node) -&gt; [Node] -&gt; Stanza
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo -&gt; NodeType -&gt; [Node] -&gt; Node
+</span><span class="hs-identifier hs-var">CMark.Node</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">NodeType
+</span><span class="hs-identifier hs-var">CMark.PARAGRAPH</span></span><span> </span><span class="annot"><span class="annottext">([Node] -&gt; Stanza) -&gt; [Node] -&gt; Stanza
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-37"></span><span>        </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe PosInfo -&gt; NodeType -&gt; [Node] -&gt; Node
+</span><span class="hs-identifier hs-var">CMark.Node</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; NodeType
+</span><span class="hs-identifier hs-var">CMark.TEXT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Line numbers in the messages above are lines of &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591369"><span class="hs-identifier hs-var">sourceName</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-comment">-- The pending state is where the code of the `unison` block whose messages we are in starts, and how long it is.</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="#local-6989586621681591386"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Stanza"><span class="hs-identifier hs-type">Stanza</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Stanza"><span class="hs-identifier hs-type">Stanza</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621681591386"><span class="annot"><span class="annottext">go :: [Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; [Stanza] -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591386"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="#local-6989586621681591386"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621681591390"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span></span><span> </span><span id="local-6989586621681591391"><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span></span><span> </span><span id="local-6989586621681591392"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591392"><span class="hs-identifier hs-var">afterMarker</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591393"><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681591394"><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591394"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-type">Unison</span></a></span><span> </span><span id="local-6989586621681591395"><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681591395"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span id="local-6989586621681591396"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591396"><span class="hs-identifier hs-var">code</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InfoTags (Maybe Text) -&gt; Bool
+forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#generated"><span class="hs-identifier hs-var">generated</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags (Maybe Text)
+</span><a href="#local-6989586621681591395"><span class="hs-identifier hs-var">tags</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>            </span><span id="local-6989586621681591397"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591397"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681591398"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591398"><span class="hs-identifier hs-var">remaining'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-47"></span><span>              </span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; Stanza -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591399"><span class="hs-identifier hs-var">continue</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591398"><span class="hs-identifier hs-var">remaining'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int) -&gt; Maybe (Int, Int)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591397"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.lines</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591396"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-comment">-- What UCM said about the block that was just loaded.</span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#Ucm"><span class="hs-identifier hs-type">Ucm</span></a></span><span> </span><span id="local-6989586621681591402"><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681591402"><span class="hs-identifier hs-var">tags</span></a></span></span><span> </span><span id="local-6989586621681591403"><span class="annot"><span class="annottext">[UcmLine]
+</span><a href="#local-6989586621681591403"><span class="hs-identifier hs-var">ucmLines</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">InfoTags () -&gt; Bool
+forall a. InfoTags a -&gt; Bool
+</span><a href="Unison.Codebase.Transcript.html#generated"><span class="hs-identifier hs-var">generated</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681591402"><span class="hs-identifier hs-var">tags</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591404"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591404"><span class="hs-identifier hs-var">start</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591405"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591405"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-52"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681591406"><span class="annot"><span class="annottext">rewrites :: [(UcmLine, Bool)]
+</span><a href="#local-6989586621681591406"><span class="hs-identifier hs-var hs-var">rewrites</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; UcmLine -&gt; (UcmLine, Bool)
+</span><a href="#local-6989586621681591407"><span class="hs-identifier hs-var">rewriteUcmLine</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591404"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591405"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">(UcmLine -&gt; (UcmLine, Bool)) -&gt; [UcmLine] -&gt; [(UcmLine, Bool)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[UcmLine]
+</span><a href="#local-6989586621681591403"><span class="hs-identifier hs-var">ucmLines</span></a></span><span>
+</span><span id="line-53"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Stanza -&gt; Bool -&gt; ([Stanza], Bool) -&gt; ([Stanza], Bool)
+forall {a}. a -&gt; Bool -&gt; ([a], Bool) -&gt; ([a], Bool)
+</span><a href="#local-6989586621681591409"><span class="hs-identifier hs-var">prepend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProcessedBlock -&gt; Stanza
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InfoTags () -&gt; [UcmLine] -&gt; ProcessedBlock
+</span><a href="Unison.Codebase.Transcript.html#Ucm"><span class="hs-identifier hs-var">Ucm</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><a href="#local-6989586621681591402"><span class="hs-identifier hs-var">tags</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(UcmLine, Bool) -&gt; UcmLine
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">((UcmLine, Bool) -&gt; UcmLine) -&gt; [(UcmLine, Bool)] -&gt; [UcmLine]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[(UcmLine, Bool)]
+</span><a href="#local-6989586621681591406"><span class="hs-identifier hs-var">rewrites</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((UcmLine, Bool) -&gt; Bool) -&gt; [(UcmLine, Bool)] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">(UcmLine, Bool) -&gt; Bool
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">[(UcmLine, Bool)]
+</span><a href="#local-6989586621681591406"><span class="hs-identifier hs-var">rewrites</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; [Stanza] -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591386"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591394"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">ProcessedBlock
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; Stanza -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591399"><span class="hs-identifier hs-var">continue</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-comment">-- A failed transcript ends with a marker, then the error, which for a failing `unison` block is about that block.</span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">NodeType
+</span><span class="hs-identifier hs-var">CMark.PARAGRAPH</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">CMark.Node</span></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CMark.TEXT</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&#128721;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Node]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; Stanza -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591399"><span class="hs-identifier hs-var">continue</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Transcript.html#CMarkCodeBlock"><span class="hs-identifier hs-type">CMarkCodeBlock</span></a></span><span> </span><span id="local-6989586621681591414"><span class="annot"><span class="annottext">Maybe PosInfo
+</span><a href="#local-6989586621681591414"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span id="local-6989586621681591415"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591415"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591392"><span class="hs-identifier hs-var">afterMarker</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591416"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591416"><span class="hs-identifier hs-var">start</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591417"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591417"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591418"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591418"><span class="hs-identifier hs-var">body'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591419"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591419"><span class="hs-identifier hs-var">didChange</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Text -&gt; (Text, Bool)
+</span><a href="Unison.MCP.LineNumbers.html#rewriteText"><span class="hs-identifier hs-var">rewriteText</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591416"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591417"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591415"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-61"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Stanza -&gt; Bool -&gt; ([Stanza], Bool) -&gt; ([Stanza], Bool)
+forall {a}. a -&gt; Bool -&gt; ([a], Bool) -&gt; ([a], Bool)
+</span><a href="#local-6989586621681591409"><span class="hs-identifier hs-var">prepend</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Node -&gt; Stanza
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe PosInfo -&gt; Text -&gt; Text -&gt; Node
+</span><a href="Unison.Codebase.Transcript.html#CMarkCodeBlock"><span class="hs-identifier hs-var">CMarkCodeBlock</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe PosInfo
+</span><a href="#local-6989586621681591414"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591418"><span class="hs-identifier hs-var">body'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591419"><span class="hs-identifier hs-var">didChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; [Stanza] -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591386"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591392"><span class="hs-identifier hs-var">afterMarker</span></a></span><span> </span><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591394"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">Node
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; Stanza -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591399"><span class="hs-identifier hs-var">continue</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591390"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591391"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591392"><span class="hs-identifier hs-var">afterMarker</span></a></span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591393"><span class="hs-identifier hs-var">stanza</span></a></span><span>
+</span><span id="line-63"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>        </span><span id="local-6989586621681591399"><span class="annot"><span class="annottext">continue :: [Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; Stanza -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591399"><span class="hs-identifier hs-var hs-var">continue</span></a></span></span><span> </span><span id="local-6989586621681591421"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591421"><span class="hs-identifier hs-var">remaining'</span></a></span></span><span> </span><span id="local-6989586621681591422"><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591422"><span class="hs-identifier hs-var">pending'</span></a></span></span><span> </span><span id="local-6989586621681591423"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591423"><span class="hs-identifier hs-var">afterMarker'</span></a></span></span><span> </span><span id="local-6989586621681591424"><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591424"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stanza -&gt; Bool -&gt; ([Stanza], Bool) -&gt; ([Stanza], Bool)
+forall {a}. a -&gt; Bool -&gt; ([a], Bool) -&gt; ([a], Bool)
+</span><a href="#local-6989586621681591409"><span class="hs-identifier hs-var">prepend</span></a></span><span> </span><span class="annot"><span class="annottext">Stanza
+</span><a href="#local-6989586621681591424"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Maybe (Int, Int) -&gt; Bool -&gt; [Stanza] -&gt; ([Stanza], Bool)
+</span><a href="#local-6989586621681591386"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621681591421"><span class="hs-identifier hs-var">remaining'</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Int, Int)
+</span><a href="#local-6989586621681591422"><span class="hs-identifier hs-var">pending'</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591423"><span class="hs-identifier hs-var">afterMarker'</span></a></span><span> </span><span class="annot"><span class="annottext">[Stanza]
+</span><a href="#local-6989586621681591394"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>        </span><span id="local-6989586621681591409"><span class="annot"><span class="annottext">prepend :: a -&gt; Bool -&gt; ([a], Bool) -&gt; ([a], Bool)
+</span><a href="#local-6989586621681591409"><span class="hs-identifier hs-var hs-var">prepend</span></a></span></span><span> </span><span id="local-6989586621681591425"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681591425"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621681591426"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591426"><span class="hs-identifier hs-var">didChange</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591427"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681591427"><span class="hs-identifier hs-var">others</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591428"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591428"><span class="hs-identifier hs-var">changedLater</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681591425"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621681591427"><span class="hs-identifier hs-var">others</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591426"><span class="hs-identifier hs-var">didChange</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591428"><span class="hs-identifier hs-var">changedLater</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621681591407"><span class="annot"><span class="annottext">rewriteUcmLine :: Int -&gt; Int -&gt; UcmLine -&gt; (UcmLine, Bool)
+</span><a href="#local-6989586621681591407"><span class="hs-identifier hs-var hs-var">rewriteUcmLine</span></a></span></span><span> </span><span id="local-6989586621681591430"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591430"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621681591431"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591431"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmOutputLine"><span class="hs-identifier hs-type">UcmOutputLine</span></a></span><span> </span><span id="local-6989586621681591433"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591433"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591434"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591434"><span class="hs-identifier hs-var">text'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591435"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591435"><span class="hs-identifier hs-var">didChange</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Text -&gt; (Text, Bool)
+</span><a href="Unison.MCP.LineNumbers.html#rewriteText"><span class="hs-identifier hs-var">rewriteText</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591430"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591431"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591433"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; UcmLine
+</span><a href="Unison.Codebase.Transcript.html#UcmOutputLine"><span class="hs-identifier hs-var">UcmOutputLine</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591434"><span class="hs-identifier hs-var">text'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681591435"><span class="hs-identifier hs-var">didChange</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span id="local-6989586621681591436"><span class="annot"><span class="annottext">UcmLine
+</span><a href="#local-6989586621681591436"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UcmLine
+</span><a href="#local-6989586621681591436"><span class="hs-identifier hs-var">line</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Rewrite the lines of a message that quote a line of the block: @&lt;spaces&gt;&lt;n&gt; | &lt;source&gt;@, where @n@ is a line of a</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- block of the given length (or the line just past its end, which is where UCM points when the code ends too soon) that</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- starts at the given line of the transcript.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- The @|@s stay in the same column when the new numbers fit before them. When they don't, they all move right together,</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- so the quoted lines of a message stay lined up whatever the number of digits.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Unison.MCP.LineNumbers.html#rewriteText"><span class="hs-identifier hs-type">rewriteText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span id="rewriteText"><span class="annot"><span class="annottext">rewriteText :: Int -&gt; Int -&gt; Text -&gt; (Text, Bool)
+</span><a href="Unison.MCP.LineNumbers.html#rewriteText"><span class="hs-identifier hs-var hs-var">rewriteText</span></a></span></span><span> </span><span id="local-6989586621681591437"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591437"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621681591438"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591438"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621681591439"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591439"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.intercalate</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Line -&gt; Text
+</span><a href="#local-6989586621681591441"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">(Line -&gt; Text) -&gt; [Line] -&gt; [Text]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Line]
+</span><a href="#local-6989586621681591442"><span class="hs-identifier hs-var">parsed</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Line -&gt; Bool) -&gt; [Line] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">Line -&gt; Bool
+</span><a href="#local-6989586621681591443"><span class="hs-identifier hs-var">isQuote</span></a></span><span> </span><span class="annot"><span class="annottext">[Line]
+</span><a href="#local-6989586621681591442"><span class="hs-identifier hs-var">parsed</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621681591442"><span class="annot"><span class="annottext">parsed :: [Line]
+</span><a href="#local-6989586621681591442"><span class="hs-identifier hs-var hs-var">parsed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Line
+</span><a href="#local-6989586621681591444"><span class="hs-identifier hs-var">parseLine</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Line) -&gt; [Text] -&gt; [Line]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; [Text]
+Text -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.splitOn</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591439"><span class="hs-identifier hs-var">text</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-comment">-- How far the `|`s have to move right so that the longest new number fits.</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621681591446"><span class="annot"><span class="annottext">shift :: Int
+</span><a href="#local-6989586621681591446"><span class="hs-identifier hs-var hs-var">shift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. Ord a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Ord a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">maximum</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; [Int]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591449"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591450"><span class="hs-identifier hs-var">column</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#Quote"><span class="hs-identifier hs-type">Quote</span></a></span><span> </span><span id="local-6989586621681591450"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591450"><span class="hs-identifier hs-var">column</span></a></span></span><span> </span><span id="local-6989586621681591449"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591449"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Line]
+</span><a href="#local-6989586621681591442"><span class="hs-identifier hs-var">parsed</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621681591441"><span class="annot"><span class="annottext">render :: Line -&gt; Text
+</span><a href="#local-6989586621681591441"><span class="hs-identifier hs-var hs-var">render</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#Other"><span class="hs-identifier hs-type">Other</span></a></span><span> </span><span id="local-6989586621681591453"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591453"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591453"><span class="hs-identifier hs-var">line</span></a></span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#Quote"><span class="hs-identifier hs-type">Quote</span></a></span><span> </span><span id="local-6989586621681591454"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591454"><span class="hs-identifier hs-var">column</span></a></span></span><span> </span><span id="local-6989586621681591455"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591455"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span id="local-6989586621681591456"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591456"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.replicate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591454"><span class="hs-identifier hs-var">column</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591446"><span class="hs-identifier hs-var">shift</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591455"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591455"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591456"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621681591443"><span class="annot"><span class="annottext">isQuote :: Line -&gt; Bool
+</span><a href="#local-6989586621681591443"><span class="hs-identifier hs-var hs-var">isQuote</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-90"></span><span>      </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#Quote"><span class="hs-identifier hs-type">Quote</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-91"></span><span>      </span><span class="annot"><a href="Unison.MCP.LineNumbers.html#Other"><span class="hs-identifier hs-type">Other</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621681591444"><span class="annot"><span class="annottext">parseLine :: Text -&gt; Line
+</span><a href="#local-6989586621681591444"><span class="hs-identifier hs-var hs-var">parseLine</span></a></span></span><span> </span><span id="local-6989586621681591458"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591458"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681591459"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591459"><span class="hs-identifier hs-var">spaces</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591460"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591460"><span class="hs-identifier hs-var">afterSpaces</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">Text.span</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591458"><span class="hs-identifier hs-var">line</span></a></span><span>
+</span><span id="line-95"></span><span>          </span><span class="hs-special">(</span><span id="local-6989586621681591462"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591462"><span class="hs-identifier hs-var">digits</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681591463"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591463"><span class="hs-identifier hs-var">afterDigits</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">Text.span</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591460"><span class="hs-identifier hs-var">afterSpaces</span></a></span><span>
+</span><span id="line-96"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Int
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591462"><span class="hs-identifier hs-var">digits</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681591466"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591466"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-98"></span><span>              </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591466"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>                </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591466"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591438"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>                </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; |&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-operator hs-var">`Text.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591463"><span class="hs-identifier hs-var">afterDigits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-101"></span><span>                  </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text -&gt; Line
+</span><a href="Unison.MCP.LineNumbers.html#Quote"><span class="hs-identifier hs-var">Quote</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591459"><span class="hs-identifier hs-var">spaces</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591462"><span class="hs-identifier hs-var">digits</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591437"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681591466"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591463"><span class="hs-identifier hs-var">afterDigits</span></a></span><span>
+</span><span id="line-102"></span><span>            </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Line
+</span><a href="Unison.MCP.LineNumbers.html#Other"><span class="hs-identifier hs-var">Other</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681591458"><span class="hs-identifier hs-var">line</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- | A line of a message that is either a quoted line of the block (the column its number ends in, the new number, and</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- what follows the number) or anything else.</span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span id="Line"><span class="annot"><a href="Unison.MCP.LineNumbers.html#Line"><span class="hs-identifier hs-var">Line</span></a></span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Quote"><span class="annot"><a href="Unison.MCP.LineNumbers.html#Quote"><span class="hs-identifier hs-var">Quote</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Other"><span class="annot"><a href="Unison.MCP.LineNumbers.html#Other"><span class="hs-identifier hs-var">Other</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-109"></span></pre></body></html>

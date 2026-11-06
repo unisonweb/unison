@@ -1,0 +1,383 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  GHC.StgToJS.Linker.Opt</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  Jeffrey Young  &lt;jeffrey.young@iohk.io&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--                Luite Stegeman &lt;luite.stegeman@iohk.io&gt;</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--                Sylvain Henry  &lt;sylvain.henry@iohk.io&gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Optimization pass at link time</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html"><span class="hs-identifier">GHC.StgToJS.Linker.Opt</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#pretty"><span class="hs-identifier">pretty</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#optRenderJs"><span class="hs-identifier">optRenderJs</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Int.html"><span class="hs-identifier">GHC.Int</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html"><span class="hs-identifier">GHC.JS.Syntax</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html"><span class="hs-identifier">GHC.JS.Ppr</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html"><span class="hs-identifier">GHC.Types.Unique.Map</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sortOn</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Char.html"><span class="hs-identifier">Data.Char</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isAlpha</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">isDigit</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">ord</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Short.html"><span class="hs-identifier">Data.ByteString.Short</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SBS</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span id="local-6989586621682372684"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#pretty"><span class="hs-identifier hs-type">pretty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#JsRender"><span class="hs-identifier hs-type">JsRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372684"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JStat"><span class="hs-identifier hs-type">JStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372684"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-44"></span><span id="pretty"><span class="annot"><span class="annottext">pretty :: forall doc. JsRender doc =&gt; Bool -&gt; JStat -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#pretty"><span class="hs-identifier hs-var hs-var">pretty</span></a></span></span><span> </span><span id="local-6989586621682372783"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682372783"><span class="hs-identifier hs-var">render_pretty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="GHC.JS.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">doc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621682372786"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682372786"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682372783"><span class="hs-identifier hs-var">render_pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RenderJs doc -&gt; [JStat] -&gt; doc
+forall doc. JsRender doc =&gt; RenderJs doc -&gt; [JStat] -&gt; doc
+forall a doc. (JsToDoc a, JsRender doc) =&gt; RenderJs doc -&gt; a -&gt; doc
+</span><a href="GHC.JS.Ppr.html#jsToDocR"><span class="hs-identifier hs-var">jsToDocR</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+forall doc. RenderJs doc
+</span><a href="GHC.JS.Ppr.html#defaultRenderJs"><span class="hs-identifier hs-var">defaultRenderJs</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682372786"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RenderJs doc -&gt; [JStat] -&gt; doc
+forall doc. JsRender doc =&gt; RenderJs doc -&gt; [JStat] -&gt; doc
+forall a doc. (JsToDoc a, JsRender doc) =&gt; RenderJs doc -&gt; a -&gt; doc
+</span><a href="GHC.JS.Ppr.html#jsToDocR"><span class="hs-identifier hs-var">jsToDocR</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+forall doc. RenderJs doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#optRenderJs"><span class="hs-identifier hs-var">optRenderJs</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682372786"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span><span>                        </span><span class="hs-comment">-- render as a list of statements to ensure that</span><span>
+</span><span id="line-49"></span><span>                        </span><span class="hs-comment">-- semicolons are added.</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><span class="hs-comment">-- | Render JS with code size minimization enabled</span></span><span>
+</span><span id="line-52"></span><span id="local-6989586621682372789"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#optRenderJs"><span class="hs-identifier hs-type">optRenderJs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#RenderJs"><span class="hs-identifier hs-type">RenderJs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372789"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-53"></span><span id="optRenderJs"><span class="annot"><span class="annottext">optRenderJs :: forall doc. RenderJs doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#optRenderJs"><span class="hs-identifier hs-var hs-var">optRenderJs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+forall doc. RenderJs doc
+</span><a href="GHC.JS.Ppr.html#defaultRenderJs"><span class="hs-identifier hs-var">defaultRenderJs</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#renderJsV"><span class="hs-identifier hs-var">renderJsV</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsV"><span class="hs-identifier hs-type">ghcjsRenderJsV</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#renderJsS"><span class="hs-identifier hs-var">renderJsS</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsS"><span class="hs-identifier hs-type">ghcjsRenderJsS</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#renderJsI"><span class="hs-identifier hs-var">renderJsI</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsI"><span class="hs-identifier hs-type">ghcjsRenderJsI</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#hdd"><span class="hs-identifier hs-type">hdd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Short.Internal.html#ShortByteString"><span class="hs-identifier hs-type">SBS.ShortByteString</span></a></span><span>
+</span><span id="line-60"></span><span id="hdd"><span class="annot"><span class="annottext">hdd :: ShortByteString
+</span><a href="GHC.StgToJS.Linker.Opt.html#hdd"><span class="hs-identifier hs-var hs-var">hdd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ShortByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Short.Internal.html#pack"><span class="hs-identifier hs-var">SBS.pack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Word8) -&gt; [Char] -&gt; [Word8]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; (Char -&gt; Int) -&gt; Char -&gt; Word8
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;h$$&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621682372700"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsI"><span class="hs-identifier hs-type">ghcjsRenderJsI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372700"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#RenderJs"><span class="hs-identifier hs-type">RenderJs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372700"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372700"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-63"></span><span id="ghcjsRenderJsI"><span class="annot"><span class="annottext">ghcjsRenderJsI :: forall doc. IsLine doc =&gt; RenderJs doc -&gt; Ident -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsI"><span class="hs-identifier hs-var hs-var">ghcjsRenderJsI</span></a></span></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ident -&gt; FastString
+</span><a href="GHC.JS.Ident.html#identFS"><span class="hs-identifier hs-var">identFS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682372808"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372808"><span class="hs-identifier hs-var">fs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-comment">-- Fresh symbols are prefixed with &quot;h$$&quot;. They aren't explicitly referred by</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- name in user code, only in compiled code. Hence we can rename them if we do</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-comment">-- it consistently in all the linked code.</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-comment">-- These symbols are usually very large because their name includes the</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-comment">-- unit-id, the module name, and some unique number. So we rename these</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-comment">-- symbols with a much shorter globally unique number.</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-comment">-- Here we reuse their FastString unique for this purpose! Note that it only</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-comment">-- works if we pretty-print all the JS code linked together at once, which we</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- currently do. GHCJS used to maintain a CompactorState to support</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- incremental linking: it contained the mapping between original symbols and</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- their renaming.</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="GHC.StgToJS.Linker.Opt.html#hdd"><span class="hs-identifier hs-var">hdd</span></a></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortByteString -&gt; Bool
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Short.Internal.html#isPrefixOf"><span class="hs-operator hs-var">`SBS.isPrefixOf`</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; ShortByteString
+</span><a href="GHC.Data.FastString.html#fastStringToShortByteString"><span class="hs-identifier hs-var">fastStringToShortByteString</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372808"><span class="hs-identifier hs-var">fs</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682372811"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682372811"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Int
+</span><a href="GHC.Data.FastString.html#uniqueOfFS"><span class="hs-identifier hs-var">uniqueOfFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372808"><span class="hs-identifier hs-var">fs</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; doc
+forall doc. IsLine doc =&gt; [Char] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;h$$&quot;</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; doc
+forall doc. IsLine doc =&gt; Word -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#hexDoc"><span class="hs-identifier hs-var">hexDoc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682372811"><span class="hs-identifier hs-var">u</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; doc
+forall doc. IsLine doc =&gt; FastString -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372808"><span class="hs-identifier hs-var">fs</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Render as an hexadecimal number in reversed order (because it's faster and we</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- don't care about the actual value).</span><span>
+</span><span id="line-85"></span><span id="local-6989586621682372712"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#hexDoc"><span class="hs-identifier hs-type">hexDoc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372712"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372712"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-86"></span><span id="hexDoc"><span class="annot"><span class="annottext">hexDoc :: forall doc. IsLine doc =&gt; Word -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#hexDoc"><span class="hs-identifier hs-var hs-var">hexDoc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#hexDoc"><span class="hs-identifier hs-var">hexDoc</span></a></span><span> </span><span id="local-6989586621682372824"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372824"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; doc
+forall doc. IsLine doc =&gt; [Char] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; doc) -&gt; [Char] -&gt; doc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; [Char]
+</span><a href="#local-6989586621682372825"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372824"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621682372826"><span class="annot"><span class="annottext">sym :: Int -&gt; Char
+</span><a href="#local-6989586621682372826"><span class="hs-identifier hs-var hs-var">sym</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621682372827"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621682372827"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char# -&gt; Char
+</span><span class="hs-identifier hs-var">C#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Addr# -&gt; Int# -&gt; Char#
+</span><span class="hs-identifier hs-var">indexCharOffAddr#</span></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621682372828"><span class="hs-identifier hs-var">chars</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621682372827"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621682372828"><span class="annot"><span class="annottext">chars :: Addr#
+</span><a href="#local-6989586621682372828"><span class="hs-identifier hs-var hs-var">chars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><span class="hs-string">&quot;0123456789abcdef&quot;#</span></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621682372825"><span class="annot"><span class="annottext">go :: Word -&gt; [Char]
+</span><a href="#local-6989586621682372825"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-92"></span><span>      </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-93"></span><span>      </span><span id="local-6989586621682372853"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372853"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><a href="#local-6989586621682372826"><span class="hs-identifier hs-var">sym</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372853"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0x0F</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>           </span><span class="annot"><span class="annottext">Char -&gt; [Char] -&gt; [Char]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><a href="#local-6989586621682372826"><span class="hs-identifier hs-var">sym</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372853"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0xF0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int -&gt; Word
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>           </span><span class="annot"><span class="annottext">Char -&gt; [Char] -&gt; [Char]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; [Char]
+</span><a href="#local-6989586621682372825"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682372853"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int -&gt; Word
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-operator hs-var">`shiftR`</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- attempt to resugar some of the common constructs</span><span>
+</span><span id="line-101"></span><span id="local-6989586621682372698"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsS"><span class="hs-identifier hs-type">ghcjsRenderJsS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#JsRender"><span class="hs-identifier hs-type">JsRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372698"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#RenderJs"><span class="hs-identifier hs-type">RenderJs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372698"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JStat"><span class="hs-identifier hs-type">JStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372698"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-102"></span><span id="ghcjsRenderJsS"><span class="annot"><span class="annottext">ghcjsRenderJsS :: forall doc. JsRender doc =&gt; RenderJs doc -&gt; JStat -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsS"><span class="hs-identifier hs-var hs-var">ghcjsRenderJsS</span></a></span></span><span> </span><span id="local-6989586621682372858"><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372858"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621682372859"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682372859"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RenderJs doc -&gt; JsRender doc =&gt; RenderJs doc -&gt; JStat -&gt; doc
+forall doc.
+RenderJs doc -&gt; JsRender doc =&gt; RenderJs doc -&gt; JStat -&gt; doc
+</span><a href="GHC.JS.Ppr.html#renderJsS"><span class="hs-identifier hs-var">renderJsS</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+forall doc. RenderJs doc
+</span><a href="GHC.JS.Ppr.html#defaultRenderJs"><span class="hs-identifier hs-var">defaultRenderJs</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372858"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682372859"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- don't quote keys in our object literals, so closure compiler works</span><span>
+</span><span id="line-105"></span><span id="local-6989586621682372697"><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsV"><span class="hs-identifier hs-type">ghcjsRenderJsV</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#JsRender"><span class="hs-identifier hs-type">JsRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372697"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Ppr.html#RenderJs"><span class="hs-identifier hs-type">RenderJs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372697"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372697"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-106"></span><span id="ghcjsRenderJsV"><span class="annot"><span class="annottext">ghcjsRenderJsV :: forall doc. JsRender doc =&gt; RenderJs doc -&gt; JVal -&gt; doc
+</span><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsV"><span class="hs-identifier hs-var hs-var">ghcjsRenderJsV</span></a></span></span><span> </span><span id="local-6989586621682372880"><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372880"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JHash"><span class="hs-identifier hs-type">JHash</span></a></span><span> </span><span id="local-6989586621682372882"><span class="annot"><span class="annottext">UniqMap FastString JExpr
+</span><a href="#local-6989586621682372882"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UniqMap FastString JExpr -&gt; Bool
+forall k a. UniqMap k a -&gt; Bool
+</span><a href="GHC.Types.Unique.Map.html#isNullUniqMap"><span class="hs-identifier hs-var">isNullUniqMap</span></a></span><span> </span><span class="annot"><span class="annottext">UniqMap FastString JExpr
+</span><a href="#local-6989586621682372882"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; doc
+forall doc. IsLine doc =&gt; [Char] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;{}&quot;</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc
+forall doc. JsRender doc =&gt; doc -&gt; doc
+</span><a href="GHC.JS.Ppr.html#braceNest"><span class="hs-identifier hs-var">braceNest</span></a></span><span> </span><span class="annot"><span class="annottext">(doc -&gt; doc)
+-&gt; ([(FastString, JExpr)] -&gt; doc) -&gt; [(FastString, JExpr)] -&gt; doc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[doc] -&gt; doc
+forall doc. IsLine doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#fsep"><span class="hs-identifier hs-var">fsep</span></a></span><span> </span><span class="annot"><span class="annottext">([doc] -&gt; doc)
+-&gt; ([(FastString, JExpr)] -&gt; [doc]) -&gt; [(FastString, JExpr)] -&gt; doc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; [doc] -&gt; [doc]
+forall doc. IsLine doc =&gt; doc -&gt; [doc] -&gt; [doc]
+</span><a href="GHC.Utils.Outputable.html#punctuate"><span class="hs-identifier hs-var">punctuate</span></a></span><span> </span><span class="annot"><span class="annottext">doc
+forall doc. IsLine doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#comma"><span class="hs-identifier hs-var">comma</span></a></span><span> </span><span class="annot"><span class="annottext">([doc] -&gt; [doc])
+-&gt; ([(FastString, JExpr)] -&gt; [doc])
+-&gt; [(FastString, JExpr)]
+-&gt; [doc]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-109"></span><span>                          </span><span class="annot"><span class="annottext">((FastString, JExpr) -&gt; doc) -&gt; [(FastString, JExpr)] -&gt; [doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682372888"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372888"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682372889"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682372889"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; doc
+forall doc. IsLine doc =&gt; FastString -&gt; doc
+</span><a href="#local-6989586621682372890"><span class="hs-identifier hs-var">quoteIfRequired</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372888"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">doc
+forall doc. IsLine doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#colon"><span class="hs-identifier hs-var">colon</span></a></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc -&gt; JExpr -&gt; doc
+forall doc. JsRender doc =&gt; RenderJs doc -&gt; JExpr -&gt; doc
+forall a doc. (JsToDoc a, JsRender doc) =&gt; RenderJs doc -&gt; a -&gt; doc
+</span><a href="GHC.JS.Ppr.html#jsToDocR"><span class="hs-identifier hs-var">jsToDocR</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372880"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682372889"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>                          </span><span class="hs-comment">-- nonDetEltsUniqMap doesn't introduce non-determinism here because</span><span>
+</span><span id="line-111"></span><span>                          </span><span class="hs-comment">-- we sort the elements lexically</span><span>
+</span><span id="line-112"></span><span>                          </span><span class="annot"><span class="annottext">([(FastString, JExpr)] -&gt; [doc])
+-&gt; ([(FastString, JExpr)] -&gt; [(FastString, JExpr)])
+-&gt; [(FastString, JExpr)]
+-&gt; [doc]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((FastString, JExpr) -&gt; LexicalFastString)
+-&gt; [(FastString, JExpr)] -&gt; [(FastString, JExpr)]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortOn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; LexicalFastString
+</span><a href="GHC.Data.FastString.html#LexicalFastString"><span class="hs-identifier hs-var">LexicalFastString</span></a></span><span> </span><span class="annot"><span class="annottext">(FastString -&gt; LexicalFastString)
+-&gt; ((FastString, JExpr) -&gt; FastString)
+-&gt; (FastString, JExpr)
+-&gt; LexicalFastString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(FastString, JExpr) -&gt; FastString
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([(FastString, JExpr)] -&gt; doc) -&gt; [(FastString, JExpr)] -&gt; doc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UniqMap FastString JExpr -&gt; [(FastString, JExpr)]
+forall k a. UniqMap k a -&gt; [(k, a)]
+</span><a href="GHC.Types.Unique.Map.html#nonDetUniqMapToList"><span class="hs-identifier hs-var">nonDetUniqMapToList</span></a></span><span> </span><span class="annot"><span class="annottext">UniqMap FastString JExpr
+</span><a href="#local-6989586621682372882"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621682372896"><span class="annot"><a href="#local-6989586621682372890"><span class="hs-identifier hs-type">quoteIfRequired</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#IsLine"><span class="hs-identifier hs-type">IsLine</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682372896"><span class="hs-identifier hs-type">doc</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682372896"><span class="hs-identifier hs-type">doc</span></a></span></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621682372890"><span class="annot"><span class="annottext">quoteIfRequired :: forall doc. IsLine doc =&gt; FastString -&gt; doc
+</span><a href="#local-6989586621682372890"><span class="hs-identifier hs-var hs-var">quoteIfRequired</span></a></span></span><span> </span><span id="local-6989586621682372904"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372904"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Bool
+</span><a href="#local-6989586621682372905"><span class="hs-identifier hs-var">isUnquotedKey</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372904"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; doc
+forall doc. IsLine doc =&gt; FastString -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372904"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\''</span></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; doc
+forall doc. IsLine doc =&gt; FastString -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#ftext"><span class="hs-identifier hs-var">ftext</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372904"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">doc -&gt; doc -&gt; doc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; doc
+forall doc. IsLine doc =&gt; Char -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#char"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\''</span></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><a href="#local-6989586621682372905"><span class="hs-identifier hs-type">isUnquotedKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621682372905"><span class="annot"><span class="annottext">isUnquotedKey :: FastString -&gt; Bool
+</span><a href="#local-6989586621682372905"><span class="hs-identifier hs-var hs-var">isUnquotedKey</span></a></span></span><span> </span><span id="local-6989586621682372906"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372906"><span class="hs-identifier hs-var">fs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; [Char]
+</span><a href="GHC.Data.FastString.html#unpackFS"><span class="hs-identifier hs-var">unpackFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682372906"><span class="hs-identifier hs-var">fs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-121"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-122"></span><span>      </span><span id="local-6989586621682372908"><span class="annot"><span class="annottext">s :: [Char]
+</span><a href="#local-6989586621682372908"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621682372909"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372909"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682372910"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621682372910"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621682372908"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621682372913"><span class="hs-identifier hs-var">validFirstIdent</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372909"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621682372915"><span class="hs-identifier hs-var">validOtherIdent</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621682372910"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621682372913"><span class="annot"><span class="annottext">validFirstIdent :: Char -&gt; Bool
+</span><a href="#local-6989586621682372913"><span class="hs-identifier hs-var hs-var">validFirstIdent</span></a></span></span><span> </span><span id="local-6989586621682372919"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372919"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372919"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372919"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'$'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlpha</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372919"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621682372915"><span class="annot"><span class="annottext">validOtherIdent :: Char -&gt; Bool
+</span><a href="#local-6989586621682372915"><span class="hs-identifier hs-var hs-var">validOtherIdent</span></a></span></span><span> </span><span id="local-6989586621682372920"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372920"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlpha</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372920"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621682372920"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="annot"><a href="GHC.StgToJS.Linker.Opt.html#ghcjsRenderJsV"><span class="hs-identifier hs-var">ghcjsRenderJsV</span></a></span><span> </span><span id="local-6989586621682372921"><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372921"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621682372922"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682372922"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RenderJs doc -&gt; JsRender doc =&gt; RenderJs doc -&gt; JVal -&gt; doc
+forall doc.
+RenderJs doc -&gt; JsRender doc =&gt; RenderJs doc -&gt; JVal -&gt; doc
+</span><a href="GHC.JS.Ppr.html#renderJsV"><span class="hs-identifier hs-var">renderJsV</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+forall doc. RenderJs doc
+</span><a href="GHC.JS.Ppr.html#defaultRenderJs"><span class="hs-identifier hs-var">defaultRenderJs</span></a></span><span> </span><span class="annot"><span class="annottext">RenderJs doc
+</span><a href="#local-6989586621682372921"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682372922"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-128"></span></pre></body></html>

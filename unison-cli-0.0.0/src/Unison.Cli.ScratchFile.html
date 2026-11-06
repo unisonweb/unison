@@ -1,0 +1,152 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Scratch files for the actions that must produce a branch that compiles (@update@, @delete@, @merge@, @pull@ and</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- @upgrade@). When one of them can't, it leaves the user on a temporary branch, with a scratch file of the definitions</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- that need fixing. That file gets its own name, like @merge-bob-into-alice-a0458b71.u@, rather than reusing</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- @scratch.u@, so that it is unmistakable which file goes with which action and branch.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Cli.ScratchFile.html"><span class="hs-identifier">Unison.Cli.ScratchFile</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Cli.ScratchFile.html#scratchFileName"><span class="hs-identifier">scratchFileName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Cli.ScratchFile.html#writeActionScratchFile"><span class="hs-identifier">writeActionScratchFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(?=)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Crypto</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray.Encoding</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BE</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isAlphaNum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isAscii</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">replaceFileName</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Env"><span class="hs-identifier">Env</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.MonadUtils.html"><span class="hs-identifier">Unison.Cli.MonadUtils</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | @scratchFileName action words parts@ is @\&lt;action\&gt;-\&lt;words\&gt;-\&lt;shorthash\&gt;.u@. The @words@ say what the action is</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- about, like the branches involved (they are made safe for a file name, and shortened). The short hash (8 characters)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- is of the action, the @words@ and the @parts@: the arguments, and the hashes of the branches involved. The same</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- action on the same branches therefore always gets the same file name, and a different one gets a different file name.</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Unison.Cli.ScratchFile.html#scratchFileName"><span class="hs-identifier hs-type">scratchFileName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-28"></span><span id="scratchFileName"><span class="annot"><span class="annottext">scratchFileName :: Text -&gt; [Text] -&gt; [Text] -&gt; Text
+</span><a href="Unison.Cli.ScratchFile.html#scratchFileName"><span class="hs-identifier hs-var hs-var">scratchFileName</span></a></span></span><span> </span><span id="local-6989586621681628532"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628532"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621681628533"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628533"><span class="hs-identifier hs-var">words_</span></a></span></span><span> </span><span id="local-6989586621681628534"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628534"><span class="hs-identifier hs-var">parts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.intercalate</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628532"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; [Text]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; [Text] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><a href="#local-6989586621681628536"><span class="hs-keyword hs-var">safe</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628533"><span class="hs-identifier hs-var">words_</span></a></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628538"><span class="hs-identifier hs-var">shortHash</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.u&quot;</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="#local-6989586621681628536"><span class="hs-keyword hs-type">safe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621681628536"><span class="annot"><span class="annottext">safe :: Text -&gt; Text
+</span><a href="#local-6989586621681628536"><span class="hs-keyword hs-var hs-var">safe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">30</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; (Text -&gt; Text) -&gt; Text -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.map</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681628541"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681628541"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAscii</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681628541"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlphaNum</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681628541"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681628541"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; FilePath -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;._-&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621681628541"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="#local-6989586621681628538"><span class="hs-identifier hs-type">shortHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621681628538"><span class="annot"><span class="annottext">shortHash :: Text
+</span><a href="#local-6989586621681628538"><span class="hs-identifier hs-var hs-var">shortHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.intercalate</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\0&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628532"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; [Text]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628533"><span class="hs-identifier hs-var">words_</span></a></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628534"><span class="hs-identifier hs-var">parts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">Text -&gt; (Text -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">Text.encodeUtf8</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; Digest SHA256) -&gt; Digest SHA256
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">SHA256 -&gt; ByteString -&gt; Digest SHA256
+forall ba alg.
+(ByteArrayAccess ba, HashAlgorithm alg) =&gt;
+alg -&gt; ba -&gt; Digest alg
+</span><span class="hs-identifier hs-var">Crypto.hashWith</span></span><span> </span><span class="annot"><span class="annottext">SHA256
+</span><span class="hs-identifier hs-var">Crypto.SHA256</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="annottext">Digest SHA256 -&gt; (Digest SHA256 -&gt; ByteString) -&gt; ByteString
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Base -&gt; Digest SHA256 -&gt; ByteString
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+Base -&gt; bin -&gt; bout
+</span><span class="hs-identifier hs-var">BE.convertToBase</span></span><span> </span><span class="annot"><span class="annottext">Base
+</span><span class="hs-identifier hs-var">BE.Base16</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">ByteString -&gt; (ByteString -&gt; Text) -&gt; Text
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">Text.decodeUtf8</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Write @contents@ to the scratch file for @action@ (see 'scratchFileName'), in the directory of the latest file (or</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- the current directory), and make it the latest file. Returns the file's path.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.Cli.ScratchFile.html#writeActionScratchFile"><span class="hs-identifier hs-type">writeActionScratchFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-46"></span><span id="writeActionScratchFile"><span class="annot"><span class="annottext">writeActionScratchFile :: Text -&gt; [Text] -&gt; [Text] -&gt; Text -&gt; Cli FilePath
+</span><a href="Unison.Cli.ScratchFile.html#writeActionScratchFile"><span class="hs-identifier hs-var hs-var">writeActionScratchFile</span></a></span></span><span> </span><span id="local-6989586621681628552"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628552"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621681628553"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628553"><span class="hs-identifier hs-var">words_</span></a></span></span><span> </span><span id="local-6989586621681628554"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628554"><span class="hs-identifier hs-var">parts</span></a></span></span><span> </span><span id="local-6989586621681628555"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628555"><span class="hs-identifier hs-var">contents</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621681628556"><span class="annot"><a href="#local-6989586621681628556"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621681628557"><span class="annot"><a href="#local-6989586621681628557"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Unison.Cli.MonadUtils.html#getLatestFile"><span class="hs-identifier hs-type">Cli.getLatestFile</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">Maybe (FilePath, Bool)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; FilePath
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628561"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681628562"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681628562"><span class="hs-identifier hs-var">latestFile</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-identifier hs-var">replaceFileName</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681628562"><span class="hs-identifier hs-var">latestFile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; FilePath
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628561"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+  #latestFile ?= (path, True)
+</span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="hs-identifier">env</span></span><span class="hs-operator">.</span><span class="hs-identifier">unattended</span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">writeUtf8</span></span><span> </span><span class="annot"><a href="#local-6989586621681628557"><span class="hs-identifier hs-type">path</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681628555"><span class="hs-identifier hs-type">contents</span></a></span><span>
+</span><span id="line-56"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier">env</span></span><span class="hs-operator">.</span><span class="hs-identifier">writeSource</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text.pack</span></span><span> </span><span class="annot"><a href="#local-6989586621681628557"><span class="hs-identifier hs-type">path</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621681628555"><span class="hs-identifier hs-type">contents</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681628557"><span class="hs-identifier hs-type">path</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621681628561"><span class="annot"><span class="annottext">name :: Text
+</span><a href="#local-6989586621681628561"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; [Text] -&gt; Text
+</span><a href="Unison.Cli.ScratchFile.html#scratchFileName"><span class="hs-identifier hs-var">scratchFileName</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681628552"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628553"><span class="hs-identifier hs-var">words_</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681628554"><span class="hs-identifier hs-var">parts</span></a></span><span>
+</span><span id="line-60"></span></pre></body></html>

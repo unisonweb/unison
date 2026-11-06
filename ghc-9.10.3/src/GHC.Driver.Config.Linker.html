@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Driver.Config.Linker.html"><span class="hs-identifier">GHC.Driver.Config.Linker</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Driver.Config.Linker.html#initFrameworkOpts"><span class="hs-identifier">initFrameworkOpts</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.Config.Linker.html#initLinkerConfig"><span class="hs-identifier">initLinkerConfig</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Linker.Config.html"><span class="hs-identifier">GHC.Linker.Config</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html"><span class="hs-identifier">GHC.Driver.DynFlags</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPrefixOf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="GHC.Driver.Config.Linker.html#initFrameworkOpts"><span class="hs-identifier hs-type">initFrameworkOpts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Config.html#FrameworkOpts"><span class="hs-identifier hs-type">FrameworkOpts</span></a></span><span>
+</span><span id="line-17"></span><span id="initFrameworkOpts"><span class="annot"><span class="annottext">initFrameworkOpts :: DynFlags -&gt; FrameworkOpts
+</span><a href="GHC.Driver.Config.Linker.html#initFrameworkOpts"><span class="hs-identifier hs-var hs-var">initFrameworkOpts</span></a></span></span><span> </span><span id="local-6989586621682776182"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776182"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Linker.Config.html#FrameworkOpts"><span class="hs-identifier hs-type">FrameworkOpts</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">foFrameworkPaths :: [String]
+</span><a href="GHC.Linker.Config.html#foFrameworkPaths"><span class="hs-identifier hs-var">foFrameworkPaths</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; [String]
+</span><a href="GHC.Driver.DynFlags.html#frameworkPaths"><span class="hs-identifier hs-var">frameworkPaths</span></a></span><span>    </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776182"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">foCmdlineFrameworks :: [String]
+</span><a href="GHC.Linker.Config.html#foCmdlineFrameworks"><span class="hs-identifier hs-var">foCmdlineFrameworks</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; [String]
+</span><a href="GHC.Driver.DynFlags.html#cmdlineFrameworks"><span class="hs-identifier hs-var">cmdlineFrameworks</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776182"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">-- | Initialize linker configuration from DynFlags</span></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="GHC.Driver.Config.Linker.html#initLinkerConfig"><span class="hs-identifier hs-type">initLinkerConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Linker.Config.html#LinkerConfig"><span class="hs-identifier hs-type">LinkerConfig</span></a></span><span>
+</span><span id="line-24"></span><span id="initLinkerConfig"><span class="annot"><span class="annottext">initLinkerConfig :: DynFlags -&gt; LinkerConfig
+</span><a href="GHC.Driver.Config.Linker.html#initLinkerConfig"><span class="hs-identifier hs-var hs-var">initLinkerConfig</span></a></span></span><span> </span><span id="local-6989586621682776188"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776188"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">-- see Note [Solaris linker]</span><span>
+</span><span id="line-27"></span><span>    </span><span id="local-6989586621682776189"><span class="annot"><span class="annottext">ld_filter :: String -&gt; String
+</span><a href="#local-6989586621682776189"><span class="hs-identifier hs-var hs-var">ld_filter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Platform -&gt; OS
+</span><a href="GHC.Platform.html#platformOS"><span class="hs-identifier hs-var">platformOS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; Platform
+</span><a href="GHC.Driver.DynFlags.html#targetPlatform"><span class="hs-identifier hs-var">targetPlatform</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776188"><span class="hs-identifier hs-var">dflags</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-28"></span><span>                  </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier hs-var">OSSolaris2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621682776193"><span class="hs-identifier hs-var">sunos_ld_filter</span></a></span><span>
+</span><span id="line-29"></span><span>                  </span><span class="annot"><span class="annottext">OS
+</span><span class="hs-identifier">_</span></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="#local-6989586621682776193"><span class="hs-identifier hs-type">sunos_ld_filter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621682776193"><span class="annot"><span class="annottext">sunos_ld_filter :: String -&gt; String
+</span><a href="#local-6989586621682776193"><span class="hs-identifier hs-var hs-var">sunos_ld_filter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String) -&gt; (String -&gt; [String]) -&gt; String -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String]
+</span><a href="#local-6989586621682776197"><span class="hs-identifier hs-var">sunos_ld_filter'</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; [String])
+-&gt; (String -&gt; [String]) -&gt; String -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String]
+</span><span class="hs-identifier hs-var">lines</span></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621682776197"><span class="annot"><span class="annottext">sunos_ld_filter' :: [String] -&gt; [String]
+</span><a href="#local-6989586621682776197"><span class="hs-identifier hs-var hs-var">sunos_ld_filter'</span></a></span></span><span> </span><span id="local-6989586621682776199"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; Bool
+</span><a href="#local-6989586621682776200"><span class="hs-identifier hs-var">undefined_found</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; Bool
+</span><a href="#local-6989586621682776202"><span class="hs-identifier hs-var">ld_warning_found</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>                          </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; [String]
+</span><a href="#local-6989586621682776203"><span class="hs-identifier hs-var">ld_prefix</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String] -&gt; [String]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; [String]
+</span><a href="#local-6989586621682776204"><span class="hs-identifier hs-var">ld_postfix</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>                          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621682776199"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621682776207"><span class="annot"><span class="annottext">breakStartsWith :: [a] -&gt; [[a]] -&gt; ([[a]], [[a]])
+</span><a href="#local-6989586621682776207"><span class="hs-identifier hs-var hs-var">breakStartsWith</span></a></span></span><span> </span><span id="local-6989586621682776208"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682776208"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682776209"><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621682776209"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([a] -&gt; Bool) -&gt; [[a]] -&gt; ([[a]], [[a]])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; Bool
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; Bool
+</span><span class="hs-identifier hs-var">isPrefixOf</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682776208"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621682776209"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621682776203"><span class="annot"><span class="annottext">ld_prefix :: [String] -&gt; [String]
+</span><a href="#local-6989586621682776203"><span class="hs-identifier hs-var hs-var">ld_prefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([String], [String]) -&gt; [String]
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(([String], [String]) -&gt; [String])
+-&gt; ([String] -&gt; ([String], [String])) -&gt; [String] -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; ([String], [String])
+forall {a}. Eq a =&gt; [a] -&gt; [[a]] -&gt; ([[a]], [[a]])
+</span><a href="#local-6989586621682776207"><span class="hs-identifier hs-var">breakStartsWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Undefined&quot;</span></span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621682776200"><span class="annot"><span class="annottext">undefined_found :: [String] -&gt; Bool
+</span><a href="#local-6989586621682776200"><span class="hs-identifier hs-var hs-var">undefined_found</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; ([String] -&gt; Bool) -&gt; [String] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; Bool) -&gt; ([String] -&gt; [String]) -&gt; [String] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([String], [String]) -&gt; [String]
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">(([String], [String]) -&gt; [String])
+-&gt; ([String] -&gt; ([String], [String])) -&gt; [String] -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; ([String], [String])
+forall {a}. Eq a =&gt; [a] -&gt; [[a]] -&gt; ([[a]], [[a]])
+</span><a href="#local-6989586621682776207"><span class="hs-identifier hs-var">breakStartsWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Undefined&quot;</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621682776221"><span class="annot"><span class="annottext">ld_warn_break :: [String] -&gt; ([String], [String])
+</span><a href="#local-6989586621682776221"><span class="hs-identifier hs-var hs-var">ld_warn_break</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; ([String], [String])
+forall {a}. Eq a =&gt; [a] -&gt; [[a]] -&gt; ([[a]], [[a]])
+</span><a href="#local-6989586621682776207"><span class="hs-identifier hs-var">breakStartsWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ld: warning: symbol referencing errors&quot;</span></span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621682776204"><span class="annot"><span class="annottext">ld_postfix :: [String] -&gt; [String]
+</span><a href="#local-6989586621682776204"><span class="hs-identifier hs-var hs-var">ld_postfix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; [String]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><a href="GHC.Prelude.Basic.html#tail"><span class="hs-identifier hs-var">tail</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; [String])
+-&gt; ([String] -&gt; [String]) -&gt; [String] -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([String], [String]) -&gt; [String]
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">(([String], [String]) -&gt; [String])
+-&gt; ([String] -&gt; ([String], [String])) -&gt; [String] -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; ([String], [String])
+</span><a href="#local-6989586621682776221"><span class="hs-identifier hs-var">ld_warn_break</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621682776202"><span class="annot"><span class="annottext">ld_warning_found :: [String] -&gt; Bool
+</span><a href="#local-6989586621682776202"><span class="hs-identifier hs-var hs-var">ld_warning_found</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; ([String] -&gt; Bool) -&gt; [String] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; Bool) -&gt; ([String] -&gt; [String]) -&gt; [String] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([String], [String]) -&gt; [String]
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">(([String], [String]) -&gt; [String])
+-&gt; ([String] -&gt; ([String], [String])) -&gt; [String] -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; ([String], [String])
+</span><a href="#local-6989586621682776221"><span class="hs-identifier hs-var">ld_warn_break</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">-- program and arguments</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- `-optl` args come at the end, so that later `-l` options</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-comment">-- given there manually can fill in symbols needed by</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- Haskell libraries coming in via `args`.</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621682776226"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682776226"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682776227"><span class="annot"><span class="annottext">[Option]
+</span><a href="#local-6989586621682776227"><span class="hs-identifier hs-var">pre_args</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; (String, [Option])
+</span><a href="GHC.Driver.Session.html#pgm_l"><span class="hs-identifier hs-var">pgm_l</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776188"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621682776229"><span class="annot"><span class="annottext">post_args :: [Option]
+</span><a href="#local-6989586621682776229"><span class="hs-identifier hs-var hs-var">post_args</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Option) -&gt; [String] -&gt; [Option]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Option
+</span><a href="GHC.Utils.CliOption.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; (DynFlags -&gt; [String]) -&gt; [String]
+forall a. DynFlags -&gt; (DynFlags -&gt; [a]) -&gt; [a]
+</span><a href="GHC.Driver.Session.html#getOpts"><span class="hs-identifier hs-var">getOpts</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776188"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; [String]
+</span><a href="GHC.Driver.Session.html#opt_l"><span class="hs-identifier hs-var">opt_l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><a href="GHC.Linker.Config.html#LinkerConfig"><span class="hs-identifier hs-type">LinkerConfig</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">linkerProgram :: String
+</span><a href="GHC.Linker.Config.html#linkerProgram"><span class="hs-identifier hs-var">linkerProgram</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682776226"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">linkerOptionsPre :: [Option]
+</span><a href="GHC.Linker.Config.html#linkerOptionsPre"><span class="hs-identifier hs-var">linkerOptionsPre</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Option]
+</span><a href="#local-6989586621682776227"><span class="hs-identifier hs-var">pre_args</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">linkerOptionsPost :: [Option]
+</span><a href="GHC.Linker.Config.html#linkerOptionsPost"><span class="hs-identifier hs-var">linkerOptionsPost</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Option]
+</span><a href="#local-6989586621682776229"><span class="hs-identifier hs-var">post_args</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">linkerTempDir :: TempDir
+</span><a href="GHC.Linker.Config.html#linkerTempDir"><span class="hs-identifier hs-var">linkerTempDir</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; TempDir
+</span><a href="GHC.Driver.DynFlags.html#tmpDir"><span class="hs-identifier hs-var">tmpDir</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682776188"><span class="hs-identifier hs-var">dflags</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">linkerFilter :: String -&gt; String
+</span><a href="GHC.Linker.Config.html#linkerFilter"><span class="hs-identifier hs-var">linkerFilter</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="#local-6989586621682776189"><span class="hs-identifier hs-var">ld_filter</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">{- Note [Solaris linker]
+   ~~~~~~~~~~~~~~~~~~~~~
+  SunOS/Solaris ld emits harmless warning messages about unresolved
+  symbols in case of compiling into shared library when we do not
+  link against all the required libs. That is the case of GHC which
+  does not link against RTS library explicitly in order to be able to
+  choose the library later based on binary application linking
+  parameters. The warnings look like:
+
+Undefined                       first referenced
+  symbol                             in file
+stg_ap_n_fast                       ./T2386_Lib.o
+stg_upd_frame_info                  ./T2386_Lib.o
+templatezmhaskell_LanguageziHaskellziTHziLib_litE_closure ./T2386_Lib.o
+templatezmhaskell_LanguageziHaskellziTHziLib_appE_closure ./T2386_Lib.o
+templatezmhaskell_LanguageziHaskellziTHziLib_conE_closure ./T2386_Lib.o
+templatezmhaskell_LanguageziHaskellziTHziSyntax_mkNameGzud_closure ./T2386_Lib.o
+newCAF                              ./T2386_Lib.o
+stg_bh_upd_frame_info               ./T2386_Lib.o
+stg_ap_ppp_fast                     ./T2386_Lib.o
+templatezmhaskell_LanguageziHaskellziTHziLib_stringL_closure ./T2386_Lib.o
+stg_ap_p_fast                       ./T2386_Lib.o
+stg_ap_pp_fast                      ./T2386_Lib.o
+ld: warning: symbol referencing errors
+
+  this is actually coming from T2386 testcase. The emitting of those
+  warnings is also a reason why so many TH testcases fail on Solaris.
+
+  Following filter code is SunOS/Solaris linker specific and should
+  filter out only linker warnings. Please note that the logic is a
+  little bit more complex due to the simple reason that we need to preserve
+  any other linker emitted messages. If there are any. Simply speaking
+  if we see &quot;Undefined&quot; and later &quot;ld: warning:...&quot; then we omit all
+  text between (including) the marks. Otherwise we copy the whole output.
+-}</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span></pre></body></html>

@@ -1,0 +1,716 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621681603139"><span id="local-6989586621681603140"></span></span><span class="hs-comment">-- | Which UCM commands each of the MCP transcript tools allows.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- The tiers nest: a tool allows every command at or below its own tier. The tier of a command is the least powerful</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- tool that may run it, and a command that isn't listed (including any command added later) is `All`.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html"><span class="hs-identifier">Unison.MCP.Allowlist</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier">Tier</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#toolName"><span class="hs-identifier">toolName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#commandTier"><span class="hs-identifier">commandTier</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#commandTiers"><span class="hs-identifier">commandTiers</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#canonicalNames"><span class="hs-identifier">canonicalNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier">Violation</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#validate"><span class="hs-identifier">validate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.MCP.Allowlist.html#renderViolations"><span class="hs-identifier">renderViolations</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html"><span class="hs-identifier">Unison.Codebase.Transcript</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.CommandLine.InputPattern.html"><span class="hs-identifier">Unison.CommandLine.InputPattern</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.CommandLine.InputPattern.html#aliases"><span class="hs-identifier">aliases</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.CommandLine.InputPattern.html#patternName"><span class="hs-identifier">patternName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.CommandLine.InputPatterns.html"><span class="hs-identifier">Unison.CommandLine.InputPatterns</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IP</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="Tier"><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-var">Tier</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Reads from the codebase or from Share. Never changes the codebase.</span></span><span>
+</span><span id="line-26"></span><span>    </span><span id="ReadOnly"><span class="annot"><a href="Unison.MCP.Allowlist.html#ReadOnly"><span class="hs-identifier hs-var">ReadOnly</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Also makes changes that are easy to undo, with `undo`, the reflog, or by deleting a branch.</span></span><span>
+</span><span id="line-28"></span><span>    </span><span id="Local"><span class="annot"><a href="Unison.MCP.Allowlist.html#Local"><span class="hs-identifier hs-var">Local</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Also runs arbitrary code, which can do anything IO can.</span></span><span>
+</span><span id="line-30"></span><span>    </span><span id="IO"><span class="annot"><a href="Unison.MCP.Allowlist.html#IO"><span class="hs-identifier hs-var">IO</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="All"><span class="annot"><a href="Unison.MCP.Allowlist.html#All"><span class="hs-identifier hs-var">All</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681603203"><span id="local-6989586621681603208"><span class="annot"><span class="annottext">Tier -&gt; Tier -&gt; Bool
+(Tier -&gt; Tier -&gt; Bool) -&gt; (Tier -&gt; Tier -&gt; Bool) -&gt; Eq Tier
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Tier -&gt; Tier -&gt; Bool
+== :: Tier -&gt; Tier -&gt; Bool
+$c/= :: Tier -&gt; Tier -&gt; Bool
+/= :: Tier -&gt; Tier -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603215"><span id="local-6989586621681603219"><span id="local-6989586621681603223"><span id="local-6989586621681603226"><span id="local-6989586621681603229"><span id="local-6989586621681603232"><span id="local-6989586621681603235"><span class="annot"><span class="annottext">Eq Tier
+Eq Tier =&gt;
+(Tier -&gt; Tier -&gt; Ordering)
+-&gt; (Tier -&gt; Tier -&gt; Bool)
+-&gt; (Tier -&gt; Tier -&gt; Bool)
+-&gt; (Tier -&gt; Tier -&gt; Bool)
+-&gt; (Tier -&gt; Tier -&gt; Bool)
+-&gt; (Tier -&gt; Tier -&gt; Tier)
+-&gt; (Tier -&gt; Tier -&gt; Tier)
+-&gt; Ord Tier
+Tier -&gt; Tier -&gt; Bool
+Tier -&gt; Tier -&gt; Ordering
+Tier -&gt; Tier -&gt; Tier
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Tier -&gt; Tier -&gt; Ordering
+compare :: Tier -&gt; Tier -&gt; Ordering
+$c&lt; :: Tier -&gt; Tier -&gt; Bool
+&lt; :: Tier -&gt; Tier -&gt; Bool
+$c&lt;= :: Tier -&gt; Tier -&gt; Bool
+&lt;= :: Tier -&gt; Tier -&gt; Bool
+$c&gt; :: Tier -&gt; Tier -&gt; Bool
+&gt; :: Tier -&gt; Tier -&gt; Bool
+$c&gt;= :: Tier -&gt; Tier -&gt; Bool
+&gt;= :: Tier -&gt; Tier -&gt; Bool
+$cmax :: Tier -&gt; Tier -&gt; Tier
+max :: Tier -&gt; Tier -&gt; Tier
+$cmin :: Tier -&gt; Tier -&gt; Tier
+min :: Tier -&gt; Tier -&gt; Tier
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603243"><span id="local-6989586621681603245"><span id="local-6989586621681603249"><span class="annot"><span class="annottext">Int -&gt; Tier -&gt; ShowS
+[Tier] -&gt; ShowS
+Tier -&gt; String
+(Int -&gt; Tier -&gt; ShowS)
+-&gt; (Tier -&gt; String) -&gt; ([Tier] -&gt; ShowS) -&gt; Show Tier
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Tier -&gt; ShowS
+showsPrec :: Int -&gt; Tier -&gt; ShowS
+$cshow :: Tier -&gt; String
+show :: Tier -&gt; String
+$cshowList :: [Tier] -&gt; ShowS
+showList :: [Tier] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603254"><span id="local-6989586621681603263"><span id="local-6989586621681603270"><span id="local-6989586621681603283"><span id="local-6989586621681603286"><span id="local-6989586621681603290"><span id="local-6989586621681603296"><span id="local-6989586621681603300"><span class="annot"><span class="annottext">Int -&gt; Tier
+Tier -&gt; Int
+Tier -&gt; [Tier]
+Tier -&gt; Tier
+Tier -&gt; Tier -&gt; [Tier]
+Tier -&gt; Tier -&gt; Tier -&gt; [Tier]
+(Tier -&gt; Tier)
+-&gt; (Tier -&gt; Tier)
+-&gt; (Int -&gt; Tier)
+-&gt; (Tier -&gt; Int)
+-&gt; (Tier -&gt; [Tier])
+-&gt; (Tier -&gt; Tier -&gt; [Tier])
+-&gt; (Tier -&gt; Tier -&gt; [Tier])
+-&gt; (Tier -&gt; Tier -&gt; Tier -&gt; [Tier])
+-&gt; Enum Tier
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: Tier -&gt; Tier
+succ :: Tier -&gt; Tier
+$cpred :: Tier -&gt; Tier
+pred :: Tier -&gt; Tier
+$ctoEnum :: Int -&gt; Tier
+toEnum :: Int -&gt; Tier
+$cfromEnum :: Tier -&gt; Int
+fromEnum :: Tier -&gt; Int
+$cenumFrom :: Tier -&gt; [Tier]
+enumFrom :: Tier -&gt; [Tier]
+$cenumFromThen :: Tier -&gt; Tier -&gt; [Tier]
+enumFromThen :: Tier -&gt; Tier -&gt; [Tier]
+$cenumFromTo :: Tier -&gt; Tier -&gt; [Tier]
+enumFromTo :: Tier -&gt; Tier -&gt; [Tier]
+$cenumFromThenTo :: Tier -&gt; Tier -&gt; Tier -&gt; [Tier]
+enumFromThenTo :: Tier -&gt; Tier -&gt; Tier -&gt; [Tier]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603308"><span id="local-6989586621681603310"><span class="annot"><span class="annottext">Tier
+Tier -&gt; Tier -&gt; Bounded Tier
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: Tier
+minBound :: Tier
+$cmaxBound :: Tier
+maxBound :: Tier
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | The name of the MCP tool for a tier.</span></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#toolName"><span class="hs-identifier hs-type">toolName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-36"></span><span id="toolName"><span class="annot"><span class="annottext">toolName :: Tier -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#toolName"><span class="hs-identifier hs-var hs-var">toolName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#ReadOnly"><span class="hs-identifier hs-var">ReadOnly</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;transcript-read-only&quot;</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#Local"><span class="hs-identifier hs-var">Local</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;transcript&quot;</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;transcript-io&quot;</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#All"><span class="hs-identifier hs-var">All</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;transcript-all&quot;</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- | The least powerful tier that may run each command, by canonical name. Aliases take the tier of their command.</span></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#commandTiers"><span class="hs-identifier hs-type">commandTiers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span>
+</span><span id="line-44"></span><span id="commandTiers"><span class="annot"><span class="annottext">commandTiers :: Map String Tier
+</span><a href="Unison.MCP.Allowlist.html#commandTiers"><span class="hs-identifier hs-var hs-var">commandTiers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><span class="annottext">[(String, Tier)] -&gt; Map String Tier
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(String, Tier)] -&gt; Map String Tier)
+-&gt; ([[(String, Tier)]] -&gt; [(String, Tier)])
+-&gt; [[(String, Tier)]]
+-&gt; Map String Tier
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[(String, Tier)]] -&gt; [(String, Tier)]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[(String, Tier)]] -&gt; Map String Tier)
+-&gt; [[(String, Tier)]] -&gt; Map String Tier
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#ReadOnly"><span class="hs-identifier hs-var">ReadOnly</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(String -&gt; (String, Tier)) -&gt; [String] -&gt; [(String, Tier)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621681603319"><span class="hs-identifier hs-var">readOnly</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#Local"><span class="hs-identifier hs-var">Local</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(String -&gt; (String, Tier)) -&gt; [String] -&gt; [(String, Tier)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621681603320"><span class="hs-identifier hs-var">local</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(String -&gt; (String, Tier)) -&gt; [String] -&gt; [(String, Tier)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621681603321"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621681603319"><span class="annot"><span class="annottext">readOnly :: [String]
+</span><a href="#local-6989586621681603319"><span class="hs-identifier hs-var hs-var">readOnly</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find.all&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find-in&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find-in.all&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find.verbose&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;find.all.verbose&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;text.find&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;text.find.all&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;list&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;list-fuzzy&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rewrite.find&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;view&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;view.global&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;display&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;signature&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;names&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dependencies&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;dependents&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;namespace.dependencies&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;docs&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;diff.namespace&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;diff.branch&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;diff.update&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;history&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;reflog&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;project.reflog&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;reflog.global&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deprecated.root-reflog&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;todo&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;test&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;test.all&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;projects&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;branches&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;config.get&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;help&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;help-topics&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;version&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;api&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;load&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>        </span><span class="hs-comment">-- These write a file outside the codebase.</span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;display.to&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;docs.to-html&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;debug.file&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-comment">-- In a transcript these only produce a scratch file that is part of the output.</span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.new&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.dependents&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.namespace&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.to&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.new.to&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.dependents.to&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;edit.namespace.to&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rewrite&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>        </span><span class="hs-comment">-- Navigation within the session.</span><span>
+</span><span id="line-106"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;switch&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;back&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deprecated.cd&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deprecated.up&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;cancel&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;clear&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;quit&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.project-search&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.search&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.source&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-116"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.render&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.docs&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.releases&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;share.releases.detail&quot;</span></span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621681603320"><span class="annot"><span class="annottext">local :: [String]
+</span><a href="#local-6989586621681603320"><span class="hs-identifier hs-var hs-var">local</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;update&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;add.run&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;builtins.merge&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;builtins.mergeio&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;builtins.update&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-127"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;merge&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;merge.commit&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lib.install&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lib.install.local&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-131"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;lib.upgrade&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;upgrade.commit&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-133"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;branch&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-134"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;branch.empty&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;branch.rename&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-136"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;branch.squash&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;project.create&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;project.create-empty&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-139"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;project.rename&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-140"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;fork&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-141"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;clone&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;release.draft&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-143"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;move&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-144"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;move.term&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-145"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;move.type&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;move.namespace&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-147"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;moveTo&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-148"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rename&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-149"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;alias.term&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-150"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;alias.type&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;alias.many&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-152"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;create.author&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-153"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;undo&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-154"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;redo&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-155"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;history.comment&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-156"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pull&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-157"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pull.without-history&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-158"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;compile&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;reset&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-160"></span><span>        </span><span class="hs-comment">-- Everything the reflog can bring back. Deleting a whole project or branch is `All`.</span><span>
+</span><span id="line-161"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-162"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.term&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-163"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.type&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.term.force&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-165"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.type.force&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-166"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.namespace&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-167"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;delete.namespace.force&quot;</span></span><span>
+</span><span id="line-168"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621681603321"><span class="annot"><span class="annottext">io :: [String]
+</span><a href="#local-6989586621681603321"><span class="hs-identifier hs-var hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;run&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-171"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;run.profiled&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;run.profiled.full&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-173"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;io.test&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-174"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;io.test.all&quot;</span></span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><span class="hs-comment">-- | Every command name and alias, to its canonical name.</span></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#canonicalNames"><span class="hs-identifier hs-type">canonicalNames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-179"></span><span id="canonicalNames"><span class="annot"><span class="annottext">canonicalNames :: Map String String
+</span><a href="Unison.MCP.Allowlist.html#canonicalNames"><span class="hs-identifier hs-var hs-var">canonicalNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="annottext">[(String, String)] -&gt; Map String String
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603440"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">InputPattern -&gt; String
+</span><a href="Unison.CommandLine.InputPattern.html#patternName"><span class="hs-identifier hs-var">patternName</span></a></span><span> </span><span class="annot"><span class="annottext">InputPattern
+</span><a href="#local-6989586621681603441"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681603441"><span class="annot"><span class="annottext">InputPattern
+</span><a href="#local-6989586621681603441"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[InputPattern]
+</span><a href="Unison.CommandLine.InputPatterns.html#validInputs"><span class="hs-identifier hs-var">IP.validInputs</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603440"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603440"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">InputPattern -&gt; String
+</span><a href="Unison.CommandLine.InputPattern.html#patternName"><span class="hs-identifier hs-var">patternName</span></a></span><span> </span><span class="annot"><span class="annottext">InputPattern
+</span><a href="#local-6989586621681603441"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; [String]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">InputPattern -&gt; [String]
+</span><a href="Unison.CommandLine.InputPattern.html#aliases"><span class="hs-identifier hs-var">aliases</span></a></span><span> </span><span class="annot"><span class="annottext">InputPattern
+</span><a href="#local-6989586621681603441"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="annot"><span class="hs-comment">-- | The tier of a command, by name or alias. Unknown commands are `All`.</span></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#commandTier"><span class="hs-identifier hs-type">commandTier</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span>
+</span><span id="line-184"></span><span id="commandTier"><span class="annot"><span class="annottext">commandTier :: String -&gt; Tier
+</span><a href="Unison.MCP.Allowlist.html#commandTier"><span class="hs-identifier hs-var hs-var">commandTier</span></a></span></span><span> </span><span id="local-6989586621681603443"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603443"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">String -&gt; Map String String -&gt; Maybe String
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603443"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Map String String
+</span><a href="Unison.MCP.Allowlist.html#canonicalNames"><span class="hs-identifier hs-var">canonicalNames</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><span class="annottext">Maybe String
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#All"><span class="hs-identifier hs-var">All</span></a></span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681603445"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603445"><span class="hs-identifier hs-var">canonical</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Tier -&gt; String -&gt; Map String Tier -&gt; Tier
+forall k a. Ord k =&gt; a -&gt; k -&gt; Map k a -&gt; a
+</span><span class="hs-identifier hs-var">Map.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#All"><span class="hs-identifier hs-var">All</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603445"><span class="hs-identifier hs-var">canonical</span></a></span><span> </span><span class="annot"><span class="annottext">Map String Tier
+</span><a href="Unison.MCP.Allowlist.html#commandTiers"><span class="hs-identifier hs-var">commandTiers</span></a></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-keyword">data</span><span> </span><span id="Violation"><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-var">Violation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Violation"><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-var">Violation</span></a></span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="location"><span class="annot"><span class="annottext">Violation -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#location"><span class="hs-identifier hs-var hs-var">location</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-191"></span><span>    </span><span id="offender"><span class="annot"><span class="annottext">Violation -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#offender"><span class="hs-identifier hs-var hs-var">offender</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-192"></span><span>    </span><span id="requires"><span class="annot"><span class="annottext">Violation -&gt; Tier
+</span><a href="Unison.MCP.Allowlist.html#requires"><span class="hs-identifier hs-var hs-var">requires</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-193"></span><span>    </span><span class="annot"><span class="hs-comment">-- | The offender isn't a UCM command at all, so no tool runs it.</span></span><span>
+</span><span id="line-194"></span><span>    </span><span id="unknownCommand"><span class="annot"><span class="annottext">Violation -&gt; Bool
+</span><a href="Unison.MCP.Allowlist.html#unknownCommand"><span class="hs-identifier hs-var hs-var">unknownCommand</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681603453"><span id="local-6989586621681603461"><span class="annot"><span class="annottext">Violation -&gt; Violation -&gt; Bool
+(Violation -&gt; Violation -&gt; Bool)
+-&gt; (Violation -&gt; Violation -&gt; Bool) -&gt; Eq Violation
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Violation -&gt; Violation -&gt; Bool
+== :: Violation -&gt; Violation -&gt; Bool
+$c/= :: Violation -&gt; Violation -&gt; Bool
+/= :: Violation -&gt; Violation -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603465"><span id="local-6989586621681603474"><span id="local-6989586621681603478"><span class="annot"><span class="annottext">Int -&gt; Violation -&gt; ShowS
+[Violation] -&gt; ShowS
+Violation -&gt; String
+(Int -&gt; Violation -&gt; ShowS)
+-&gt; (Violation -&gt; String)
+-&gt; ([Violation] -&gt; ShowS)
+-&gt; Show Violation
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Violation -&gt; ShowS
+showsPrec :: Int -&gt; Violation -&gt; ShowS
+$cshow :: Violation -&gt; String
+show :: Violation -&gt; String
+$cshowList :: [Violation] -&gt; ShowS
+showList :: [Violation] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="annot"><span class="hs-comment">-- | Everything in the transcript that a tool at the given tier doesn't allow.</span></span><span>
+</span><span id="line-199"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#validate"><span class="hs-identifier hs-type">validate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Transcript"><span class="hs-identifier hs-type">Transcript</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-type">Violation</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-200"></span><span id="validate"><span class="annot"><span class="annottext">validate :: Tier -&gt; Transcript -&gt; [Violation]
+</span><a href="Unison.MCP.Allowlist.html#validate"><span class="hs-identifier hs-var hs-var">validate</span></a></span></span><span> </span><span id="local-6989586621681603480"><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603480"><span class="hs-identifier hs-var">allowed</span></a></span></span><span> </span><span id="local-6989586621681603481"><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681603481"><span class="hs-identifier hs-var">transcript</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Violation
+</span><a href="#local-6989586621681603482"><span class="hs-identifier hs-var">violation</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681603482"><span class="annot"><span class="annottext">violation :: Violation
+</span><a href="#local-6989586621681603482"><span class="hs-identifier hs-var">violation</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-type">Violation</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681603483"><span class="annot"><span class="annottext">Tier
+requires :: Violation -&gt; Tier
+requires :: Tier
+</span><a href="Unison.MCP.Allowlist.html#requires"><span class="hs-identifier hs-var hs-var">requires</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Violation]
+</span><a href="#local-6989586621681603484"><span class="hs-identifier hs-var">frontmatterViolations</span></a></span><span> </span><span class="annot"><span class="annottext">[Violation] -&gt; [Violation] -&gt; [Violation]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Violation]
+</span><a href="#local-6989586621681603485"><span class="hs-identifier hs-var">blockViolations</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-203"></span><span>    </span><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603483"><span class="hs-identifier hs-var">requires</span></a></span><span> </span><span class="annot"><span class="annottext">Tier -&gt; Tier -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603480"><span class="hs-identifier hs-var">allowed</span></a></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>    </span><span id="local-6989586621681603484"><span class="annot"><span class="annottext">frontmatterViolations :: [Violation]
+</span><a href="#local-6989586621681603484"><span class="hs-identifier hs-var hs-var">frontmatterViolations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Tier -&gt; Bool -&gt; Violation
+</span><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-var">Violation</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;frontmatter&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;autoupdate&quot;</span></span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#Local"><span class="hs-identifier hs-var">Local</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Behaviors Maybe -&gt; Maybe Bool
+forall (f :: * -&gt; *). Behaviors f -&gt; f Bool
+</span><a href="Unison.Codebase.Transcript.html#autoupdate"><span class="hs-identifier hs-var">autoupdate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Settings -&gt; Behaviors Maybe
+</span><a href="Unison.Codebase.Transcript.html#behaviors"><span class="hs-identifier hs-var">behaviors</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Transcript -&gt; Settings
+</span><a href="Unison.Codebase.Transcript.html#settings"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681603481"><span class="hs-identifier hs-var">transcript</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621681603489"><span class="annot"><span class="annottext">blocks :: [ProcessedBlock]
+</span><a href="#local-6989586621681603489"><span class="hs-identifier hs-var hs-var">blocks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ProcessedBlock
+</span><a href="#local-6989586621681603490"><span class="hs-identifier hs-var">block</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681603490"><span class="annot"><span class="annottext">ProcessedBlock
+</span><a href="#local-6989586621681603490"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Transcript -&gt; [Either Node ProcessedBlock]
+</span><a href="Unison.Codebase.Transcript.html#stanzas"><span class="hs-identifier hs-var">stanzas</span></a></span><span> </span><span class="annot"><span class="annottext">Transcript
+</span><a href="#local-6989586621681603481"><span class="hs-identifier hs-var">transcript</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621681603485"><span class="annot"><span class="annottext">blockViolations :: [Violation]
+</span><a href="#local-6989586621681603485"><span class="hs-identifier hs-var hs-var">blockViolations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Violation]] -&gt; [Violation]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; ProcessedBlock -&gt; [Violation])
+-&gt; [Int] -&gt; [ProcessedBlock] -&gt; [[Violation]]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ProcessedBlock -&gt; [Violation]
+forall {a}. Show a =&gt; a -&gt; ProcessedBlock -&gt; [Violation]
+</span><a href="#local-6989586621681603493"><span class="hs-identifier hs-var">blockViolations'</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[ProcessedBlock]
+</span><a href="#local-6989586621681603489"><span class="hs-identifier hs-var">blocks</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621681603493"><span class="annot"><span class="annottext">blockViolations' :: a -&gt; ProcessedBlock -&gt; [Violation]
+</span><a href="#local-6989586621681603493"><span class="hs-identifier hs-var hs-var">blockViolations'</span></a></span></span><span> </span><span id="local-6989586621681603506"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681603506"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-211"></span><span>      </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Unison"><span class="hs-identifier hs-type">Unison</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-212"></span><span>      </span><span class="annot"><a href="Unison.Codebase.Transcript.html#Ucm"><span class="hs-identifier hs-type">Ucm</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681603509"><span class="annot"><span class="annottext">[UcmLine]
+</span><a href="#local-6989586621681603509"><span class="hs-identifier hs-var">lines</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-213"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Tier -&gt; Bool -&gt; Violation
+</span><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-var">Violation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Text
+forall {a}. Show a =&gt; a -&gt; Text
+</span><a href="#local-6989586621681603510"><span class="hs-identifier hs-var">blockLocation</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681603506"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;, line &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Text
+forall {a}. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681603512"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603513"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Tier
+</span><a href="Unison.MCP.Allowlist.html#commandTier"><span class="hs-identifier hs-var">commandTier</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603514"><span class="hs-identifier hs-var">name'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Map String String -&gt; Bool
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Bool
+</span><span class="hs-identifier hs-var">Map.notMember</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681603514"><span class="hs-identifier hs-var">name'</span></a></span><span> </span><span class="annot"><span class="annottext">Map String String
+</span><a href="Unison.MCP.Allowlist.html#canonicalNames"><span class="hs-identifier hs-var">canonicalNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681603512"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681603512"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#UcmCommand"><span class="hs-identifier hs-type">UcmCommand</span></a></span><span> </span><span class="annot"><span class="annottext">UcmContext
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681603513"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603513"><span class="hs-identifier hs-var">command</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [UcmLine] -&gt; [(Int, UcmLine)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[UcmLine]
+</span><a href="#local-6989586621681603509"><span class="hs-identifier hs-var">lines</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-215"></span><span>          </span><span id="local-6989586621681603517"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603517"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.words</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603513"><span class="hs-identifier hs-var">command</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-216"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681603514"><span class="annot"><span class="annottext">name' :: String
+</span><a href="#local-6989586621681603514"><span class="hs-identifier hs-var hs-var">name'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603517"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-217"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-218"></span><span>      </span><span class="annot"><a href="Unison.Codebase.Transcript.html#API"><span class="hs-identifier hs-type">API</span></a></span><span> </span><span class="annot"><span class="annottext">InfoTags ()
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681603521"><span class="annot"><span class="annottext">[APIRequest]
+</span><a href="#local-6989586621681603521"><span class="hs-identifier hs-var">requests</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-219"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Tier -&gt; Bool -&gt; Violation
+</span><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-var">Violation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Text
+forall {a}. Show a =&gt; a -&gt; Text
+</span><a href="#local-6989586621681603510"><span class="hs-identifier hs-var">blockLocation</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681603506"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;POST &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603522"><span class="hs-identifier hs-var">url</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="Unison.MCP.Allowlist.html#All"><span class="hs-identifier hs-var">All</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Unison.Codebase.Transcript.html#PostRequest"><span class="hs-identifier hs-type">PostRequest</span></a></span><span> </span><span id="local-6989586621681603522"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603522"><span class="hs-identifier hs-var">url</span></a></span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[APIRequest]
+</span><a href="#local-6989586621681603521"><span class="hs-identifier hs-var">requests</span></a></span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-222"></span><span>    </span><span id="local-6989586621681603510"><span class="annot"><span class="annottext">blockLocation :: a -&gt; Text
+</span><a href="#local-6989586621681603510"><span class="hs-identifier hs-var hs-var">blockLocation</span></a></span></span><span> </span><span id="local-6989586621681603528"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681603528"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;code block &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Text
+forall {a}. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681603528"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="annot"><a href="Unison.MCP.Allowlist.html#renderViolations"><span class="hs-identifier hs-type">renderViolations</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Tier"><span class="hs-identifier hs-type">Tier</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-type">Violation</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-225"></span><span id="renderViolations"><span class="annot"><span class="annottext">renderViolations :: Tier -&gt; [Violation] -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#renderViolations"><span class="hs-identifier hs-var hs-var">renderViolations</span></a></span></span><span> </span><span id="local-6989586621681603529"><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603529"><span class="hs-identifier hs-var">allowed</span></a></span></span><span> </span><span id="local-6989586621681603530"><span class="annot"><span class="annottext">[Violation]
+</span><a href="#local-6989586621681603530"><span class="hs-identifier hs-var">violations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Text) -&gt; [Text] -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Nothing was run: `&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Tier -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#toolName"><span class="hs-identifier hs-var">toolName</span></a></span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603529"><span class="hs-identifier hs-var">allowed</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;` doesn't allow everything in this transcript.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-228"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-230"></span><span>      </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603532"><span class="hs-identifier hs-var">location</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603533"><span class="hs-identifier hs-var">reason</span></a></span><span>
+</span><span id="line-231"></span><span>         </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="Unison.MCP.Allowlist.html#Violation"><span class="hs-identifier hs-type">Violation</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681603532"><span class="annot"><span class="annottext">Text
+location :: Violation -&gt; Text
+location :: Text
+</span><a href="Unison.MCP.Allowlist.html#location"><span class="hs-identifier hs-var hs-var">location</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603534"><span class="annot"><span class="annottext">Text
+offender :: Violation -&gt; Text
+offender :: Text
+</span><a href="Unison.MCP.Allowlist.html#offender"><span class="hs-identifier hs-var hs-var">offender</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603535"><span class="annot"><span class="annottext">Tier
+requires :: Violation -&gt; Tier
+requires :: Tier
+</span><a href="Unison.MCP.Allowlist.html#requires"><span class="hs-identifier hs-var hs-var">requires</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681603536"><span class="annot"><span class="annottext">Bool
+unknownCommand :: Violation -&gt; Bool
+unknownCommand :: Bool
+</span><a href="Unison.MCP.Allowlist.html#unknownCommand"><span class="hs-identifier hs-var hs-var">unknownCommand</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Violation]
+</span><a href="#local-6989586621681603530"><span class="hs-identifier hs-var">violations</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-232"></span><span>           </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681603533"><span class="annot"><span class="annottext">reason :: Text
+</span><a href="#local-6989586621681603533"><span class="hs-identifier hs-var hs-var">reason</span></a></span></span><span>
+</span><span id="line-233"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681603536"><span class="hs-identifier hs-var">unknownCommand</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;`&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603534"><span class="hs-identifier hs-var">offender</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;` isn't a UCM command (`help` lists them)&quot;</span></span><span>
+</span><span id="line-234"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;`&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681603534"><span class="hs-identifier hs-var">offender</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;` needs `&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Tier -&gt; Text
+</span><a href="Unison.MCP.Allowlist.html#toolName"><span class="hs-identifier hs-var">toolName</span></a></span><span> </span><span class="annot"><span class="annottext">Tier
+</span><a href="#local-6989586621681603535"><span class="hs-identifier hs-var">requires</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;`&quot;</span></span><span>
+</span><span id="line-235"></span><span>         </span><span class="hs-special">]</span><span>
+</span><span id="line-236"></span></pre></body></html>

@@ -1,0 +1,702 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html"><span class="hs-identifier">Test.Hspec.Core.Formatters.Pretty.Parser</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier">Value</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseValue"><span class="hs-identifier">parseValue</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alternative</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">read</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">exp</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.Haskell.Lexer</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Token</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Pos</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.Lexer</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lexer</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="Name"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-var">Name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">data</span><span> </span><span id="Value"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-var">Value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-19"></span><span>    </span><span id="Char"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Char"><span class="hs-identifier hs-var">Char</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="String"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#String"><span class="hs-identifier hs-var">String</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Number"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Number"><span class="hs-identifier hs-var">Number</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Operator"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Operator"><span class="hs-identifier hs-var">Operator</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Record"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Record"><span class="hs-identifier hs-var">Record</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Constructor"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Constructor"><span class="hs-identifier hs-var">Constructor</span></a></span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Tuple"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Tuple"><span class="hs-identifier hs-var">Tuple</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="List"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#List"><span class="hs-identifier hs-var">List</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679139013"><span id="local-6989586621679139032"><span class="annot"><span class="annottext">Value -&gt; Value -&gt; Bool
+(Value -&gt; Value -&gt; Bool) -&gt; (Value -&gt; Value -&gt; Bool) -&gt; Eq Value
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Value -&gt; Value -&gt; Bool
+== :: Value -&gt; Value -&gt; Bool
+$c/= :: Value -&gt; Value -&gt; Bool
+/= :: Value -&gt; Value -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139036"><span id="local-6989586621679139063"><span id="local-6989586621679139066"><span class="annot"><span class="annottext">Int -&gt; Value -&gt; ShowS
+[Value] -&gt; ShowS
+Value -&gt; [Char]
+(Int -&gt; Value -&gt; ShowS)
+-&gt; (Value -&gt; [Char]) -&gt; ([Value] -&gt; ShowS) -&gt; Show Value
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Value -&gt; ShowS
+showsPrec :: Int -&gt; Value -&gt; ShowS
+$cshow :: Value -&gt; [Char]
+show :: Value -&gt; [Char]
+$cshowList :: [Value] -&gt; ShowS
+showList :: [Value] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">type</span><span> </span><span id="Token"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-var">Token</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#TokenType"><span class="hs-identifier hs-type">TokenType</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">type</span><span> </span><span id="TokenType"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#TokenType"><span class="hs-identifier hs-var">TokenType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lexer.Token</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">newtype</span><span> </span><span id="Parser"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span></span><span> </span><span id="local-6989586621679138886"><span class="annot"><a href="#local-6989586621679138886"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Parser"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-34"></span><span>  </span><span id="runParser"><span class="annot"><span class="annottext">forall a. Parser a -&gt; [Token] -&gt; Maybe (a, [Token])
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var hs-var">runParser</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679138886"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679139074"><span id="local-6989586621679139078"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b)
+-&gt; (forall a b. a -&gt; Parser b -&gt; Parser a) -&gt; Functor Parser
+forall a b. a -&gt; Parser b -&gt; Parser a
+forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+fmap :: forall a b. (a -&gt; b) -&gt; Parser a -&gt; Parser b
+$c&lt;$ :: forall a b. a -&gt; Parser b -&gt; Parser a
+&lt;$ :: forall a b. a -&gt; Parser b -&gt; Parser a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679139087"><span id="local-6989586621679139090"><span id="local-6989586621679139093"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679139096"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Parser a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679139097"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139097"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a)
+-&gt; ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679139098"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139098"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, [Token]) -&gt; Maybe (a, [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139097"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139098"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679139100"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679139106"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679139111"><span class="annot"><span class="annottext">return :: forall a. a -&gt; Parser a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Parser a
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679139114"><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139114"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621679139115"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679139116"><span class="annot"><span class="annottext">a -&gt; Parser b
+</span><a href="#local-6989586621679139116"><span class="hs-identifier hs-var">p2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (b, [Token])) -&gt; Parser b
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe (b, [Token])) -&gt; Parser b)
+-&gt; ([Token] -&gt; Maybe (b, [Token])) -&gt; Parser b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Parser a -&gt; [Token] -&gt; Maybe (a, [Token])
+forall a. Parser a -&gt; [Token] -&gt; Maybe (a, [Token])
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var">runParser</span></a></span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139114"><span class="hs-identifier hs-var">p1</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (a, [Token]))
+-&gt; ((a, [Token]) -&gt; Maybe (b, [Token]))
+-&gt; [Token]
+-&gt; Maybe (b, [Token])
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; [Token] -&gt; Maybe (b, [Token]))
+-&gt; (a, [Token]) -&gt; Maybe (b, [Token])
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parser b -&gt; [Token] -&gt; Maybe (b, [Token])
+forall a. Parser a -&gt; [Token] -&gt; Maybe (a, [Token])
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var">runParser</span></a></span><span> </span><span class="annot"><span class="annottext">(Parser b -&gt; [Token] -&gt; Maybe (b, [Token]))
+-&gt; (a -&gt; Parser b) -&gt; a -&gt; [Token] -&gt; Maybe (b, [Token])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Parser b
+</span><a href="#local-6989586621679139116"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseValue"><span class="hs-identifier hs-type">parseValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-46"></span><span id="parseValue"><span class="annot"><span class="annottext">parseValue :: [Char] -&gt; Maybe Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#parseValue"><span class="hs-identifier hs-var hs-var">parseValue</span></a></span></span><span> </span><span id="local-6989586621679139120"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139120"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; [Token] -&gt; Maybe (Value, [Token])
+forall a. Parser a -&gt; [Token] -&gt; Maybe (a, [Token])
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#runParser"><span class="hs-identifier hs-var">runParser</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Token]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tokenize"><span class="hs-identifier hs-var">tokenize</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139120"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679139123"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139123"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Maybe Value
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139123"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="annottext">Maybe (Value, [Token])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tokenize"><span class="hs-identifier hs-type">tokenize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span id="tokenize"><span class="annot"><span class="annottext">tokenize :: [Char] -&gt; [Token]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tokenize"><span class="hs-identifier hs-var hs-var">tokenize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679139124"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; [Token]) -&gt; ([Char] -&gt; [Token]) -&gt; [Char] -&gt; [Token]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((TokenType, (Pos, [Char])) -&gt; Token)
+-&gt; [(TokenType, (Pos, [Char]))] -&gt; [Token]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Pos, [Char]) -&gt; [Char]) -&gt; (TokenType, (Pos, [Char])) -&gt; Token
+forall a b. (a -&gt; b) -&gt; (TokenType, a) -&gt; (TokenType, b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(Pos, [Char]) -&gt; [Char]
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([(TokenType, (Pos, [Char]))] -&gt; [Token])
+-&gt; ([Char] -&gt; [(TokenType, (Pos, [Char]))]) -&gt; [Char] -&gt; [Token]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[(TokenType, (Pos, [Char]))] -&gt; [(TokenType, (Pos, [Char]))]
+</span><span class="hs-identifier hs-var">rmSpace</span></span><span> </span><span class="annot"><span class="annottext">([(TokenType, (Pos, [Char]))] -&gt; [(TokenType, (Pos, [Char]))])
+-&gt; ([Char] -&gt; [(TokenType, (Pos, [Char]))])
+-&gt; [Char]
+-&gt; [(TokenType, (Pos, [Char]))]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [(TokenType, (Pos, [Char]))]
+</span><span class="hs-identifier hs-var">lexerPass0</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="#local-6989586621679139124"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679139124"><span class="annot"><span class="annottext">go :: [Token] -&gt; [Token]
+</span><a href="#local-6989586621679139124"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679139128"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139128"><span class="hs-identifier hs-var">tokens</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139128"><span class="hs-identifier hs-var">tokens</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Varsym</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">IntLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139131"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139131"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679139132"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139132"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">IntLit</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139131"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679139124"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139132"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Varsym</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">FloatLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139134"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139134"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679139135"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139135"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">FloatLit</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139134"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679139124"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139135"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-58"></span><span>      </span><span id="local-6989586621679139136"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139136"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679139137"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139137"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139136"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679139124"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139137"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-type">exp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-61"></span><span id="exp"><span class="annot"><span class="annottext">exp :: Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var hs-var">exp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#infixexp"><span class="hs-identifier hs-var">infixexp</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#infixexp"><span class="hs-identifier hs-type">infixexp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-64"></span><span id="infixexp"><span class="annot"><span class="annottext">infixexp :: Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#infixexp"><span class="hs-identifier hs-var hs-var">infixexp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Parser Value) -&gt; Parser Value -&gt; Parser Value
+forall a. (Value -&gt; Parser a) -&gt; Parser a -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#aexp"><span class="hs-identifier hs-var">aexp</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Value
+</span><a href="#local-6989586621679139140"><span class="hs-identifier hs-var">accept</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="#local-6989586621679139141"><span class="hs-identifier hs-var">reject</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="#local-6989586621679139140"><span class="hs-identifier hs-type">accept</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621679139140"><span class="annot"><span class="annottext">accept :: Value -&gt; Parser Value
+</span><a href="#local-6989586621679139140"><span class="hs-identifier hs-var hs-var">accept</span></a></span></span><span> </span><span id="local-6989586621679139142"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139142"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-var">peek</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser Value) -&gt; Parser Value
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Varsym</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;%&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser Value -&gt; Parser Value
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; [Char] -&gt; Value -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Operator"><span class="hs-identifier hs-var">Operator</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139142"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;%&quot;</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Value) -&gt; Parser Value -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Consym</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139147"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139147"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser Value -&gt; Parser Value
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; [Char] -&gt; Value -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Operator"><span class="hs-identifier hs-var">Operator</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139142"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139147"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Value) -&gt; Parser Value -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Value
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139142"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><a href="#local-6989586621679139141"><span class="hs-identifier hs-type">reject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679139141"><span class="annot"><span class="annottext">reject :: Parser Value
+</span><a href="#local-6989586621679139141"><span class="hs-identifier hs-var hs-var">reject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser Value) -&gt; Parser Value
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Parser Value
+forall a. Token -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-var">unexpected</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#aexp"><span class="hs-identifier hs-type">aexp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679138940"><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-76"></span><span id="aexp"><span class="annot"><span class="annottext">aexp :: forall a. (Value -&gt; Parser a) -&gt; Parser a -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#aexp"><span class="hs-identifier hs-var hs-var">aexp</span></a></span></span><span> </span><span id="local-6989586621679139158"><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621679139158"><span class="hs-identifier hs-var">continue</span></a></span></span><span> </span><span id="local-6989586621679139159"><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139159"><span class="hs-identifier hs-var">done</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-var">peek</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser a) -&gt; Parser a
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">CharLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139161"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139161"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Value) -&gt; [Char] -&gt; Parser a
+forall v. Read v =&gt; (v -&gt; Value) -&gt; [Char] -&gt; Parser a
+</span><a href="#local-6989586621679139162"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Char"><span class="hs-identifier hs-var">Char</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139161"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">StringLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139164"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139164"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Value) -&gt; [Char] -&gt; Parser a
+forall v. Read v =&gt; (v -&gt; Value) -&gt; [Char] -&gt; Parser a
+</span><a href="#local-6989586621679139162"><span class="hs-identifier hs-var">read</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#String"><span class="hs-identifier hs-var">String</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139164"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">IntLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139165"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139165"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Parser a
+</span><a href="#local-6989586621679139166"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139165"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">FloatLit</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139167"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139167"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Parser a
+</span><a href="#local-6989586621679139166"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139167"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Conid</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139169"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139169"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; Parser a
+</span><a href="#local-6989586621679139170"><span class="hs-identifier hs-var">accept</span></a></span><span> </span><span class="annot"><span class="annottext">(Parser Value -&gt; Parser a) -&gt; Parser Value -&gt; Parser a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#constructor"><span class="hs-identifier hs-var">constructor</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139169"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Special</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;(&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; Parser a
+</span><a href="#local-6989586621679139170"><span class="hs-identifier hs-var">accept</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tuple"><span class="hs-identifier hs-var">tuple</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Special</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;[&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; Parser a
+</span><a href="#local-6989586621679139170"><span class="hs-identifier hs-var">accept</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#list"><span class="hs-identifier hs-var">list</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139159"><span class="hs-identifier hs-var">done</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679138947"><span class="annot"><a href="#local-6989586621679139162"><span class="hs-identifier hs-type">read</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679138947"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679138947"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679139162"><span class="annot"><span class="annottext">read :: forall v. Read v =&gt; (v -&gt; Value) -&gt; [Char] -&gt; Parser a
+</span><a href="#local-6989586621679139162"><span class="hs-identifier hs-var hs-var">read</span></a></span></span><span> </span><span id="local-6989586621679139180"><span class="annot"><span class="annottext">v -&gt; Value
+</span><a href="#local-6989586621679139180"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679139181"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139181"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser Value -&gt; Parser Value
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">v -&gt; Value
+</span><a href="#local-6989586621679139180"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">(v -&gt; Value) -&gt; Parser v -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Parser v
+forall a. Read a =&gt; [Char] -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#readValue"><span class="hs-identifier hs-var">readValue</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139181"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; (Value -&gt; Parser a) -&gt; Parser a
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621679139158"><span class="hs-identifier hs-var">continue</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><a href="#local-6989586621679139166"><span class="hs-identifier hs-type">number</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679139166"><span class="annot"><span class="annottext">number :: [Char] -&gt; Parser a
+</span><a href="#local-6989586621679139166"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span> </span><span id="local-6989586621679139183"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139183"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser a -&gt; Parser a
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621679139158"><span class="hs-identifier hs-var">continue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Number"><span class="hs-identifier hs-var">Number</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139183"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="#local-6989586621679139170"><span class="hs-identifier hs-type">accept</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138940"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679139170"><span class="annot"><span class="annottext">accept :: Parser Value -&gt; Parser a
+</span><a href="#local-6989586621679139170"><span class="hs-identifier hs-var hs-var">accept</span></a></span></span><span> </span><span id="local-6989586621679139184"><span class="annot"><span class="annottext">Parser Value
+</span><a href="#local-6989586621679139184"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser Value -&gt; Parser Value
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="#local-6989586621679139184"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; (Value -&gt; Parser a) -&gt; Parser a
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621679139158"><span class="hs-identifier hs-var">continue</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#constructor"><span class="hs-identifier hs-type">constructor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-96"></span><span id="constructor"><span class="annot"><span class="annottext">constructor :: [Char] -&gt; Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#constructor"><span class="hs-identifier hs-var hs-var">constructor</span></a></span></span><span> </span><span id="local-6989586621679139185"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139185"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-var">peek</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser Value) -&gt; Parser Value
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Special</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;{&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser Value -&gt; Parser Value
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [([Char], Value)] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Record"><span class="hs-identifier hs-var">Record</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139185"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">([([Char], Value)] -&gt; Value)
+-&gt; Parser [([Char], Value)] -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser ([Char], Value) -&gt; [Char] -&gt; Parser [([Char], Value)]
+forall a. Parser a -&gt; [Char] -&gt; Parser [a]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#commaSeparated"><span class="hs-identifier hs-var">commaSeparated</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ([Char], Value)
+</span><a href="#local-6989586621679139187"><span class="hs-identifier hs-var">field</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;}&quot;</span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="#local-6989586621679139187"><span class="hs-identifier hs-type">field</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>      </span><span id="local-6989586621679139187"><span class="annot"><span class="annottext">field :: Parser ([Char], Value)
+</span><a href="#local-6989586621679139187"><span class="hs-identifier hs-var hs-var">field</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Value -&gt; ([Char], Value))
+-&gt; Parser [Char] -&gt; Parser (Value -&gt; ([Char], Value))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TokenType -&gt; Parser [Char]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#require"><span class="hs-identifier hs-var">require</span></a></span><span> </span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Varid</span></span><span> </span><span class="annot"><span class="annottext">Parser (Value -&gt; ([Char], Value))
+-&gt; Parser () -&gt; Parser (Value -&gt; ([Char], Value))
+forall a b. Parser a -&gt; Parser b -&gt; Parser a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#equals"><span class="hs-identifier hs-var">equals</span></a></span><span> </span><span class="annot"><span class="annottext">Parser (Value -&gt; ([Char], Value))
+-&gt; Parser Value -&gt; Parser ([Char], Value)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Value] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Constructor"><span class="hs-identifier hs-var">Constructor</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139185"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">([Value] -&gt; Value) -&gt; Parser [Value] -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser [Value]
+</span><a href="#local-6989586621679139192"><span class="hs-identifier hs-var">parameters</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>      </span><span class="annot"><a href="#local-6989586621679139192"><span class="hs-identifier hs-type">parameters</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-105"></span><span>      </span><span id="local-6989586621679139192"><span class="annot"><span class="annottext">parameters :: Parser [Value]
+</span><a href="#local-6989586621679139192"><span class="hs-identifier hs-var hs-var">parameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Parser [Value]) -&gt; Parser [Value] -&gt; Parser [Value]
+forall a. (Value -&gt; Parser a) -&gt; Parser a -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#aexp"><span class="hs-identifier hs-var">aexp</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser [Value]
+</span><a href="#local-6989586621679139193"><span class="hs-identifier hs-var">more</span></a></span><span> </span><span class="annot"><span class="annottext">Parser [Value]
+</span><a href="#local-6989586621679139194"><span class="hs-identifier hs-var">done</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><a href="#local-6989586621679139193"><span class="hs-identifier hs-type">more</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-108"></span><span>      </span><span id="local-6989586621679139193"><span class="annot"><span class="annottext">more :: Value -&gt; Parser [Value]
+</span><a href="#local-6989586621679139193"><span class="hs-identifier hs-var hs-var">more</span></a></span></span><span> </span><span id="local-6989586621679139195"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139195"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679139195"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">([Value] -&gt; [Value]) -&gt; Parser [Value] -&gt; Parser [Value]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser [Value]
+</span><a href="#local-6989586621679139192"><span class="hs-identifier hs-var">parameters</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>      </span><span class="annot"><a href="#local-6989586621679139194"><span class="hs-identifier hs-type">done</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-111"></span><span>      </span><span id="local-6989586621679139194"><span class="annot"><span class="annottext">done :: Parser [Value]
+</span><a href="#local-6989586621679139194"><span class="hs-identifier hs-var hs-var">done</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Value] -&gt; Parser [Value]
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tuple"><span class="hs-identifier hs-type">tuple</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-114"></span><span id="tuple"><span class="annot"><span class="annottext">tuple :: Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#tuple"><span class="hs-identifier hs-var hs-var">tuple</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Value] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Tuple"><span class="hs-identifier hs-var">Tuple</span></a></span><span> </span><span class="annot"><span class="annottext">([Value] -&gt; Value) -&gt; Parser [Value] -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; [Char] -&gt; Parser [Value]
+forall a. Parser a -&gt; [Char] -&gt; Parser [a]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#commaSeparated"><span class="hs-identifier hs-var">commaSeparated</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;)&quot;</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#list"><span class="hs-identifier hs-type">list</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Value"><span class="hs-identifier hs-type">Value</span></a></span><span>
+</span><span id="line-117"></span><span id="list"><span class="annot"><span class="annottext">list :: Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#list"><span class="hs-identifier hs-var hs-var">list</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Value] -&gt; Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#List"><span class="hs-identifier hs-var">List</span></a></span><span> </span><span class="annot"><span class="annottext">([Value] -&gt; Value) -&gt; Parser [Value] -&gt; Parser Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser Value -&gt; [Char] -&gt; Parser [Value]
+forall a. Parser a -&gt; [Char] -&gt; Parser [a]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#commaSeparated"><span class="hs-identifier hs-var">commaSeparated</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Value
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#exp"><span class="hs-identifier hs-var">exp</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;]&quot;</span></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#commaSeparated"><span class="hs-identifier hs-type">commaSeparated</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679138950"><span class="annot"><a href="#local-6989586621679138950"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138950"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679138950"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span id="commaSeparated"><span class="annot"><span class="annottext">commaSeparated :: forall a. Parser a -&gt; [Char] -&gt; Parser [a]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#commaSeparated"><span class="hs-identifier hs-var hs-var">commaSeparated</span></a></span></span><span> </span><span id="local-6989586621679139206"><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139206"><span class="hs-identifier hs-var">item</span></a></span></span><span> </span><span id="local-6989586621679139207"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139207"><span class="hs-identifier hs-var">close</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-var">peek</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser [a]) -&gt; Parser [a]
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Special</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139208"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139208"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139208"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139207"><span class="hs-identifier hs-var">close</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var">skip</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser [a] -&gt; Parser [a]
+forall a b. Parser a -&gt; Parser b -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Parser [a]
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser [a]
+</span><a href="#local-6989586621679139209"><span class="hs-identifier hs-var">items</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><a href="#local-6989586621679139209"><span class="hs-identifier hs-type">items</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679138950"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679139209"><span class="annot"><span class="annottext">items :: Parser [a]
+</span><a href="#local-6989586621679139209"><span class="hs-identifier hs-var hs-var">items</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; [a] -&gt; [a]) -&gt; Parser a -&gt; Parser ([a] -&gt; [a])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679139206"><span class="hs-identifier hs-var">item</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ([a] -&gt; [a]) -&gt; Parser [a] -&gt; Parser [a]
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser [a]
+</span><a href="#local-6989586621679139210"><span class="hs-identifier hs-var">moreItems</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><a href="#local-6989586621679139210"><span class="hs-identifier hs-type">moreItems</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679138950"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679139210"><span class="annot"><span class="annottext">moreItems :: Parser [a]
+</span><a href="#local-6989586621679139210"><span class="hs-identifier hs-var hs-var">moreItems</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser [a]) -&gt; Parser [a]
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Special</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139211"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139211"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139211"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Parser [a]
+</span><a href="#local-6989586621679139209"><span class="hs-identifier hs-var">items</span></a></span><span>
+</span><span id="line-131"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139211"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139207"><span class="hs-identifier hs-var">close</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Parser [a]
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-132"></span><span>      </span><span id="local-6989586621679139212"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139212"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Token -&gt; Parser [a]
+forall a. Token -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-var">unexpected</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139212"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#equals"><span class="hs-identifier hs-type">equals</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span id="equals"><span class="annot"><span class="annottext">equals :: Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#equals"><span class="hs-identifier hs-var hs-var">equals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Token -&gt; Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#requireToken"><span class="hs-identifier hs-var">requireToken</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">Reservedop</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;=&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#require"><span class="hs-identifier hs-type">require</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#TokenType"><span class="hs-identifier hs-type">TokenType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-138"></span><span id="require"><span class="annot"><span class="annottext">require :: TokenType -&gt; Parser [Char]
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#require"><span class="hs-identifier hs-var hs-var">require</span></a></span></span><span> </span><span id="local-6989586621679139215"><span class="annot"><span class="annottext">TokenType
+</span><a href="#local-6989586621679139215"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser [Char]) -&gt; Parser [Char]
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679139216"><span class="annot"><span class="annottext">TokenType
+</span><a href="#local-6989586621679139216"><span class="hs-identifier hs-var">token</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139217"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139217"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">TokenType
+</span><a href="#local-6989586621679139216"><span class="hs-identifier hs-var">token</span></a></span><span> </span><span class="annot"><span class="annottext">TokenType -&gt; TokenType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TokenType
+</span><a href="#local-6989586621679139215"><span class="hs-identifier hs-var">expected</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Parser [Char]
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679139217"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679139218"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139218"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Token -&gt; Parser [Char]
+forall a. Token -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-var">unexpected</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139218"><span class="hs-identifier hs-var">token</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#requireToken"><span class="hs-identifier hs-type">requireToken</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span id="requireToken"><span class="annot"><span class="annottext">requireToken :: Token -&gt; Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#requireToken"><span class="hs-identifier hs-var hs-var">requireToken</span></a></span></span><span> </span><span id="local-6989586621679139219"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139219"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Parser Token -&gt; (Token -&gt; Parser ()) -&gt; Parser ()
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-144"></span><span>  </span><span id="local-6989586621679139220"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139220"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139220"><span class="hs-identifier hs-var">token</span></a></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Token -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139219"><span class="hs-identifier hs-var">expected</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; Parser ()
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>  </span><span id="local-6989586621679139221"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139221"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Token -&gt; Parser ()
+forall a. Token -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-var">unexpected</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139221"><span class="hs-identifier hs-var">token</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-type">peek</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span>
+</span><span id="line-148"></span><span id="peek"><span class="annot"><span class="annottext">peek :: Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#peek"><span class="hs-identifier hs-var hs-var">peek</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token)
+-&gt; ([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679139222"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139222"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139222"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621679139223"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139223"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Token, [Token]) -&gt; Maybe (Token, [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139223"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139222"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Token, [Token]) -&gt; Maybe (Token, [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">GotEOF</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139222"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span>
+</span><span id="line-153"></span><span id="next"><span class="annot"><span class="annottext">next :: Parser Token
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#next"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token)
+-&gt; ([Token] -&gt; Maybe (Token, [Token])) -&gt; Parser Token
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621679139225"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139225"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679139226"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139226"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Token, [Token]) -&gt; Maybe (Token, [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679139225"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139226"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>  </span><span id="local-6989586621679139227"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139227"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Token, [Token]) -&gt; Maybe (Token, [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenType
+</span><span class="hs-identifier hs-var">GotEOF</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139227"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-type">skip</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span id="skip"><span class="annot"><span class="annottext">skip :: Parser ()
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#skip"><span class="hs-identifier hs-var hs-var">skip</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe ((), [Token])) -&gt; Parser ()
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe ((), [Token])) -&gt; Parser ())
+-&gt; ([Token] -&gt; Maybe ((), [Token])) -&gt; Parser ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679139228"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139228"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((), [Token]) -&gt; Maybe ((), [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139228"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679139229"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139229"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((), [Token]) -&gt; Maybe ((), [Token])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679139229"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span id="local-6989586621679138953"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138953"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-163"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall a. Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+forall a. ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span><span> </span><span class="annot"><span class="annottext">(([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a)
+-&gt; ([Token] -&gt; Maybe (a, [Token])) -&gt; Parser a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe (a, [Token]) -&gt; [Token] -&gt; Maybe (a, [Token])
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Maybe (a, [Token])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span id="local-6989586621679138949"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#readValue"><span class="hs-identifier hs-type">readValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679138949"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138949"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-166"></span><span id="readValue"><span class="annot"><span class="annottext">readValue :: forall a. Read a =&gt; [Char] -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#readValue"><span class="hs-identifier hs-var hs-var">readValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser a -&gt; (a -&gt; Parser a) -&gt; Maybe a -&gt; Parser a
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+forall a. Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Parser a
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Parser a) -&gt; ([Char] -&gt; Maybe a) -&gt; [Char] -&gt; Parser a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe a
+forall a. Read a =&gt; [Char] -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679138944"><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-type">unexpected</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138944"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-169"></span><span id="unexpected"><span class="annot"><span class="annottext">unexpected :: forall a. Token -&gt; Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#unexpected"><span class="hs-identifier hs-var hs-var">unexpected</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser a
+forall a. Parser a
+</span><a href="Test.Hspec.Core.Formatters.Pretty.Parser.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- unexpected :: HasCallStack =&gt; (Token, String) -&gt; Parser a</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- unexpected = error . show</span><span>
+</span><span id="line-173"></span></pre></body></html>

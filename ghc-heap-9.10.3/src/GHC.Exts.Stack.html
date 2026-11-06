@@ -1,0 +1,116 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if MIN_TOOL_VERSION_ghc(9,9,0)
+</span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.html"><span class="hs-identifier">GHC.Exts.Stack</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Stack inspection</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GHC.Exts.Stack.Decode.html#decodeStack"><span class="hs-identifier">decodeStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier">stackFrameSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Exts.Heap.Closures.html"><span class="hs-identifier">GHC.Exts.Heap.Closures</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Constants.html"><span class="hs-identifier">GHC.Exts.Stack.Constants</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Exts.Stack.Decode.html"><span class="hs-identifier">GHC.Exts.Stack.Decode</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | Get the size of the `StackFrame` in words.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Includes header and payload. Does not follow pointers.</span><span>
+</span><span id="line-20"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-type">stackFrameSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#StackFrame"><span class="hs-identifier hs-type">StackFrame</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-21"></span><span id="stackFrameSize"><span class="annot"><span class="annottext">stackFrameSize :: StackFrame -&gt; Int
+</span><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var hs-var">stackFrameSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#UpdateFrame"><span class="hs-identifier hs-type">UpdateFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgUpdateFrame"><span class="hs-identifier hs-var">sizeStgUpdateFrame</span></a></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#CatchFrame"><span class="hs-identifier hs-type">CatchFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchFrame"><span class="hs-identifier hs-var">sizeStgCatchFrame</span></a></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#CatchStmFrame"><span class="hs-identifier hs-type">CatchStmFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchSTMFrame"><span class="hs-identifier hs-var">sizeStgCatchSTMFrame</span></a></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#CatchRetryFrame"><span class="hs-identifier hs-type">CatchRetryFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgCatchRetryFrame"><span class="hs-identifier hs-var">sizeStgCatchRetryFrame</span></a></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#AtomicallyFrame"><span class="hs-identifier hs-type">AtomicallyFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgAtomicallyFrame"><span class="hs-identifier hs-var">sizeStgAtomicallyFrame</span></a></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#RetSmall"><span class="hs-identifier hs-type">RetSmall</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679105746"><span id="local-6989586621679105747"><span class="annot"><span class="annottext">[GenStackField Box]
+StgInfoTable
+info_tbl :: StgInfoTable
+stack_payload :: [GenStackField Box]
+info_tbl :: forall b. GenStackFrame b -&gt; StgInfoTable
+stack_payload :: forall b. GenStackFrame b -&gt; [GenStackField b]
+</span><a href="#local-6989586621679105746"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-var">sizeStgClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box]
+</span><a href="#local-6989586621679105747"><span class="hs-identifier hs-var">stack_payload</span></a></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#RetBig"><span class="hs-identifier hs-type">RetBig</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679105754"><span id="local-6989586621679105755"><span class="annot"><span class="annottext">[GenStackField Box]
+StgInfoTable
+info_tbl :: forall b. GenStackFrame b -&gt; StgInfoTable
+stack_payload :: forall b. GenStackFrame b -&gt; [GenStackField b]
+info_tbl :: StgInfoTable
+stack_payload :: [GenStackField Box]
+</span><a href="GHC.Exts.Heap.Closures.html#info_tbl"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-var">sizeStgClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box]
+</span><a href="#local-6989586621679105755"><span class="hs-identifier hs-var">stack_payload</span></a></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#RetFun"><span class="hs-identifier hs-type">RetFun</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679105757"><span id="local-6989586621679105758"><span id="local-6989586621679105759"><span id="local-6989586621679105760"><span class="annot"><span class="annottext">[GenStackField Box]
+Word
+StgInfoTable
+Box
+info_tbl :: forall b. GenStackFrame b -&gt; StgInfoTable
+info_tbl :: StgInfoTable
+retFunSize :: Word
+retFunFun :: Box
+retFunPayload :: [GenStackField Box]
+retFunPayload :: forall b. GenStackFrame b -&gt; [GenStackField b]
+retFunFun :: forall b. GenStackFrame b -&gt; b
+retFunSize :: forall b. GenStackFrame b -&gt; Word
+</span><a href="GHC.Exts.Heap.Closures.html#info_tbl"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgRetFunFrame"><span class="hs-identifier hs-var">sizeStgRetFunFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box]
+</span><a href="#local-6989586621679105760"><span class="hs-identifier hs-var">retFunPayload</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- The one additional word is a pointer to the StgBCO in the closure's payload</span><span>
+</span><span id="line-30"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#RetBCO"><span class="hs-identifier hs-type">RetBCO</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679105766"><span id="local-6989586621679105767"><span id="local-6989586621679105768"><span class="annot"><span class="annottext">[GenStackField Box]
+StgInfoTable
+Box
+info_tbl :: forall b. GenStackFrame b -&gt; StgInfoTable
+info_tbl :: StgInfoTable
+bco :: Box
+bcoArgs :: [GenStackField Box]
+bcoArgs :: forall b. GenStackFrame b -&gt; [GenStackField b]
+bco :: forall b. GenStackFrame b -&gt; b
+</span><a href="GHC.Exts.Heap.Closures.html#info_tbl"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-var">sizeStgClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[GenStackField Box]
+</span><a href="#local-6989586621679105768"><span class="hs-identifier hs-var">bcoArgs</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- The one additional word is a pointer to the next stack chunk</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Exts.Heap.Closures.html#UnderflowFrame"><span class="hs-identifier hs-type">UnderflowFrame</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Exts.Stack.Constants.html#sizeStgClosure"><span class="hs-identifier hs-var">sizeStgClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Num.html#%2B"><span class="hs-operator hs-var">+</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="GHC.Exts.Stack.html#stackFrameSize"><span class="hs-identifier hs-var">stackFrameSize</span></a></span><span> </span><span class="annot"><span class="annottext">StackFrame
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Int
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Unexpected stack frame type&quot;</span></span><span class="hs-cpp">
+
+#else
+</span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Exts.Stack</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

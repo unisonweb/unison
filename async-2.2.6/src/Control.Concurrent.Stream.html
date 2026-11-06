@@ -1,0 +1,392 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  All rights reserved.
+
+  This source code is licensed under the BSD-style license found in the
+  LICENSE file in the root directory of this source tree.
+-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="annot"><span class="hs-comment">-- | Processing streams with a fixed number of worker threads</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html"><span class="hs-identifier">Control.Concurrent.Stream</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#stream"><span class="hs-identifier">stream</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#streamBound"><span class="hs-identifier">streamBound</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithInput"><span class="hs-identifier">streamWithInput</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithOutput"><span class="hs-identifier">streamWithOutput</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithInputOutput"><span class="hs-identifier">streamWithInputOutput</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#mapConcurrentlyBounded"><span class="hs-identifier">mapConcurrentlyBounded</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#forConcurrentlyBounded"><span class="hs-identifier">forConcurrentlyBounded</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.html"><span class="hs-identifier">Control.Concurrent.Async</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="ShouldBindThreads"><span class="annot"><a href="Control.Concurrent.Stream.html#ShouldBindThreads"><span class="hs-identifier hs-var">ShouldBindThreads</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="BoundThreads"><span class="annot"><a href="Control.Concurrent.Stream.html#BoundThreads"><span class="hs-identifier hs-var">BoundThreads</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="UnboundThreads"><span class="annot"><a href="Control.Concurrent.Stream.html#UnboundThreads"><span class="hs-identifier hs-var">UnboundThreads</span></a></span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | Maps a fixed number of workers concurrently over a stream of values</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- produced by a producer function. The producer is passed a function to</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- call for each work item. If a worker throws a synchronous exception, it</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- will be propagated to the caller.</span><span>
+</span><span id="line-33"></span><span id="local-6989586621679063395"><span class="annot"><a href="Control.Concurrent.Stream.html#stream"><span class="hs-identifier hs-type">stream</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Maximum Concurrency</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063395"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063395"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-38"></span><span id="stream"><span class="annot"><span class="annottext">stream :: forall a. Int -&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#stream"><span class="hs-identifier hs-var hs-var">stream</span></a></span></span><span> </span><span id="local-6989586621679063500"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063500"><span class="hs-identifier hs-var">maxConcurrency</span></a></span></span><span> </span><span id="local-6989586621679063501"><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063501"><span class="hs-identifier hs-var">producer</span></a></span></span><span> </span><span id="local-6989586621679063502"><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679063502"><span class="hs-identifier hs-var">worker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">((a -&gt; IO ()) -&gt; IO ()) -&gt; [()] -&gt; (() -&gt; a -&gt; IO ()) -&gt; IO ()
+forall a b.
+((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#streamWithInput"><span class="hs-identifier hs-var">streamWithInput</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063501"><span class="hs-identifier hs-var">producer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; () -&gt; [()]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063500"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((() -&gt; a -&gt; IO ()) -&gt; IO ()) -&gt; (() -&gt; a -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; () -&gt; a -&gt; IO ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679063502"><span class="hs-identifier hs-var">worker</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Like stream, but uses bound threads for the workers.  See</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- 'Control.Concurrent.forkOS' for details on bound threads.</span><span>
+</span><span id="line-43"></span><span id="local-6989586621679063505"><span class="annot"><a href="Control.Concurrent.Stream.html#streamBound"><span class="hs-identifier hs-type">streamBound</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Maximum Concurrency</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063505"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063505"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-48"></span><span id="streamBound"><span class="annot"><span class="annottext">streamBound :: forall a. Int -&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#streamBound"><span class="hs-identifier hs-var hs-var">streamBound</span></a></span></span><span> </span><span id="local-6989586621679063506"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063506"><span class="hs-identifier hs-var">maxConcurrency</span></a></span></span><span> </span><span id="local-6989586621679063507"><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063507"><span class="hs-identifier hs-var">producer</span></a></span></span><span> </span><span id="local-6989586621679063508"><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679063508"><span class="hs-identifier hs-var">worker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="annottext">ShouldBindThreads
+-&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; [()] -&gt; (() -&gt; a -&gt; IO ()) -&gt; IO ()
+forall a b.
+ShouldBindThreads
+-&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#stream_"><span class="hs-identifier hs-var">stream_</span></a></span><span> </span><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="Control.Concurrent.Stream.html#BoundThreads"><span class="hs-identifier hs-var">BoundThreads</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063507"><span class="hs-identifier hs-var">producer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; () -&gt; [()]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063506"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((() -&gt; a -&gt; IO ()) -&gt; IO ()) -&gt; (() -&gt; a -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; () -&gt; a -&gt; IO ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679063508"><span class="hs-identifier hs-var">worker</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><span class="hs-comment">-- | Like stream, but each worker is passed an element of an input list.</span></span><span>
+</span><span id="line-52"></span><span id="local-6989586621679063397"><span id="local-6989586621679063398"><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithInput"><span class="hs-identifier hs-type">streamWithInput</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063397"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063398"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker state</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063398"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063397"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-57"></span><span id="streamWithInput"><span class="annot"><span class="annottext">streamWithInput :: forall a b.
+((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#streamWithInput"><span class="hs-identifier hs-var hs-var">streamWithInput</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShouldBindThreads
+-&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+forall a b.
+ShouldBindThreads
+-&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#stream_"><span class="hs-identifier hs-var">stream_</span></a></span><span> </span><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="Control.Concurrent.Stream.html#UnboundThreads"><span class="hs-identifier hs-var">UnboundThreads</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><span class="hs-comment">-- | Like 'stream', but collects the results of each worker</span></span><span>
+</span><span id="line-60"></span><span id="local-6989586621679063412"><span id="local-6989586621679063413"><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithOutput"><span class="hs-identifier hs-type">streamWithOutput</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063412"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063412"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063413"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063413"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-65"></span><span id="streamWithOutput"><span class="annot"><span class="annottext">streamWithOutput :: forall a c. Int -&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO c) -&gt; IO [c]
+</span><a href="Control.Concurrent.Stream.html#streamWithOutput"><span class="hs-identifier hs-var hs-var">streamWithOutput</span></a></span></span><span> </span><span id="local-6989586621679063510"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063510"><span class="hs-identifier hs-var">maxConcurrency</span></a></span></span><span> </span><span id="local-6989586621679063511"><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063511"><span class="hs-identifier hs-var">producer</span></a></span></span><span> </span><span id="local-6989586621679063512"><span class="annot"><span class="annottext">a -&gt; IO c
+</span><a href="#local-6989586621679063512"><span class="hs-identifier hs-var">worker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">((a -&gt; IO ()) -&gt; IO ()) -&gt; [()] -&gt; (() -&gt; a -&gt; IO c) -&gt; IO [c]
+forall a b c.
+((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO c) -&gt; IO [c]
+</span><a href="Control.Concurrent.Stream.html#streamWithInputOutput"><span class="hs-identifier hs-var">streamWithInputOutput</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063511"><span class="hs-identifier hs-var">producer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; () -&gt; [()]
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063510"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((() -&gt; a -&gt; IO c) -&gt; IO [c]) -&gt; (() -&gt; a -&gt; IO c) -&gt; IO [c]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="annottext">(a -&gt; IO c) -&gt; () -&gt; a -&gt; IO c
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO c
+</span><a href="#local-6989586621679063512"><span class="hs-identifier hs-var">worker</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | Like 'streamWithInput', but collects the results of each worker</span></span><span>
+</span><span id="line-70"></span><span id="local-6989586621679063416"><span id="local-6989586621679063417"><span id="local-6989586621679063418"><span class="annot"><a href="Control.Concurrent.Stream.html#streamWithInputOutput"><span class="hs-identifier hs-type">streamWithInputOutput</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063416"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063417"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker input</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063417"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063416"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063418"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063418"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">]</span></span></span></span><span>
+</span><span id="line-75"></span><span id="streamWithInputOutput"><span class="annot"><span class="annottext">streamWithInputOutput :: forall a b c.
+((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO c) -&gt; IO [c]
+</span><a href="Control.Concurrent.Stream.html#streamWithInputOutput"><span class="hs-identifier hs-var hs-var">streamWithInputOutput</span></a></span></span><span> </span><span id="local-6989586621679063523"><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063523"><span class="hs-identifier hs-var">producer</span></a></span></span><span> </span><span id="local-6989586621679063524"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679063524"><span class="hs-identifier hs-var">workerInput</span></a></span></span><span> </span><span id="local-6989586621679063525"><span class="annot"><span class="annottext">b -&gt; a -&gt; IO c
+</span><a href="#local-6989586621679063525"><span class="hs-identifier hs-var">worker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679063526"><span class="annot"><a href="#local-6989586621679063526"><span class="hs-identifier hs-var">results</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[IORef (Maybe c)] -&gt; IO (IORef [IORef (Maybe c)])
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679063530"><span class="annot"><a href="#local-6989586621679063530"><span class="hs-identifier hs-var hs-var">prod</span></a></span></span><span> </span><span id="local-6989586621679063531"><span class="annot"><span class="annottext">(a, IORef (Maybe c)) -&gt; IO ()
+</span><a href="#local-6989586621679063531"><span class="hs-identifier hs-var">write</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063523"><span class="hs-identifier hs-var">producer</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063532"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063532"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621679063533"><span class="annot"><a href="#local-6989586621679063533"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe c -&gt; IO (IORef (Maybe c))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Maybe c
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-79"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">modifyIORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679063526"><span class="hs-identifier hs-type">results</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">res</span></span><span> </span><span class="annot"><span class="hs-glyph">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><a href="#local-6989586621679063531"><span class="hs-identifier hs-type">write</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063532"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063533"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Control.Concurrent.Stream.html#stream_"><span class="hs-identifier hs-type">stream_</span></a></span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#UnboundThreads"><span class="hs-identifier hs-type">UnboundThreads</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063530"><span class="hs-identifier hs-type">prod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063524"><span class="hs-identifier hs-type">workerInput</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063535"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063535"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679063536"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063536"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679063537"><span class="annot"><span class="annottext">IORef (Maybe c)
+</span><a href="#local-6989586621679063537"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="annottext">b -&gt; a -&gt; IO c
+</span><a href="#local-6989586621679063525"><span class="hs-identifier hs-var">worker</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063535"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063536"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">IO c -&gt; (c -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">IORef (Maybe c) -&gt; Maybe c -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (Maybe c)
+</span><a href="#local-6989586621679063537"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe c -&gt; IO ()) -&gt; (c -&gt; Maybe c) -&gt; c -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; Maybe c
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">readIORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679063526"><span class="hs-identifier hs-type">results</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mapM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">readIORef</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">catMaybes</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">reverse</span></span><span>
+</span><span id="line-84"></span><span>    </span><span>
+</span><span id="line-85"></span><span id="local-6989586621679063408"><span id="local-6989586621679063409"><span class="annot"><a href="Control.Concurrent.Stream.html#stream_"><span class="hs-identifier hs-type">stream_</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Stream.html#ShouldBindThreads"><span class="hs-identifier hs-type">ShouldBindThreads</span></a></span><span> </span><span class="hs-comment">-- use bound threads?</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063408"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Producer</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063409"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- Worker input</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063409"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679063408"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Worker</span></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-91"></span><span id="stream_"><span class="annot"><span class="annottext">stream_ :: forall a b.
+ShouldBindThreads
+-&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; [b] -&gt; (b -&gt; a -&gt; IO ()) -&gt; IO ()
+</span><a href="Control.Concurrent.Stream.html#stream_"><span class="hs-identifier hs-var hs-var">stream_</span></a></span></span><span> </span><span id="local-6989586621679063552"><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="#local-6989586621679063552"><span class="hs-identifier hs-var">useBoundThreads</span></a></span></span><span> </span><span id="local-6989586621679063553"><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063553"><span class="hs-identifier hs-var">producer</span></a></span></span><span> </span><span id="local-6989586621679063554"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679063554"><span class="hs-identifier hs-var">workerInput</span></a></span></span><span> </span><span id="local-6989586621679063555"><span class="annot"><span class="annottext">b -&gt; a -&gt; IO ()
+</span><a href="#local-6989586621679063555"><span class="hs-identifier hs-var">worker</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679063558"><span class="annot"><span class="annottext">maxConcurrency :: Int
+</span><a href="#local-6989586621679063558"><span class="hs-identifier hs-var hs-var hs-var">maxConcurrency</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679063554"><span class="hs-identifier hs-var">workerInput</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679063560"><span class="annot"><a href="#local-6989586621679063560"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM (TBQueue (Maybe a)) -&gt; IO (TBQueue (Maybe a))
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM (TBQueue (Maybe a)) -&gt; IO (TBQueue (Maybe a)))
+-&gt; STM (TBQueue (Maybe a)) -&gt; IO (TBQueue (Maybe a))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; STM (TBQueue (Maybe a))
+forall a. Natural -&gt; STM (TBQueue a)
+</span><span class="hs-identifier hs-var">newTBQueue</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063558"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679063563"><span class="annot"><a href="#local-6989586621679063563"><span class="hs-identifier hs-var hs-var">write</span></a></span></span><span> </span><span id="local-6989586621679063564"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063564"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a) -&gt; Maybe a -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063560"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063564"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">mask</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063567"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679063567"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Internal.html#concurrently_"><span class="hs-identifier hs-var">concurrently_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; TBQueue (Maybe a) -&gt; IO ()
+forall {a}. (IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; IO ()
+</span><a href="#local-6989586621679063569"><span class="hs-identifier hs-var">runWorkers</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679063567"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063560"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679063567"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-comment">-- run the producer</span><span>
+</span><span id="line-98"></span><span>      </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO ()
+</span><a href="#local-6989586621679063553"><span class="hs-identifier hs-var">producer</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO ()
+</span><a href="#local-6989586621679063563"><span class="hs-identifier hs-var">write</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span class="hs-comment">-- write end-markers for all workers</span><span>
+</span><span id="line-100"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; IO () -&gt; IO ()
+forall (m :: * -&gt; *) a. Applicative m =&gt; Int -&gt; m a -&gt; m ()
+</span><span class="hs-identifier hs-var">replicateM_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063558"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a) -&gt; Maybe a -&gt; STM ()
+forall a. TBQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063560"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679063569"><span class="annot"><span class="annottext">runWorkers :: (IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; IO ()
+</span><a href="#local-6989586621679063569"><span class="hs-identifier hs-var hs-var">runWorkers</span></a></span></span><span> </span><span id="local-6989586621679063573"><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063573"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span id="local-6989586621679063574"><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063574"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="#local-6989586621679063552"><span class="hs-identifier hs-var">useBoundThreads</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>      </span><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="Control.Concurrent.Stream.html#BoundThreads"><span class="hs-identifier hs-var">BoundThreads</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">(IO () -&gt; IO () -&gt; IO ()) -&gt; [IO ()] -&gt; IO ()
+forall a. (a -&gt; a -&gt; a) -&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">foldr1</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO ()
+</span><a href="#local-6989586621679063576"><span class="hs-identifier hs-var">concurrentlyBound</span></a></span><span> </span><span class="annot"><span class="annottext">([IO ()] -&gt; IO ()) -&gt; [IO ()] -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-106"></span><span>          </span><span class="annot"><span class="annottext">(b -&gt; IO ()) -&gt; [b] -&gt; [IO ()]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+forall {a}. (IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+</span><a href="#local-6989586621679063577"><span class="hs-identifier hs-var">runWorker</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063573"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063574"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679063554"><span class="hs-identifier hs-var">workerInput</span></a></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><span class="annottext">ShouldBindThreads
+</span><a href="Control.Concurrent.Stream.html#UnboundThreads"><span class="hs-identifier hs-var">UnboundThreads</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">(b -&gt; IO ()) -&gt; [b] -&gt; IO ()
+forall (f :: * -&gt; *) a b. Foldable f =&gt; (a -&gt; IO b) -&gt; f a -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Internal.html#mapConcurrently_"><span class="hs-identifier hs-var">mapConcurrently_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+forall {a}. (IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+</span><a href="#local-6989586621679063577"><span class="hs-identifier hs-var">runWorker</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063573"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063574"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679063554"><span class="hs-identifier hs-var">workerInput</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621679063576"><span class="annot"><span class="annottext">concurrentlyBound :: IO a -&gt; IO b -&gt; IO ()
+</span><a href="#local-6989586621679063576"><span class="hs-identifier hs-var hs-var">concurrentlyBound</span></a></span></span><span> </span><span id="local-6989586621679063581"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679063581"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679063582"><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679063582"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><span class="annottext">IO a -&gt; (Async a -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><a href="Control.Concurrent.Async.Internal.html#withAsyncBound"><span class="hs-identifier hs-var">withAsyncBound</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679063581"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">((Async a -&gt; IO ()) -&gt; IO ()) -&gt; (Async a -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063584"><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063584"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-112"></span><span>      </span><span class="annot"><span class="annottext">IO b -&gt; (Async b -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><a href="Control.Concurrent.Async.Internal.html#withAsyncBound"><span class="hs-identifier hs-var">withAsyncBound</span></a></span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679063582"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">((Async b -&gt; IO ()) -&gt; IO ()) -&gt; (Async b -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063585"><span class="annot"><span class="annottext">Async b
+</span><a href="#local-6989586621679063585"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><span class="annottext">IO (a, b) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (a, b) -&gt; IO ()) -&gt; IO (a, b) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Async a -&gt; Async b -&gt; IO (a, b)
+forall a b. Async a -&gt; Async b -&gt; IO (a, b)
+</span><a href="Control.Concurrent.Async.Internal.html#waitBoth"><span class="hs-identifier hs-var">waitBoth</span></a></span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063584"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Async b
+</span><a href="#local-6989586621679063585"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679063577"><span class="annot"><span class="annottext">runWorker :: (IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+</span><a href="#local-6989586621679063577"><span class="hs-identifier hs-var hs-var">runWorker</span></a></span></span><span> </span><span id="local-6989586621679063591"><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063591"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span id="local-6989586621679063592"><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063592"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span id="local-6989586621679063593"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063593"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>      </span><span id="local-6989586621679063594"><span class="annot"><a href="#local-6989586621679063594"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM (Maybe a) -&gt; IO (Maybe a)
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM (Maybe a) -&gt; IO (Maybe a)) -&gt; STM (Maybe a) -&gt; IO (Maybe a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a) -&gt; STM (Maybe a)
+forall a. TBQueue a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTBQueue</span></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063592"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679063594"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679063596"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063596"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-120"></span><span>          </span><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063591"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; a -&gt; IO ()
+</span><a href="#local-6989586621679063555"><span class="hs-identifier hs-var">worker</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063593"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679063596"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>          </span><span class="annot"><span class="annottext">(IO () -&gt; IO a) -&gt; TBQueue (Maybe a) -&gt; b -&gt; IO ()
+</span><a href="#local-6989586621679063577"><span class="hs-identifier hs-var">runWorker</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a
+</span><a href="#local-6989586621679063591"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">TBQueue (Maybe a)
+</span><a href="#local-6989586621679063592"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679063593"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><span class="hs-comment">-- | Concurrent map over a list of values, using a bounded number of threads.</span></span><span>
+</span><span id="line-124"></span><span id="local-6989586621679063476"><span id="local-6989586621679063477"><span class="annot"><a href="Control.Concurrent.Stream.html#mapConcurrentlyBounded"><span class="hs-identifier hs-type">mapConcurrentlyBounded</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Maximum concurrency</span></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063476"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063477"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Function to map over the input values</span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063476"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ List of input values</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063477"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ List of output values</span></span><span>
+</span><span id="line-129"></span><span id="mapConcurrentlyBounded"><span class="annot"><span class="annottext">mapConcurrentlyBounded :: forall a b. Int -&gt; (a -&gt; IO b) -&gt; [a] -&gt; IO [b]
+</span><a href="Control.Concurrent.Stream.html#mapConcurrentlyBounded"><span class="hs-identifier hs-var hs-var">mapConcurrentlyBounded</span></a></span></span><span> </span><span id="local-6989586621679063599"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063599"><span class="hs-identifier hs-var">maxConcurrency</span></a></span></span><span> </span><span id="local-6989586621679063600"><span class="annot"><span class="annottext">a -&gt; IO b
+</span><a href="#local-6989586621679063600"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679063601"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679063601"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO b) -&gt; IO [b]
+forall a c. Int -&gt; ((a -&gt; IO ()) -&gt; IO ()) -&gt; (a -&gt; IO c) -&gt; IO [c]
+</span><a href="Control.Concurrent.Stream.html#streamWithOutput"><span class="hs-identifier hs-var">streamWithOutput</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679063599"><span class="hs-identifier hs-var">maxConcurrency</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (a -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679063601"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO b
+</span><a href="#local-6989586621679063600"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | 'mapConcurrentlyBounded' but with its arguments reversed</span></span><span>
+</span><span id="line-133"></span><span id="local-6989586621679063484"><span id="local-6989586621679063485"><span class="annot"><a href="Control.Concurrent.Stream.html#forConcurrentlyBounded"><span class="hs-identifier hs-type">forConcurrentlyBounded</span></a></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Maximum concurrency</span></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063484"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ List of input values</span></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679063484"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063485"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Function to map over the input values</span></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679063485"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ List of output values</span></span><span>
+</span><span id="line-138"></span><span id="forConcurrentlyBounded"><span class="annot"><span class="annottext">forConcurrentlyBounded :: forall a b. Int -&gt; [a] -&gt; (a -&gt; IO b) -&gt; IO [b]
+</span><a href="Control.Concurrent.Stream.html#forConcurrentlyBounded"><span class="hs-identifier hs-var hs-var">forConcurrentlyBounded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; IO b) -&gt; [a] -&gt; IO [b]) -&gt; [a] -&gt; (a -&gt; IO b) -&gt; IO [b]
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; IO b) -&gt; [a] -&gt; IO [b]) -&gt; [a] -&gt; (a -&gt; IO b) -&gt; IO [b])
+-&gt; (Int -&gt; (a -&gt; IO b) -&gt; [a] -&gt; IO [b])
+-&gt; Int
+-&gt; [a]
+-&gt; (a -&gt; IO b)
+-&gt; IO [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (a -&gt; IO b) -&gt; [a] -&gt; IO [b]
+forall a b. Int -&gt; (a -&gt; IO b) -&gt; [a] -&gt; IO [b]
+</span><a href="Control.Concurrent.Stream.html#mapConcurrentlyBounded"><span class="hs-identifier hs-var">mapConcurrentlyBounded</span></a></span><span>
+</span><span id="line-139"></span></pre></body></html>
