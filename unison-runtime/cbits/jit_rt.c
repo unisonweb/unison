@@ -72,7 +72,7 @@ int64_t unison_jit_ctx_layout(int64_t *out, int64_t n) {
       offsetof(UnisonJitCtx, cstack_limit), offsetof(UnisonJitCtx, cap),
       offsetof(UnisonJitCtx, budget_end),  offsetof(UnisonJitCtx, hp),
       offsetof(UnisonJitCtx, hp_lim),      offsetof(UnisonJitCtx, henv),
-      offsetof(UnisonJitCtx, n_locals),
+      offsetof(UnisonJitCtx, n_locals),    offsetof(UnisonJitCtx, nm_barrier),
   };
   int64_t count = sizeof offs / sizeof offs[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = offs[i];
@@ -194,6 +194,7 @@ static const JitHelper unison_jit_helpers[] = {
     HELPER(unison_jit_local_env),
     HELPER(unison_jit_alloc_words),
     HELPER(unison_jit_write_mutvar),
+    HELPER(unison_jit_push_old),
     HELPER(unison_jit_list_size),
     HELPER(unison_jit_list_view),
     HELPER(unison_jit_list_push),
@@ -276,8 +277,13 @@ int64_t unison_jit_helper_addresses(const char **names, void **addrs, int64_t n)
   return count;
 }
 
+// UNISON_JIT_DISABLE=nmbarrier: the non-moving collector's write barrier left
+// out, in the C helpers as well as in generated code (the control for the
+// stress test, jit-nonmoving.md)
+static int64_t nm_barrier_disabled = 0;
+
 void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t cstack, int64_t alloc,
-                          int64_t trace_on) {
+                          int64_t trace_on, int64_t nm_barrier_off) {
   for (size_t i = 0; i < sizeof unison_jit_helpers / sizeof unison_jit_helpers[0]; i++)
     if (unison_jit_helpers[i].addr == NULL) abort();
   stress_poll = poll_every;
@@ -285,6 +291,7 @@ void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t csta
   if (cstack > 0) cstack_budget = cstack;
   if (alloc > 0) alloc_budget = alloc;
   jit_trace = trace_on;
+  nm_barrier_disabled = nm_barrier_off;
   const char *bump = debug_getenv("UNISON_JIT_BUMP");
   bump_alloc = !(bump != NULL && strcmp(bump, "0") == 0);
   // Under UNISON_JIT_DEBUG, an abort (the RTS's barf, an assertion of the
@@ -430,6 +437,21 @@ void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
   // only a clean variable needs the barrier, as compiled code tests before
   // the call (the barrier tests again; this keeps the cold call off a dirty var)
   if (GET_INFO((StgClosure *)mv) == &stg_MUT_VAR_CLEAN_info) dirty_MUT_VAR(reg, mv, old);
+  // the non-moving collector's barrier wants the old value at every write,
+  // a dirty variable's too (dirty_MUT_VAR pushes it only for a clean one)
+  if (ctx->nm_barrier) unison_jit_push_old(ctx, old);
+}
+
+// The non-moving collector's write barrier (+RTS -xn; design.md, "The
+// write barrier"): the pointer a store into an old object overwrites goes
+// to the capability's update remembered set, so that the concurrent
+// marker, which works from a snapshot, still reaches what was reachable
+// through it. Generated code, the exit routine and the helpers call this
+// before such a store, only while a mark is in progress (ctx->nm_barrier).
+void unison_jit_push_old(UnisonJitCtx *ctx, void *old) {
+  if (old == NULL) return;
+  StgRegTable *reg = (StgRegTable *)((char *)ctx->cap + sizeof(StgFunTable));
+  updateRemembSetPushClosure_(reg, UNTAG_CLOSURE((StgClosure *)old));
 }
 
 // Addresses and sizes from the runtime that generated code needs: the
@@ -448,6 +470,7 @@ int64_t unison_jit_rts_facts(int64_t *out, int64_t n) {
       offsetof(StgMutVar, var) / sizeof(W_),        // 9: word index of a MutVar#'s content
       (int64_t)&unison_jit_write_mutvar,            // 10: the MutVar# write barrier
       (int64_t)&stg_MUT_ARR_PTRS_DIRTY_info,        // 11: mutable Array# info after a write
+      RtsFlags.GcFlags.useNonmoving,                // 12: the non-moving collector is on (+RTS -xn)
   };
   int64_t count = sizeof facts / sizeof facts[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = facts[i];
@@ -635,6 +658,7 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   ctx->min_sp = fp + 1;
   ctx->n_frames = 0;
   ctx->cap = cap;
+  ctx->nm_barrier = !nm_barrier_disabled && nonmoving_write_barrier_enabled != 0;
   ctx->bump = bump_alloc;
   ctx->slow_words = 0;
   if (bump_alloc) {
@@ -737,6 +761,7 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   // The environment native code was running with (switched, after an exit
   // from inside a handler case), and the ones its Local records refer to.
   if (ctx->henv != henv_in || ctx->n_local_ptrs > 0) {
+    if (ctx->nm_barrier) unison_jit_push_old(ctx, bstk[stack_size]);
     bstk[stack_size] = ctx->henv;
     unison_jit_mark_bstk(bstk, stack_size, stack_size + ctx->n_local_ptrs);
   }

@@ -89,7 +89,7 @@ import Unison.Util.Text qualified as UT
 
 -- | Byte offsets of the fields of the C @Ctx@, from @unison_jit_ctx_layout@.
 data CtxOffsets = CtxOffsets
-  { oUstk, oBstk, oPool, oStackSize, oHplim, oAp, oFp, oSp, oMaxSp, oMinSp, oStressPoll, oStressPollLeft, oStressCallee, oStressCalleeLeft, oFrames, oNFrames, oMaxFrames, oCStackLimit, oCap, oBudgetEnd, oHp, oHpLim, oHenv, oNLocals :: !Int
+  { oUstk, oBstk, oPool, oStackSize, oHplim, oAp, oFp, oSp, oMaxSp, oMinSp, oStressPoll, oStressPollLeft, oStressCallee, oStressCalleeLeft, oFrames, oNFrames, oMaxFrames, oCStackLimit, oCap, oBudgetEnd, oHp, oHpLim, oHenv, oNLocals, oNmBarrier :: !Int
   }
 
 -- | From unison_jit_rts_facts: the info pointers and layouts of the two
@@ -105,7 +105,11 @@ data RtsFacts = RtsFacts
     -- | word index of a MutVar#'s content
     rMutVarVar :: !Int,
     -- | info pointer a mutable Array# gets when written
-    rArrPtrsDirtyInfo :: !Int
+    rArrPtrsDirtyInfo :: !Int,
+    -- | the process runs the non-moving collector (+RTS -xn): pointer
+    -- stores into the boxed stack and into arrays get its write barrier
+    -- ('pushOld'); nothing is generated for it otherwise
+    rNonmoving :: !Bool
   }
 
 data Env = Env
@@ -346,6 +350,7 @@ modulePrelude =
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
       "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ptr)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
+      "declare void @unison_jit_push_old(ptr, ptr)",
       "declare void @unison_jit_exit_fail()",
       "declare i64 @unison_jit_list_size(ptr)",
       "declare ptr @unison_jit_list_view(ptr, ptr, ptr, i64, i64)",
@@ -985,10 +990,41 @@ addFrame _env f = do
   modify' (\s -> s {gsFrames = gsFrames s |> f, gsNFrames = n + 1})
   pure n
 
+-- | The non-moving collector's write barrier (design.md, "The write
+-- barrier"): before a pointer store into the boxed stack or a mutable
+-- array, the pointer it overwrites goes to the collector, while a mark is
+-- in progress (the context's flag, the RTS's at entry, constant for the
+-- run). Only generated when the process runs under @+RTS -xn@, so the
+-- default build is unchanged; @UNISON_JIT_DISABLE=nmbarrier@ leaves it out
+-- there too (the control for the stress test).
+pushOld :: FnEnv -> [Text] -> Gen ()
+pushOld fe addrs
+  | rNonmoving (envRts env),
+    enabled fe "nmbarrier",
+    not (null addrs) = do
+      flagA <- ctxField env oNmBarrier
+      flag <- fresh "nm"
+      emit (flag <> " = load i64, ptr " <> flagA)
+      on <- fresh "nm.on"
+      emit (on <> " = icmp ne i64 " <> flag <> ", 0")
+      pushL <- freshLabel "nm.push"
+      joinL <- freshLabel "nm.join"
+      emit ("br i1 " <> on <> ", label %" <> pushL <> ", label %" <> joinL <> unlikely)
+      startBlock pushL
+      forM_ addrs $ \a -> do
+        old <- fresh "old"
+        emit (old <> " = load ptr, ptr " <> a)
+        emit ("call void @unison_jit_push_old(ptr %ctx, ptr " <> old <> ")")
+      emit ("br label %" <> joinL)
+      startBlock joinL
+  | otherwise = pure ()
+  where
+    env = feEnv fe
+
 -- | Writes the given slots back to the Unison stack.
-writeSlots :: [Int] -> Gen ()
-writeSlots [] = pure ()
-writeSlots slots = do
+writeSlots :: FnEnv -> [Int] -> Gen ()
+writeSlots _ [] = pure ()
+writeSlots fe slots = do
   -- the frame's address on each stack once, then constant offsets
   f <- fpPlus 0
   ustk <- stackReg "%ustk"
@@ -1006,6 +1042,7 @@ writeSlots slots = do
     b <- loadB k
     ba <- fresh "ba"
     emit (ba <> " = getelementptr ptr, ptr " <> bb <> ", i64 " <> tshow k)
+    pushOld fe [ba]
     emit ("store ptr " <> b <> ", ptr " <> ba)
 
 -- | A stress-mode countdown on a pair of Ctx fields; gives an i1 that is
@@ -1216,7 +1253,7 @@ flushShared = do
       let env = feEnv fe
       st <- fresh "st"
       emit (st <> " = phi i64 " <> intercalateT ", " (fmap (\(Pair v from) -> "[ " <> v <> ", %" <> from <> " ]") preds))
-      writeSlots slots
+      writeSlots fe slots
       when isExit $ do
         b <- frameBase fe
         ap <- ctxField env oAp
@@ -2419,6 +2456,7 @@ genNonTailCallWith fe d base getCallee getTop srcs m sect ownFrame continue = do
     ua <- stackAddrU (base + n - j)
     emit ("store i64 " <> u <> ", ptr " <> ua)
     ba <- stackAddrB (base + n - j)
+    pushOld fe [ba]
     emit ("store ptr " <> b <> ", ptr " <> ba)
   bp <- fpPlus base
   top <- getTop
@@ -3103,6 +3141,7 @@ genYieldStack fe base n vals = do
     ua <- stackAddrU (base + w - j)
     emit ("store i64 " <> u <> ", ptr " <> ua)
     ba <- stackAddrB (base + w - j)
+    pushOld fe [ba]
     emit ("store ptr " <> b <> ", ptr " <> ba)
   ap <- ctxField env oAp
   emit ("store i64 %ap, ptr " <> ap)
@@ -3188,6 +3227,7 @@ genCall fe d cix comb args sect
                 ua <- stackAddrU (base + n - j)
                 emit ("store i64 " <> u <> ", ptr " <> ua)
                 ba <- stackAddrB (base + n - j)
+                pushOld fe [ba]
                 emit ("store ptr " <> b <> ", ptr " <> ba)
               f <- fpPlus (base + n)
               tailCallThroughStack fe fnp f
@@ -3295,6 +3335,7 @@ genTailClosureCall fe d getCallee srcs sect = do
     ua <- stackAddrU (base + n - j)
     emit ("store i64 " <> u <> ", ptr " <> ua)
     ba <- stackAddrB (base + n - j)
+    pushOld fe [ba]
     emit ("store ptr " <> b <> ", ptr " <> ba)
   top <- copyCaptured fe (base + n)
   tailCallThroughStack fe fnp top
@@ -3477,13 +3518,17 @@ copyCaptured fe from = do
   cur <- curLabel
   headL <- freshLabel "cp.head"
   bodyL <- freshLabel "cp.body"
+  -- the back edge's own block: the body may end in another block than it
+  -- starts in (the write barrier, 'pushOld', branches), and the phi names
+  -- the block the edge comes from
+  latchL <- freshLabel "cp.latch"
   endL <- freshLabel "cp.end"
   fromR <- fpPlus from
   emit ("br label %" <> headL)
   startBlock headL
   k <- fresh "k"
   k1 <- fresh "k"
-  emit (k <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> k1 <> ", %" <> bodyL <> " ]")
+  emit (k <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> k1 <> ", %" <> latchL <> " ]")
   done <- fresh "done"
   emit (done <> " = icmp eq i64 " <> k <> ", " <> count)
   emit ("br i1 " <> done <> ", label %" <> endL <> ", label %" <> bodyL)
@@ -3516,7 +3561,10 @@ copyCaptured fe from = do
   dstB <- fresh "ba"
   bstk <- stackReg "%bstk"
   emit (dstB <> " = getelementptr ptr, ptr " <> bstk <> ", i64 " <> slot1)
+  pushOld fe [dstB]
   emit ("store ptr " <> b <> ", ptr " <> dstB)
+  emit ("br label %" <> latchL)
+  startBlock latchL
   emit (k1 <> " = add i64 " <> k <> ", 1")
   emit ("br label %" <> headL)
   startBlock endL
@@ -5199,6 +5247,7 @@ genArrayOp fe d wrap ka mki mwrite instr sect = do
       emit (ep <> " = getelementptr i64, ptr " <> arrP <> ", i64 " <> ea)
       case (mwrite, newVal) of
         (Just (Pair _ unitIx), Just v) -> do
+          pushOld fe [ep]
           emit ("store ptr " <> v <> ", ptr " <> ep)
           emit ("store i64 " <> tshow (rArrPtrsDirtyInfo rts) <> ", ptr " <> arrP)
           -- the card table follows the elements; one byte per 2^cardBits elements
@@ -5771,6 +5820,7 @@ genNameStack fe d slow f srcs = do
     ua <- stackAddrU (d + 1 + j)
     emit ("store i64 " <> u <> ", ptr " <> ua)
     ba <- stackAddrB (d + 1 + j)
+    pushOld fe [ba]
     emit ("store ptr " <> b <> ", ptr " <> ba)
   base <- fpPlus (d + 1)
   top <- fpPlus (d + n)
