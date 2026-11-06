@@ -25,8 +25,10 @@ three times the IR: the largest, 43 functions, went from 31 MB to 95 MB and from
 | IR | 224 MB | 618 MB | 365 MB | 297 MB | 618 MB |
 | largest module | 9.3 s, 30 MB | 48 s, 92 MB | 16 s, 43 MB | 16 s, 43 MB | 49 s, 92 MB |
 
-The largest module (`unison_2267`) is one definition of 43 `Let`s in sequence, each a call
-of a top-level definition: its 42 `Let` bodies are combinators of the group, each the
+The largest module (`unison_2267`) is not a test but the term ucm evaluates a stanza's
+watch expressions with (`Runtime.evaluateWatches`: one let rec whose body is a tuple of
+every watch; the Records section has 43, Universal equality 38, Every arity 35): 43 `Let`s
+in sequence, each a call of a watch's nullary definition. Its 42 `Let` bodies are combinators of the group, each the
 function's whole suffix from its `Let`, and each 2.7 MB of IR (1.4 MB without the wide
 convention). Eager mode generated every one of them with the group (`groupUnits` with
 `lazy` off), so an n-`Let` function cost about n²/2 of its code; the wide convention
@@ -55,9 +57,10 @@ The output is identical in every mode, and the matrix rows CI runs (`on-t1 stres
 install-all no-irhelpers`) pass on the fast build in 10.5 min (60 s, 266 s, 42 s, 257 s).
 
 **What remains.** Of the 236 MB, about 150 MB is suffixes still asked for one at a time:
-the test definitions whose every `Let` exits (their callees are left interpreted by the exit
+the watch tuples whose every `Let` exits (their callees are left interpreted by the exit
 rule) get a body per `Let` at the first miss, each the whole suffix (`unison_2267`: 31
-modules, 62 MB; `unison_1838`: 34 modules, 56 MB). That is the linear re-entry code of
+modules, 62 MB; `unison_1838`: 34 modules, 56 MB). That shape is the transcript runner's,
+a stanza with dozens of watches, and is rare in user code. That is the linear re-entry code of
 [optimization-ideas](../optimization-ideas.md#linear-re-entry-code-for-all-cases), a
 re-entry function that ends in a call through the next `Let`'s cell instead of the inlined
 rest, and it would halve the LLVM time again; the wide convention's own doubling of every
