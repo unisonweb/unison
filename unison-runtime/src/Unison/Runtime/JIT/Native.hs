@@ -197,17 +197,19 @@ inlineFrames = 8
 -- ---------------------------------------------------------------------------
 -- Startup
 
-foreign import ccall unsafe "unison_jit_configure" c_configure :: Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> IO ()
+foreign import ccall unsafe "unison_jit_configure" c_configure :: Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> IO ()
 
 -- | Passes stress settings to the C side: poll every N entries, treat every
 -- Nth callee as uncompiled, C stack budget in bytes (0 for the default),
--- allocation budget in words, trace; and keeps the GC-every-N setting on
--- this side ('gcEvery'). Called once at startup.
-configureNative :: Int -> Int -> Int -> Int -> Int -> Int -> Bool -> IO ()
-configureNative pollEvery calleeEvery cstack alloc gc gcskip tr = do
+-- allocation budget in words, trace, whether the non-moving collector's
+-- write barrier is disabled (@UNISON_JIT_DISABLE=nmbarrier@, the control
+-- for its stress test); and keeps the GC-every-N setting on this side
+-- ('gcEvery'). Called once at startup.
+configureNative :: Int -> Int -> Int -> Int -> Int -> Int -> Bool -> Bool -> IO ()
+configureNative pollEvery calleeEvery cstack alloc gc gcskip tr nmOff = do
   writeIORef gcEvery gc
   writeIORef gcSkip gcskip
-  c_configure (fromIntegral pollEvery) (fromIntegral calleeEvery) (fromIntegral cstack) (fromIntegral alloc) (if tr then 1 else 0)
+  c_configure (fromIntegral pollEvery) (fromIntegral calleeEvery) (fromIntegral cstack) (fromIntegral alloc) (if tr then 1 else 0) (if nmOff then 1 else 0)
 
 foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> Int64 -> IO Int64
 
@@ -216,7 +218,7 @@ foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> 
 ctxLayout :: IO ([Int], Int)
 ctxLayout = allocaBytes (8 * 32) $ \out -> do
   size <- c_ctxLayout out 32
-  offs <- mapM (peekElemOff out) [0 .. 23]
+  offs <- mapM (peekElemOff out) [0 .. 24]
   pure (map fromIntegral offs, fromIntegral size)
 
 foreign import ccall unsafe "unison_jit_rts_facts" c_rtsFacts :: Ptr Int64 -> Int64 -> IO Int64

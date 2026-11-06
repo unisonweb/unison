@@ -45,6 +45,8 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 
 The lookup order, in full: `UNISON_LLVM_LIB` if set (and only that; a path there that isn't a usable LLVM is an error, not a fallback), then the dynamic loader's own search path (`DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH`, the system defaults), then the directories in the table. When several versions are installed the newest is taken; set `UNISON_LLVM_LIB` to choose. `UNISON_JIT_LOG=1` prints the version and path that was loaded.
 
+**Any of GHC's collectors.** The JIT generates the non-moving collector's write barrier when the process runs with `+RTS -xn`; compaction (`-c`) doesn't need it.
+
 ## Settings
 
 Every setting is an environment variable, read once when `unison` starts ([`Config.hs`](Config.hs#:~:text=data%20Config) documents them all). Two also have command-line flags. The ones a user might want:

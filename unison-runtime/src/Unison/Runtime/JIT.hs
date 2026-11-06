@@ -240,15 +240,16 @@ initJIT' jit = runExceptT $ do
     pure ls
   ctx <-
     liftIO ctxLayout >>= \case
-      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w x)
+      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w x y)
       _ -> throwE ["unexpected Ctx layout; the JIT is off"]
-  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (stressGC config) (stressGCSkip config) (trace config))
+  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (stressGC config) (stressGCSkip config) (trace config) ("nmbarrier" `elem` disabled config))
   rts <-
     liftIO rtsFacts >>= \case
       -- the allocator's address isn't needed: generated code calls
       -- unison_jit_alloc_words by name, and the JIT resolves it from the process
-      [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo] ->
-        pure (RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo)
+      [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo, nonmoving] -> do
+        when (nonmoving /= 0) (liftIO (jitLog config "the non-moving collector (+RTS -xn): its write barrier is generated"))
+        pure (RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo (nonmoving /= 0))
       _ -> throwE ["unexpected runtime facts; the JIT is off"]
   -- The C helpers' addresses go in first, as absolute symbols, so that
   -- nothing is looked up in the process's own symbol table (Linux doesn't
