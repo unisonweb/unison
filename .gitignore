@@ -43,3 +43,8 @@ result-transcripts
 # Agent stuff
 /.claude
 *.local.md
+
+# Outputs of the JIT transcripts, written next to them by transcript.fork and never committed
+# (unison-runtime/src/Unison/Runtime/JIT/development.md); untracked, they would change the proof hashes
+unison-src/transcripts-manual/jit-*.output.md
+unison-src/transcripts/idempotent/jit-tests.output.md
