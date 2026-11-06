@@ -32,7 +32,8 @@ data Mode
     Off
   | -- | compile what gets hot, in the background (LLVM is loaded at startup)
     On
-  | -- | compile everything as it is loaded (for testing)
+  | -- | compile each definition as it is loaded, before it runs, and a
+    -- re-entry function at its first miss (for testing)
     Eager
   deriving (Show, Eq)
 
@@ -113,8 +114,9 @@ replacementActive use = case replacements of
 
 data Config = Config
   { mode :: Mode,
-    -- | with 'On': interpreted calls before a definition is compiled
-    -- (@UNISON_JIT_THRESHOLD@)
+    -- | with 'On': interpreted calls before a definition is compiled, and
+    -- in both modes the misses before a re-entry function left for later
+    -- is asked for (@UNISON_JIT_THRESHOLD@; 1 with 'Eager')
     threshold :: Int,
     -- | with 'On': the most definitions compiled together as one module
     -- (@UNISON_JIT_BATCH@)
@@ -263,13 +265,15 @@ readConfig = do
   stress <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_STRESS"
   disabledFeatures <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_DISABLE"
   let setting key = listToMaybe' (mapMaybe (stripPrefix (key ++ "=")) stress) >>= readMaybe
+      jitMode = case map toLower (fromMaybe "off" mode) of
+        "eager" -> Eager
+        "on" -> On
+        _ -> Off
   pure
     Config
-      { mode = case map toLower (fromMaybe "off" mode) of
-          "eager" -> Eager
-          "on" -> On
-          _ -> Off,
-        threshold = max 1 (fromMaybe 100 (thresh >>= readMaybe)),
+      { mode = jitMode,
+        -- eager mode asks for a re-entry function at its first miss
+        threshold = max 1 (fromMaybe (if jitMode == Eager then 1 else 100) (thresh >>= readMaybe)),
         batch = max 1 (fromMaybe 32 (batchSize >>= readMaybe)),
         batchGate = max 1 (fromMaybe (max 1 (fromMaybe 100 (thresh >>= readMaybe)) `div` 4) (gate >>= readMaybe)),
         sizeUnit = max 1 (fromMaybe 500 (sizeU >>= readMaybe)),

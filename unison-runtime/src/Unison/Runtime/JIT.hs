@@ -26,6 +26,7 @@ module Unison.Runtime.JIT
 where
 
 import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapability, yield)
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
 import Control.Concurrent.STM (TBQueue, TVar, atomically, check, isFullTBQueue, modifyTVar', newTBQueueIO, newTVarIO, orElse, readTBQueue, readTVar, readTVarIO, writeTBQueue, writeTVar)
 import Control.Exception (SomeException, bracket_, evaluate, finally, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
@@ -85,6 +86,10 @@ data JIT = JIT
     jitAdHoc :: !(IORef AdHoc),
     -- | where the compile thread is, for 'jitShutdown'
     jitStatus :: !(TVar Status),
+    -- | eager mode compiles on the thread that asks (a group as it loads,
+    -- a re-entry function when the interpreter asks for it), so two
+    -- Unison threads could otherwise compile at once; one at a time
+    jitEagerLock :: !(MVar ()),
     -- | Stops the compile thread and waits for it: a compile in flight
     -- finishes first, so that the process does not tear LLVM down under
     -- it. ucm calls this before it exits. Returns at once when the thread
@@ -123,6 +128,7 @@ newJIT config = do
     <*> pure started
     <*> newIORef (AdHoc (EC.mapFromList []) 0 0)
     <*> pure status
+    <*> newMVar ()
     <*> pure (shutdown status started)
   where
     shutdown status started = do
@@ -303,17 +309,42 @@ addHelpers config = do
 minLLVM :: Int
 minLLVM = 20
 
--- | Compiles a freshly loaded top-level definition, in eager mode.
+-- | Compiles a freshly loaded top-level definition, in eager mode: its
+-- entry points and local functions, and the re-entry functions that are
+-- certain to be used. The rest, the Let bodies entered only when
+-- something exits and the continuations after slow paths, wait to be
+-- asked for exactly as under @on@ ('jitRequestCell'), after the first
+-- miss (the threshold is 1 in this mode): a Let body is the function's
+-- whole suffix from its point, so generating every one of an n-Let
+-- function is n²/2 of its code, which under the wide convention made
+-- the test transcript's largest module 95 MB of IR and the merge
+-- queue's jit jobs three to five times longer (2026-11-06).
 jitCompileGroup :: JIT -> Bool -> Reference -> Word64 -> MCombs -> IO ()
 jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
   Eager ->
     readIORef (jitState jit) >>= \case
       Nothing -> pure ()
-      Just st -> do
+      Just st -> withMVar (jitEagerLock jit) $ \() -> do
         numbers <- TN.typeReferences
-        (now, _) <- groupUnits (jitCompiler jit) sandbox False False ref grp cmbs
-        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st numbers ("unison_" ++ show grp) False now)
+        let c = jitCompiler jit
+        (now, later) <- groupUnits c sandbox True False ref grp cmbs
+        -- pending before the group's code can exit to them
+        forM_ later (addPending c)
+        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits c st numbers ("unison_" ++ show grp) True now)
   _ -> pure ()
+
+-- | Eager mode's answer to a request for a re-entry function: generated
+-- on the spot, on the thread that asked, since the mode has no compile
+-- thread.
+compileUnitNow :: JIT -> Unit -> IO ()
+compileUnitNow jit u =
+  readIORef (jitState jit) >>= \case
+    Nothing -> pure ()
+    Just st -> withMVar (jitEagerLock jit) $ \() -> do
+      numbers <- TN.typeReferences
+      let c = jitCompiler jit
+      guarded (jitConfig jit) (unitName u) (compileUnits c st numbers ("unison_" ++ unitName u) True [u])
+      dropPending c u
 
 -- ---------------------------------------------------------------------------
 -- The @on@ mode: compiling what gets hot, on a thread of its own.
@@ -382,10 +413,12 @@ jitRequestCell jit cell =
     Nothing -> pure ()
     Just u -> do
       mine <- claimNativeCell cell
-      when mine $ do
-        queued <- offer jit (ReqUnit u)
-        -- addPending starts the count again
-        unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
+      when mine $ case mode (jitConfig jit) of
+        Eager -> compileUnitNow jit u
+        _ -> do
+          queued <- offer jit (ReqUnit u)
+          -- addPending starts the count again
+          unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
 {-# NOINLINE jitRequestCell #-}
 
 -- | The trampoline's report of an ad hoc exit (the poll, the allocation

@@ -433,7 +433,7 @@ frames of a small function; deeper recursion bounces through the interpreter eve
 frames. Switching to a large malloc'd stack in `unison_jit_enter` would make that many times
 rarer. Cheap to try; needs care with signal handlers and anything that inspects the stack.
 
-### Linear re-entry code for all cases (low priority)
+### Linear re-entry code for all cases
 
 A re-entry function is the whole suffix of its function from its point on, generated
 inline, so a function whose n re-entry points in sequence all get generated holds about
@@ -442,10 +442,15 @@ n²/2 of its instructions. In `on` mode that doesn't happen: certain call-outs a
 re-entry functions (`UNISON_JIT_REENTRY_ADHOC`, 2026-10-20) bounds what the poll and stack
 growth can ask for.
 
-What remains is `eager` mode (intended only for testing), which generates every Let body by design,
-and two cases that don't occur in practice: Let bodies whose callees always exit (the
-estimate leaves such functions interpreted) and the deferred copies after slow-path
-call-outs (needs many sites of one function to keep taking their slow paths).
+`eager` mode generated every Let body by design until 2026-11-06, when the wide convention's
+larger suffixes made the test transcript's largest definition 95 MB of IR and the merge queue's
+jit jobs three to five times longer; it now splits a group as `on` does and generates a body at
+its first miss ([benchmarks/2026-11-06-eager-reentry.md](benchmarks/2026-11-06-eager-reentry.md)).
+What remains is a function whose every Let exits because its callees are left interpreted
+(the test transcript's definitions that list tests: `unison_2267`, 43 Lets, got 31 suffixes of
+2.5 MB each at their first misses, 62 MB; `unison_1838` 34 suffixes, 56 MB; together most of
+the run's remaining LLVM time, 61 s against trunk's 23 s) and the deferred copies after
+slow-path call-outs (needs many sites of one function to keep taking their slow paths).
 
 If one of those ever matters, the fix is to generate a re-entry function as its own binding
 followed by a call through the *next* Let's (or deferred site's) cell instead of inlining the
