@@ -40,28 +40,37 @@ the re-entry functions that are certain to be used are compiled as the definitio
 the `Let` bodies and the continuations after slow paths wait to be asked for, and a request
 is served on the spot, on the thread that made it (`compileUnitNow`), under a lock since
 two Unison threads could ask at once. The threshold is 1 under eager unless
-`UNISON_JIT_THRESHOLD` says otherwise, so a body is generated at its first miss.
+`UNISON_JIT_THRESHOLD` says otherwise, so a body is generated at its first miss, and the
+interpreter reads the cell again after counting the miss and enters the body it finds there
+(`leap` on a `Push` frame, and the `CallOut` case of `runNativeFrom`), so the body runs
+natively from the miss that asked for it.
+
+That last step came from a trace (`UNISON_JIT_TRACE=1`) of the Records section alone, after
+the first version of the change: the stanza's tuple ran natively, its first watch called out
+(a `Universal.<`, no native version), the exit unwound through the tuple's `Let`, and from
+there the interpreter walked the tuple, entering each remaining watch natively and popping each
+`Let`'s frame with an empty body cell: 36 suffixes asked for, compiled, and never run, with 6
+exits in the whole stanza. Entering a body as soon as it is served leaves one suffix per
+call-out instead (5 for that section).
 
 **After**, the same transcript on the optimized build:
 
-| | trunk | before | after |
-| --- | --- | --- | --- |
-| wall time | 56 s | 209 s | 100 s |
-| modules | 1248 | 1440 | 1908 (478 re-entry functions on demand, 1992 never asked for) |
-| compile time, summed | 49 s | 201 s | 91 s |
-| LLVM parse and optimize | 23 s | 125 s | 61 s |
-| IR | 224 MB | 618 MB | 236 MB |
-| largest module | 9.3 s, 30 MB | 48 s, 92 MB | 1.6 s, 2.5 MB |
+| | trunk | before | bodies on demand, interpreted at the miss | and entered at the miss |
+| --- | --- | --- | --- | --- |
+| wall time | 56 s | 209 s | 100 s | 54 s |
+| modules | 1248 | 1440 | 1908 (478 re-entry functions on demand, 1992 never asked for) | 1727 (297 on demand, 2164 never asked for) |
+| compile time, summed | 49 s | 201 s | 91 s | 45 s |
+| LLVM parse and optimize | 23 s | 125 s | 61 s | 27 s |
+| IR | 224 MB | 618 MB | 236 MB | 121 MB |
+| largest module | 9.3 s, 30 MB | 48 s, 92 MB | 1.6 s, 2.5 MB | 1.6 s, 2.5 MB |
 
 The output is identical in every mode, and the matrix rows CI runs (`on-t1 stress-all
-install-all no-irhelpers`) pass on the fast build in 10.5 min (60 s, 266 s, 42 s, 257 s).
+install-all no-irhelpers`) pass on the fast build in 8.5 min (55 s, 205 s, 46 s, 207 s;
+10.5 min after the first version, 60 s, 266 s, 42 s, 257 s).
 
-**What remains.** Of the 236 MB, about 150 MB is suffixes still asked for one at a time:
-the watch tuples whose every `Let` exits (their callees are left interpreted by the exit
-rule) get a body per `Let` at the first miss, each the whole suffix (`unison_2267`: 31
-modules, 62 MB; `unison_1838`: 34 modules, 56 MB). That shape is the transcript runner's,
-a stanza with dozens of watches, and is rare in user code. That is the linear re-entry code of
+**What remains.** A suffix per call-out in the watch tuples, each the function's whole rest
+(the linear re-entry code of
 [optimization-ideas](../optimization-ideas.md#linear-re-entry-code-for-all-cases), a
 re-entry function that ends in a call through the next `Let`'s cell instead of the inlined
-rest, and it would halve the LLVM time again; the wide convention's own doubling of every
-function (`-wide` above) is the other half.
+rest), and the wide convention's own doubling of every function (`-wide` above). Neither
+is pressing: the run is at trunk's time with half of trunk's IR.

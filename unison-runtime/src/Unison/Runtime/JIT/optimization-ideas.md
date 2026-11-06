@@ -446,12 +446,11 @@ growth can ask for.
 larger suffixes made the test transcript's largest definition 95 MB of IR and the merge queue's
 jit jobs three to five times longer; it now splits a group as `on` does and generates a body at
 its first miss ([benchmarks/2026-11-06-eager-reentry.md](benchmarks/2026-11-06-eager-reentry.md)).
-What remains is a function whose every Let exits because its callees are left interpreted.
-In the test transcript that is the runner's own term for a stanza's watch expressions
-(`Runtime.evaluateWatches`, a let rec whose body is a tuple of every watch: the Records
-section's 43 watches got 31 suffixes of 2.5 MB each at their first misses, 62 MB; the Universal
-equality section's 38 got 34, 56 MB; together most of the run's remaining LLVM time, 61 s
-against trunk's 23 s), a shape rare in user code and the deferred copies after
+What remains is a suffix per Let whose callee calls out, each the function's whole rest: in
+the test transcript the runner's own term for a stanza's watch expressions
+(`Runtime.evaluateWatches`, a let rec whose body is a tuple of every watch; the Records
+section's 43 watches get a suffix of 2.5 MB for each of the 5 that call out, since the
+interpreter enters a body as soon as eager has served it), a shape rare in user code and the deferred copies after
 slow-path call-outs (needs many sites of one function to keep taking their slow paths).
 
 If one of those ever matters, the fix is to generate a re-entry function as its own binding

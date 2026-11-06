@@ -1242,9 +1242,14 @@ runNativeFrom retried !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0
               fp stk' == fp stk ->
                 go (castPtrToFunPtr code) henv stk' k'
             | otherwise -> do
-                when (code == nullPtr) (countReentry env cell)
-                when tracing $ JIT.jitDump ("  no re-entry: pushed " ++ show (sp stk' - sp stk) ++ ", expected " ++ show n ++ "; fp " ++ show (fp stk, fp stk') ++ ", code " ++ show code)
-                eval yld env henv activeThreads stk' k' cix rest
+                -- a miss counts toward the deferred re-entry function;
+                -- eager mode serves the request on the spot, so look again
+                code' <- if code == nullPtr then countReentry env cell >> readNativeEntry cell else pure code
+                if code' /= nullPtr && sp stk' == sp stk + n && fp stk' == fp stk
+                  then go (castPtrToFunPtr code') henv stk' k'
+                  else do
+                    when tracing $ JIT.jitDump ("  no re-entry: pushed " ++ show (sp stk' - sp stk) ++ ", expected " ++ show n ++ "; fp " ++ show (fp stk, fp stk') ++ ", code " ++ show code')
+                    eval yld env henv activeThreads stk' k' cix rest
     -- The exit says which function to call again. It is the one that took
     -- the exit, which after tail calls need not be the one entered here.
     --
@@ -1700,7 +1705,13 @@ yield !yld env henv0 !activeThreads !stk = leap
       if native == nullPtr
         then do
           countReentry env cell
-          eval yld env henv0 activeThreads stk k cix nx
+          -- eager mode serves the request on the spot: enter the body now
+          -- rather than interpret it (with it, every later Let of the body
+          -- would miss too and get a suffix of its own, none of them run)
+          native <- readNativeEntry cell
+          if native == nullPtr
+            then eval yld env henv0 activeThreads stk k cix nx
+            else runNative yld env henv0 activeThreads stk k (castPtrToFunPtr native)
         else runNative yld env henv0 activeThreads stk k (castPtrToFunPtr native)
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz

@@ -49,8 +49,8 @@ Record a run as `benchmarks/<yyyy-mm-dd>-<what>.md`.
 | the same after a change in `unison-util-rope` (every package depends on it) | about 5 min |
 | optimized build | about 5 min; debug RTS build about 8 min |
 | `jit-tests.md`, JIT on | about 20 s |
-| `jit-tests.md`, JIT eager | about 140 s on the fast build, 100 s optimized (every definition is compiled before it runs; 209 s optimized before 2026-11-06, when eager generated every `Let` body) |
-| a stress row of the matrix | about 260 s |
+| `jit-tests.md`, JIT eager | about 80 s on the fast build, 55 s optimized (every definition is compiled before it runs; 209 s optimized before 2026-11-06, when eager generated every `Let` body) |
+| a stress row of the matrix | about 200 s |
 | `jit-tests.md`, JIT off | about 160 s (the tests are loops) |
 | `jit-benchmarks.md`, JIT on | about 5 minutes (each row runs for several seconds); with stdout redirected to a file nothing appears until the end, since it is block-buffered |
 | the whole test matrix (`scripts/jit-test-matrix.sh`), fast build | about 20 min |
