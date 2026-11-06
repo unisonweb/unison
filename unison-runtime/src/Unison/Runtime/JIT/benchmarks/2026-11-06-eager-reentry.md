@@ -68,6 +68,11 @@ The output is identical in every mode, and the matrix rows CI runs (`on-t1 stres
 install-all no-irhelpers`) pass on the fast build in 8.5 min (55 s, 205 s, 46 s, 207 s;
 10.5 min after the first version, 60 s, 266 s, 42 s, 257 s).
 
+**In CI.** The merge-queue run that merged PR 6330 (2026-11-06, 14:06Z to 15:10Z, 64 min in
+all) ran the eager transcript step in 3 to 6 min on the five platforms (3 to 10 on
+2026-11-03, 12 to 30 the night before) and the matrix rows in 22 to 41 min (11 to 26 on
+2026-11-03, 27 to 66 the night before): the stress rows exit more and so ask for more bodies.
+
 **What remains.** A suffix per call-out in the watch tuples, each the function's whole rest
 (the linear re-entry code of
 [optimization-ideas](../optimization-ideas.md#linear-re-entry-code-for-all-cases), a
