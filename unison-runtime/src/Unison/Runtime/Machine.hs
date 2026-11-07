@@ -1716,7 +1716,15 @@ yield !yld env henv0 !activeThreads !stk = leap
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz
       yield yld env henv activeThreads stk k
-    leap (CB (Hook f)) = f (unpackXStack stk)
+    -- the hook reads the one value slot, so a wide value (a small
+    -- constructor a handler's pure case or a callee returned unboxed) is
+    -- boxed first, as a handler frame boxes it above; this is how a nested
+    -- evaluation (tryEval, a finalizer, a C callback) and the top-level run
+    -- get their result
+    leap (CB (Hook f)) = do
+      v <- boxSlot stk 0
+      poke stk v
+      f (unpackXStack stk)
     leap (Keep _ asz k) = do
       stk <- restoreFrame stk 0 asz
       yield yld env henv0 activeThreads stk k
