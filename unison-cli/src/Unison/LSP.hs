@@ -256,7 +256,11 @@ lspOptions :: Options
 lspOptions =
   defaultOptions
     { optTextDocumentSync = Just $ textDocSyncOptions,
-      optExecuteCommandCommands = Just supportedCommands
+      optExecuteCommandCommands = Just supportedCommands,
+      -- '.' isn't an identifier character, so editors won't auto-request completions after it
+      -- unless we register it as a trigger character. Without this, typing a '.' after a
+      -- completed name (e.g. `List.`) never triggers a completion request.
+      optCompletionTriggerCharacters = Just ['.']
     }
   where
     textDocSyncOptions =
