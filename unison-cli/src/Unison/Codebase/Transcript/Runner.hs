@@ -223,8 +223,8 @@ withRunner jit config verbosity ucmVersion action = do
         Right r -> pure r
     withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
-      RTI.withRuntime jit False RTI.Persistent ucmVersion \runtime ->
-        RTI.withRuntime jit True RTI.Persistent ucmVersion \sbRuntime ->
+      RTI.withRuntime jit False RTI.Persistent \runtime ->
+        RTI.withRuntime jit True RTI.Persistent \sbRuntime ->
           action runtime sbRuntime
     initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do

@@ -25,8 +25,6 @@ import Unison.Runtime.ANF
     Mem (..),
     SuperGroup (..),
     SuperNormal (..),
-    lamLift,
-    superNormalize,
     pattern TApp,
     pattern TLetD,
     pattern TLets,
@@ -34,6 +32,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF.Convert (lamLift, superNormalize)
 import Unison.Runtime.Exception (RuntimeExn (..))
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.Machine
@@ -49,7 +48,6 @@ import Unison.Symbol (Symbol)
 import Unison.Term (unannotate)
 import Unison.Test.Common (tm)
 import Unison.Util.EnumContainers (mapFromList)
-import Unison.Util.Pretty qualified as P
 import Unison.Var qualified as Var
 
 dummyRef :: Reference
@@ -156,8 +154,8 @@ expectValueError :: String -> CCache () -> ANF.Value Reference -> Test ()
 expectValueError msg cc v =
   io (try (reifyValue cc (Plain v))) >>= \case
     Left (PE _ _ doc)
-      | msg `isInfixOf` Text.unpack (P.toPlain 0 doc) -> ok
-      | otherwise -> crash ("refused for another reason: " ++ Text.unpack (P.toPlain 0 doc))
+      | msg `isInfixOf` Text.unpack doc -> ok
+      | otherwise -> crash ("refused for another reason: " ++ Text.unpack doc)
     Left e -> crash ("refused for another reason: " ++ show e)
     Right _ -> crash "decoded; expected a refusal"
 

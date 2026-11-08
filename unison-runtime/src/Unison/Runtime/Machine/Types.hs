@@ -35,7 +35,6 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 import System.CPUTime
 #endif
 import Control.Monad.State.Strict
-import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
@@ -50,6 +49,7 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
+import Unison.Runtime.Builtin.Decls (ioFailureRef)
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
 import Unison.Runtime.JIT (JIT, initialNativeCount)

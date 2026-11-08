@@ -89,6 +89,7 @@ import Unison.Project (defaultBranchName)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.JIT.Config qualified as JITConfig
+import Unison.Runtime.Version (runtimeVersion)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -194,7 +195,7 @@ main version = do
             )
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
-            RTI.withRuntime jit False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
+            RTI.withRuntime jit False RTI.OneOff \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -276,14 +277,14 @@ main version = do
                     "",
                     P.indentN 2 . P.wrap $ P.string err
                   ]
-              Right (Right (v, rf, combIx, sto))
+              Right (Right (RTI.Compiled v rf combIx sto _))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
                     withArgs args (RTI.runStandalone jit False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
-                  vmatch = v == Version.gitDescribeWithDate version
+                  vmatch = v == runtimeVersion
                   ws s = P.wrap (P.text s)
                   ifile
                     | 'c' : 'u' : '.' : rest <- reverse file = reverse rest
@@ -299,7 +300,7 @@ main version = do
                         P.indentN 4 $ P.text v,
                         "",
                         "Your version",
-                        P.indentN 4 $ P.text $ Version.gitDescribeWithDate version,
+                        P.indentN 4 $ P.text runtimeVersion,
                         "",
                         P.wrap $
                           "The program was compiled from hash "
@@ -421,8 +422,8 @@ main version = do
     -- (runtime, sandboxed runtime)
     withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
     withRuntimes jit mode action =
-      RTI.withRuntime jit False mode (Version.gitDescribeWithDate version) \runtime -> do
-        RTI.withRuntime jit True mode (Version.gitDescribeWithDate version) \sbRuntime ->
+      RTI.withRuntime jit False mode \runtime -> do
+        RTI.withRuntime jit True mode \sbRuntime ->
           action (runtime, sbRuntime)
     initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do

@@ -30,11 +30,11 @@ import Data.Set (insert)
 import Data.Set qualified as Set
 import Data.Text qualified
 import Unison.ABT.Normalized hiding (TTm)
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Optimize as ANF
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.Stack (UnboxedTypeTag (..), Val (..), unboxedTypeTagToInt)

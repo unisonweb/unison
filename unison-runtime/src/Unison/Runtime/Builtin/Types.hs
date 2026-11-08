@@ -8,10 +8,9 @@ module Unison.Runtime.Builtin.Types
 where
 
 import Data.Map qualified as Map
-import Unison.Builtin qualified as Ty (builtinTypes)
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 
@@ -36,9 +35,9 @@ typeReferences = fixed ++ zip rest [fromIntegral (length fixed) + 1 ..]
     fixed = [(Ty.anyRef, anyTypeNumber), (Ty.booleanRef, booleanTypeNumber)]
     rest = filter (`notElem` map fst fixed) rs
     rs =
-      [r | (_, r) <- Ty.builtinTypes]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinDataDecls]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
+      Ty.builtinTypeRefs
+        ++ Ty.builtinDataDeclRefs
+        ++ Ty.builtinEffectDeclRefs
 
 builtinTypeBackref :: EnumMap Word64 Reference
 builtinTypeBackref = mapFromList $ swap <$> typeReferences

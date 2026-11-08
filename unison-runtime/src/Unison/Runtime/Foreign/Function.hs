@@ -165,7 +165,6 @@ import System.Process as SYS
     withCreateProcess,
   )
 import System.X509 qualified as X
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
@@ -175,6 +174,7 @@ import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
