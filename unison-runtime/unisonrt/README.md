@@ -1,6 +1,8 @@
 # unisonrt
 
-`unisonrt` runs a compiled Unison program, a `.uc` file, without a codebase. ucm's `compile` command writes the file:
+`unisonrt` runs a compiled Unison program, a `.uc` file, without a codebase.
+
+`unisonrt`, its bundles and ucm's `bundle` command are experimental. Releases ship `unisonrt` minified ([minify](../../minify/README.md)), and minify is new: a bug in it could break a bundle or a `unisonrt` run, though never ucm itself, which ships as it is built. Run a bundle before relying on it. ucm's `compile` command writes the file:
 
 ```
 scratch/main> compile main hello

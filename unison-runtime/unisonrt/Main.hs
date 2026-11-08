@@ -42,7 +42,7 @@ usage =
   unlines
     [ "usage: unisonrt [+RTS <GHC RTS flags> -RTS] [--jit MODE] [--jit-dump-ir DIR] FILE.uc [ARGS]",
       "",
-      "Runs a program compiled by ucm's `compile` command. The flags come",
+      "[Experimental] Runs a program compiled by ucm's `compile` command. The flags come",
       "before the file; the arguments after it are the program's.",
       "",
       "  --jit MODE          JIT compilation: off, on or eager (UNISON_JIT)",
