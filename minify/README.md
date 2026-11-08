@@ -82,7 +82,9 @@ identical with the JIT on.
 The macOS x86-64 release binary (trunk-build, 2026-11-07): 105,482,672 to
 89,356,861 bytes. The linker already dead-strips at the symbol level on
 that platform, so only 0.7% of the compactable bytes were unreachable; the
-saving is folding (12.7 MB), constructor names and the export trie.
+saving is folding (12.7 MB), constructor names and the export trie. Run
+under Rosetta, the minified binary gives the same output as the native
+arm64 build on every transcript of the suite.
 
 A Linux arm64 build of a small test program: 20,183,768 to 5,836,672 bytes
 as PIE, where the relocation list is exact.
