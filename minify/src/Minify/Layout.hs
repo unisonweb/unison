@@ -48,6 +48,8 @@ data Piece = Piece
 data Plan = Plan
   { -- | new start address of each definition (meaningful for kept ones)
     plNewStart :: VU.Vector Word64,
+    -- | where each placed definition's own bytes go (0 when not placed)
+    plPlacedStart :: VU.Vector Word64,
     plPieces :: [Piece],
     -- | file offset where __LINKEDIT begins
     plLinkeditOff :: !Word64,
@@ -111,8 +113,8 @@ alignOf a = min 8 (a .&. negate a)
 -- express however many holes __TEXT has.
 -- | 'packSections' names the sections whose movable definitions are packed
 -- first-fit; the rest keep their order (a debugging knob).
-plan :: Analysis -> Int -> Bool -> [B.ByteString] -> Maybe (Word64, Word64) -> Either String Plan
-plan an maxHoles textLast packSections crossRange = do
+plan :: Analysis -> Int -> Bool -> [B.ByteString] -> Maybe (Word64, Word64) -> Bool -> Maybe (Word64, Word64) -> Either String Plan
+plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
   let im = anImage an
       defs = imDefs im
       sects = imSections im
@@ -127,7 +129,7 @@ plan an maxHoles textLast packSections crossRange = do
       sectionOf i = dSect (defs V.! i)
       sizeOf i = let d = defs V.! i in dEnd d - dStart d
       isAnchor i = dKind (defs V.! i) == Fixed || pinned i
-      placedDef i = kept i && anRep an VU.! i == i
+      placedDef i = kept i && (keepCopies || anRep an VU.! i == i)
       perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], placedDef i]
       lookAhead = 4000 :: Int
       -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
@@ -142,8 +144,12 @@ plan an maxHoles textLast packSections crossRange = do
         i Seq.:< rest ->
           let a = alignUp cursor (alignOf (dStart (defs V.! i)))
               allowed j = dStart (defs V.! j) < anchorAt || mayCross j
-           in if a + sizeOf i <= limit && allowed i
-                then let (more, q') = fill pack (a + sizeOf i) limit anchorAt rest in ((i, a) : more, q')
+              -- debugging: extra space after one definition
+              padded j = case padAfter of
+                Just (addr, n) | dStart (defs V.! j) == addr -> n
+                _ -> 0
+           in if a + sizeOf i + padded i <= limit && allowed i
+                then let (more, q') = fill pack (a + sizeOf i + padded i) limit anchorAt rest in ((i, a) : more, q')
                 else if not pack then ([], queue) else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit && allowed j) (Seq.take lookAhead rest) of
                   Nothing -> ([], queue)
                   Just k ->
@@ -336,6 +342,7 @@ plan an maxHoles textLast packSections crossRange = do
   pure
     Plan
       { plNewStart = newStart,
+        plPlacedStart = placedStart,
         plPieces = pieces,
         plLinkeditOff = linkeditOff,
         plLinkeditVm = linkeditVm,

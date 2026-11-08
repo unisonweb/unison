@@ -111,7 +111,9 @@ data Options = Options
     optPatchFixedPointers :: Bool,
     optPatchFixedSrt :: Bool,
     -- | fold identical code and strings onto one copy
-    optFold :: Bool
+    optFold :: Bool,
+    -- | debugging: only definitions starting in this range may be folded
+    optFoldRange :: Maybe (Word64, Word64)
   }
 
 data Analysis = Analysis
@@ -496,7 +498,7 @@ analyze opts im0 = do
     else mark roots
   keptV <- VU.freeze kept
   cutRefV <- VU.freeze cutRef
-  let repV = if optFold opts then fold im' bytes perDef keptV pinnedV cut else VU.generate ndefs' id
+  let repV = if optFold opts then fold im' bytes perDef keptV pinnedV cut (optFoldRange opts) else VU.generate ndefs' id
   pure
     Analysis
       { anImage = im',
@@ -674,7 +676,11 @@ parseTable env d label = do
             when (srt /= 0) (check RSrt (-4) (fromIntegral (fromIntegral label + fromIntegral srt :: Int64)))
             when (ty >= 1 && ty <= 7) (check RConDesc (-24) (rel (-24)))
             when (ty >= 8 && ty <= 14 && hd == 40) $ do
+              -- the slow entry is code without a table of its own (a local
+              -- function's lives unlabeled before its fast entry) and must be
+              -- decoded: its jump back to the fast entry is a reference too
               check RSlowApply (-40) (rel (-40))
+              pushLabel env (rel (-40)) False
               when (u32 bytes (off - 24) == 1) (check RFunBitmap (-32) (rel (-32)))
             when (ty == 31) (check RLargeBitmap (-16) (rel (-16)))
 
@@ -750,15 +756,18 @@ decodeFrom env d = go
 -- addresses for identity. Static closures are never folded, since a CAF
 -- or a constructor is observable by identity. Folding a target makes more
 -- pairs equal, so the grouping is iterated to a fixed point.
-fold :: Image -> B.ByteString -> V.Vector (VU.Vector (Word64, Word8, Word64)) -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Int
-fold im bytes perDef kept pinned cut = go (VU.generate n id) (5 :: Int)
+fold :: Image -> B.ByteString -> V.Vector (VU.Vector (Word64, Word8, Word64)) -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Bool -> Maybe (Word64, Word64) -> VU.Vector Int
+fold im bytes perDef kept pinned cut range = go (VU.generate n id) (5 :: Int)
   where
     n = V.length (imDefs im)
     defs = imDefs im
     candidate i =
       let d = defs V.! i
           sect = imSections im V.! dSect d
-       in kept VU.! i && not (pinned VU.! i) && not (cut VU.! i) && dKind d == Haskell && (isCode sect || secName sect == "__cstring") && dEnd d > dStart d
+          inRange = case range of
+            Nothing -> True
+            Just (lo, hi) -> dStart d >= lo && dStart d < hi
+       in kept VU.! i && not (pinned VU.! i) && not (cut VU.! i) && dKind d == Haskell && (isCode sect || secName sect == "__cstring") && dEnd d > dStart d && inRange
     fieldLen :: RefKind -> Int
     fieldLen = \case
       RAdrpAdd -> 8
@@ -770,18 +779,36 @@ fold im bytes perDef kept pinned cut = go (VU.generate n id) (5 :: Int)
       RCbz -> 4
       RTbz -> 4
       _ -> 8
+    -- the bytes with each reference field's address bits cleared: the
+    -- immediate of an instruction (its registers and opcode stay), the whole
+    -- of a data field
     masked i = case fileOffsetOf im (dStart (defs V.! i)) of
       Nothing -> B.empty
       Just off ->
         let d = defs V.! i
             raw = B.take (fromIntegral (dEnd d - dStart d)) (B.drop (fromIntegral off) bytes)
-            holes = sortOn fst [(fromIntegral (at - dStart d), fieldLen (toEnum (fromIntegral k))) | (at, k, _) <- VU.toList (perDef V.! i)]
-            zeroed = goMask 0 holes raw
-         in zeroed
+            holes = sortOn fst [(fromIntegral (at - dStart d), toEnum (fromIntegral k)) | (at, k, _) <- VU.toList (perDef V.! i)]
+         in goMask 0 holes raw
     goMask _ [] rest = rest
-    goMask pos ((o, l) : more) rest
-      | o < pos = goMask pos more rest -- overlapping fields (an adrp's add is its own 4 bytes)
-      | otherwise = let (keep, after) = B.splitAt (o - pos) rest in keep <> B.replicate l 0 <> goMask (o + l) more (B.drop l after)
+    goMask pos ((o, k) : more) rest
+      | o < pos = goMask pos more rest
+      | otherwise =
+          let l = fieldLen k
+              (keep, after) = B.splitAt (o - pos) rest
+              field = B.take l after
+           in keep <> maskField k field <> goMask (o + l) more (B.drop l after)
+    maskField :: RefKind -> B.ByteString -> B.ByteString
+    maskField k field = case k of
+      RAdrpAdd -> word (u32 field 0 .&. 0x9f00001f) <> word (u32 field 4 .&. complement 0x003ffc00)
+      RAdrpLdr -> word (u32 field 0 .&. 0x9f00001f) <> word (u32 field 4 .&. complement 0x003ffc00)
+      RB -> word (u32 field 0 .&. 0xfc000000)
+      RBl -> word (u32 field 0 .&. 0xfc000000)
+      RBcond -> word (u32 field 0 .&. complement 0x00ffffe0)
+      RCbz -> word (u32 field 0 .&. complement 0x00ffffe0)
+      RTbz -> word (u32 field 0 .&. complement 0x0007ffe0)
+      _ -> B.replicate (B.length field) 0
+    word :: Word32 -> B.ByteString
+    word w = B.pack [fromIntegral (w `shiftR` (8 * j)) | j <- [0 .. 3]]
     canon rep i =
       let d = defs V.! i
        in [ (at - dStart d, k, target)

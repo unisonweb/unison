@@ -107,7 +107,13 @@ definition as new labels. The set of labels grows as other definitions are
 decoded, so the whole thing is a fixpoint over a worklist. Code never
 reached this way is dead local code and travels with its definition
 untouched. Each info table found before a label is parsed for its relative
-fields.
+fields, and the slow-apply field of a general-arity function table is a
+label too: the slow entry is code with no table of its own (a local
+function's sits unlabeled in the region before its fast entry), and its
+jump back to the fast entry is a reference like any other. Missing that was
+the one case where in-order compaction happened to work, since neighbours
+kept their distance, and anything that changed a distance within a module
+(folding, moving a definition past a fixed one) crashed the slow path.
 
 Fixed code is swept linearly for `adrp`, `adr`, `b`, `bl` and literal loads
 whose target falls in a movable definition. An `adrp` is paired with its
@@ -153,10 +159,7 @@ addresses and the movable ones fill the gaps before each anchor, first-fit
 in address order with a bounded look-ahead for one that fits when the next
 in line does not, each aligned as its old address was (to at most 8). Dead
 space collects at the end of each section, where whole pages leave the
-file. A definition is never placed ahead of an anchor it originally
-followed: letting it cross broke the program in a way the analysis does not
-see, so the order with respect to fixed code is kept (the `--cross` option
-exists to find out why).
+file.
 
 Before placement, identical definitions are folded. Two kept, movable
 definitions of code or strings whose bytes agree once their reference

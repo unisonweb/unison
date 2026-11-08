@@ -26,7 +26,7 @@ removed per section and per package.
 | `--top N` | packages listed in the report |
 | `--keep-haskell-exports` | keep Haskell definitions in the export trie, the table `dlsym` searches; by default only C symbols stay exported |
 | `--keep-con-desc` | keep constructor name strings (heap profiling, `GHC.Exts.Heap`); dropped by default |
-| `--no-fold` | do not fold identical code and strings onto one copy |
+| `--fold` | fold identical code and strings onto one copy (off by default while a wrong result it causes in jit-tests.md is being tracked down) |
 | `--no-split SECTION` | do not split definitions at local closures (`text`), static closures (`data`) or constructor names (`strings`) |
 | `--strip` | drop the symbol table and function starts; saves about 24 MB on unison, but the output cannot be minified again or symbolicated |
 | `--force` | write the output even when the analysis reported anomalies (code it did not understand) |
@@ -52,9 +52,10 @@ The `unison` executable from `stack build` on macOS arm64, 2026-11-07:
 | | size |
 |---|---|
 | original | 235,761,896 |
-| minified | 78,036,162 |
-| minified, `--no-fold` | 88,845,434 |
-| minified, `--no-fold --strip` | 75,167,187 |
+| minified | 88,425,587 |
+| minified, `--strip` | 74,741,691 |
+| minified, `--fold` | 77,845,763 |
+| minified, `--fold --strip` | 64,190,395 |
 
 Of the compactable bytes 57.5% were unreachable once definitions were
 split at local closures, static closures and constructor names: 85 MB of

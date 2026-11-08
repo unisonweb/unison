@@ -53,10 +53,10 @@ toStrict = BL.toStrict . BB.toLazyByteString
 -- up by name with dlsym.
 -- | 'rwStrip' drops the symbol table (all but the undefined symbols the
 -- stubs bind through) and the function starts.
-data Choices = Choices {rwKeepHaskellExports :: Bool, rwStrip :: Bool}
+data Choices = Choices {rwKeepHaskellExports :: Bool, rwStrip :: Bool, rwZeroFolded :: Bool}
 
 rewrite :: Analysis -> Plan -> Choices -> IO (B.ByteString, Stats)
-rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip} = do
+rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip, rwZeroFolded = zeroFolded} = do
   let im = anImage an
       mo = imMachO im
       orig = moBytes mo
@@ -246,7 +246,7 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
       -- moved ones survive in the file.
       let live =
             sortOn fst $
-              [(plNewStart pl VU.! i, plNewStart pl VU.! i + (dEnd d - dStart d)) | i <- [0 .. V.length defs - 1], anKept an VU.! i, let d = defs V.! i]
+              [(plPlacedStart pl VU.! i, plPlacedStart pl VU.! i + (dEnd d - dStart d)) | i <- [0 .. V.length defs - 1], anKept an VU.! i, plPlacedStart pl VU.! i /= 0, not (zeroFolded && anRep an VU.! i /= i), let d = defs V.! i]
                 ++ [(a, a + n) | (a, n) <- [plIslandPool pl, plDataArea pl], n > 0]
           zeroGaps _ [] = pure ()
           zeroGaps cursor ((a, b) : rest) = do
@@ -265,18 +265,18 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
           [] -> zeroRange lo hi
           _ -> let lastEnd = maximum (map snd inside) in when (lastEnd < hi) (zeroRange lastEnd hi)
       -- kept definitions that moved (a folded one is its representative's bytes)
-      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && anRep an VU.! i == i) $ do
+      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && plPlacedStart pl VU.! i /= 0 && not (zeroFolded && anRep an VU.! i /= i)) $ do
         let d = defs V.! i
-            new = plNewStart pl VU.! i
+            new = plPlacedStart pl VU.! i
         when (new /= dStart d) $
           case (fileOffsetOf im (dStart d), newFileOffsetOf pl new) of
             (Just o, Just o') -> copyBytes (ptr `plusPtr` fromIntegral o') (src `plusPtr` fromIntegral o) (fromIntegral (dEnd d - dStart d))
             _ -> fail ("no file offset for " ++ hsDisplay d)
       -- references, in every kept definition (a fixed one has only pointer
       -- slots and table fields, which are rewritten in place)
-      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && anRep an VU.! i == i) $ do
+      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && plPlacedStart pl VU.! i /= 0) $ do
         let d = defs V.! i
-            delta = plNewStart pl VU.! i - dStart d
+            delta = plPlacedStart pl VU.! i - dStart d
         VU.forM_ (anRefs an V.! i) $ \(at, k, target) -> do
           let kind = toEnum (fromIntegral k) :: RefKind
               at' = at + delta

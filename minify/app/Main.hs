@@ -44,7 +44,12 @@ data Args = Args
     argPack :: Maybe String,
     argNoFixedPatch :: [String],
     argCross :: Maybe String,
-    argNoFold :: Bool
+    argFold :: Bool,
+    argFoldRange :: Maybe String,
+    argWhere :: [String],
+    argFoldKeepCopies :: Bool,
+    argFoldZeroCopies :: Bool,
+    argPadAfter :: Maybe String
   }
 
 args :: Parser Args
@@ -70,15 +75,23 @@ args =
     <*> optional (strOption (long "split-range" <> metavar "0xLO-0xHI" <> help "Debugging: only split data definitions at addresses in this range"))
     <*> optional (strOption (long "pack" <> metavar "__text,__data,__cstring" <> help "Debugging: which sections' definitions are packed first-fit (default all)"))
     <*> many (strOption (long "no-fixed-patch" <> metavar "pointers|srt" <> help "Debugging: pin instead of rewriting these in fixed regions"))
-    <*> optional (strOption (long "cross" <> metavar "0xLO-0xHI|none" <> help "Debugging: let definitions in this address range (or all) move before a fixed definition they followed; by default none do"))
-    <*> switch (long "no-fold" <> help "Do not fold identical code and strings onto one copy")
+    <*> optional (strOption (long "cross" <> metavar "0xLO-0xHI|none" <> help "Debugging: only definitions in this address range (or none) may move before a fixed definition they followed; by default all may"))
+    <*> switch (long "fold" <> help "Fold identical code and strings onto one copy (off by default until a wrong result in jit-tests.md is understood, 2026-11-08)")
+    <*> optional (strOption (long "fold-range" <> metavar "0xLO-0xHI" <> help "Debugging: only fold definitions starting in this range"))
+    <*> many (strOption (long "where" <> metavar "0xADDR" <> help "Debugging: print where this input address goes in the output (with -o, after planning)"))
+    <*> switch (long "fold-keep-copies" <> help "Debugging: redirect references to the representative but keep the folded copies in place")
+    <*> switch (long "fold-zero-copies" <> help "Debugging: with --fold-keep-copies, reserve the folded copies' space but zero their bytes")
+    <*> optional (strOption (long "pad-after" <> metavar "0xADDR:N" <> help "Debugging: leave N zero bytes after the definition starting at ADDR"))
 
 main :: IO ()
 main = do
   a <- execParser (info (args <**> helper) (fullDesc <> progDesc "Removes definitions a GHC executable does not use, and compacts it"))
   bytes <- B.readFile (argInput a)
   im <- either die pure (loadImage bytes)
-  let kinds = case argSplitKinds a of
+  let foldRange = case argFoldRange a of
+        Just spec | (lo, '-' : hi) <- break (== '-') spec, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> Just (l, h)
+        _ -> Nothing
+      kinds = case argSplitKinds a of
         Nothing -> [RPointer, RAdrpAdd, RSrt]
         Just spec -> [k | (w, k) <- [("pointer", RPointer), ("adrp", RAdrpAdd), ("srt", RSrt)], w `elem` splitOn ',' spec]
       range = case argSplitRange a of
@@ -87,7 +100,7 @@ main = do
       splitOn c str = case break (== c) str of
         (x, []) -> [x]
         (x, _ : rest) -> x : splitOn c rest
-  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a))) im
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (argFold a) foldRange) im
   forM_ (argRefsTo a) $ \spec -> do
     let im' = anImage an
     case spec of
@@ -110,7 +123,7 @@ main = do
             [d | d <- V.toList (imDefs (anImage an)), dStart d < h, dEnd d > l]
           _ -> [d | d <- V.toList (imDefs (anImage an)), hsDisplay d == name || BC.unpack (dName d) == name]
     forM_ picked $ \d -> do
-      printf "%s %s [%x, %x) sym %x head %d kept %s pinned %s\n" (hsDisplay d) (show (dKind d)) (dStart d) (dEnd d) (dSym d) (dHead d) (show (anKept an VU.! dIndex d)) (show (anPinned an VU.! dIndex d))
+      printf "%s %s [%x, %x) sym %x head %d kept %s pinned %s%s\n" (hsDisplay d) (show (dKind d)) (dStart d) (dEnd d) (dSym d) (dHead d) (show (anKept an VU.! dIndex d)) (show (anPinned an VU.! dIndex d)) (if anRep an VU.! dIndex d /= dIndex d then " folded onto " ++ hsDisplay (imDefs (anImage an) V.! (anRep an VU.! dIndex d)) else "")
       VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t) -> printf "  %x %s -> %x %s\n" at (show (toEnum (fromIntegral k) :: RefKind)) t (maybe "" hsDisplay (defAt (anImage an) t))
     exitSuccess
   when (argReport a || argOutput a == Nothing) (report (argTop a) an)
@@ -124,14 +137,21 @@ main = do
     Nothing -> pure ()
     Just out -> do
       let packs = maybe ["__text", "__data", "__cstring", "__const"] (map BC.pack . splitOn ',') (argPack a)
-      -- a definition moving ahead of a fixed one it followed broke the program
-      -- in a way the analysis does not see (2026-11-08), so by default none may
       let cross = case argCross a of
-            Nothing -> Nothing
+            Nothing -> Just (0, maxBound)
+            Just "none" -> Nothing
             Just "all" -> Just (0, maxBound)
             Just spec | (lo, '-' : hi) <- break (== '-') spec, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> Just (l, h)
             _ -> Nothing
-      pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)) packs cross)
+      let padAfter = case argPadAfter a of
+            Just spec | (addr, ':' : n) <- break (== ':') spec, [(ad, "")] <- readHex (drop 2 addr), [(k, "")] <- reads n -> Just (ad, k)
+            _ -> Nothing
+      pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)) packs cross (argFoldKeepCopies a) padAfter)
+      forM_ (argWhere a) $ \spec -> case readHex (drop 2 spec) of
+        [(addr, "")] -> case defAt (anImage an) addr of
+          Just d -> printf "%s: %s [%x,%x) kept %s rep %s -> %s\n" spec (hsDisplay d) (dStart d) (dEnd d) (show (anKept an VU.! dIndex d)) (hsDisplay (imDefs (anImage an) V.! (anRep an VU.! dIndex d))) (maybe "nowhere" (printf "%x") (newAddrOf an pl addr) :: String)
+          Nothing -> printf "%s: in no definition\n" spec
+        _ -> pure ()
       printf "%d segments; %d holes (%d bytes) dropped from the file; %d branch islands\n" (length (plPieces pl)) (length (plHoles pl)) (plSaved pl) (M.size (plIslands pl))
       -- dead bytes per compacted section that stay in the file (not in a dropped hole)
       forM_ (V.toList (imSections (anImage an))) $ \sc -> when (isCompactedSection sc) $ do
@@ -143,7 +163,7 @@ main = do
             anchors = length [() | d <- V.toList (imDefs (anImage an)), dSect d == si, anKept an VU.! dIndex d, dKind d == Fixed || anPinned an VU.! dIndex d]
             holesHere = [(s, e) | (s, e) <- plHoles pl, e > lo, s < hi]
         printf "  %s,%s: %d dead bytes, %d dropped in %d holes, %d remain in the file; %d anchors\n" (BC.unpack (secSegName sc)) (BC.unpack (secName sc)) (secSize sc - keptBytes) dropped (length holesHere) (secSize sc - keptBytes - dropped) anchors
-      (bytes', stats) <- rewrite an pl (Choices (argKeepHaskellExports a) (argStrip a))
+      (bytes', stats) <- rewrite an pl (Choices (argKeepHaskellExports a) (argStrip a) (argFoldZeroCopies a))
       B.writeFile out bytes'
       when (argVerify a) $ do
         problems <- verify an pl bytes'
@@ -183,6 +203,8 @@ report top an = do
   printf "pins by source: %s\n" (show (M.toList (anPinCounts an)))
   let folded = [d | d <- defs, anKept an VU.! dIndex d, anRep an VU.! dIndex d /= dIndex d]
   printf "folded: %d definitions, %d bytes, onto identical copies\n" (length folded) (sum (map size folded))
+  forM_ (take 12 (sortOn (Down . size) folded)) $ \d ->
+    printf "  %d bytes: %s -> %s\n" (size d) (hsDisplay d) (hsDisplay (imDefs im V.! (anRep an VU.! dIndex d)))
   printf "%-20s %12s %12s %12s %12s\n" ("section" :: String) ("kept" :: String) ("kept bytes" :: String) ("removed" :: String) ("removed bytes" :: String)
   forM_ bySect $ \(s, (kc, kb, rc, rb)) -> printf "%-20s %12d %12d %12d %12d\n" s kc kb rc rb
   printf "removable: %d of %d bytes (%.1f%%)\n" removed total (100 * fromIntegral removed / fromIntegral (max 1 total) :: Double)
