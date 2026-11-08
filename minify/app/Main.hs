@@ -31,7 +31,8 @@ data Args = Args
     argTop :: Int,
     argHoles :: Int,
     argDump :: Maybe String,
-    argTextInOrder :: Bool
+    argTextInOrder :: Bool,
+    argForce :: Bool
   }
 
 args :: Parser Args
@@ -47,6 +48,7 @@ args =
     <*> option auto (long "holes" <> value 200 <> showDefault <> metavar "N" <> help "At most this many runs of dead pages are dropped from the file (each adds a segment)")
     <*> optional (strOption (long "dump" <> metavar "NAME" <> help "Print the references of the definition with this decoded name and stop"))
     <*> switch (long "text-in-order" <> help "Keep the segments in address order in the load commands, which limits the holes to 11 (the extra __TEXT pieces otherwise come after the data segments)")
+    <*> switch (long "force" <> help "Write the output even after anomalies in the analysis")
 
 main :: IO ()
 main = do
@@ -63,6 +65,9 @@ main = do
   unless (null (anAnomalies an)) $ do
     hPutStrLn stderr (show (length (anAnomalies an)) ++ " anomalies; the first 40:")
     mapM_ (hPutStrLn stderr . ("  " ++)) (take 40 (anAnomalies an))
+    -- an anomaly means code this tool would move was not understood; the output would be unsound
+    when (argOutput a /= Nothing && not (argForce a)) $
+      die "not writing an output after anomalies (--force overrides)"
   case argOutput a of
     Nothing -> pure ()
     Just out -> do

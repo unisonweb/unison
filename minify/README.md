@@ -24,6 +24,7 @@ removed per section and per package.
 | `--text-in-order` | keep the segments in address order in the load commands, which limits the holes to 11 |
 | `--dump NAME` | print one definition's references and stop |
 | `--top N` | packages listed in the report |
+| `--force` | write the output even when the analysis reported anomalies (code it did not understand) |
 
 Names for `--remove` are the source names, `Module.binding` or
 `package:Module.binding`, so `--remove Unison.Runtime.JIT` cuts the module
