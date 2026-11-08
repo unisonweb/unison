@@ -152,7 +152,10 @@ writes to a static closure's link field.
 
 The link-edit data is rebuilt: the symbol table keeps the surviving symbols
 at their new addresses and in their new sections, with the indirect symbol
-table renumbered; the export trie is regenerated; the rebase stream is
+table renumbered; the export trie, which answers `dlsym` by name and which
+GHC fills with every symbol, is regenerated without the Haskell definitions
+unless `--keep-haskell-exports` says otherwise (nothing looks a closure up
+by name; the C helpers the JIT resolves stay); the rebase stream is
 regenerated from the surviving slots plus the closure stubs' info words;
 binds are re-emitted against the new segment numbering with lazy binds
 converted to ordinary ones (the lazy stream's byte offsets are baked into

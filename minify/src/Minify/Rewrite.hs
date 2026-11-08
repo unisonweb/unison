@@ -46,8 +46,11 @@ alignUp a n = (a + n - 1) .&. complement (n - 1)
 toStrict :: BB.Builder -> B.ByteString
 toStrict = BL.toStrict . BB.toLazyByteString
 
-rewrite :: Analysis -> Plan -> IO (B.ByteString, Stats)
-rewrite an pl = do
+-- | The flag keeps Haskell definitions in the export trie; by default only
+-- the other symbols stay exported, since nothing looks a Haskell closure
+-- up by name with dlsym.
+rewrite :: Analysis -> Plan -> Bool -> IO (B.ByteString, Stats)
+rewrite an pl keepHaskellExports = do
   let im = anImage an
       mo = imMachO im
       orig = moBytes mo
@@ -142,11 +145,15 @@ rewrite an pl = do
       bindBytes = toStrict (encodeBinds binds)
   -- Exports.
   let exportsOld = decodeExports (slice (exportOff dyld) (exportSize dyld))
+      haskellNamed e = case defAt im (textBase + exAddr e) of
+        Just d -> dKind d == Haskell && dSym d == textBase + exAddr e
+        Nothing -> False
       exports =
         flip mapMaybe exportsOld $ \e ->
-          if exFlags e .&. 0x08 /= 0
-            then Just e
-            else (\a' -> e {exAddr = a' - textBase}) <$> newAddrOf an pl (textBase + exAddr e)
+          if
+            | exFlags e .&. 0x08 /= 0 -> Just e
+            | not keepHaskellExports && haskellNamed e -> Nothing
+            | otherwise -> (\a' -> e {exAddr = a' - textBase}) <$> newAddrOf an pl (textBase + exAddr e)
       exportBytes = toStrict (encodeExports exports)
   -- Function starts.
   let fsOld = concat [decodeFunctionStarts textBase (slice o s) | LCLinkeditData c o s <- moCommands mo, c == lcFunctionStarts]
