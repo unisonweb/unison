@@ -89,7 +89,9 @@ arm64 build on every transcript of the suite.
 
 A Linux arm64 unison built with `-optl-fuse-ld=bfd -optl-Wl,--emit-relocs`
 (488,586,736 bytes with the relocations kept; 174,345,656 once stack strips
-it): 144,042,464 minified, 89,746,176 with `--strip`.
+it): 144,042,464 minified, 89,746,176 with `--strip`. Every transcript of
+the suite gives the same output as the unminified build, apart from a
+relative timestamp.
 
 ## Limits
 
