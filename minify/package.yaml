@@ -1,0 +1,32 @@
+name: minify
+version: 0.1.0
+synopsis: Removes unreachable definitions from a linked GHC executable
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2026 Unison Computing, PBC and contributors
+
+ghc-options: -Wall -O2
+
+executables:
+  minify:
+    main: Main.hs
+    source-dirs:
+      - app
+      - src
+    ghc-options: -rtsopts "-with-rtsopts=-A64m"
+    dependencies:
+      - base
+      - bytestring
+      - containers
+      - optparse-applicative
+      - process
+      - vector
+      - vector-algorithms
+
+default-extensions:
+  - BangPatterns
+  - LambdaCase
+  - MultiWayIf
+  - OverloadedStrings
+  - RecordWildCards
+  - ScopedTypeVariables
+  - TupleSections
