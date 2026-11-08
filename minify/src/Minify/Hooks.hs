@@ -57,6 +57,8 @@ data Hooks = Hooks
     -- | the first pass only collects labels; its anomalies are not reported
     hkFirstPass :: IO Bool,
     hkInText :: Word64 -> Bool,
+    -- | whether an info table ends at an address (a label with a table)
+    hkHasTable :: Word64 -> Bool,
     -- | inside a definition that is Haskell code or data
     hkIsHaskellAt :: Word64 -> Bool,
     -- | inside a section the file backs

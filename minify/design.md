@@ -245,7 +245,15 @@ unlabeled lead of `__text` holds the main module's local closures; a local
 closure can follow a C symbol), where only its instructions are swept, so a
 label with an info table that lands in a fixed region has its table parsed
 as well: its SRT field is rewritten, and its other fields, which a
-hand-written runtime table may not have, pin what they point at.
+hand-written runtime table may not have, pin what they point at. The
+labels the sweep finds this way are kept for every pass of the analysis,
+since the sweep runs once. GHC code in a fixed region is not rare: a
+module's local closures have no symbols of their own and follow whatever
+symbol precedes them, which for the program's own module is its C `main`,
+so the return points of `Unison.Main` live in `main`'s region, and their
+SRT offsets must follow their closures when those move. Only a target with
+an info table becomes a label: a linear sweep reads the tables between
+blocks as instructions and names addresses that mean nothing.
 
 ### Reachability
 

@@ -874,6 +874,7 @@ mkHooks env d =
       hkAnomaly = anomaly env,
       hkFirstPass = readIORef (eFirstPass env),
       hkInText = inText env,
+      hkHasTable = \a -> inText env a && maybe False (\o -> tableSize (eBytes env) (fromIntegral o) > 0) (fileOffsetOf (eImage env) a),
       hkIsHaskellAt = \a -> maybe False ((== Haskell) . dKind) (defAt (eImage env) a),
       hkInImage = isJust . fileOffsetOf (eImage env),
       hkPie = imPie (eImage env),

@@ -87,8 +87,9 @@ saving is folding (12.7 MB), constructor names and the export trie. Run
 under Rosetta, the minified binary gives the same output as the native
 arm64 build on every transcript of the suite.
 
-A Linux arm64 build of a small test program: 20,183,768 to 5,836,672 bytes
-as PIE, where the relocation list is exact.
+A Linux arm64 unison built with `-optl-fuse-ld=bfd -optl-Wl,--emit-relocs`
+(488,586,736 bytes with the relocations kept; 174,345,656 once stack strips
+it): 144,042,464 minified, 89,746,176 with `--strip`.
 
 ## Limits
 

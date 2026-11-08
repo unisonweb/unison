@@ -298,7 +298,8 @@ sweepFixed hk start end = go start
               case adrpConsumers rd [word32At hk (pc + 4 * k) | k <- [1 .. 8], pc + 4 * k + 4 <= end] of
                 Just offs -> forM_ offs $ \off -> do
                   hkPin hk "adrp" (page + off)
-                  when (hkInText hk (page + off)) (hkLabel hk (page + off) True)
+                  -- a linear sweep misreads the tables between blocks, so only a target with a table counts
+                  when (hkHasTable hk (page + off)) (hkLabel hk (page + off) True)
                 Nothing -> hkPinPage hk page
             Adr t -> hkPin hk "adr" t
             B t -> hkPin hk "branch" t
