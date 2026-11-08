@@ -20,6 +20,7 @@ import Options.Applicative
 import System.Exit
 import System.IO
 import Text.Printf
+import Numeric (readHex)
 
 data Args = Args
   { argInput :: FilePath,
@@ -34,7 +35,12 @@ data Args = Args
     argTextInOrder :: Bool,
     argForce :: Bool,
     argKeepHaskellExports :: Bool,
-    argStrip :: Bool
+    argStrip :: Bool,
+    argKeepConDesc :: Bool,
+    argNoSplit :: [String],
+    argRefsTo :: Maybe String,
+    argSplitKinds :: Maybe String,
+    argSplitRange :: Maybe String
   }
 
 args :: Parser Args
@@ -53,17 +59,51 @@ args =
     <*> switch (long "force" <> help "Write the output even after anomalies in the analysis")
     <*> switch (long "keep-haskell-exports" <> help "Keep Haskell definitions in the export trie (dlsym by name); by default only the other symbols stay exported")
     <*> switch (long "strip" <> help "Drop the symbol table and function starts from the output (the output then cannot be minified again)")
+    <*> switch (long "keep-con-desc" <> help "Keep constructor name strings (used by heap profiling and GHC.Exts.Heap); by default they are dropped")
+    <*> many (strOption (long "no-split" <> metavar "text|data|strings" <> help "Do not split definitions in this section (debugging)"))
+    <*> optional (strOption (long "refs-to" <> metavar "0xADDR" <> help "Print every reference into the definition containing this address and stop"))
+    <*> optional (strOption (long "data-split-kinds" <> metavar "pointer,srt,adrp" <> help "Debugging: which reference kinds may split data definitions"))
+    <*> optional (strOption (long "split-range" <> metavar "0xLO-0xHI" <> help "Debugging: only split data definitions at addresses in this range"))
 
 main :: IO ()
 main = do
   a <- execParser (info (args <**> helper) (fullDesc <> progDesc "Removes definitions a GHC executable does not use, and compacts it"))
   bytes <- B.readFile (argInput a)
   im <- either die pure (loadImage bytes)
-  an <- analyze (Options (argRemove a) (argKeepDead a)) im
+  let kinds = case argSplitKinds a of
+        Nothing -> [RPointer, RAdrpAdd, RSrt]
+        Just spec -> [k | (w, k) <- [("pointer", RPointer), ("adrp", RAdrpAdd), ("srt", RSrt)], w `elem` splitOn ',' spec]
+      range = case argSplitRange a of
+        Just spec | (lo, '-' : hi) <- break (== '-') spec, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> Just (l, h)
+        _ -> Nothing
+      splitOn c str = case break (== c) str of
+        (x, []) -> [x]
+        (x, _ : rest) -> x : splitOn c rest
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range) im
+  forM_ (argRefsTo a) $ \spec -> do
+    let im' = anImage an
+    case spec of
+      '0' : 'x' : hexDigits | [(addr, "")] <- readHex hexDigits, Just target <- defAt im' addr -> do
+        printf "%s [%x, %x) kept %s pinned %s\n" (hsDisplay target) (dStart target) (dEnd target) (show (anKept an VU.! dIndex target)) (show (anPinned an VU.! dIndex target))
+        forM_ (V.toList (imDefs im')) $ \d ->
+          VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t) ->
+            when (t >= dStart target && t < dEnd target) $
+              printf "  from %s at %x: %s -> %x (kept %s)\n" (hsDisplay d) at (show (toEnum (fromIntegral k) :: RefKind)) t (show (anKept an VU.! dIndex d))
+      _ -> putStrLn "no definition there"
+    exitSuccess
   forM_ (argDump a) $ \name -> do
-    forM_ [d | d <- V.toList (imDefs im), hsDisplay d == name || BC.unpack (dName d) == name] $ \d -> do
+    -- a name, or a hex address (the definition containing it and its neighbours)
+    let picked = case name of
+          '0' : 'x' : hexDigits | [(addr, "")] <- readHex hexDigits ->
+            case defAt (anImage an) addr of
+              Just d -> [imDefs (anImage an) V.! j | j <- [max 0 (dIndex d - 2) .. min (V.length (imDefs (anImage an)) - 1) (dIndex d + 2)]]
+              Nothing -> []
+          _ | (lo, '-' : hi) <- break (== '-') name, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) ->
+            [d | d <- V.toList (imDefs (anImage an)), dStart d < h, dEnd d > l]
+          _ -> [d | d <- V.toList (imDefs (anImage an)), hsDisplay d == name || BC.unpack (dName d) == name]
+    forM_ picked $ \d -> do
       printf "%s %s [%x, %x) sym %x head %d kept %s pinned %s\n" (hsDisplay d) (show (dKind d)) (dStart d) (dEnd d) (dSym d) (dHead d) (show (anKept an VU.! dIndex d)) (show (anPinned an VU.! dIndex d))
-      VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t) -> printf "  %x %s -> %x %s\n" at (show (toEnum (fromIntegral k) :: RefKind)) t (maybe "" hsDisplay (defAt im t))
+      VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t) -> printf "  %x %s -> %x %s\n" at (show (toEnum (fromIntegral k) :: RefKind)) t (maybe "" hsDisplay (defAt (anImage an) t))
     exitSuccess
   when (argReport a || argOutput a == Nothing) (report (argTop a) an)
   unless (null (anAnomalies an)) $ do

@@ -26,7 +26,7 @@ import Data.IORef
 import Data.Int
 import Data.List (isPrefixOf, sortOn)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, listToMaybe, mapMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Unboxed as VU
@@ -54,7 +54,9 @@ data Def = Def
     -- | index into 'sectionsInOrder'
     dSect :: !Int,
     dKind :: !Kind,
-    dHead :: !Int
+    dHead :: !Int,
+    -- | a local closure, static closure or string split off the definition named by its symbol
+    dLocal :: !Bool
   }
   deriving (Show)
 
@@ -94,7 +96,17 @@ data Ref = Ref {rAt :: !Word64, rKind :: !RefKind, rTarget :: !Word64}
 
 data Options = Options
   { optRemovePrefixes :: [String],
-    optKeepDead :: Bool
+    optKeepDead :: Bool,
+    -- | keep constructor name strings (con_desc) reachable; otherwise they are
+    -- dropped and the fields point at one empty string
+    optKeepConDesc :: Bool,
+    -- | which sections' definitions are split at internal closures and strings (for debugging)
+    optSplitText :: Bool,
+    optSplitData :: Bool,
+    optSplitStrings :: Bool,
+    -- | debugging: which reference kinds may split data, and an address range the data splits are limited to
+    optDataSplitKinds :: [RefKind],
+    optSplitRange :: Maybe (Word64, Word64)
   }
 
 data Analysis = Analysis
@@ -107,7 +119,8 @@ data Analysis = Analysis
     -- | cut definitions that a kept one still refers to
     anCutReferenced :: VU.Vector Bool,
     anAnomalies :: [String],
-    anRoots :: Int
+    anRoots :: Int,
+    anKeepConDesc :: Bool
   }
 
 isCompactedSection :: Section -> Bool
@@ -118,7 +131,7 @@ isCode :: Section -> Bool
 isCode s = secSegName s == "__TEXT" && secName s == "__text"
 
 hsDisplay :: Def -> String
-hsDisplay d = maybe (BC.unpack (dName d)) displayName (dHs d)
+hsDisplay d = maybe (BC.unpack (dName d)) displayName (dHs d) ++ (if dLocal d then " (local at " ++ hex (dStart d) ++ ")" else "")
 
 -- * Loading
 
@@ -204,7 +217,8 @@ defAt im a =
 -- | Splits each compacted section into definitions. The first argument gives
 -- the size of the info table before a code label.
 carve :: (Word64 -> Int) -> V.Vector Section -> [(Nlist, B.ByteString)] -> V.Vector Def
-carve headOf sects named = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (concat perSection))
+-- sections need not be in address order in the load commands (the output's are not)
+carve headOf sects named = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (sortOn dStart (concat perSection)))
   where
     -- symbols are filed by address, not by their n_sect, which a split
     -- section would make ambiguous
@@ -234,14 +248,14 @@ carve headOf sects named = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (
           secEnd = secAddr s + secSize s
           lead = case starts of
             (a, _, _, _, _, hd) : _ | fromIntegral a - fromIntegral hd > (fromIntegral secStart :: Int64) ->
-              [Def 0 (BC.pack ("<" ++ BC.unpack (secName s) ++ " lead>")) [] Nothing secStart secStart (a - fromIntegral hd) si Fixed 0]
+              [Def 0 (BC.pack ("<" ++ BC.unpack (secName s) ++ " lead>")) [] Nothing secStart secStart (a - fromIntegral hd) si Fixed 0 False]
             _ -> []
           mk (a, nm, rest, hs, kind, hd) next =
             let st = a - fromIntegral hd
                 en = case next of
                   Just (a2, _, _, _, _, hd2) -> a2 - fromIntegral hd2
                   Nothing -> secEnd
-             in Def 0 nm rest hs a st (max st en) si kind hd
+             in Def 0 nm rest hs a st (max st en) si kind hd False
           defs = zipWith mk starts (map Just (drop 1 starts) ++ [Nothing])
        in lead ++ defs
     infoLike nm = any (`B.isSuffixOf` nm) ["_info", "_entry"]
@@ -260,7 +274,8 @@ data Env = Env
     eFirstPass :: IORef Bool,
     -- | labels with info tables, collected by the first pass
     eTableLabels :: IORef [Word64],
-    ePinned :: VUM.IOVector Bool,
+    -- | address ranges fixed code or data points at: what they overlap stays put
+    ePins :: IORef [(Word64, Word64)],
     eRefs :: IORef (VUM.IOVector (Int, Word64, Word8, Word64)),
     eRefCount :: IORef Int,
     eLabels :: IORef [(Word64, Bool)],
@@ -272,18 +287,17 @@ analyze opts im0 = do
   let im = im0
       bytes = moBytes (imMachO im)
       text = fromMaybe (error "no __text section") (V.find isCode (imSections im))
-      ndefs = V.length (imDefs im)
   visited <- VUM.replicate (fromIntegral (secSize text `div` 4) + 1) False
   tabled <- VUM.replicate (fromIntegral (secSize text `div` 4) + 1) False
   isTable <- VUM.replicate (fromIntegral (secSize text `div` 4) + 1) False
   firstPass <- newIORef True
   tableLabels <- newIORef []
-  pinned <- VUM.replicate ndefs False
+  pins <- newIORef []
   refs <- VUM.new (1 `shiftL` 20) >>= newIORef
   refCount <- newIORef 0
   labels <- newIORef []
   anomalies <- newIORef []
-  let env = Env im bytes text visited tabled isTable firstPass tableLabels pinned refs refCount labels anomalies
+  let env = Env im bytes text visited tabled isTable firstPass tableLabels pins refs refCount labels anomalies
   -- Fixed code is swept for what it points at; the targets stay put.
   forM_ (V.toList (imDefs im)) $ \d ->
     when (dKind d == Fixed && isCode (imSections im V.! dSect d)) (sweepFixed env d)
@@ -322,32 +336,116 @@ analyze opts im0 = do
       _ -> pure ()
   seed
   drain env
-  -- Collect references per definition.
+  -- References, by address.
   n <- readIORef refCount
   buf <- readIORef refs
-  sorted <- do
+  byAddr <- do
     v <- VU.freeze (VUM.slice 0 n buf)
-    mv <- VU.thaw v
-    VA.sortBy (\(a, b, _, _) (c, e, _, _) -> compare (a, b) (c, e)) mv
+    mv <- VU.thaw (VU.map (\(_, a, k, t) -> (a, k, t)) v)
+    VA.sortBy (\(a, _, _) (b, _, _) -> compare a b) mv
     VU.unsafeFreeze mv
-  let perDef = V.generate ndefs $ \i ->
-        let lo = lowerBound sorted i
-            hi = lowerBound sorted (i + 1)
-         in VU.map (\(_, a, k, t) -> (a, k, t)) (VU.slice lo (hi - lo) sorted)
-  pinnedV <- VU.freeze pinned
   anoms <- reverse <$> readIORef anomalies
+  tls <- readIORef tableLabels
+  -- Definitions are split where something inside them can live on its
+  -- own: in code at a label with a function, thunk or constructor table (a
+  -- local closure; return-point tables belong to their procedure), in data
+  -- at a referenced closure start (a word that is itself a pointer slot),
+  -- in strings at a constructor name.
+  let typeAt l = maybe 0 (\o -> u32 bytes (fromIntegral o - 8)) (fileOffsetOf im l)
+      isSlot a = let (lo, hi) = (0, VU.length (imRebases im)) in slotSearch lo hi
+        where
+          slotSearch lo hi
+            | lo >= hi = False
+            | otherwise =
+                let mid = (lo + hi) `div` 2
+                    (sa, _) = imRebases im VU.! mid
+                 in if sa == a then True else if sa < a then slotSearch (mid + 1) hi else slotSearch lo mid
+      sectOf d = imSections im V.! dSect d
+      -- the range restricts only the section it lies in
+      inRange t = case optSplitRange opts of
+        Nothing -> True
+        Just (lo, hi) -> case (defAt im t, defAt im lo) of
+          (Just a, Just b) | dSect a == dSect b -> t >= lo && t < hi
+          _ -> True
+      textSplits =
+        [ (l - fromIntegral hd, hd)
+          | l <- tls,
+            Just d <- [defAt im l],
+            dKind d == Haskell,
+            l /= dSym d,
+            inRange l,
+            let ty = typeAt l,
+            ty >= 1 && ty <= 22,
+            Just o <- [fileOffsetOf im l],
+            let hd = tableSize bytes (fromIntegral o),
+            hd > 0,
+            l - fromIntegral hd > dStart d
+        ]
+      refTargets = VU.toList byAddr
+      dataSplits =
+        [ (t', 0)
+          | (_, k, t) <- refTargets,
+            k `elem` map (fromIntegral . fromEnum) (optDataSplitKinds opts),
+            let t' = t .&. complement 7,
+            inRange t',
+            Just d <- [defAt im t'],
+            dKind d == Haskell,
+            secName (sectOf d) == "__data",
+            t' - dStart d >= 8,
+            isSlot t'
+        ]
+      strSplits =
+        [ (t, 0)
+          | (_, k, t) <- refTargets,
+            k == fromIntegral (fromEnum RConDesc),
+            Just d <- [defAt im t],
+            dKind d == Haskell,
+            secName (sectOf d) == "__cstring",
+            t > dStart d
+        ]
+      splits = M.fromList ((if optSplitText opts then textSplits else []) ++ (if optSplitData opts then dataSplits else []) ++ (if optSplitStrings opts then strSplits else []))
+      refined = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (concatMap (refine splits) (V.toList (imDefs im))))
+      im' = im {imDefs = refined, imStarts = VU.fromList (map dStart (V.toList refined))}
+      ndefs' = V.length refined
+      lowerAt a =
+        let total = VU.length byAddr
+            go lo hi
+              | lo >= hi = lo
+              | otherwise = let mid = (lo + hi) `div` 2; (x, _, _) = byAddr VU.! mid in if x < a then go (mid + 1) hi else go lo mid
+         in go 0 total
+      perDef = V.generate ndefs' $ \i ->
+        let d = refined V.! i
+            lo = lowerAt (dStart d)
+            hi = lowerAt (dEnd d)
+         in VU.slice lo (hi - lo) byAddr
+  -- Pins: a definition overlapping a pinned range stays where it is.
+  pinnedM <- VUM.replicate ndefs' False
+  ranges <- readIORef pins
+  forM_ ranges $ \(lo, hi) -> do
+    let firstPast = let go a b | a >= b = a | otherwise = let mid = (a + b) `div` 2 in if dEnd (refined V.! mid) <= lo then go (mid + 1) b else go a mid in go 0 ndefs'
+        loop i
+          | i >= ndefs' = pure ()
+          | otherwise = do
+              let d = refined V.! i
+              when (dStart d < hi) $ do
+                when (dKind d == Haskell) (VUM.write pinnedM i True)
+                loop (i + 1)
+    loop firstPast
+  pinnedV <- VU.freeze pinnedM
   -- Cut by prefix, then mark from the roots.
   -- Only code and closures are cut: a literal a kept definition still uses
   -- has nothing sensible to be replaced by, so it stays.
-  let cut = VU.generate ndefs $ \i ->
-        let d = imDefs im V.! i
-            sect = imSections im V.! dSect d
+  let cut = VU.generate ndefs' $ \i ->
+        let d = refined V.! i
+            sect = sectOf d
          in dKind d == Haskell
               && (isCode sect || secName sect == "__data")
               && any (\p -> any (p `isPrefixOf`) (prefixForms d)) (optRemovePrefixes opts)
-      roots = [i | i <- [0 .. ndefs - 1], let d = imDefs im V.! i, dKind d == Fixed || pinnedV VU.! i, not (cut VU.! i)]
-  kept <- VUM.replicate ndefs False
-  cutRef <- VUM.replicate ndefs False
+      roots = [i | i <- [0 .. ndefs' - 1], let d = refined V.! i, dKind d == Fixed || pinnedV VU.! i, not (cut VU.! i)]
+      conDesc = fromIntegral (fromEnum RConDesc) :: Word8
+      follows k = optKeepConDesc opts || k /= conDesc
+  kept <- VUM.replicate ndefs' False
+  cutRef <- VUM.replicate ndefs' False
   let mark [] = pure ()
       mark (i : rest) = do
         seen <- VUM.read kept i
@@ -355,42 +453,45 @@ analyze opts im0 = do
           then mark rest
           else do
             VUM.write kept i True
-            let targets = [t | (_, _, t) <- VU.toList (perDef V.! i)]
-                nexts = flip mapMaybe targets $ \t -> case defAt im t of
+            let targets = [t | (_, k, t) <- VU.toList (perDef V.! i), follows k]
+                nexts = flip mapMaybe targets $ \t -> case defAt im' t of
                   Just d
                     | cut VU.! dIndex d -> Nothing
                     | otherwise -> Just (dIndex d)
                   Nothing -> Nothing
-            forM_ targets $ \t -> case defAt im t of
+            forM_ targets $ \t -> case defAt im' t of
               Just d | cut VU.! dIndex d -> VUM.write cutRef (dIndex d) True
               _ -> pure ()
             mark (nexts ++ rest)
   if optKeepDead opts
-    then forM_ [0 .. ndefs - 1] $ \i -> VUM.write kept i (not (cut VU.! i))
+    then forM_ [0 .. ndefs' - 1] $ \i -> VUM.write kept i (not (cut VU.! i))
     else mark roots
   keptV <- VU.freeze kept
   cutRefV <- VU.freeze cutRef
   pure
     Analysis
-      { anImage = im,
+      { anImage = im',
         anRefs = perDef,
         anPinned = pinnedV,
         anKept = keptV,
         anCut = cut,
         anCutReferenced = cutRefV,
         anAnomalies = anoms,
-        anRoots = length roots
+        anRoots = length roots,
+        anKeepConDesc = optKeepConDesc opts
       }
-  where
-    lowerBound v i =
-      let n = VU.length v
-          go lo hi
-            | lo >= hi = lo
-            | otherwise =
-                let mid = (lo + hi) `div` 2
-                    (di, _, _, _) = v VU.! mid
-                 in if di < i then go (mid + 1) hi else go lo mid
-       in go 0 n
+
+-- | Splits a definition at the given points (address to table size).
+refine :: M.Map Word64 Int -> Def -> [Def]
+refine splits d =
+  let points = M.toAscList (fst (M.split (dEnd d) (snd (M.split (dStart d) splits))))
+      ends = map fst (drop 1 points) ++ [dEnd d]
+      firstEnd = maybe (dEnd d) fst (listToMaybe points)
+      locals =
+        [ d {dSym = p + fromIntegral hd, dStart = p, dEnd = e, dHead = hd, dLocal = True, dAliases = []}
+          | ((p, hd), e) <- zip points ends
+        ]
+   in d {dEnd = firstEnd} : locals
 
 -- | The forms a prefix is matched against: @Module.binding@ and
 -- @package:Module.binding@.
@@ -449,31 +550,15 @@ addRef env di at kind target = do
 pushLabel :: Env -> Word64 -> Bool -> IO ()
 pushLabel env a tbl = when (inText env a) $ modifyIORef' (eLabels env) ((a, tbl) :)
 
-pinDef :: Env -> Def -> IO ()
-pinDef env d = when (dKind d == Haskell) (VUM.write (ePinned env) (dIndex d) True)
+pinRange :: Env -> Word64 -> Word64 -> IO ()
+pinRange env lo hi = modifyIORef' (ePins env) ((lo, hi) :)
 
 pinTarget :: Env -> Word64 -> IO ()
-pinTarget env a = mapM_ (pinDef env) (defAt (eImage env) a)
+pinTarget env a = pinRange env a (a + 1)
 
--- | Pins every Haskell definition overlapping the 4 KB page an adrp names.
+-- | Pins the 4 KB page an adrp names.
 pinPage :: Env -> Word64 -> IO ()
-pinPage env page = do
-  let im = eImage env
-      end = page + 4096
-      -- first definition whose end is past the page start
-      n = V.length (imDefs im)
-      go lo hi
-        | lo >= hi = lo
-        | otherwise = let mid = (lo + hi) `div` 2 in if dEnd (imDefs im V.! mid) <= page then go (mid + 1) hi else go lo mid
-      from = go 0 n
-      loop i
-        | i >= n = pure ()
-        | otherwise = do
-            let d = imDefs im V.! i
-            when (dStart d < end) $ do
-              pinDef env d
-              loop (i + 1)
-  loop from
+pinPage env page = pinRange env page (page + 4096)
 
 -- | A linear sweep of fixed code for what it refers to.
 sweepFixed :: Env -> Def -> IO ()
@@ -506,6 +591,11 @@ drain env = do
         Just d | dKind d == Haskell -> do
           when tbl (parseTable env d a)
           decodeFrom env d a
+        -- GHC code can sit in a fixed region (the unlabeled lead of __text,
+        -- a local closure after a C symbol): its instructions are swept,
+        -- but its info tables' fields are only found through the labels
+        -- that reach them, and what they point at must stay
+        Just d | tbl -> parseTable env d a
         _ -> pure ()
       drain env
 
@@ -529,12 +619,14 @@ parseTable env d label = do
             rel :: Int -> Word64
             rel fieldOff = fromIntegral (fromIntegral label + i64 bytes (off + fieldOff))
             check :: RefKind -> Int -> Word64 -> IO ()
-            check kind fieldOff target =
-              if isJust (fileOffsetOf (eImage env) target) || target == label
-                then addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
-                else anomaly env (show kind ++ " at " ++ hex label ++ " in " ++ BC.unpack (dName d) ++ " points outside the file: " ++ hex target)
+            check kind fieldOff target
+              | isJust (fileOffsetOf (eImage env) target) || target == label =
+                  if dKind d == Haskell
+                    then addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
+                    else pinTarget env target
+              | otherwise = anomaly env (show kind ++ " at " ++ hex label ++ " in " ++ BC.unpack (dName d) ++ " points outside the file: " ++ hex target)
         if hd == 0 || label - fromIntegral hd < dStart d
-          then anomaly env ("no info table before label " ++ hex label ++ " in " ++ BC.unpack (dName d))
+          then when (dKind d == Haskell) (anomaly env ("no info table before label " ++ hex label ++ " in " ++ BC.unpack (dName d)))
           else do
             let srt = i32 bytes (off - 4)
             when (srt /= 0) (check RSrt (-4) (fromIntegral (fromIntegral label + fromIntegral srt :: Int64)))

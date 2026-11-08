@@ -18,6 +18,7 @@ import qualified Data.ByteString.Unsafe as BU
 import Data.IORef
 import Data.Int
 import qualified Data.Map.Strict as M
+import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
@@ -137,7 +138,9 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
         ]
       stubRebases = [Rebase si so 1 | st <- M.elems (plStubs pl), Just c <- [sbClosure st], Just (si, so) <- [segLoc c]]
       rebaseBytes = toStrict (encodeRebases (rebases ++ stubRebases))
-  -- Binds: every kind becomes an ordinary bind at its (unchanged) address.
+  -- Binds: every kind becomes an ordinary bind. A slot can sit inside a
+  -- Haskell static closure (a @foreign import "&sym"@ is a closure whose
+  -- payload dyld binds), so slots move with their definitions like rebases.
   let dyld = head ([d | LCDyldInfo d <- moCommands mo] ++ [DyldInfo lcDyldInfoOnly 0 0 0 0 0 0 0 0 0 0])
       slice off sz = B.take (fromIntegral sz) (B.drop (fromIntegral off) orig)
       allBinds = concat [decodeBinds (slice o s) | (o, s) <- [(bindOff dyld, bindSize dyld), (lazyBindOff dyld, lazyBindSize dyld), (weakBindOff dyld, weakBindSize dyld)], s > 0]
@@ -145,7 +148,8 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
         [ b {bdSeg = si, bdOff = so}
           | b <- allBinds,
             let a = segVmAddr (imSegments im !! bdSeg b) + bdOff b,
-            Just (si, so) <- [segLoc a]
+            Just a' <- [newAddrOf an pl a],
+            Just (si, so) <- [segLoc a']
         ]
       bindBytes = toStrict (encodeBinds binds)
   -- Exports.
@@ -236,6 +240,30 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
       forM_ (plPieces pl) $ \p ->
         forM_ (pieceSpans im p) $ \(a, n, off) ->
           copyBytes (ptr `plusPtr` fromIntegral (pcFileOff p + (a - pcVmStart p))) (src `plusPtr` fromIntegral off) (fromIntegral n)
+      -- Within the compacted sections, only kept definitions (at their new
+      -- places), the islands and the stubs may hold bytes; everything else
+      -- is zeroed, so neither removed definitions nor the old copies of
+      -- moved ones survive in the file.
+      let live =
+            sortOn fst $
+              [(plNewStart pl VU.! i, plNewStart pl VU.! i + (dEnd d - dStart d)) | i <- [0 .. V.length defs - 1], anKept an VU.! i, let d = defs V.! i]
+                ++ [(a, a + n) | (a, n) <- [plIslandPool pl, plDataArea pl], n > 0]
+          zeroGaps _ [] = pure ()
+          zeroGaps cursor ((a, b) : rest) = do
+            when (a > cursor) (zeroRange cursor a)
+            zeroGaps (max cursor b) rest
+          zeroRange a b = forM_ (plPieces pl) $ \p -> do
+            let lo = max a (pcVmStart p)
+                hi = min b (pcFileEnd p)
+            when (hi > lo) (fillBytes (ptr `plusPtr` fromIntegral (pcFileOff p + (lo - pcVmStart p))) 0 (fromIntegral (hi - lo)))
+      forM_ (V.toList sects) $ \sc -> when (isCompactedSection sc) $ do
+        let lo = secAddr sc
+            hi = secAddr sc + secSize sc
+            inside = [(max lo a, min hi b) | (a, b) <- live, b > lo, a < hi]
+        zeroGaps lo inside
+        case inside of
+          [] -> zeroRange lo hi
+          _ -> let lastEnd = maximum (map snd inside) in when (lastEnd < hi) (zeroRange lastEnd hi)
       -- kept definitions that moved
       forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i) $ do
         let d = defs V.! i
@@ -251,7 +279,9 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
         VU.forM_ (anRefs an V.! i) $ \(at, k, target) -> do
           let kind = toEnum (fromIntegral k) :: RefKind
               at' = at + delta
-          case relocate target of
+              -- constructor names dropped: every con_desc names the empty string
+              relocated = if kind == RConDesc && not (anKeepConDesc an) then Right (plEmptyString pl) else relocate target
+          case relocated of
             Left e -> do
               modifyIORef' errors (+ 1)
               n <- readIORef errors

@@ -167,8 +167,10 @@ brkInsn = 0xd4200000
 adrpConsumers :: Int -> [Word32] -> Maybe [Word64]
 adrpConsumers rd = go (8 :: Int) []
   where
-    go _ found [] = finish found
-    go 0 found _ = finish found
+    -- the register still live when the window ends or control flow forks:
+    -- a consumer on another path would be missed, so no claim is made
+    go _ _ [] = Nothing
+    go 0 _ _ = Nothing
     go n found (w : rest)
       | isLoadStore w && rn w == rd =
           let size = fromIntegral (w `shiftR` 30) :: Int
@@ -179,9 +181,10 @@ adrpConsumers rd = go (8 :: Int) []
       | w .&. 0xff800000 == 0x91000000 && rn w == rd =
           let off = fromIntegral ((w `shiftR` 10) .&. 0xfff) `shiftL` (if testBit w 22 then 12 else 0)
            in if fromIntegral (w .&. 0x1f) == rd then Just (reverse (off : found)) else go (n - 1) (off : found) rest
-      | isControl (decode 0 w) = finish found
+      | isControl (decode 0 w) = Nothing
       | fromIntegral (w .&. 0x1f) == rd && not (isStore w) = finish found
       | otherwise = go (n - 1) found rest
+    -- the register was overwritten: its uses are all seen
     finish [] = Nothing
     finish found = Just (reverse found)
     rn w = fromIntegral ((w `shiftR` 5) .&. 0x1f) :: Int

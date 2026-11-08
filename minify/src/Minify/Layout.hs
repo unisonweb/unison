@@ -63,7 +63,9 @@ data Plan = Plan
     -- | the patch area in __data (closure stubs): address and size
     plDataArea :: (Word64, Word64),
     -- | abort stubs for cut definitions still referred to, by definition index
-    plStubs :: M.Map Int Stub
+    plStubs :: M.Map Int Stub,
+    -- | the empty string constructor names point at when they are dropped (0 when kept)
+    plEmptyString :: !Word64
   }
 
 -- | A replacement for a cut definition that is still referred to.
@@ -179,7 +181,8 @@ plan an maxHoles textLast = do
       stubCodeSize = 16
       stubsSize = sum [fromIntegral (alignUp (fromIntegral tsz) 8) + stubCodeSize | (_, tsz, _) <- stubbed]
       msgsSize = alignUp (sum [fromIntegral (B.length m) | (_, _, m) <- stubbed]) 16
-      poolSize = islandsSize + stubsSize + msgsSize
+      emptySize = if anKeepConDesc an then 0 else 16
+      poolSize = islandsSize + stubsSize + msgsSize + emptySize
       dataStubs = [i | (i, _, _) <- stubbed, not (isCode (sects V.! dSect (defs V.! i)))]
       dataAreaSize = 16 * fromIntegral (length dataStubs)
       midText = secAddr textSect + secSize textSect `div` 2
@@ -225,6 +228,7 @@ plan an maxHoles textLast = do
              in (i, st) : go (code + stubCodeSize) (m + fromIntegral (B.length msg)) (if isData then dc + 16 else dc) rest
       stubs = M.fromList stubList
       poolLive = [pool | snd pool > 0] ++ [dataArea | snd dataArea > 0]
+      emptyString = if emptySize == 0 then 0 else msgsStart + msgsSize
       liveRanges = liveRangesWith poolLive
       -- dead gaps rounded inward to whole pages
       holesOf seg =
@@ -301,7 +305,8 @@ plan an maxHoles textLast = do
         plIslands = islands,
         plIslandPool = pool,
         plDataArea = dataArea,
-        plStubs = stubs
+        plStubs = stubs,
+        plEmptyString = emptyString
       }
 
 mergeRanges :: [(Word64, Word64)] -> [(Word64, Word64)]
