@@ -21,7 +21,7 @@ verify :: Analysis -> Plan -> B.ByteString -> IO [String]
 verify an pl out = case loadImage out of
   Left e -> pure ["the output does not load: " ++ e]
   Right im2 -> do
-    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt] Nothing True True) im2
+    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt] Nothing True True False) im2
     let im = anImage an
         defs = imDefs im
         islandTargets = M.fromList [(a, t) | (t, a) <- M.toList (plIslands pl)]
@@ -52,7 +52,7 @@ verify an pl out = case loadImage out of
         -- also split less finely, when the reference that marked a split
         -- point was in a removed definition, so each output definition is
         -- checked against the union of the input definitions placed in it.
-        keptNew = sortOn fst [(plNewStart pl VU.! i, i) | i <- [0 .. V.length defs - 1], anKept an VU.! i, dKind (defs V.! i) == Haskell]
+        keptNew = sortOn fst [(plNewStart pl VU.! i, i) | i <- [0 .. V.length defs - 1], anKept an VU.! i, anRep an VU.! i == i, dKind (defs V.! i) == Haskell]
         keptNewV = V.fromList keptNew
         -- input definitions whose new start lies in [lo, hi)
         inputsIn lo hi =
@@ -84,7 +84,7 @@ verify an pl out = case loadImage out of
         extra = [hsDisplay d2 | d2 <- V.toList (imDefs (anImage an2)), dKind d2 == Haskell, not (dLocal d2), not (S.member (dStart d2) newStarts)]
         -- every pointer slot in a kept definition must still be rebased
         outSlots = S.fromList (map fst (VU.toList (imRebases (anImage an2))))
-        expectedSlots = [(slot, d) | (slot, _) <- VU.toList (imRebases im), Just d <- [defAt im slot], anKept an VU.! dIndex d]
+        expectedSlots = [(slot, d) | (slot, _) <- VU.toList (imRebases im), Just d <- [defAt im slot], anKept an VU.! dIndex d, anRep an VU.! dIndex d == dIndex d]
         lostRebases =
           [ "rebase lost for the slot at " ++ hex slot ++ " (now " ++ hex slot' ++ ") in " ++ hsDisplay d
             | (slot, d) <- expectedSlots,

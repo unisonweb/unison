@@ -127,7 +127,8 @@ plan an maxHoles textLast packSections crossRange = do
       sectionOf i = dSect (defs V.! i)
       sizeOf i = let d = defs V.! i in dEnd d - dStart d
       isAnchor i = dKind (defs V.! i) == Fixed || pinned i
-      perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], kept i]
+      placedDef i = kept i && anRep an VU.! i == i
+      perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], placedDef i]
       lookAhead = 4000 :: Int
       -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
       -- debugging: a definition may be placed before an anchor it originally
@@ -174,7 +175,9 @@ plan an maxHoles textLast packSections crossRange = do
           step x (g : gs) | f x == f (headOr g) = (x : g) : gs
           step x gs = [x] : gs
   placed <- concat <$> mapM placeSection perSection
-  let newStart = VU.replicate ndefs 0 VU.// placed
+  let placedStart = VU.replicate ndefs 0 VU.// placed
+      -- a folded definition lives where its representative does
+      newStart = VU.generate ndefs (\i -> placedStart VU.! (anRep an VU.! i))
       segs = imSegments im
       newAddr a = case defAt im a of
         Just d | kept (dIndex d) -> Just (a - dStart d + newStart VU.! dIndex d)
@@ -186,6 +189,7 @@ plan an maxHoles textLast packSections crossRange = do
           | (i, a) <- placed,
             let d = defs V.! i,
             dKind d == Haskell,
+            anRep an VU.! i == i,
             (at, k, t) <- VU.toList (anRefs an V.! i),
             k == fromIntegral (fromEnum RB) || k == fromIntegral (fromEnum RBl),
             let at' = at - dStart d + a,

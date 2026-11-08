@@ -158,6 +158,19 @@ followed: letting it cross broke the program in a way the analysis does not
 see, so the order with respect to fixed code is kept (the `--cross` option
 exists to find out why).
 
+Before placement, identical definitions are folded. Two kept, movable
+definitions of code or strings whose bytes agree once their reference
+fields are masked, and whose references agree once each target is named
+canonically (the representative of the target's definition and the offset
+into it, or the fixed address), share one copy, and every address inside
+the folded one is routed to the representative. GHC emits a great deal of
+byte-identical code (dictionary selectors, derived instances,
+specialisations), and nothing compares code or string addresses for
+identity. Static closures are never folded: a CAF or a constructor is
+observable by identity. Folding a target makes more pairs equal, so the
+grouping is iterated to a fixed point. On unison this folds 78,841
+definitions, 10.7 MB.
+
 Bytes in a compacted section that no kept definition, island or stub
 occupies are zeroed, so neither a removed definition nor the old copy of a
 moved one survives in the file.

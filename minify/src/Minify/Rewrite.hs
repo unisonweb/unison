@@ -264,8 +264,8 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
         case inside of
           [] -> zeroRange lo hi
           _ -> let lastEnd = maximum (map snd inside) in when (lastEnd < hi) (zeroRange lastEnd hi)
-      -- kept definitions that moved
-      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i) $ do
+      -- kept definitions that moved (a folded one is its representative's bytes)
+      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && anRep an VU.! i == i) $ do
         let d = defs V.! i
             new = plNewStart pl VU.! i
         when (new /= dStart d) $
@@ -274,7 +274,7 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
             _ -> fail ("no file offset for " ++ hsDisplay d)
       -- references, in every kept definition (a fixed one has only pointer
       -- slots and table fields, which are rewritten in place)
-      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i) $ do
+      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && anRep an VU.! i == i) $ do
         let d = defs V.! i
             delta = plNewStart pl VU.! i - dStart d
         VU.forM_ (anRefs an V.! i) $ \(at, k, target) -> do

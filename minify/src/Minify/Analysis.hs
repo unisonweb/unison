@@ -109,7 +109,9 @@ data Options = Options
     optSplitRange :: Maybe (Word64, Word64),
     -- | debugging: rewrite pointer slots in fixed data (else pin their targets); rewrite SRT fields in fixed code (else pin)
     optPatchFixedPointers :: Bool,
-    optPatchFixedSrt :: Bool
+    optPatchFixedSrt :: Bool,
+    -- | fold identical code and strings onto one copy
+    optFold :: Bool
   }
 
 data Analysis = Analysis
@@ -126,7 +128,9 @@ data Analysis = Analysis
     anKeepConDesc :: Bool,
     anPinCounts :: M.Map String Int,
     -- | references from slots outside every definition: (slot, kind, target)
-    anLoose :: VU.Vector (Word64, Word8, Word64)
+    anLoose :: VU.Vector (Word64, Word8, Word64),
+    -- | the representative of each definition: itself, or the identical one it is folded onto
+    anRep :: VU.Vector Int
   }
 
 isCompactedSection :: Section -> Bool
@@ -492,6 +496,7 @@ analyze opts im0 = do
     else mark roots
   keptV <- VU.freeze kept
   cutRefV <- VU.freeze cutRef
+  let repV = if optFold opts then fold im' bytes perDef keptV pinnedV cut else VU.generate ndefs' id
   pure
     Analysis
       { anImage = im',
@@ -504,7 +509,8 @@ analyze opts im0 = do
         anRoots = length roots,
         anKeepConDesc = optKeepConDesc opts,
         anPinCounts = pinCountsV,
-        anLoose = VU.fromList looseV
+        anLoose = VU.fromList looseV,
+        anRep = repV
       }
 
 -- | Splits a definition at the given points (address to table size).
@@ -735,3 +741,67 @@ decodeFrom env d = go
         then go t >> go (pc + 4)
         else anomaly env ("conditional branch leaves the definition at " ++ hex pc ++ " in " ++ BC.unpack (dName d))
     isHaskellAt t = maybe False ((== Haskell) . dKind) (defAt (eImage env) t)
+
+-- | Identical code folding. Two kept, movable definitions of code or
+-- strings whose bytes agree once their reference fields are masked, and
+-- whose references agree once their targets are named canonically (the
+-- representative of the target's definition and the offset into it, or
+-- the fixed address), can share one copy: nothing compares code or string
+-- addresses for identity. Static closures are never folded, since a CAF
+-- or a constructor is observable by identity. Folding a target makes more
+-- pairs equal, so the grouping is iterated to a fixed point.
+fold :: Image -> B.ByteString -> V.Vector (VU.Vector (Word64, Word8, Word64)) -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Int
+fold im bytes perDef kept pinned cut = go (VU.generate n id) (5 :: Int)
+  where
+    n = V.length (imDefs im)
+    defs = imDefs im
+    candidate i =
+      let d = defs V.! i
+          sect = imSections im V.! dSect d
+       in kept VU.! i && not (pinned VU.! i) && not (cut VU.! i) && dKind d == Haskell && (isCode sect || secName sect == "__cstring") && dEnd d > dStart d
+    fieldLen :: RefKind -> Int
+    fieldLen = \case
+      RAdrpAdd -> 8
+      RAdrpLdr -> 8
+      RSrt -> 4
+      RB -> 4
+      RBl -> 4
+      RBcond -> 4
+      RCbz -> 4
+      RTbz -> 4
+      _ -> 8
+    masked i = case fileOffsetOf im (dStart (defs V.! i)) of
+      Nothing -> B.empty
+      Just off ->
+        let d = defs V.! i
+            raw = B.take (fromIntegral (dEnd d - dStart d)) (B.drop (fromIntegral off) bytes)
+            holes = sortOn fst [(fromIntegral (at - dStart d), fieldLen (toEnum (fromIntegral k))) | (at, k, _) <- VU.toList (perDef V.! i)]
+            zeroed = goMask 0 holes raw
+         in zeroed
+    goMask _ [] rest = rest
+    goMask pos ((o, l) : more) rest
+      | o < pos = goMask pos more rest -- overlapping fields (an adrp's add is its own 4 bytes)
+      | otherwise = let (keep, after) = B.splitAt (o - pos) rest in keep <> B.replicate l 0 <> goMask (o + l) more (B.drop l after)
+    canon rep i =
+      let d = defs V.! i
+       in [ (at - dStart d, k, target)
+            | (at, k, t) <- VU.toList (perDef V.! i),
+              let target = case defAt im t of
+                    Just e | dIndex e == i -> Left (-1, t - dStart e) -- self
+                    Just e -> Left (rep VU.! dIndex e, t - dStart e)
+                    Nothing -> Right t
+          ]
+    go rep 0 = rep
+    go rep k =
+      let groups =
+            M.fromListWith (\_ old -> old) -- keep the first (lowest index) as the representative
+              [ ((dEnd d - dStart d, masked i, canon rep i), i)
+                | i <- [0 .. n - 1],
+                  candidate i,
+                  let d = defs V.! i
+              ]
+          rep' = VU.generate n $ \i ->
+            if candidate i
+              then M.findWithDefault i (dEnd (defs V.! i) - dStart (defs V.! i), masked i, canon rep i) groups
+              else i
+       in if rep' == rep then rep else go rep' (k - 1)

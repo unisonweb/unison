@@ -43,7 +43,8 @@ data Args = Args
     argSplitRange :: Maybe String,
     argPack :: Maybe String,
     argNoFixedPatch :: [String],
-    argCross :: Maybe String
+    argCross :: Maybe String,
+    argNoFold :: Bool
   }
 
 args :: Parser Args
@@ -70,6 +71,7 @@ args =
     <*> optional (strOption (long "pack" <> metavar "__text,__data,__cstring" <> help "Debugging: which sections' definitions are packed first-fit (default all)"))
     <*> many (strOption (long "no-fixed-patch" <> metavar "pointers|srt" <> help "Debugging: pin instead of rewriting these in fixed regions"))
     <*> optional (strOption (long "cross" <> metavar "0xLO-0xHI|none" <> help "Debugging: let definitions in this address range (or all) move before a fixed definition they followed; by default none do"))
+    <*> switch (long "no-fold" <> help "Do not fold identical code and strings onto one copy")
 
 main :: IO ()
 main = do
@@ -85,7 +87,7 @@ main = do
       splitOn c str = case break (== c) str of
         (x, []) -> [x]
         (x, _ : rest) -> x : splitOn c rest
-  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a)) im
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a))) im
   forM_ (argRefsTo a) $ \spec -> do
     let im' = anImage an
     case spec of
@@ -179,6 +181,8 @@ report top an = do
       refsTotal = sum [VU.length r | r <- V.toList (anRefs an)]
   printf "%d definitions (%d fixed, %d pinned), %d references, %d roots\n" (length defs) fixedCount pinnedCount refsTotal (anRoots an)
   printf "pins by source: %s\n" (show (M.toList (anPinCounts an)))
+  let folded = [d | d <- defs, anKept an VU.! dIndex d, anRep an VU.! dIndex d /= dIndex d]
+  printf "folded: %d definitions, %d bytes, onto identical copies\n" (length folded) (sum (map size folded))
   printf "%-20s %12s %12s %12s %12s\n" ("section" :: String) ("kept" :: String) ("kept bytes" :: String) ("removed" :: String) ("removed bytes" :: String)
   forM_ bySect $ \(s, (kc, kb, rc, rb)) -> printf "%-20s %12d %12d %12d %12d\n" s kc kb rc rb
   printf "removable: %d of %d bytes (%.1f%%)\n" removed total (100 * fromIntegral removed / fromIntegral (max 1 total) :: Double)
