@@ -25,6 +25,7 @@ removed per section and per package.
 | `--dump NAME` | print one definition's references and stop |
 | `--top N` | packages listed in the report |
 | `--keep-haskell-exports` | keep Haskell definitions in the export trie, the table `dlsym` searches; by default only C symbols stay exported |
+| `--strip` | drop the symbol table and function starts; saves about 24 MB on unison, but the output cannot be minified again or symbolicated |
 | `--force` | write the output even when the analysis reported anomalies (code it did not understand) |
 
 Names for `--remove` are the source names, `Module.binding` or

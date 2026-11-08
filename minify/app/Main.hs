@@ -33,7 +33,8 @@ data Args = Args
     argDump :: Maybe String,
     argTextInOrder :: Bool,
     argForce :: Bool,
-    argKeepHaskellExports :: Bool
+    argKeepHaskellExports :: Bool,
+    argStrip :: Bool
   }
 
 args :: Parser Args
@@ -51,6 +52,7 @@ args =
     <*> switch (long "text-in-order" <> help "Keep the segments in address order in the load commands, which limits the holes to 11 (the extra __TEXT pieces otherwise come after the data segments)")
     <*> switch (long "force" <> help "Write the output even after anomalies in the analysis")
     <*> switch (long "keep-haskell-exports" <> help "Keep Haskell definitions in the export trie (dlsym by name); by default only the other symbols stay exported")
+    <*> switch (long "strip" <> help "Drop the symbol table and function starts from the output (the output then cannot be minified again)")
 
 main :: IO ()
 main = do
@@ -75,7 +77,7 @@ main = do
     Just out -> do
       pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)))
       printf "%d segments; %d holes (%d bytes) dropped from the file; %d branch islands\n" (length (plPieces pl)) (length (plHoles pl)) (plSaved pl) (M.size (plIslands pl))
-      (bytes', stats) <- rewrite an pl (argKeepHaskellExports a)
+      (bytes', stats) <- rewrite an pl (Choices (argKeepHaskellExports a) (argStrip a))
       B.writeFile out bytes'
       when (argVerify a) $ do
         problems <- verify an pl bytes'

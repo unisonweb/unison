@@ -4,6 +4,7 @@
 module Minify.Rewrite
   ( rewrite,
     Stats (..),
+    Choices (..),
   )
 where
 
@@ -49,8 +50,12 @@ toStrict = BL.toStrict . BB.toLazyByteString
 -- | The flag keeps Haskell definitions in the export trie; by default only
 -- the other symbols stay exported, since nothing looks a Haskell closure
 -- up by name with dlsym.
-rewrite :: Analysis -> Plan -> Bool -> IO (B.ByteString, Stats)
-rewrite an pl keepHaskellExports = do
+-- | 'rwStrip' drops the symbol table (all but the undefined symbols the
+-- stubs bind through) and the function starts.
+data Choices = Choices {rwKeepHaskellExports :: Bool, rwStrip :: Bool}
+
+rewrite :: Analysis -> Plan -> Choices -> IO (B.ByteString, Stats)
+rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip} = do
   let im = anImage an
       mo = imMachO im
       orig = moBytes mo
@@ -86,10 +91,10 @@ rewrite an pl keepHaskellExports = do
       dysAt k = fromIntegral (dys !! k) :: Int
       (ilocal, nlocal, iext, next, iundef, nundef) = (dysAt 0, dysAt 1, dysAt 2, dysAt 3, dysAt 4, dysAt 5)
       compactedSect i = i >= 1 && i <= V.length sects && isCompactedSection (sects V.! (i - 1))
-      keepSym (nl, _) =
-        if nType nl .&. 0x0e == 0x0e && compactedSect (fromIntegral (nSect nl))
-          then relocate (nValue nl)
-          else Right (nValue nl)
+      keepSym (nl, _)
+        | strip && nType nl .&. 0x0e /= 0 = Left "stripped"
+        | nType nl .&. 0x0e == 0x0e && compactedSect (fromIntegral (nSect nl)) = relocate (nValue nl)
+        | otherwise = Right (nValue nl)
       decided = [(nl, name, either (const Nothing) Just (keepSym (nl, name))) | (nl, name) <- syms]
       -- sections are renumbered in the output: a symbol's n_sect follows its address
       newSections = concatMap pcSections (plOrder pl)
@@ -157,7 +162,7 @@ rewrite an pl keepHaskellExports = do
       exportBytes = toStrict (encodeExports exports)
   -- Function starts.
   let fsOld = concat [decodeFunctionStarts textBase (slice o s) | LCLinkeditData c o s <- moCommands mo, c == lcFunctionStarts]
-      fsNew = mapMaybe (newAddrOf an pl) fsOld
+      fsNew = if strip then [] else mapMaybe (newAddrOf an pl) fsOld
       fsBytes = toStrict (encodeFunctionStarts textBase fsNew)
 
   -- The link-edit blob.
