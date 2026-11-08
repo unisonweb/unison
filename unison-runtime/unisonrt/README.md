@@ -48,7 +48,7 @@ A bundle is a copy of the `unisonrt` executable, then the `.uc` file, then a 16-
 
 ## Versions
 
-A `.uc` file holds MCode, whose encoding changes between versions of Unison, so `unisonrt` runs only files compiled by a ucm built from the same commit. Both take their version from `git describe` when they are built ([`Version.hs`](Version.hs)). A mismatch is reported with the hash of the program's main, to compile it again.
+A `.uc` file holds MCode, whose encoding changes between versions of Unison, so `unisonrt` runs only files compiled by the same version of the runtime. The version is `git describe` at the time the runtime library was compiled ([`Unison.Runtime.Version`](../src/Unison/Runtime/Version.hs)). ucm stamps it into the files `compile` writes, and both `run.compiled` and unisonrt check it. ucm and unisonrt agree when they are built together. Rebuilding only one of them after the runtime library recompiles makes them disagree. A mismatch is reported with the hash of the program's main, to compile it again.
 
 ## Output
 
