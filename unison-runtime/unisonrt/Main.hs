@@ -12,20 +12,19 @@ module Main (main) where
 import Control.Concurrent (runInUnboundThread)
 import Control.Exception (SomeException (..), catch, displayException, finally, fromException)
 import Control.Monad (when)
-import Data.Bits (shiftR)
 import Data.ByteString qualified as B
 import Data.Foldable (for_)
 import Data.List (isPrefixOf, stripPrefix)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Data.Word (Word64)
 import GHC.Stack (prettyCallStack)
 import System.Environment (getArgs, getExecutablePath, setEnv, withArgs)
 import System.Exit (ExitCode (..), exitWith)
 #if !defined(mingw32_HOST_OS)
 import System.Posix.Files (setFileMode)
 #endif
-import System.IO (IOMode (ReadMode), SeekMode (AbsoluteSeek), hFileSize, hFlush, hPutStrLn, hSeek, stderr, stdout, withBinaryFile)
+import Bundle (readBundle, writeBundle)
+import System.IO (hFlush, hPutStrLn, stderr, stdout)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Runtime.Exception (RuntimeExn (..))
@@ -79,7 +78,7 @@ main = (`catch` escaped) do
   self <- getExecutablePath
   readBundle self >>= \case
     -- a bundle runs its program, and every argument is the program's
-    Just (_, program) -> getArgs >>= runWith (Flags Nothing Nothing) self program
+    Just program -> getArgs >>= runWith (Flags Nothing Nothing) self program
     Nothing ->
       getArgs >>= \case
         ["--version"] -> Text.putStrLn runtimeVersion
@@ -135,38 +134,25 @@ decodeProgram file bytes = do
     ]
   pure compiled
 
--- * Bundles
-
---
--- A bundle is a copy of unisonrt, then a .uc file, then a trailer: the
--- offset of the .uc file (8 bytes, little-endian) and 'bundleMagic'. When
--- unisonrt finds a trailer on its own executable it runs the program in
--- it. main.c checks for the trailer too, to pass every argument through.
-
-bundleMagic :: B.ByteString
-bundleMagic = "UNISONRT"
-
-trailerSize :: Int
-trailerSize = 16
-
--- | The unisonrt part and the program of this executable, if it is a
--- bundle. Reads only the trailer and the program.
-readBundle :: FilePath -> IO (Maybe (Integer, B.ByteString))
-readBundle self = withBinaryFile self ReadMode \h -> do
-  size <- hFileSize h
-  if size < fromIntegral trailerSize
-    then pure Nothing
-    else do
-      hSeek h AbsoluteSeek (size - fromIntegral trailerSize)
-      trailer <- B.hGet h trailerSize
-      let (off, magic) = B.splitAt 8 trailer
-          start = toInteger (B.foldr' (\b acc -> acc * 256 + fromIntegral b) (0 :: Word64) off)
-      if magic /= bundleMagic || start > size - fromIntegral trailerSize
-        then pure Nothing
-        else do
-          hSeek h AbsoluteSeek start
-          program <- B.hGet h (fromIntegral (size - fromIntegral trailerSize - start))
-          pure (Just (start, program))
+-- | unisonrt bundle FILE.uc [-o OUTPUT]: a self-contained executable that
+-- runs FILE.uc, named FILE by default.
+bundle :: FilePath -> [String] -> IO ()
+bundle self = \case
+  [file] -> go file (defaultOutput file)
+  [file, "-o", out] -> go file out
+  ["-o", out, file] -> go file out
+  _ -> failWith "usage: unisonrt bundle FILE.uc [-o OUTPUT]"
+  where
+    defaultOutput file = maybe (file ++ ".bundle") reverse (stripPrefix "cu." (reverse file))
+    go file out = do
+      program <- B.readFile file
+      -- refuse what the bundle could not run
+      _ <- decodeProgram file program
+      writeBundle self program out >>= \case
+        Left err -> failWith ("can't bundle " ++ file ++ ": " ++ err)
+        Right () -> do
+          makeExecutable out
+          putStrLn ("unisonrt: wrote " ++ out)
 
 -- | Lets everyone run it, as the linker leaves an executable
 makeExecutable :: FilePath -> IO ()
@@ -175,31 +161,6 @@ makeExecutable _ = pure ()
 #else
 makeExecutable out = setFileMode out 0o755
 #endif
-
--- | unisonrt bundle FILE.uc [-o OUTPUT]: a self-contained executable that
--- runs FILE.uc, named FILE by default.
-bundle :: FilePath -> [String] -> IO ()
-bundle self = \case
-  [file] -> go file (defaultOutput file)
-  [file, "-o", out] -> go file out
-  ["-o", out, file] -> go file out
-  _ -> failWith ("usage: unisonrt bundle FILE.uc [-o OUTPUT]")
-  where
-    defaultOutput file = maybe (file ++ ".bundle") reverse (stripPrefix "cu." (reverse file))
-    go file out = do
-      program <- B.readFile file
-      -- refuse what the bundle could not run
-      _ <- decodeProgram file program
-      -- this executable, without a program of its own if it is a bundle
-      runtime <-
-        readBundle self >>= \case
-          Just (start, _) -> withBinaryFile self ReadMode \h -> B.hGet h (fromIntegral start)
-          Nothing -> B.readFile self
-      let start = fromIntegral (B.length runtime) :: Word64
-          offset = B.pack [fromIntegral (start `shiftR` (8 * k)) | k <- [0 .. 7]]
-      B.writeFile out (runtime <> program <> offset <> bundleMagic)
-      makeExecutable out
-      putStrLn ("unisonrt: wrote " ++ out)
 
 -- | With the JIT on, loads LLVM. When it can't be, says why and runs the
 -- program interpreted, as with the JIT off.

@@ -39,12 +39,14 @@ unisonrt bundle hello.uc -o greet   # writes greet
 ./hello arg1 arg2
 ```
 
-A bundle is a copy of the `unisonrt` executable, then the `.uc` file, then a 16-byte trailer: the offset of the `.uc` file as 8 little-endian bytes, and the text `UNISONRT`. At startup unisonrt looks for the trailer at the end of its own executable. If it is there, it reads the program from that offset and runs it ([`readBundle`](Main.hs)).
+A bundle is a copy of the `unisonrt` executable with the `.uc` file added ([`Bundle.hs`](Bundle.hs)):
 
-- Every argument of a bundle is the program's. GHC RTS flags can go in the `GHCRTS` environment variable, and the JIT settings in `UNISON_JIT` and the others. `main.c` checks for the trailer as well, so the RTS does not read `+RTS` from a bundle's arguments.
-- `bundle` checks that this unisonrt can run the file before writing anything. Bundling with a bundle copies only its unisonrt part.
-- The program is decoded at startup, as with a `.uc` file. Nothing is extracted to disk.
-- On macOS, `codesign -v` reports a bundle's signature as invalid, because the appended bytes are outside it. The kernel runs it anyway, since it only checks the pages of the segments, and the bytes after them are not mapped.
+- **macOS.** The program goes inside the Mach-O, as the section `__UNISON,__uc`. `unisonrt` is linked with that section holding 16 zero bytes ([`bundle-section`](bundle-section)), in a segment of its own just before `__LINKEDIT`. `bundle` fills the section with `UNISONRT`, the program's length as 8 little-endian bytes, and the program. It moves `__LINKEDIT` after it by whole pages, adjusts the load commands that point into `__LINKEDIT`, and signs the result again, ad hoc, with `codesign`. The program is covered by the signature like the rest of the image, so the bundle passes `codesign -v --strict` and can be signed again with a Developer ID and notarized. At startup the program reads the section from memory.
+- **Elsewhere.** The `.uc` file follows the executable, then a 16-byte trailer: the offset of the `.uc` file as 8 little-endian bytes, and the text `UNISONRT`. At startup the program reads the trailer at the end of its own file, then the program at that offset.
+
+A bundle's arguments are all the program's, so a bundle can't run `bundle` itself. GHC RTS flags can go in the `GHCRTS` environment variable, and the JIT settings in `UNISON_JIT` and the others. `main.c` detects a bundle the same way, so the RTS does not read `+RTS` from a bundle's arguments. `bundle` checks that this unisonrt can run the file before writing anything. Nothing is extracted to disk.
+
+A minified `unisonrt` ([minify](../../minify/README.md) on its branch) keeps the section's segment just before `__LINKEDIT`, and bundles made from it work the same way.
 
 ## Versions
 

@@ -8,9 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#elif defined(_WIN32)
+#if defined(_WIN32)
 #include <windows.h>
 #else
 #include <unistd.h>
@@ -19,18 +17,35 @@
 
 extern StgClosure ZCMain_main_closure;
 
-/* Whether this executable is a bundle (`unisonrt bundle`): a copy of
- * unisonrt with a .uc file after it and a trailer at the end, the file's
- * offset (8 bytes, little-endian) then the magic below. A bundle's
- * arguments are all the program's. Main.hs reads the trailer too. */
+/* Whether this executable is a bundle (`unisonrt bundle`): unisonrt and a
+ * compiled program, whose arguments are all the program's. On macOS the
+ * program is in the section __UNISON,__uc, which starts with the magic
+ * below; elsewhere it follows the executable, which ends with a trailer:
+ * the program's offset (8 bytes, little-endian), then the magic. Bundle.hs
+ * reads and writes both. */
 #define BUNDLE_MAGIC "UNISONRT"
 
+#if defined(__APPLE__)
+#include <mach-o/getsect.h>
+#include <mach-o/ldsyms.h>
+
+/* The section, which Bundle.hs reads from memory */
+const uint8_t *unisonrt_bundle_section(size_t *size) {
+  unsigned long n = 0;
+  const uint8_t *p = getsectiondata(&_mh_execute_header, "__UNISON", "__uc", &n);
+  *size = p ? n : 0;
+  return p;
+}
+
+static int is_bundle(void) {
+  size_t n;
+  const uint8_t *p = unisonrt_bundle_section(&n);
+  return p && n >= 16 && memcmp(p, BUNDLE_MAGIC, 8) == 0;
+}
+#else
 static int is_bundle(void) {
   char path[4096];
-#if defined(__APPLE__)
-  uint32_t size = sizeof(path);
-  if (_NSGetExecutablePath(path, &size) != 0) return 0;
-#elif defined(_WIN32)
+#if defined(_WIN32)
   DWORD n = GetModuleFileNameA(NULL, path, sizeof(path));
   if (n == 0 || n == sizeof(path)) return 0;
 #else
@@ -46,6 +61,7 @@ static int is_bundle(void) {
   fclose(f);
   return ok;
 }
+#endif
 
 static int takes_value(const char *arg) {
   return strcmp(arg, "--jit") == 0 || strcmp(arg, "--jit-dump-ir") == 0;

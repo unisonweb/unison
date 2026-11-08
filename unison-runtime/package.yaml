@@ -51,6 +51,7 @@ extra-source-files:
   - cbits/jit_*.h
   - cbits/jit_helpers.ll
   - cbits/jit_exit.ll
+  - unisonrt/bundle-section
 
 # The runtime is two libraries. The internal library `core` (src) is what
 # running compiled code needs: the machine, the builtins, the JIT, and the
@@ -189,6 +190,12 @@ executables:
         other-modules: Paths_unison_runtime
       - condition: "!os(windows)"
         dependencies: unix
+      # On macOS a bundle's program is in a section of its own, which a
+      # plain unisonrt has empty (unisonrt/Bundle.hs)
+      - condition: os(darwin)
+        ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
+        # codesign, to sign a bundle again
+        dependencies: process
     dependencies:
       - base
       - bytestring

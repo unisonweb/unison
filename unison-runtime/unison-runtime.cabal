@@ -26,6 +26,7 @@ extra-source-files:
     cbits/jit_rt.h
     cbits/jit_helpers.ll
     cbits/jit_exit.ll
+    unisonrt/bundle-section
 
 source-repository head
   type: git
@@ -315,6 +316,8 @@ library core
 
 executable unisonrt
   main-is: Main.hs
+  other-modules:
+      Bundle
   hs-source-dirs:
       unisonrt
   default-extensions:
@@ -374,6 +377,10 @@ executable unisonrt
   if !os(windows)
     build-depends:
         unix
+  if os(darwin)
+    ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
+    build-depends:
+        process
 
 test-suite runtime-tests
   type: exitcode-stdio-1.0
