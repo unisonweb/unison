@@ -123,6 +123,9 @@ data Command
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
+  | -- | a definition, and where to write the executable (by default, the
+    -- definition's name)
+    Bundle PP.ProjectPathNames (Maybe FilePath)
   | Transcript TranscriptCodebaseSetup (Maybe RtsStatsPath) (NonEmpty FilePath)
   deriving (Show, Eq)
 
@@ -210,6 +213,24 @@ runSymbolCommand =
       "Execute a definition from the codebase, passing on the provided arguments. "
         <> " To pass flags to your program, use `run <symbol> -- --my-flag`"
 
+bundleCommand :: Mod CommandFields Command
+bundleCommand =
+  command "bundle" (info bundleParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Write a self-contained executable that runs a definition from the codebase, as the `bundle` command does: "
+        <> "the compiled program with a minified copy of unisonrt. It is named after the definition unless OUTPUT is given."
+
+bundleParser :: Parser Command
+bundleParser =
+  Bundle <$> pathParser <*> optional (strArgument (metavar "OUTPUT"))
+  where
+    -- the path after the colon may leave out its leading dot
+    pathParser = argument (maybeReader (eitherToMaybe . PP.parseProjectPath . withDot . Text.pack)) (metavar "myproject/mybranch:path.to.main")
+    withDot t = case Text.breakOn ":" t of
+      (pb, rest) | Just path <- Text.stripPrefix ":" rest, not ("." `Text.isPrefixOf` path) -> pb <> ":." <> path
+      _ -> t
+
 runFileCommand :: Mod CommandFields Command
 runFileCommand =
   command "run.file" (info runFileParser (fullDesc <> progDesc help))
@@ -283,6 +304,7 @@ commandParser envOpts =
           runCompiledCommand,
           runFileCommand,
           runPipeCommand,
+          bundleCommand,
           transcriptCommand,
           transcriptForkCommand,
           transcriptInPlaceCommand,

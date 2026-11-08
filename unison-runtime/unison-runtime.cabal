@@ -66,6 +66,7 @@ library
       Unison.Runtime.JIT
     , Unison.Runtime.JIT.Config
     , Unison.Runtime.Version
+    , Unison.Runtime.Bundle
   hs-source-dirs:
       ucm
   default-extensions:
@@ -152,6 +153,7 @@ library core
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Decls
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Bundle
       Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.P256
       Unison.Runtime.Crypto.Rsa
@@ -239,6 +241,7 @@ library core
       cbits/i2d.c
       cbits/jit_llvm.c
       cbits/jit_rt.c
+      cbits/bundle.c
   build-depends:
       asn1-encoding
     , asn1-types
@@ -316,8 +319,6 @@ library core
 
 executable unisonrt
   main-is: Main.hs
-  other-modules:
-      Bundle
   hs-source-dirs:
       unisonrt
   default-extensions:
@@ -374,13 +375,10 @@ executable unisonrt
     ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
-  if !os(windows)
-    build-depends:
-        unix
   if os(darwin)
     ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
-    build-depends:
-        process
+  if os(linux)
+    ghc-options: -optl-fuse-ld=bfd -optl-Wl,--emit-relocs
 
 test-suite runtime-tests
   type: exitcode-stdio-1.0

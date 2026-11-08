@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | The kinds of reference the tool finds and rewrites. The first group is
 -- AArch64 instruction forms, the second x86-64 forms and jump-table
 -- entries, the third fields shared by every target: info table offsets

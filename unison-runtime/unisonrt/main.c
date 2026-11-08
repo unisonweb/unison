@@ -26,16 +26,8 @@ extern StgClosure ZCMain_main_closure;
 #define BUNDLE_MAGIC "UNISONRT"
 
 #if defined(__APPLE__)
-#include <mach-o/getsect.h>
-#include <mach-o/ldsyms.h>
-
-/* The section, which Bundle.hs reads from memory */
-const uint8_t *unisonrt_bundle_section(size_t *size) {
-  unsigned long n = 0;
-  const uint8_t *p = getsectiondata(&_mh_execute_header, "__UNISON", "__uc", &n);
-  *size = p ? n : 0;
-  return p;
-}
+/* cbits/bundle.c */
+const uint8_t *unisonrt_bundle_section(size_t *size);
 
 static int is_bundle(void) {
   size_t n;

@@ -13,17 +13,23 @@
 -- Elsewhere the program follows the executable, with a 16-byte trailer:
 -- the program's offset (8 bytes, little-endian), then 'bundleMagic'.
 --
--- main.c tells a bundle apart the same way, to pass every argument to the
--- program.
-module Bundle
+-- unisonrt's main.c tells a bundle apart the same way, to pass every
+-- argument to the program; the section is found by unisonrt_bundle_section
+-- (cbits/bundle.c).
+module Unison.Runtime.Bundle
   ( readBundle,
     writeBundle,
+    signExecutable,
+    makeExecutable,
   )
 where
 
 import Data.Bits (shiftL, shiftR)
 import Data.ByteString qualified as B
 import Data.Word (Word64)
+#if !defined(mingw32_HOST_OS)
+import System.Posix.Files (setFileMode)
+#endif
 #if defined(darwin_HOST_OS)
 import Control.Monad (unless, when)
 import Data.Bits ((.&.))
@@ -51,15 +57,25 @@ readBundle :: FilePath -> IO (Maybe B.ByteString)
 -- again, which 'writeBundle' does.
 bundleBytes :: B.ByteString -> B.ByteString -> Either String B.ByteString
 
--- | Writes a bundle of the program, from this executable's file.
+-- | Writes a bundle of the program, from the file of a unisonrt (a
+-- bundle or not), as an executable that anyone can run.
 writeBundle :: FilePath -> B.ByteString -> FilePath -> IO (Either String ())
-writeBundle self program out = do
-  this <- B.readFile self
+writeBundle runtime program out = do
+  this <- B.readFile runtime
   case bundleBytes this program of
     Left err -> pure (Left err)
     Right bytes -> do
       B.writeFile out bytes
-      signed out
+      makeExecutable out
+      signExecutable out
+
+-- | Lets everyone run it, as the linker leaves an executable
+makeExecutable :: FilePath -> IO ()
+#if defined(mingw32_HOST_OS)
+makeExecutable _ = pure ()
+#else
+makeExecutable out = setFileMode out 0o755
+#endif
 
 littleEndian :: Word64 -> B.ByteString
 littleEndian n = B.pack [fromIntegral (n `shiftR` (8 * k)) | k <- [0 .. 7]]
@@ -89,9 +105,9 @@ readBundle _ = alloca \sizePtr -> do
 
 -- | Re-signs a rewritten executable, ad hoc: macOS on arm64 runs nothing
 -- whose signature doesn't match it. It can be signed again with a real
--- identity afterwards.
-signed :: FilePath -> IO (Either String ())
-signed out = do
+-- identity afterwards. Elsewhere, nothing to do.
+signExecutable :: FilePath -> IO (Either String ())
+signExecutable out = do
   (code, _, err) <- readProcessWithExitCode "codesign" ["--sign", "-", "--force", out] ""
   pure $ case code of
     ExitSuccess -> Right ()
@@ -202,8 +218,8 @@ readBundle self = withBinaryFile self ReadMode \h -> do
           hSeek h AbsoluteSeek start
           Just <$> B.hGet h (fromIntegral (size - fromIntegral trailerSize - start))
 
-signed :: FilePath -> IO (Either String ())
-signed _ = pure (Right ())
+signExecutable :: FilePath -> IO (Either String ())
+signExecutable _ = pure (Right ())
 
 bundleBytes this program = Right (runtime <> program <> littleEndian (fromIntegral (B.length runtime)) <> bundleMagic)
   where

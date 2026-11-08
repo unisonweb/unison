@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Carving the file into definitions, finding every reference between
 -- them, and deciding which ones are kept. See design.md.
 module Minify.Analysis

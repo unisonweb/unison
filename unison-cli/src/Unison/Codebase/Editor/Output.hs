@@ -324,6 +324,14 @@ data Output
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
+  | -- | `bundle` wrote a self-contained executable
+    BundleWritten FilePath
+  | -- | `bundle` could not: why
+    BundleFailed Text
+  | -- | `bundle` is minifying this unisonrt, which it does once
+    BundleMinifyingRuntime FilePath
+  | -- | `bundle` could not minify unisonrt, why, and uses it whole
+    BundleNotMinified Text
   | EvaluationFailure
       -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
       (P.Pretty P.ColorText -> P.Pretty P.ColorText)
@@ -728,6 +736,10 @@ isFailure o = case o of
   TypeErrors {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
+  BundleWritten {} -> False
+  BundleFailed {} -> True
+  BundleMinifyingRuntime {} -> False
+  BundleNotMinified {} -> False
   EvaluationFailure {} -> True
   Evaluated {} -> False
   LoadingFile {} -> False

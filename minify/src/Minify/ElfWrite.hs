@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Finishing an ELF output: the program headers (in the patch area, since
 -- the holes add some and the original table has no room), the section
 -- headers with the compacted sections cut into pieces, the symbol table

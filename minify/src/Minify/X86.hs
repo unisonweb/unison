@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | x86-64: an instruction-length decoder that also says where an
 -- instruction's address-carrying fields are, the recursive-descent
 -- decoding of a Haskell definition (with GHC's jump tables), the linear

@@ -6,21 +6,28 @@ copyright: Copyright (C) 2013-2026 Unison Computing, PBC and contributors
 
 ghc-options: -Wall -O2
 
+library:
+  source-dirs: src
+  dependencies:
+    - base
+    - bytestring
+    - containers
+    - vector
+    - vector-algorithms
+
 executables:
   minify:
     main: Main.hs
-    source-dirs:
-      - app
-      - src
+    source-dirs: app
     ghc-options: -rtsopts "-with-rtsopts=-A64m"
     dependencies:
       - base
       - bytestring
       - containers
+      - minify
       - optparse-applicative
       - process
       - vector
-      - vector-algorithms
 
 default-extensions:
   - BangPatterns

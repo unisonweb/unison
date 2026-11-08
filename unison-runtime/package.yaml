@@ -84,6 +84,8 @@ internal-libraries:
       # cbits/jit_helpers.c, which is also compiled to IR for the JIT
       # (cbits/gen-helpers.sh, jit_helpers.ll).
       - cbits/jit_rt.c
+      # where a bundle finds its program (Unison.Runtime.Bundle)
+      - cbits/bundle.c
 
     dependencies:
     - asn1-encoding
@@ -151,6 +153,7 @@ library:
     - Unison.Runtime.JIT
     - Unison.Runtime.JIT.Config
     - Unison.Runtime.Version
+    - Unison.Runtime.Bundle
   dependencies:
     - base
     - bytestring
@@ -188,14 +191,14 @@ executables:
     when:
       - condition: false
         other-modules: Paths_unison_runtime
-      - condition: "!os(windows)"
-        dependencies: unix
       # On macOS a bundle's program is in a section of its own, which a
-      # plain unisonrt has empty (unisonrt/Bundle.hs)
+      # plain unisonrt has empty (Unison.Runtime.Bundle)
       - condition: os(darwin)
         ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
-        # codesign, to sign a bundle again
-        dependencies: process
+      # minify (ucm's bundle) needs the relocations on Linux, which only the
+      # BFD linker keeps (minify/README.md)
+      - condition: os(linux)
+        ghc-options: -optl-fuse-ld=bfd -optl-Wl,--emit-relocs
     dependencies:
       - base
       - bytestring

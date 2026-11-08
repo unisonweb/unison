@@ -20,13 +20,10 @@ import Data.Text.IO qualified as Text
 import GHC.Stack (prettyCallStack)
 import System.Environment (getArgs, getExecutablePath, setEnv, withArgs)
 import System.Exit (ExitCode (..), exitWith)
-#if !defined(mingw32_HOST_OS)
-import System.Posix.Files (setFileMode)
-#endif
-import Bundle (readBundle, writeBundle)
 import System.IO (hFlush, hPutStrLn, stderr, stdout)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
+import Unison.Runtime.Bundle (readBundle, writeBundle)
 import Unison.Runtime.Exception (RuntimeExn (..))
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.JIT.Config qualified as JITConfig
@@ -150,17 +147,7 @@ bundle self = \case
       _ <- decodeProgram file program
       writeBundle self program out >>= \case
         Left err -> failWith ("can't bundle " ++ file ++ ": " ++ err)
-        Right () -> do
-          makeExecutable out
-          putStrLn ("unisonrt: wrote " ++ out)
-
--- | Lets everyone run it, as the linker leaves an executable
-makeExecutable :: FilePath -> IO ()
-#if defined(mingw32_HOST_OS)
-makeExecutable _ = pure ()
-#else
-makeExecutable out = setFileMode out 0o755
-#endif
+        Right () -> putStrLn ("unisonrt: wrote " ++ out)
 
 -- | With the JIT on, loads LLVM. When it can't be, says why and runs the
 -- program interpreted, as with the JIT off.

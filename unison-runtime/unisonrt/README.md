@@ -31,7 +31,21 @@ The other JIT settings are read from the environment, as in ucm ([`JIT.Config`](
 
 ## Bundles
 
-`unisonrt bundle` makes a self-contained executable from a `.uc` file:
+ucm's `bundle` command writes a self-contained executable that runs a definition, with a minified copy of unisonrt:
+
+```
+demo/main> bundle apps.hello.main hello
+```
+
+or from the shell, where the output is named after the definition unless given:
+
+```
+ucm bundle demo/main:apps.hello.main [hello]
+```
+
+ucm takes the unisonrt that `UNISONRT` names, else the one next to ucm, else the one on the `PATH`, and checks that its version is ucm's ([`HandleInput/Bundle.hs`](../../unison-cli/src/Unison/Codebase/Editor/HandleInput/Bundle.hs)). Minifying ([minify](../../minify/README.md)) is the same for every program, so ucm does it once per build of unisonrt. The result is kept in the cache directory (`~/.cache/unisonrt` on macOS and Linux), under the hash of the unisonrt it was made from. The first bundle takes about 15 seconds, later ones about one. Where minify can't work, as on Windows, ucm says so and the bundle has the whole runtime. On Linux, minify needs unisonrt linked with its relocations kept, which [`package.yaml`](../package.yaml) asks for.
+
+`unisonrt bundle` makes a bundle from a `.uc` file, with the unisonrt running it, minified or not:
 
 ```
 unisonrt bundle hello.uc            # writes hello

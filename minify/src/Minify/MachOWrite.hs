@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Finishing a Mach-O output: the symbol table, the dyld streams
 -- (rebases, binds, exports), the function starts, and the load commands
 -- that describe the pieces. See design.md, "Layout and rewriting".

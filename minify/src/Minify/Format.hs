@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | What the tool needs to know about an executable regardless of its
 -- file format: its segments and sections, its symbols, where the loader
 -- fixes pointers up, and which parts play which role in compaction. The

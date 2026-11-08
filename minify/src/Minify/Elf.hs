@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Reading a 64-bit little-endian ELF executable: the header, the program
 -- and section headers, the symbol tables and the dynamic relocations.
 module Minify.Elf

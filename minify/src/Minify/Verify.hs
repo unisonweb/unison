@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Checking the output by analyzing it the same way as the input: every
 -- kept definition must have the same references, each landing where the
 -- plan says its old target went. See design.md, "Checking the result".

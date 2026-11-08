@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | GHC's z-encoding of symbol names, and how a linked symbol's name splits
 -- into package, module, binding and kind.
 module Minify.ZEncoding

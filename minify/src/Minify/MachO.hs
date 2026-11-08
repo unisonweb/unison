@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Reading a 64-bit Mach-O executable: the header, the load commands, the
 -- symbol table and the link-edit streams dyld reads (rebases, binds,
 -- exports, function starts). Encoders for the streams the tool regenerates

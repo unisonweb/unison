@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Where every kept definition goes, and how the segments are split so the
 -- file omits the pages compaction frees. See design.md, "Layout".
 module Minify.Layout

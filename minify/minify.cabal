@@ -16,9 +16,9 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
-executable minify
-  main-is: Main.hs
-  other-modules:
+library
+  exposed-modules:
+      Minify
       Minify.Analysis
       Minify.Arm64
       Minify.Bytes
@@ -35,10 +35,33 @@ executable minify
       Minify.Verify
       Minify.X86
       Minify.ZEncoding
+  other-modules:
+      Paths_minify
+  hs-source-dirs:
+      src
+  default-extensions:
+      BangPatterns
+      LambdaCase
+      MultiWayIf
+      OverloadedStrings
+      RecordWildCards
+      ScopedTypeVariables
+      TupleSections
+  ghc-options: -Wall -O2
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , vector
+    , vector-algorithms
+  default-language: Haskell2010
+
+executable minify
+  main-is: Main.hs
+  other-modules:
       Paths_minify
   hs-source-dirs:
       app
-      src
   default-extensions:
       BangPatterns
       LambdaCase
@@ -52,8 +75,8 @@ executable minify
       base
     , bytestring
     , containers
+    , minify
     , optparse-applicative
     , process
     , vector
-    , vector-algorithms
   default-language: Haskell2010

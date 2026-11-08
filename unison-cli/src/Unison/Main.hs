@@ -58,6 +58,7 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Bundle qualified as Bundle
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Execute (execute)
@@ -82,6 +83,8 @@ import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -257,6 +260,15 @@ main version = do
                     initRes
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
+        Bundle mainPath mOutput -> do
+          -- named after the definition, unless told otherwise
+          let output = fromMaybe "main" $ mOutput <|> (Text.unpack . NameSegment.toUnescapedText . Name.lastSegment <$> Path.toName (PP.path mainPath))
+          getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) ->
+            RTI.withRuntime jit False RTI.OneOff \runtime ->
+              Bundle.bundleFromCodebase theCodebase runtime mainPath output >>= \case
+                Left (Bundle.BundleProblem why) -> exitError (P.text why)
+                Left (Bundle.BundleCompileError err) -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
+                Right () -> putStrLn ("Wrote " ++ output)
         Run (RunCompiled file) args ->
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case

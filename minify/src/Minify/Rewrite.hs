@@ -1,3 +1,5 @@
+-- Optimized in every build, --fast too: minifying is slow without it
+{-# OPTIONS_GHC -O2 #-}
 -- | Producing the output file: copying and relocating the kept definitions
 -- into the planned layout, then handing the format's writer the file to
 -- finish (headers, link-edit data, symbol tables). See design.md, "Layout
