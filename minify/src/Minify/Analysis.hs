@@ -136,7 +136,9 @@ data Options = Options
     -- | debugging: definitions starting in these ranges are kept whatever reaches them
     optKeepRanges :: [(Word64, Word64)],
     -- | static closures known from elsewhere (verify passes every kept data definition's place)
-    optExtraData :: [Word64]
+    optExtraData :: [Word64],
+    -- | debugging: definitions starting in these ranges stay where they are
+    optPinRanges :: [(Word64, Word64)]
   }
 
 data Analysis = Analysis
@@ -354,6 +356,8 @@ data Env = Env
     eCounts :: IORef (M.Map String Int),
     -- | observations worth printing that are not anomalies
     eNotes :: IORef [String],
+    -- | the 32-bit absolute fields the relocations name (x86-64 with --emit-relocs)
+    eAbsFields :: S.Set Word64,
     eAnomalies :: IORef [String]
   }
 
@@ -389,7 +393,8 @@ analyze opts im0 = do
   counts <- newIORef M.empty
   notes <- newIORef []
   anomalies <- newIORef []
-  let env = Env im bytes textLo textHi granule visited tabled isTable firstPass tableLabels pins pinCounts refs loose (optPatchFixedSrt opts) refCount labels dataLabels closuresDone foundSlots jumpTables tableQueue starts tablesSeen tableStarts counts notes anomalies
+  let absFields = maybe S.empty S.fromList (ldAbsFields (imLoaded im))
+      env = Env im bytes textLo textHi granule visited tabled isTable firstPass tableLabels pins pinCounts refs loose (optPatchFixedSrt opts) refCount labels dataLabels closuresDone foundSlots jumpTables tableQueue starts tablesSeen tableStarts counts notes absFields anomalies
   -- Fixed code is swept for what it points at; the targets stay put.
   forM_ (V.toList (imDefs im)) $ \d ->
     when (dKind d == Fixed && isCode (imSections im V.! dSect d)) $ do
@@ -621,6 +626,9 @@ analyze opts im0 = do
                     modifyIORef' pinWhy (M.insertWith (+) (why ++ " in " ++ BC.unpack (secName (sectOf d))) (1 :: Int))
                 loop (i + 1)
     loop firstPast
+  forM_ [0 .. ndefs' - 1] $ \i -> do
+    let a = dStart (refined V.! i)
+    when (dKind (refined V.! i) == Haskell && any (\(lo, hi) -> a >= lo && a < hi) (optPinRanges opts)) (VUM.write pinnedM i True)
   pinnedV <- VU.freeze pinnedM
   pinCountsV <- readIORef pinWhy
   looseV <- readIORef loose
@@ -849,7 +857,10 @@ mkHooks env d =
       hkInText = inText env,
       hkIsHaskellAt = \a -> maybe False ((== Haskell) . dKind) (defAt (eImage env) a),
       hkInImage = isJust . fileOffsetOf (eImage env),
-      hkPie = imPie (eImage env)
+      hkPie = imPie (eImage env),
+      hkAbsField = case ldAbsFields (imLoaded (eImage env)) of
+        Nothing -> const True
+        Just _ -> \a -> S.member a (eAbsFields env)
     }
 
 drain :: Env -> IO ()

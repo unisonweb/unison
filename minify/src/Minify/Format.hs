@@ -123,6 +123,9 @@ data Loaded = Loaded
     ldSlots :: Maybe [Word64],
     -- | slots the loader binds to a named symbol: (slot, symbol)
     ldBinds :: [(Word64, B.ByteString)],
+    -- | when the link kept its relocations: the addresses of every 32-bit
+    -- absolute field in code, so that nothing else is taken for one
+    ldAbsFields :: Maybe [Word64],
     ldPageSize :: !Word64,
     ldPie :: !Bool,
     ldSegments :: [Segment],

@@ -309,6 +309,7 @@ loadMachO mo = do
           F.ldArch = arch,
           F.ldSlots = Just slots,
           F.ldBinds = binds,
+          F.ldAbsFields = Nothing,
           F.ldPageSize = if arch == F.Arm64 then 16384 else 4096,
           F.ldPie = True,
           F.ldSegments = segs,

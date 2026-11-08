@@ -13,17 +13,18 @@ stack exec minify -- INPUT -o OUTPUT [--verify] [--report]
 
 The input must be an unstripped executable (the symbol table is what
 defines the definitions). A Mach-O output is re-signed ad hoc with
-`codesign`. A Linux executable needs a relocation list for the tool to be
-exact about the pointers in its data: link it as PIE, or keep the link's
-relocations with
+`codesign`. A Linux executable must be linked with its relocations kept,
 
 ```
 -optl-fuse-ld=bfd -optl-Wl,--emit-relocs
 ```
 
-(gold crashes on `--emit-relocs`). Without either, the pointers are found
-by parsing the static closures, which can misread an integer as an address
-or miss a closure shape, so writing an output then needs `--guess-pointers`.
+(gold crashes on `--emit-relocs`), which gives the tool an exact list of
+the pointers in data and of the 32-bit address fields in x86-64 code. A
+PIE link also lists the pointers in data. Without either, the pointers
+have to be guessed from the static closures, which can misread an integer
+as an address or miss a closure shape; `--guess-pointers` allows that, for
+debugging only.
 Without `-o`, only the report is printed: definitions and bytes kept and
 removed per section and per package.
 
@@ -42,7 +43,7 @@ removed per section and per package.
 | `--no-split SECTION` | do not split definitions at local closures (`text`), static closures (`data`) or constructor names (`strings`) |
 | `--strip` | drop the symbol table and function starts; saves about 24 MB on unison, but the output cannot be minified again or symbolicated |
 | `--force` | write the output even when the analysis reported anomalies (code it did not understand) |
-| `--guess-pointers` | write an output for a Linux executable that has no relocation list (see above) |
+| `--guess-pointers` | write an output for a Linux executable that has no relocation list (debugging only, see above) |
 | `--disasm 0xLO-0xHI` | print the instruction boundaries the x86-64 decoder finds in a range and stop |
 
 Names for `--remove` are the source names, `Module.binding` or

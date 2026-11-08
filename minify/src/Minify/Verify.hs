@@ -25,7 +25,7 @@ verify an pl out = case loadImage out of
     let im0 = anImage an
         planned = [(plNewStart pl VU.! i + fromIntegral (dHead d), dHead d > 0) | i <- [0 .. V.length (imDefs im0) - 1], let d = imDefs im0 V.! i, anKept an VU.! i, anRep an VU.! i == i, dKind d == Haskell, isCode (imSections im0 V.! dSect d)]
         plannedData = [plNewStart pl VU.! i | i <- [0 .. V.length (imDefs im0) - 1], let d = imDefs im0 V.! i, anKept an VU.! i, anRep an VU.! i == i, dKind d == Haskell, secRole (imSections im0 V.! dSect d) == Data]
-    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt, RRel32, RAbs32] Nothing True True False [] planned False [] plannedData) im2
+    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt, RRel32, RAbs32] Nothing True True False [] planned False [] plannedData []) im2
     let im = anImage an
         defs = imDefs im
         islandTargets = M.fromList [(a, t) | (t, a) <- M.toList (plIslands pl)]

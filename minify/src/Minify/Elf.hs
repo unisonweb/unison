@@ -324,6 +324,16 @@ loadElf e = do
             rType r == absTy
         ]
       relative = [rOffset r | r <- elfRelas e, rType r == relTy] ++ elfRelr e ++ emitted
+      hasEmitted = any (\(sh, _) -> shFlags sh .&. shfAlloc == 0) (elfRelaSections e)
+      -- R_X86_64_32 and R_X86_64_32S: the only ways a 32-bit field holds an address
+      absFields =
+        [ rOffset r
+          | (sh, rs) <- elfRelaSections e,
+            shFlags sh .&. shfAlloc == 0,
+            r <- rs,
+            elfMachine e == emX86_64,
+            rType r == 10 || rType r == 11
+        ]
       dynNames = maybe [] (map snd . symbolsOf e) (elfDynsymIx e)
       binds =
         [ (rOffset r, nm)
@@ -339,6 +349,7 @@ loadElf e = do
         F.ldArch = arch,
         F.ldSlots = if null relative then Nothing else Just relative,
         F.ldBinds = binds,
+        F.ldAbsFields = if hasEmitted then Just absFields else Nothing,
         F.ldPageSize = pageSize,
         F.ldPie = elfType e == etDyn,
         F.ldSegments = segs,

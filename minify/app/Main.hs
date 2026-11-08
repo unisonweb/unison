@@ -56,7 +56,8 @@ data Args = Args
     argDisasm :: Maybe String,
     argGotRoots :: Bool,
     argKeepRange :: [String],
-    argGuessPointers :: Bool
+    argGuessPointers :: Bool,
+    argPinRange :: [String]
   }
 
 args :: Parser Args
@@ -94,6 +95,7 @@ args =
     <*> switch (long "got-roots" <> help "Debugging: every GOT entry keeps what it points at")
     <*> many (strOption (long "keep-range" <> metavar "0xLO-0xHI" <> help "Debugging: keep every definition starting in this range"))
     <*> switch (long "guess-pointers" <> help "Write an output even when the file has no relocation list and the pointers in data had to be found by parsing static closures (an integer that looks like an address could be rewritten; link with --emit-relocs or as PIE instead)")
+    <*> many (strOption (long "pin-range" <> metavar "0xLO-0xHI" <> help "Debugging: definitions starting in this range do not move"))
 
 main :: IO ()
 main = do
@@ -101,7 +103,8 @@ main = do
   bytes <- B.readFile (argInput a)
   im <- either die pure (loadImage bytes)
   printf "%s %s%s, page size %d\n" (show (imFormat im)) (show (imArch im)) (if imPie im then ", position independent" else "" :: String) (imPageSize im)
-  let keepRanges = [(l, h) | spec <- argKeepRange a, (lo, '-' : hi) <- [break (== '-') spec], [(l, "")] <- [readHex (drop 2 lo)], [(h, "")] <- [readHex (drop 2 hi)]]
+  let pinRanges = [(l, h) | spec <- argPinRange a, (lo, '-' : hi) <- [break (== '-') spec], [(l, "")] <- [readHex (drop 2 lo)], [(h, "")] <- [readHex (drop 2 hi)]]
+      keepRanges = [(l, h) | spec <- argKeepRange a, (lo, '-' : hi) <- [break (== '-') spec], [(l, "")] <- [readHex (drop 2 lo)], [(h, "")] <- [readHex (drop 2 hi)]]
       foldRange = [(l, h) | spec <- argFoldRange a, (lo, '-' : hi) <- [break (== '-') spec], [(l, "")] <- [readHex (drop 2 lo)], [(h, "")] <- [readHex (drop 2 hi)]]
       kinds = case argSplitKinds a of
         Nothing -> [RPointer, RAdrpAdd, RSrt, RRel32, RAbs32]
@@ -125,7 +128,7 @@ main = do
       go l
       exitSuccess
     _ -> die "bad --disasm range"
-  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a)) foldRange [] (argGotRoots a) keepRanges []) im
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a)) foldRange [] (argGotRoots a) keepRanges [] pinRanges) im
   when (argDumpFolds a) $ do
     forM_ [d | d <- V.toList (imDefs (anImage an)), anKept an VU.! dIndex d, anRep an VU.! dIndex d /= dIndex d] $ \d ->
       printf "%x %x %d %s -> %s\n" (dStart d) (dStart (imDefs (anImage an) V.! (anRep an VU.! dIndex d))) (dEnd d - dStart d) (hsDisplay d) (hsDisplay (imDefs (anImage an) V.! (anRep an VU.! dIndex d)))

@@ -324,7 +324,7 @@ decodeFrom hk start = go start
       let absFields = [(o, 4) | not (hkPie hk), Just o <- [xAbs ins]] ++ [(o, s) | not (hkPie hk), Just (o, s) <- [xImm ins], s == 4]
       forM_ absFields $ \(off, _) -> do
         let v = fromIntegral (field32 pc off) :: Word64
-        when (hkIsHaskellAt hk v) $ do
+        when (hkAbsField hk (pc + fromIntegral off) && hkIsHaskellAt hk v) $ do
           hkRef hk (pc + fromIntegral off) RAbs32 v 0
           if hkInText hk v then hkLabel hk v True else hkData hk v
       case xKind ins of
@@ -492,6 +492,7 @@ sweepFixed hk start stop = go start
               forM_ rel $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "branch" t)
               forM_ rip $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "rip-relative" t)
               forM_ abs' $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "absolute" t)
+              -- (a pin from a coincidental value only costs size, so no relocation check here)
               go next
 
 -- | An abort stub at @code@: lea rdi, [msg]; call barf; ud2. 16 bytes.

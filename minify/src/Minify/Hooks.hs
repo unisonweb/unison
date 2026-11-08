@@ -62,7 +62,10 @@ data Hooks = Hooks
     -- | inside a section the file backs
     hkInImage :: Word64 -> Bool,
     -- | the executable is position independent: no instruction carries an absolute address
-    hkPie :: !Bool
+    hkPie :: !Bool,
+    -- | whether a 32-bit field at an address may hold an absolute address:
+    -- always, unless the link kept its relocations, which then decide
+    hkAbsField :: Word64 -> Bool
   }
 
 byteAt :: Hooks -> Word64 -> Word8

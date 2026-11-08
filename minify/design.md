@@ -100,10 +100,14 @@ run time, is a root as before.
 
 A Linux executable GHC links by default is not position independent and
 carries no relative relocations: nothing lists the pointer slots in data.
-With `-optl-fuse-ld=bfd -optl-Wl,--emit-relocs` the linker keeps every
-relocation of the link in non-loaded sections, and their absolute 64-bit
-entries are an exact list, which the reader uses; a PIE link gives the
-same guarantee. Without either, the tool parses the static closures: from
+Unison controls its link, so the requirement is `-optl-fuse-ld=bfd
+-optl-Wl,--emit-relocs`: the linker keeps every relocation of the link in
+non-loaded sections, their absolute 64-bit entries are an exact list of the
+pointer slots, and on x86-64 their 32-bit absolute entries say exactly
+which immediates and displacements in code hold addresses, so no value is
+ever taken for an address by its size alone. A PIE link lists the pointer
+slots too. Without either, the tool can parse the static closures, for
+debugging only: from
 every Haskell data symbol, every address code or a GOT entry names in
 data, every SRT, and every pointer field found, the info table's layout
 gives the pointer fields, and a static thunk's leading words are looked at
