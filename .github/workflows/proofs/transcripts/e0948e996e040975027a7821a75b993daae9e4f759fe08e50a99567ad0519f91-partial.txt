@@ -1,0 +1,2 @@
+# transcripts run for the partial attestation e0948e996e040975027a7821a75b993daae9e4f759fe08e50a99567ad0519f91
+2cd9f140c444cc323bd1c4c79aedf7d54ad28b8e968d76f5dcf1f57de919ed62 unison-src/transcripts/idempotent/help.md
