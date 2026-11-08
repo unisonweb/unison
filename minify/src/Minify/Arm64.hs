@@ -282,7 +282,11 @@ decodeFrom hk = go
 
 -- | A linear sweep of fixed code for what it refers to. An adrp is paired
 -- with its consumers when the register's uses can all be followed, and
--- each target pinned; otherwise the page is pinned.
+-- each target pinned; otherwise the page is pinned. A target in code is
+-- also a label: GHC code lies in fixed regions too (a module's unnamed
+-- local closures follow whatever symbol precedes them, the C @main@ of the
+-- program's own module for one), and the info table before such a label
+-- holds an SRT offset that must follow its closure.
 sweepFixed :: Hooks -> Word64 -> Word64 -> IO ()
 sweepFixed hk start end = go start
   where
@@ -292,7 +296,9 @@ sweepFixed hk start end = go start
           case decode pc (word32At hk pc) of
             Adrp rd page ->
               case adrpConsumers rd [word32At hk (pc + 4 * k) | k <- [1 .. 8], pc + 4 * k + 4 <= end] of
-                Just offs -> mapM_ (hkPin hk "adrp" . (page +)) offs
+                Just offs -> forM_ offs $ \off -> do
+                  hkPin hk "adrp" (page + off)
+                  when (hkInText hk (page + off)) (hkLabel hk (page + off) True)
                 Nothing -> hkPinPage hk page
             Adr t -> hkPin hk "adr" t
             B t -> hkPin hk "branch" t

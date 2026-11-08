@@ -490,7 +490,10 @@ sweepFixed hk start stop = go start
                   rip = [fromIntegral (fromIntegral next + f32 off) | Just off <- [xRip ins]]
                   abs' = [fromIntegral (f32 off) | not (hkPie hk), Just off <- [xAbs ins]] ++ [fromIntegral (f32 off) | not (hkPie hk), Just (off, 4) <- [xImm ins]]
               forM_ rel $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "branch" t)
-              forM_ rip $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "rip-relative" t)
+              forM_ rip $ \t -> do
+                when (hkIsHaskellAt hk t) (hkPin hk "rip-relative" t)
+                -- GHC code in a fixed region: the table before a label it names must be parsed
+                when (hkInText hk t) (hkLabel hk t True)
               forM_ abs' $ \t -> when (hkIsHaskellAt hk t) (hkPin hk "absolute" t)
               -- (a pin from a coincidental value only costs size, so no relocation check here)
               go next

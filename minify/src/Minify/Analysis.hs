@@ -203,7 +203,8 @@ loadImage bytes = do
             )
       headOf a = maybe 0 (tableSize bytes . fromIntegral) (fileOffsetOf' sectMap a)
       typeAt a = maybe 0 (\o -> u32 bytes (fromIntegral o - 8)) (fileOffsetOf' sectMap a)
-      defs = carve headOf typeAt sects (ldSymbols loaded)
+      byteAt a = maybe 0 (u8 bytes . fromIntegral) (fileOffsetOf' sectMap a)
+      defs = carve headOf typeAt byteAt sects (ldSymbols loaded)
   when (V.null defs) (Left "no definitions found in the compactable sections")
   pure
     Image
@@ -257,9 +258,9 @@ defAt im a =
 -- | Splits each compacted section into definitions at its symbols. The
 -- first argument gives the size of the info table before a code label,
 -- the second the closure type of that table.
-carve :: (Word64 -> Int) -> (Word64 -> Word32) -> V.Vector Section -> [Symbol] -> V.Vector Def
+carve :: (Word64 -> Int) -> (Word64 -> Word32) -> (Word64 -> Word8) -> V.Vector Section -> [Symbol] -> V.Vector Def
 -- sections need not be in address order (the output's are not)
-carve headOf typeAt sects syms = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (sortOn dStart (concat perSection)))
+carve headOf typeAt byteAt sects syms = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (sortOn dStart (concat perSection)))
   where
     -- symbols are filed by address, not by their section number, which a
     -- split section would make ambiguous
@@ -281,7 +282,7 @@ carve headOf typeAt sects syms = V.fromList (zipWith (\i d -> d {dIndex = i}) [0
           -- a local label with a return frame's table belongs to its procedure
           -- (conditional branches cross it); other local labels begin a
           -- definition that is Haskell's but has no module of its own
-          starts =
+          starts0 =
             [ (a, nm, rest, hs, kind, hd, cls == SymLocalHs)
               | (a, nms) <- byAddr,
                 let (nm, cls, rest) = pick nms,
@@ -290,6 +291,19 @@ carve headOf typeAt sects syms = V.fromList (zipWith (\i d -> d {dIndex = i}) [0
                 let hd = if isCode s && infoLike nm then headOf a else 0,
                 not (cls == SymLocalHs && isCode s && infoLike nm && (hd == 0 || isReturnTable (typeAt a)))
             ]
+          -- The linker merges identical strings and shares suffixes: a
+          -- symbol in a string section that is preceded by a byte other than
+          -- NUL names the tail of the string before it, and the two must
+          -- stay together. The merged definition is fixed if either was.
+          starts
+            | secRole s == Strings = mergeTails starts0
+            | otherwise = starts0
+          mergeTails (x@(a1, nm1, rest1, hs1, kind1, hd1, lcl1) : y@(a2, nm2, rest2, _, kind2, _, _) : more)
+            | byteAt (a2 - 1) /= 0 =
+                let kind' = if kind1 == Fixed || kind2 == Fixed then Fixed else Haskell
+                 in mergeTails ((a1, nm1, rest1 ++ nm2 : rest2, hs1, kind', hd1, lcl1) : more)
+            | otherwise = x : mergeTails (y : more)
+          mergeTails xs = xs
           secStart = secAddr s
           secEnd = secAddr s + secSize s
           leadDef en = Def 0 (BC.pack ("<" ++ BC.unpack (secName s) ++ " lead>")) [] Nothing secStart secStart en si Fixed 0 False
@@ -358,6 +372,8 @@ data Env = Env
     eNotes :: IORef [String],
     -- | the 32-bit absolute fields the relocations name (x86-64 with --emit-relocs)
     eAbsFields :: S.Set Word64,
+    -- | labels the sweep of fixed code found, pushed again in every pass
+    eSweepLabels :: IORef [(Word64, Bool)],
     eAnomalies :: IORef [String]
   }
 
@@ -393,12 +409,14 @@ analyze opts im0 = do
   counts <- newIORef M.empty
   notes <- newIORef []
   anomalies <- newIORef []
+  sweepLabels <- newIORef []
   let absFields = maybe S.empty S.fromList (ldAbsFields (imLoaded im))
-      env = Env im bytes textLo textHi granule visited tabled isTable firstPass tableLabels pins pinCounts refs loose (optPatchFixedSrt opts) refCount labels dataLabels closuresDone foundSlots jumpTables tableQueue starts tablesSeen tableStarts counts notes absFields anomalies
+      env = Env im bytes textLo textHi granule visited tabled isTable firstPass tableLabels pins pinCounts refs loose (optPatchFixedSrt opts) refCount labels dataLabels closuresDone foundSlots jumpTables tableQueue starts tablesSeen tableStarts counts notes absFields sweepLabels anomalies
   -- Fixed code is swept for what it points at; the targets stay put.
   forM_ (V.toList (imDefs im)) $ \d ->
     when (dKind d == Fixed && isCode (imSections im V.! dSect d)) $ do
-      let hk = mkHooks env d
+      let hk0 = mkHooks env d
+          hk = hk0 {hkLabel = \a tbl -> modifyIORef' (eSweepLabels env) ((a, tbl) :)}
       case imArch im of
         Arm64 -> Arm64.sweepFixed hk (dStart d) (dEnd d)
         X86_64 -> X86.sweepFixed hk (dStart d) (dEnd d)
@@ -474,6 +492,7 @@ analyze opts im0 = do
           when (dKind d == Haskell && isCode (imSections im V.! dSect d)) (pushLabel env (dSym d) (dHead d > 0))
         forM_ (optExtraLabels opts) $ \(a, tbl) -> pushLabel env a tbl
         forM_ (optExtraData opts) (pushData env)
+        readIORef (eSweepLabels env) >>= mapM_ (uncurry (pushLabel env))
       reset = do
         writeIORef refCount 0
         writeIORef anomalies []
