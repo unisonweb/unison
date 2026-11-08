@@ -46,7 +46,13 @@ functions with a general argument pattern (`slow_apply` and bitmap offsets
 first). The table holds relative offsets rather than pointers: the SRT
 offset in the last 4 bytes, `con_desc`, `slow_apply_offset`, and large
 bitmap offsets. Each is measured from the info label, so moving a definition
-relative to its target means rewriting them.
+relative to its target means rewriting them. In a constructor's table the
+last 4 bytes are the constructor tag, not an offset; reading them as one
+made every constructor's tag a "reference" to whatever lay that many bytes
+past the label, and rewriting it corrupted the tags of types with more than
+seven constructors whenever that neighbour moved by a different amount.
+In-order compaction moved neighbours together and hid this; folding exposed
+it.
 
 References from code use a small, closed set of forms on AArch64. GHC's
 native code generator emits `adrp` followed immediately by `add` for the

@@ -44,8 +44,9 @@ data Args = Args
     argPack :: Maybe String,
     argNoFixedPatch :: [String],
     argCross :: Maybe String,
-    argFold :: Bool,
-    argFoldRange :: Maybe String,
+    argNoFold :: Bool,
+    argFoldRange :: [String],
+    argDumpFolds :: Bool,
     argWhere :: [String],
     argFoldKeepCopies :: Bool,
     argFoldZeroCopies :: Bool,
@@ -76,8 +77,9 @@ args =
     <*> optional (strOption (long "pack" <> metavar "__text,__data,__cstring" <> help "Debugging: which sections' definitions are packed first-fit (default all)"))
     <*> many (strOption (long "no-fixed-patch" <> metavar "pointers|srt" <> help "Debugging: pin instead of rewriting these in fixed regions"))
     <*> optional (strOption (long "cross" <> metavar "0xLO-0xHI|none" <> help "Debugging: only definitions in this address range (or none) may move before a fixed definition they followed; by default all may"))
-    <*> switch (long "fold" <> help "Fold identical code and strings onto one copy (off by default until a wrong result in jit-tests.md is understood, 2026-11-08)")
-    <*> optional (strOption (long "fold-range" <> metavar "0xLO-0xHI" <> help "Debugging: only fold definitions starting in this range"))
+    <*> switch (long "no-fold" <> help "Do not fold identical code and strings onto one copy")
+    <*> many (strOption (long "fold-range" <> metavar "0xLO-0xHI" <> help "Debugging: only fold definitions starting in one of these ranges"))
+    <*> switch (long "dump-folds" <> help "Debugging: print every folded definition and its representative, then stop")
     <*> many (strOption (long "where" <> metavar "0xADDR" <> help "Debugging: print where this input address goes in the output (with -o, after planning)"))
     <*> switch (long "fold-keep-copies" <> help "Debugging: redirect references to the representative but keep the folded copies in place")
     <*> switch (long "fold-zero-copies" <> help "Debugging: with --fold-keep-copies, reserve the folded copies' space but zero their bytes")
@@ -88,9 +90,7 @@ main = do
   a <- execParser (info (args <**> helper) (fullDesc <> progDesc "Removes definitions a GHC executable does not use, and compacts it"))
   bytes <- B.readFile (argInput a)
   im <- either die pure (loadImage bytes)
-  let foldRange = case argFoldRange a of
-        Just spec | (lo, '-' : hi) <- break (== '-') spec, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> Just (l, h)
-        _ -> Nothing
+  let foldRange = [(l, h) | spec <- argFoldRange a, (lo, '-' : hi) <- [break (== '-') spec], [(l, "")] <- [readHex (drop 2 lo)], [(h, "")] <- [readHex (drop 2 hi)]]
       kinds = case argSplitKinds a of
         Nothing -> [RPointer, RAdrpAdd, RSrt]
         Just spec -> [k | (w, k) <- [("pointer", RPointer), ("adrp", RAdrpAdd), ("srt", RSrt)], w `elem` splitOn ',' spec]
@@ -100,7 +100,11 @@ main = do
       splitOn c str = case break (== c) str of
         (x, []) -> [x]
         (x, _ : rest) -> x : splitOn c rest
-  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (argFold a) foldRange) im
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a)) foldRange) im
+  when (argDumpFolds a) $ do
+    forM_ [d | d <- V.toList (imDefs (anImage an)), anKept an VU.! dIndex d, anRep an VU.! dIndex d /= dIndex d] $ \d ->
+      printf "%x %x %d %s -> %s\n" (dStart d) (dStart (imDefs (anImage an) V.! (anRep an VU.! dIndex d))) (dEnd d - dStart d) (hsDisplay d) (hsDisplay (imDefs (anImage an) V.! (anRep an VU.! dIndex d)))
+    exitSuccess
   forM_ (argRefsTo a) $ \spec -> do
     let im' = anImage an
     case spec of

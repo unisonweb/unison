@@ -112,8 +112,8 @@ data Options = Options
     optPatchFixedSrt :: Bool,
     -- | fold identical code and strings onto one copy
     optFold :: Bool,
-    -- | debugging: only definitions starting in this range may be folded
-    optFoldRange :: Maybe (Word64, Word64)
+    -- | debugging: only definitions starting in one of these ranges may be folded (empty: all)
+    optFoldRange :: [(Word64, Word64)]
   }
 
 data Analysis = Analysis
@@ -672,8 +672,10 @@ parseTable env d label = do
         if hd == 0 || label - fromIntegral hd < dStart d
           then when (dKind d == Haskell) (anomaly env ("no info table before label " ++ hex label ++ " in " ++ BC.unpack (dName d)))
           else do
+            -- in a constructor's table the field holds the constructor tag, not an SRT offset
             let srt = i32 bytes (off - 4)
-            when (srt /= 0) (check RSrt (-4) (fromIntegral (fromIntegral label + fromIntegral srt :: Int64)))
+                isConstructor = ty >= 1 && ty <= 7
+            when (srt /= 0 && not isConstructor) (check RSrt (-4) (fromIntegral (fromIntegral label + fromIntegral srt :: Int64)))
             when (ty >= 1 && ty <= 7) (check RConDesc (-24) (rel (-24)))
             when (ty >= 8 && ty <= 14 && hd == 40) $ do
               -- the slow entry is code without a table of its own (a local
@@ -756,17 +758,15 @@ decodeFrom env d = go
 -- addresses for identity. Static closures are never folded, since a CAF
 -- or a constructor is observable by identity. Folding a target makes more
 -- pairs equal, so the grouping is iterated to a fixed point.
-fold :: Image -> B.ByteString -> V.Vector (VU.Vector (Word64, Word8, Word64)) -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Bool -> Maybe (Word64, Word64) -> VU.Vector Int
-fold im bytes perDef kept pinned cut range = go (VU.generate n id) (5 :: Int)
+fold :: Image -> B.ByteString -> V.Vector (VU.Vector (Word64, Word8, Word64)) -> VU.Vector Bool -> VU.Vector Bool -> VU.Vector Bool -> [(Word64, Word64)] -> VU.Vector Int
+fold im bytes perDef kept pinned cut ranges = go (VU.generate n id) (5 :: Int)
   where
     n = V.length (imDefs im)
     defs = imDefs im
     candidate i =
       let d = defs V.! i
           sect = imSections im V.! dSect d
-          inRange = case range of
-            Nothing -> True
-            Just (lo, hi) -> dStart d >= lo && dStart d < hi
+          inRange = null ranges || any (\(lo, hi) -> dStart d >= lo && dStart d < hi) ranges
        in kept VU.! i && not (pinned VU.! i) && not (cut VU.! i) && dKind d == Haskell && (isCode sect || secName sect == "__cstring") && dEnd d > dStart d && inRange
     fieldLen :: RefKind -> Int
     fieldLen = \case
