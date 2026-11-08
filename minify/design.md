@@ -26,6 +26,18 @@ precedes them. A region bounded by two consecutive symbols is therefore the
 unit this tool works with: a *definition* is the bytes from one external
 symbol to the next, less the info table that belongs to the next.
 
+That region is then split where something inside it can live on its own.
+In code, a label with a function, thunk or constructor table inside the
+region begins a local closure (a return-point table belongs to its
+procedure, so those don't split). In data, a referenced closure start, a
+word that is itself a pointer slot at least a word in, begins another
+static closure. In strings, a constructor name begins its own string. The
+labels come out of the decoding described below, so splitting happens
+after it and the references are then attributed by address. A dead local
+closure, a dead static closure or a dead constructor name goes alone
+instead of with its named neighbour; on unison this is the difference
+between 36% and 57% of the compactable bytes being removable.
+
 The info table sits before the code its label points at (tables next to
 code). Its size follows from the closure type in the table: 16 bytes for
 thunks and return points, 24 for constructors (a `con_desc` offset first)
@@ -98,11 +110,21 @@ untouched. Each info table found before a label is parsed for its relative
 fields.
 
 Fixed code is swept linearly for `adrp`, `adr`, `b`, `bl` and literal loads
-whose target falls in a movable definition. Pairing is not attempted; the
-target's page is pinned instead, and every definition overlapping a pinned
-page keeps its address. Fixed data pins what its rebase pointers point at.
-This is how the runtime's references to `ZCMain_main_closure`, the
-exception closures and the rest become roots and stay where C expects them.
+whose target falls in a movable definition. An `adrp` is paired with its
+`add` and load consumers when the register's uses can all be followed to
+the point where it is overwritten (no branch in between, a bounded window)
+and each consumer's target is pinned; when they cannot, the target's 4 KB
+page is pinned, and every definition overlapping a pinned page keeps its
+address. This is how the runtime's references to `ZCMain_main_closure`,
+the exception closures and the rest become roots and stay where C expects
+them. Pointer slots in fixed data are not pins: a pointer is an absolute
+address and is rewritten like any other reference, so a C table may point
+at a closure that moves. GHC code also turns up inside fixed regions (the
+unlabeled lead of `__text` holds the main module's local closures; a local
+closure can follow a C symbol), where only its instructions are swept, so a
+label with an info table that lands in a fixed region has its table parsed
+as well: its SRT field is rewritten, and its other fields, which a
+hand-written runtime table may not have, pin what they point at.
 
 ### Reachability
 
@@ -126,10 +148,19 @@ literals that are still referred to are kept.
 ### Layout and rewriting
 
 Within each compacted section (`__text`, `__cstring`, `__const` in `__TEXT`,
-and `__data`), kept definitions are placed in their original order: a fixed
-or pinned definition at its old address, a movable one at the current
-cursor, aligned as its old address was (to at most 8). Sizes include
-trailing padding, so a definition never lands above its old address.
+and `__data`), fixed and pinned definitions are anchors at their old
+addresses and the movable ones fill the gaps before each anchor, first-fit
+in address order with a bounded look-ahead for one that fits when the next
+in line does not, each aligned as its old address was (to at most 8). Dead
+space collects at the end of each section, where whole pages leave the
+file. A definition is never placed ahead of an anchor it originally
+followed: letting it cross broke the program in a way the analysis does not
+see, so the order with respect to fixed code is kept (the `--cross` option
+exists to find out why).
+
+Bytes in a compacted section that no kept definition, island or stub
+occupies are zeroed, so neither a removed definition nor the old copy of a
+moved one survives in the file.
 
 Every reference is then re-encoded for the new addresses of both ends:
 `adrp` gets the new page difference and its `add` or `ldr` the new low 12
@@ -159,8 +190,14 @@ by name; the C helpers the JIT resolves stay); the rebase stream is
 regenerated from the surviving slots plus the closure stubs' info words;
 binds are re-emitted against the new segment numbering with lazy binds
 converted to ordinary ones (the lazy stream's byte offsets are baked into
-`__stub_helper`, so it cannot be re-encoded in place); function starts are
-regenerated. The code signature is dropped and the output is re-signed ad
+`__stub_helper`, so it cannot be re-encoded in place), and a bind slot
+moves with its definition like a rebase does, since a `foreign import "&f"`
+is a static closure whose payload dyld binds; function starts are
+regenerated, or dropped with `--strip`, which also drops every symbol but
+the undefined ones the stubs bind through. Constructor name strings
+(`con_desc`), which only heap profiling and `GHC.Exts.Heap` read, are
+dropped unless `--keep-con-desc`: every `con_desc` field then names one
+empty string. The code signature is dropped and the output is re-signed ad
 hoc with `codesign`.
 
 ### Checking the result
@@ -171,8 +208,12 @@ finds must be one the plan made, at the planned address and pointing at
 the planned target, with branches through islands counted as reaching the
 island's target. The output may decode fewer references than the input,
 since a label that only a removed static closure pointed at is gone and
-the code behind it with it, but it may not decode a different one. An
-anomaly in decoding the output fails the check too. This catches a
+the code behind it with it, and it may split less finely where the
+reference that marked a split point was removed, so each output definition
+is checked against the union of the input definitions placed in it. Every
+pointer slot in a kept definition must still be rebased, and the bind slots
+must be exactly the planned ones. An anomaly in decoding the output fails
+the check too. This catches a
 mis-rewritten reference without running the program. Running the program
 is the other half: the Unison transcript suite against the minified
 `unison`, compared with the original binary's output on the same files.

@@ -109,8 +109,10 @@ alignOf a = min 8 (a .&. negate a)
 -- third puts the extra __TEXT pieces after the data pieces in the load
 -- commands, so that the data segments keep indices the dyld opcodes can
 -- express however many holes __TEXT has.
-plan :: Analysis -> Int -> Bool -> Either String Plan
-plan an maxHoles textLast = do
+-- | 'packSections' names the sections whose movable definitions are packed
+-- first-fit; the rest keep their order (a debugging knob).
+plan :: Analysis -> Int -> Bool -> [B.ByteString] -> Maybe (Word64, Word64) -> Either String Plan
+plan an maxHoles textLast packSections crossRange = do
   let im = anImage an
       defs = imDefs im
       sects = imSections im
@@ -128,31 +130,38 @@ plan an maxHoles textLast = do
       perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], kept i]
       lookAhead = 4000 :: Int
       -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
-      fill :: Word64 -> Word64 -> Seq.Seq Int -> ([(Int, Word64)], Seq.Seq Int)
-      fill cursor limit queue = case Seq.viewl queue of
+      -- debugging: a definition may be placed before an anchor it originally
+      -- followed only when its address is in the range (none: never)
+      mayCross i = case crossRange of
+        Nothing -> False
+        Just (lo, hi) -> let a = dStart (defs V.! i) in a >= lo && a < hi
+      fill :: Bool -> Word64 -> Word64 -> Word64 -> Seq.Seq Int -> ([(Int, Word64)], Seq.Seq Int)
+      fill pack cursor limit anchorAt queue = case Seq.viewl queue of
         Seq.EmptyL -> ([], queue)
         i Seq.:< rest ->
           let a = alignUp cursor (alignOf (dStart (defs V.! i)))
-           in if a + sizeOf i <= limit
-                then let (more, q') = fill (a + sizeOf i) limit rest in ((i, a) : more, q')
-                else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit) (Seq.take lookAhead rest) of
+              allowed j = dStart (defs V.! j) < anchorAt || mayCross j
+           in if a + sizeOf i <= limit && allowed i
+                then let (more, q') = fill pack (a + sizeOf i) limit anchorAt rest in ((i, a) : more, q')
+                else if not pack then ([], queue) else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit && allowed j) (Seq.take lookAhead rest) of
                   Nothing -> ([], queue)
                   Just k ->
                     let j = Seq.index rest k
                         b = alignUp cursor (alignOf (dStart (defs V.! j)))
-                        (more, q') = fill (b + sizeOf j) limit (i Seq.<| Seq.deleteAt k rest)
+                        (more, q') = fill pack (b + sizeOf j) limit anchorAt (i Seq.<| Seq.deleteAt k rest)
                      in ((j, b) : more, q')
       placeSection :: [Int] -> Either String [(Int, Word64)]
       placeSection is =
         let sect = sects V.! sectionOf (headOr is)
+            pack = secName sect `elem` packSections
             anchors = [i | i <- is, isAnchor i]
             queue0 = Seq.fromList [i | i <- is, not (isAnchor i)]
             go cursor [] q =
-              let (ps, q') = fill cursor (secAddr sect + secSize sect) q
+              let (ps, q') = fill pack cursor (secAddr sect + secSize sect) maxBound q
                in if Seq.null q' then Right ps else Left ("no room left in " ++ show (secName sect) ++ " for " ++ show (Seq.length q') ++ " definitions")
             go cursor (anc : more) q =
               let d = defs V.! anc
-                  (ps, q') = fill cursor (dStart d) q
+                  (ps, q') = fill pack cursor (dStart d) (dStart d) q
                in if cursor > dStart d
                     then Left ("compaction overran the fixed definition " ++ show (dName d))
                     else (\later -> (anc, dStart d) : ps ++ later) <$> go (dEnd d) more q'

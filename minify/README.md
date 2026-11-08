@@ -25,6 +25,8 @@ removed per section and per package.
 | `--dump NAME` | print one definition's references and stop |
 | `--top N` | packages listed in the report |
 | `--keep-haskell-exports` | keep Haskell definitions in the export trie, the table `dlsym` searches; by default only C symbols stay exported |
+| `--keep-con-desc` | keep constructor name strings (heap profiling, `GHC.Exts.Heap`); dropped by default |
+| `--no-split SECTION` | do not split definitions at local closures (`text`), static closures (`data`) or constructor names (`strings`) |
 | `--strip` | drop the symbol table and function starts; saves about 24 MB on unison, but the output cannot be minified again or symbolicated |
 | `--force` | write the output even when the analysis reported anomalies (code it did not understand) |
 
@@ -49,13 +51,15 @@ The `unison` executable from `stack build` on macOS arm64, 2026-11-07:
 | | size |
 |---|---|
 | original | 235,761,896 |
-| minified | 138,406,673 |
-| minified, `--keep-haskell-exports` | 143,659,657 |
-| minified, `--keep-haskell-exports --text-in-order` | 160,125,601 |
+| minified | 88,845,434 |
+| minified, `--strip` | 75,167,187 |
+| minified, `--strip --keep-con-desc --keep-haskell-exports` | 78,463,835 |
 
-Of the compactable bytes 35.6% were unreachable: 53 MB of code, 5.4 MB of
-static closures, 0.3 MB of string literals, and with them 260,081 of the
-463,853 symbols, and the export trie drops from 203,338 entries to 2,923. The transcript suite (unison-src/transcripts and
+Of the compactable bytes 57.5% were unreachable once definitions were
+split at local closures, static closures and constructor names: 85 MB of
+code, 9.3 MB of static closures, 1.3 MB of strings, and with them 351,191
+of the 463,853 symbols; the export trie drops from 203,338 entries to
+2,923. The transcript suite (unison-src/transcripts and
 unison-src/transcripts/idempotent) run with the minified binary gives the
 same output as the original for every transcript, and jit-tests.md is
 identical with the JIT on.
@@ -63,8 +67,9 @@ identical with the JIT on.
 ## Limits
 
 Only AArch64 Mach-O. C code is never moved or removed. Dead bytes that do
-not fill a page stay in the file as zeros (about 6 MB for unison). The
-output has one segment per run of dropped pages (80 for unison); dyld and
-lldb are fine with that, Apple's `dyld_info` tool is not. The extra `__TEXT`
-pieces are named `__TEXT_1` and so on, so the unwinder does not find unwind
+not fill a page stay in the file as zeros (about 4 MB for unison, 2 MB of
+it in `__data`, which can only be cut into 12 pieces). The output has one
+segment per run of dropped pages (about 90 for unison); dyld and lldb are
+fine with that, Apple's `dyld_info` tool is not. The extra `__TEXT` pieces
+are named `__TEXT_1` and so on, so the unwinder does not find unwind
 information for C code in them.

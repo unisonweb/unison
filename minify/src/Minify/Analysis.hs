@@ -106,7 +106,10 @@ data Options = Options
     optSplitStrings :: Bool,
     -- | debugging: which reference kinds may split data, and an address range the data splits are limited to
     optDataSplitKinds :: [RefKind],
-    optSplitRange :: Maybe (Word64, Word64)
+    optSplitRange :: Maybe (Word64, Word64),
+    -- | debugging: rewrite pointer slots in fixed data (else pin their targets); rewrite SRT fields in fixed code (else pin)
+    optPatchFixedPointers :: Bool,
+    optPatchFixedSrt :: Bool
   }
 
 data Analysis = Analysis
@@ -286,6 +289,7 @@ data Env = Env
     eRefs :: IORef (VUM.IOVector (Int, Word64, Word8, Word64)),
     -- | references from slots outside every definition (patched in place; roots)
     eLoose :: IORef [(Word64, Word8, Word64)],
+    ePatchFixedSrt :: Bool,
     eRefCount :: IORef Int,
     eLabels :: IORef [(Word64, Bool)],
     eAnomalies :: IORef [String]
@@ -308,7 +312,7 @@ analyze opts im0 = do
   refCount <- newIORef 0
   labels <- newIORef []
   anomalies <- newIORef []
-  let env = Env im bytes text visited tabled isTable firstPass tableLabels pins pinCounts refs loose refCount labels anomalies
+  let env = Env im bytes text visited tabled isTable firstPass tableLabels pins pinCounts refs loose (optPatchFixedSrt opts) refCount labels anomalies
   -- Fixed code is swept for what it points at; the targets stay put.
   forM_ (V.toList (imDefs im)) $ \d ->
     when (dKind d == Fixed && isCode (imSections im V.! dSect d)) (sweepFixed env d)
@@ -316,12 +320,14 @@ analyze opts im0 = do
   -- an absolute address that can be rewritten like any other. A slot in
   -- no definition at all (the GOT, a C constant section) is a loose
   -- reference, patched in place and a root.
-  VU.forM_ (imRebases im) $ \(slot, value) ->
-    case defAt im slot of
-      Just d -> do
-        addRef env (dIndex d) slot RPointer value
-        when (inText env value) (pushLabel env value True)
-      Nothing -> addLoose env slot RPointer value
+  let pointerSlot slot value = case defAt im slot of
+        Just d | dKind d == Haskell || optPatchFixedPointers opts -> do
+          addRef env (dIndex d) slot RPointer value
+          when (inText env value) (pushLabel env value True)
+        Just _ -> pinTargetAs env "pointer in fixed data" value
+        Nothing | optPatchFixedPointers opts -> addLoose env slot RPointer value
+        Nothing -> pinTargetAs env "pointer in fixed data" value
+  VU.forM_ (imRebases im) (uncurry pointerSlot)
   -- Every Haskell code definition is decoded from its own label. The first
   -- pass finds the labels and so the info tables; the second decodes with
   -- the tables known, so that a fall-through into one (after an exhaustive
@@ -343,12 +349,7 @@ analyze opts im0 = do
   VUM.set tabled False
   -- the pointer references are re-added; the pins from the fixed sweep stay
   writeIORef (eLoose env) []
-  VU.forM_ (imRebases im) $ \(slot, value) ->
-    case defAt im slot of
-      Just d -> do
-        addRef env (dIndex d) slot RPointer value
-        when (inText env value) (pushLabel env value True)
-      Nothing -> addLoose env slot RPointer value
+  VU.forM_ (imRebases im) (uncurry pointerSlot)
   seed
   drain env
   -- References, by address.
@@ -648,10 +649,15 @@ parseTable env d label = do
             ty = u32 bytes (off - 8)
             rel :: Int -> Word64
             rel fieldOff = fromIntegral (fromIntegral label + i64 bytes (off + fieldOff))
+            -- In a fixed region the table may be hand-written runtime code
+            -- whose layout differs: only the SRT field, present in every
+            -- table, is rewritten; the other fields pin what they point at.
             check :: RefKind -> Int -> Word64 -> IO ()
             check kind fieldOff target
               | isJust (fileOffsetOf (eImage env) target) || target == label =
-                  addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
+                  if dKind d == Haskell || (kind == RSrt && ePatchFixedSrt env)
+                    then addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
+                    else pinTargetAs env "table field in fixed code" target
               -- hand-written runtime tables need not have every field; in a fixed region the field is left alone
               | dKind d == Haskell = anomaly env (show kind ++ " at " ++ hex label ++ " in " ++ BC.unpack (dName d) ++ " points outside the file: " ++ hex target)
               | otherwise = pure ()

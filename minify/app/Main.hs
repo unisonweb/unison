@@ -40,7 +40,10 @@ data Args = Args
     argNoSplit :: [String],
     argRefsTo :: Maybe String,
     argSplitKinds :: Maybe String,
-    argSplitRange :: Maybe String
+    argSplitRange :: Maybe String,
+    argPack :: Maybe String,
+    argNoFixedPatch :: [String],
+    argCross :: Maybe String
   }
 
 args :: Parser Args
@@ -64,6 +67,9 @@ args =
     <*> optional (strOption (long "refs-to" <> metavar "0xADDR" <> help "Print every reference into the definition containing this address and stop"))
     <*> optional (strOption (long "data-split-kinds" <> metavar "pointer,srt,adrp" <> help "Debugging: which reference kinds may split data definitions"))
     <*> optional (strOption (long "split-range" <> metavar "0xLO-0xHI" <> help "Debugging: only split data definitions at addresses in this range"))
+    <*> optional (strOption (long "pack" <> metavar "__text,__data,__cstring" <> help "Debugging: which sections' definitions are packed first-fit (default all)"))
+    <*> many (strOption (long "no-fixed-patch" <> metavar "pointers|srt" <> help "Debugging: pin instead of rewriting these in fixed regions"))
+    <*> optional (strOption (long "cross" <> metavar "0xLO-0xHI|none" <> help "Debugging: let definitions in this address range (or all) move before a fixed definition they followed; by default none do"))
 
 main :: IO ()
 main = do
@@ -79,7 +85,7 @@ main = do
       splitOn c str = case break (== c) str of
         (x, []) -> [x]
         (x, _ : rest) -> x : splitOn c rest
-  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range) im
+  an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a)) im
   forM_ (argRefsTo a) $ \spec -> do
     let im' = anImage an
     case spec of
@@ -115,7 +121,15 @@ main = do
   case argOutput a of
     Nothing -> pure ()
     Just out -> do
-      pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)))
+      let packs = maybe ["__text", "__data", "__cstring", "__const"] (map BC.pack . splitOn ',') (argPack a)
+      -- a definition moving ahead of a fixed one it followed broke the program
+      -- in a way the analysis does not see (2026-11-08), so by default none may
+      let cross = case argCross a of
+            Nothing -> Nothing
+            Just "all" -> Just (0, maxBound)
+            Just spec | (lo, '-' : hi) <- break (== '-') spec, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> Just (l, h)
+            _ -> Nothing
+      pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)) packs cross)
       printf "%d segments; %d holes (%d bytes) dropped from the file; %d branch islands\n" (length (plPieces pl)) (length (plHoles pl)) (plSaved pl) (M.size (plIslands pl))
       -- dead bytes per compacted section that stay in the file (not in a dropped hole)
       forM_ (V.toList (imSections (anImage an))) $ \sc -> when (isCompactedSection sc) $ do

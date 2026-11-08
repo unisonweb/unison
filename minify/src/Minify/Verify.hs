@@ -21,7 +21,7 @@ verify :: Analysis -> Plan -> B.ByteString -> IO [String]
 verify an pl out = case loadImage out of
   Left e -> pure ["the output does not load: " ++ e]
   Right im2 -> do
-    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt] Nothing) im2
+    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt] Nothing True True) im2
     let im = anImage an
         defs = imDefs im
         islandTargets = M.fromList [(a, t) | (t, a) <- M.toList (plIslands pl)]
