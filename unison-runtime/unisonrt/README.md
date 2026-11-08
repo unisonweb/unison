@@ -29,6 +29,23 @@ The other JIT settings are read from the environment, as in ucm ([`JIT.Config`](
 
 [`main.c`](main.c) is the program's entry point. It is GHC's own, except that it stops the RTS reading flags at the `.uc` file.
 
+## Bundles
+
+`unisonrt bundle` makes a self-contained executable from a `.uc` file:
+
+```
+unisonrt bundle hello.uc            # writes hello
+unisonrt bundle hello.uc -o greet   # writes greet
+./hello arg1 arg2
+```
+
+A bundle is a copy of the `unisonrt` executable, then the `.uc` file, then a 16-byte trailer: the offset of the `.uc` file as 8 little-endian bytes, and the text `UNISONRT`. At startup unisonrt looks for the trailer at the end of its own executable. If it is there, it reads the program from that offset and runs it ([`readBundle`](Main.hs)).
+
+- Every argument of a bundle is the program's. GHC RTS flags can go in the `GHCRTS` environment variable, and the JIT settings in `UNISON_JIT` and the others. `main.c` checks for the trailer as well, so the RTS does not read `+RTS` from a bundle's arguments.
+- `bundle` checks that this unisonrt can run the file before writing anything. Bundling with a bundle copies only its unisonrt part.
+- The program is decoded at startup, as with a `.uc` file. Nothing is extracted to disk.
+- On macOS, `codesign -v` reports a bundle's signature as invalid, because the appended bytes are outside it. The kernel runs it anyway, since it only checks the pages of the segments, and the bytes after them are not mapped.
+
 ## Versions
 
 A `.uc` file holds MCode, whose encoding changes between versions of Unison, so `unisonrt` runs only files compiled by a ucm built from the same commit. Both take their version from `git describe` when they are built ([`Version.hs`](Version.hs)). A mismatch is reported with the hash of the program's main, to compile it again.

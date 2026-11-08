@@ -371,6 +371,9 @@ executable unisonrt
     ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
+  if !os(windows)
+    build-depends:
+        unix
 
 test-suite runtime-tests
   type: exitcode-stdio-1.0

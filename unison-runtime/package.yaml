@@ -187,6 +187,8 @@ executables:
     when:
       - condition: false
         other-modules: Paths_unison_runtime
+      - condition: "!os(windows)"
+        dependencies: unix
     dependencies:
       - base
       - bytestring
