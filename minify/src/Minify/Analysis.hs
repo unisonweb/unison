@@ -483,7 +483,11 @@ sweepFixed env d = go (dStart d)
       | pc + 4 > dEnd d = pure ()
       | otherwise = do
           case decode pc (wordAt env pc) of
-            Adrp _ page -> pinPage env page
+            Adrp rd page ->
+              -- the exact targets when the register's uses can be followed, else the page
+              case adrpConsumers rd [wordAt env (pc + 4 * k) | k <- [1 .. 8], pc + 4 * k + 4 <= dEnd d] of
+                Just offs -> mapM_ (pinTarget env . (page +)) offs
+                Nothing -> pinPage env page
             Adr t -> pinTarget env t
             B t -> pinTarget env t
             Bl t -> pinTarget env t

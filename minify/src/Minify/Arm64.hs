@@ -15,6 +15,7 @@ module Minify.Arm64
     encodeImm19,
     encodeImm14,
     isBlockEnd,
+    adrpConsumers,
     adrpInsn,
     addInsn,
     bInsn,
@@ -157,3 +158,42 @@ blInsn = encodeImm26 0x94000000
 
 brkInsn :: Word32
 brkInsn = 0xd4200000
+
+-- | The page offsets that the instructions following an @adrp@ into
+-- register @rd@ add to it (C compilers may schedule the @add@ or @ldr@
+-- away from the @adrp@, and may use one @adrp@ for several accesses).
+-- Nothing when the register's use cannot be followed: it is overwritten
+-- before any use, a branch intervenes, or the window ends with it live.
+adrpConsumers :: Int -> [Word32] -> Maybe [Word64]
+adrpConsumers rd = go (8 :: Int) []
+  where
+    go _ found [] = finish found
+    go 0 found _ = finish found
+    go n found (w : rest)
+      | isLoadStore w && rn w == rd =
+          let size = fromIntegral (w `shiftR` 30) :: Int
+              vector = testBit w 26
+              scale = if vector && testBit w 23 then 4 else size
+              off = (fromIntegral ((w `shiftR` 10) .&. 0xfff) :: Word64) `shiftL` scale
+           in if writesRd w then Just (reverse (off : found)) else go (n - 1) (off : found) rest
+      | w .&. 0xff800000 == 0x91000000 && rn w == rd =
+          let off = fromIntegral ((w `shiftR` 10) .&. 0xfff) `shiftL` (if testBit w 22 then 12 else 0)
+           in if fromIntegral (w .&. 0x1f) == rd then Just (reverse (off : found)) else go (n - 1) (off : found) rest
+      | isControl (decode 0 w) = finish found
+      | fromIntegral (w .&. 0x1f) == rd && not (isStore w) = finish found
+      | otherwise = go (n - 1) found rest
+    finish [] = Nothing
+    finish found = Just (reverse found)
+    rn w = fromIntegral ((w `shiftR` 5) .&. 0x1f) :: Int
+    isLoadStore w = w .&. 0x3b000000 == 0x39000000
+    isStore w = isLoadStore w && not (testBit w 22)
+    writesRd w = not (isStore w) && fromIntegral (w .&. 0x1f) == rd
+    isControl = \case
+      B _ -> True
+      Bl _ -> True
+      BCond _ -> True
+      Cbz _ -> True
+      Tbz _ -> True
+      RegJump -> True
+      Udf -> True
+      _ -> False
