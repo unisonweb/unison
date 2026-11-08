@@ -1,7 +1,6 @@
 name: bundle ucm
 
 # build optimized ucm
-# build/dist unison-runtime
 
 on:
   workflow_call:

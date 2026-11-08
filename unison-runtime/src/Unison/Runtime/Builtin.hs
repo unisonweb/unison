@@ -646,8 +646,8 @@ ref'write =
 -- IORef, which can be used to retry a failed CAS.
 -- This strategy is more efficient than returning a Boolean only
 -- because it uses a single call to cmpxchg in assembly (see [1]) to
--- avoid an extra read per CAS iteration, however it's not supported
--- in Scheme.
+-- avoid an extra read per CAS iteration, however it is not what most
+-- platforms offer.
 -- Therefore, we adopt the more common signature that only returns a
 -- Boolean, which doesn't even suffer from spurious failures because
 -- GHC issues loads of mutable variables with memory_order_acquire
