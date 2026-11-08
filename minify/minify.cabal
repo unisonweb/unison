@@ -18,7 +18,6 @@ source-repository head
 
 library
   exposed-modules:
-      Minify
       Minify.Analysis
       Minify.Arm64
       Minify.Bytes

@@ -265,7 +265,6 @@ library
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
-    , minify
     , mtl
     , network
     , network-simple

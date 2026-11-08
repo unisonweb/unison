@@ -30,7 +30,6 @@ library:
     - conduit-extra
     - containers >= 0.6.3
     - crypton
-    - minify
     - directory
     - either
     - errors

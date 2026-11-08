@@ -45,9 +45,11 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli-main embeds version numbers using TH
-          # so it needs to be forced to rebuild to ensure those are updated.
-          stack clean unison-cli-main
+          # unison-cli-main and the runtime (Unison.Runtime.Version) embed
+          # version numbers using TH, so they need to be forced to rebuild to
+          # ensure those are updated. ucm and unisonrt have to agree on the
+          # runtime's version for ucm's bundles to run.
+          stack clean unison-cli-main unison-runtime
 
           mkdir ucm-bin
 
@@ -59,18 +61,56 @@ jobs:
               stack build --only-dependencies && break
           done
 
-          stack build :unison \
+          # unisonrt runs compiled programs, and is what ucm's `bundle` copies
+          # (unison-runtime/unisonrt/README.md); minify makes it smaller
+          if [[ ${{runner.os}} = 'Windows' ]]; then
+            targets=":unison :unisonrt"
+            exe=.exe
+          else
+            targets=":unison :unisonrt minify:exe:minify"
+            exe=
+          fi
+          stack build $targets \
                 --ghc-options='-O2' \
                 --local-bin-path ucm-bin \
                 --copy-bins
 
-          if [[ ${{runner.os}} = 'Windows' ]]; then
-            ucm=$(stack exec where unison)
-          else
-            ucm=$(stack exec which unison)
+          # minify doesn't read Windows executables: there, unisonrt ships whole
+          if [[ ${{runner.os}} != 'Windows' ]]; then
+            ucm-bin/minify ucm-bin/unisonrt -o ucm-bin/unisonrt-min --strip --verify
+            mv ucm-bin/unisonrt-min ucm-bin/unisonrt
+            rm ucm-bin/minify
           fi
-          echo ucm="$ucm" >> $GITHUB_ENV
-          ls -l $ucm
+
+          echo ucm="ucm-bin/unison$exe" >> $GITHUB_ENV
+          echo unisonrt="ucm-bin/unisonrt$exe" >> $GITHUB_ENV
+          ls -l ucm-bin
+
+      - name: check a bundle runs
+        if: runner.os != 'Windows'
+        run: |
+          mkdir bundle-check
+          cd bundle-check
+          cat > check.md <<'EOF'
+          ```ucm :hide
+          scratch/main> builtins.merge lib.builtin
+          ```
+
+          ```unison :hide
+          main : '{IO, Exception} ()
+          main = do
+            match putBytes.impl (stdHandle StdOut) (Text.toUtf8 "bundled") with
+              Right () -> ()
+              Left f -> Exception.raise f
+          ```
+
+          ```ucm :hide
+          scratch/main> add
+          scratch/main> bundle main hello
+          ```
+          EOF
+          ../ucm-bin/unison transcript check.md
+          test "$(./hello)" = bundled
 
       - name: save stack caches
         uses: unisonweb/actions/stack/cache/save@main
@@ -81,7 +121,9 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: unison-${{matrix.os}}
-          path: ${{ env.ucm }}
+          path: |
+            ${{ env.ucm }}
+            ${{ env.unisonrt }}
           if-no-files-found: error
 
       - name: report errors
@@ -120,7 +162,7 @@ jobs:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/unison/
       - name: restore permissions on ucm
-        run: chmod +x ${{env.staging_dir}}/unison/unison
+        run: chmod +x ${{env.staging_dir}}/unison/unison ${{env.staging_dir}}/unison/unisonrt*
       - name: download latest unison-local-ui
         run: |
           curl -L -o /tmp/unisonLocal.zip \

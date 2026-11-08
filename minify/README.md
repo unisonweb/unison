@@ -105,7 +105,3 @@ information for C code in them. An ELF output may have at most 73 program
 headers, the one page the kernel reads them from, so at most about 64 runs
 of dead pages leave the file. RELR relocations are not handled. A Linux
 executable without a relocation list is handled heuristically, see above.
-
-## As a library
-
-The package's library exposes the command line's default run as one function, `Minify.minifyExecutable` ([`src/Minify.hs`](src/Minify.hs)): the symbol table dropped and the result verified. ucm's `bundle` command uses it to minify unisonrt. A Mach-O result has to be signed again before macOS runs it. The library's modules are compiled with `-O2` in every build, `--fast` included, since minifying takes minutes without it.

@@ -328,10 +328,6 @@ data Output
     BundleWritten FilePath
   | -- | `bundle` could not: why
     BundleFailed Text
-  | -- | `bundle` is minifying this unisonrt, which it does once
-    BundleMinifyingRuntime FilePath
-  | -- | `bundle` could not minify unisonrt, why, and uses it whole
-    BundleNotMinified Text
   | EvaluationFailure
       -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
       (P.Pretty P.ColorText -> P.Pretty P.ColorText)
@@ -738,8 +734,6 @@ isFailure o = case o of
   DisplayConflicts {} -> False
   BundleWritten {} -> False
   BundleFailed {} -> True
-  BundleMinifyingRuntime {} -> False
-  BundleNotMinified {} -> False
   EvaluationFailure {} -> True
   Evaluated {} -> False
   LoadingFile {} -> False

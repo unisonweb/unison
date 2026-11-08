@@ -43,7 +43,14 @@ or from the shell, where the output is named after the definition unless given:
 ucm bundle demo/main:apps.hello.main [hello]
 ```
 
-ucm takes the unisonrt that `UNISONRT` names, else the one next to ucm, else the one on the `PATH`, and checks that its version is ucm's ([`HandleInput/Bundle.hs`](../../unison-cli/src/Unison/Codebase/Editor/HandleInput/Bundle.hs)). Minifying ([minify](../../minify/README.md)) is the same for every program, so ucm does it once per build of unisonrt. The result is kept in the cache directory (`~/.cache/unisonrt` on macOS and Linux), under the hash of the unisonrt it was made from. The first bundle takes about 15 seconds, later ones about one. Where minify can't work, as on Windows, ucm says so and the bundle has the whole runtime. On Linux, minify needs unisonrt linked with its relocations kept, which [`package.yaml`](../package.yaml) asks for.
+ucm takes the unisonrt that `UNISONRT` names, else the one next to ucm, else the one on the `PATH`, checks that its version is ucm's, and copies it as it is ([`HandleInput/Bundle.hs`](../../unison-cli/src/Unison/Codebase/Editor/HandleInput/Bundle.hs)). Releases ship unisonrt next to ucm, minified when it is built ([`bundle-ucm.yaml`](../../.github/workflows/bundle-ucm.yaml)), so their bundles are small: a hello world is 23 MB. A development build's unisonrt is the whole runtime, and so its bundles are about 106 MB. Minify one by hand to get the release's size:
+
+```
+stack exec -- minify $(stack exec -- which unisonrt) -o unisonrt-min --strip --verify
+UNISONRT=unisonrt-min ucm bundle demo/main:apps.hello.main
+```
+
+Minify doesn't read Windows executables, so on Windows unisonrt ships whole. On Linux, minify needs unisonrt linked with its relocations kept, which [`package.yaml`](../package.yaml) asks for.
 
 `unisonrt bundle` makes a bundle from a `.uc` file, with the unisonrt running it, minified or not:
 

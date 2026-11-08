@@ -731,10 +731,6 @@ notifyUser dir issueFn = \case
             <> " by someone else. Trying your command again might fix it."
       ]
   BundleWritten out -> pure . P.okCallout . P.wrap $ "I wrote the executable" <> P.backticked' (P.string out) "."
-  BundleMinifyingRuntime runtime ->
-    pure . P.wrap $
-      "Minifying the runtime" <> P.backticked (P.string runtime) <> "for bundles. This takes a little while, once for each build of it."
-  BundleNotMinified why -> pure . P.warnCallout . P.wrap $ P.text why <> "The bundle has the whole runtime."
   BundleFailed why -> pure . P.warnCallout $ P.lines [P.wrap "I couldn't write the executable:", "", P.indentN 2 (P.text why)]
   EvaluationFailure ctx err -> ctx <$> prettyError issueFn err
   SearchTermsNotFound hqs | null hqs -> pure mempty

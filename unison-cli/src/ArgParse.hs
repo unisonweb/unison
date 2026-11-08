@@ -219,7 +219,7 @@ bundleCommand =
   where
     help =
       "Write a self-contained executable that runs a definition from the codebase, as the `bundle` command does: "
-        <> "the compiled program with a minified copy of unisonrt. It is named after the definition unless OUTPUT is given."
+        <> "the compiled program with a copy of unisonrt, the runtime that ships with ucm. It is named after the definition unless OUTPUT is given."
 
 bundleParser :: Parser Command
 bundleParser =
