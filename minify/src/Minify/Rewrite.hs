@@ -272,8 +272,9 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
           case (fileOffsetOf im (dStart d), newFileOffsetOf pl new) of
             (Just o, Just o') -> copyBytes (ptr `plusPtr` fromIntegral o') (src `plusPtr` fromIntegral o) (fromIntegral (dEnd d - dStart d))
             _ -> fail ("no file offset for " ++ hsDisplay d)
-      -- references
-      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i && dKind (defs V.! i) == Haskell) $ do
+      -- references, in every kept definition (a fixed one has only pointer
+      -- slots and table fields, which are rewritten in place)
+      forM_ [0 .. V.length defs - 1] $ \i -> when (anKept an VU.! i) $ do
         let d = defs V.! i
             delta = plNewStart pl VU.! i - dStart d
         VU.forM_ (anRefs an V.! i) $ \(at, k, target) -> do
@@ -289,6 +290,14 @@ rewrite an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = stri
             Right t' -> case newFileOffsetOf pl at' of
               Nothing -> fail ("no file offset for a reference in " ++ hsDisplay d)
               Just o -> patch (\t -> M.lookup t (plIslands pl)) ptr (fromIntegral o) at' t' kind
+      -- loose references: slots outside every definition, in place
+      VU.forM_ (anLoose an) $ \(at, k, target) -> do
+        let kind = toEnum (fromIntegral k) :: RefKind
+        case relocate target of
+          Left e -> fail ("loose reference: " ++ e)
+          Right t' -> case newFileOffsetOf pl at of
+            Nothing -> pure () -- a slot the file does not back (zero fill)
+            Just o -> patch (\t -> M.lookup t (plIslands pl)) ptr (fromIntegral o) at t' kind
       -- abort stubs for cut definitions
       forM_ (M.toList (plStubs pl)) $ \(i, st) -> do
         let d = defs V.! i

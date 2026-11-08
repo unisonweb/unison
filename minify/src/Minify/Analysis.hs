@@ -120,7 +120,10 @@ data Analysis = Analysis
     anCutReferenced :: VU.Vector Bool,
     anAnomalies :: [String],
     anRoots :: Int,
-    anKeepConDesc :: Bool
+    anKeepConDesc :: Bool,
+    anPinCounts :: M.Map String Int,
+    -- | references from slots outside every definition: (slot, kind, target)
+    anLoose :: VU.Vector (Word64, Word8, Word64)
   }
 
 isCompactedSection :: Section -> Bool
@@ -246,10 +249,12 @@ carve headOf sects named = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (
             ]
           secStart = secAddr s
           secEnd = secAddr s + secSize s
+          leadDef en = Def 0 (BC.pack ("<" ++ BC.unpack (secName s) ++ " lead>")) [] Nothing secStart secStart en si Fixed 0 False
           lead = case starts of
-            (a, _, _, _, _, hd) : _ | fromIntegral a - fromIntegral hd > (fromIntegral secStart :: Int64) ->
-              [Def 0 (BC.pack ("<" ++ BC.unpack (secName s) ++ " lead>")) [] Nothing secStart secStart (a - fromIntegral hd) si Fixed 0 False]
-            _ -> []
+            (a, _, _, _, _, hd) : _ | fromIntegral a - fromIntegral hd > (fromIntegral secStart :: Int64) -> [leadDef (a - fromIntegral hd)]
+            (_ : _) -> []
+            -- a section (or a piece of one, in this tool's own output) with no symbol at all
+            [] -> [leadDef secEnd | secEnd > secStart]
           mk (a, nm, rest, hs, kind, hd) next =
             let st = a - fromIntegral hd
                 en = case next of
@@ -275,8 +280,12 @@ data Env = Env
     -- | labels with info tables, collected by the first pass
     eTableLabels :: IORef [Word64],
     -- | address ranges fixed code or data points at: what they overlap stays put
-    ePins :: IORef [(Word64, Word64)],
+    ePins :: IORef [(String, Word64, Word64)],
+    -- | how many pins of each source: exact adrp, page adrp, branch, pointer, table field
+    ePinCounts :: IORef (M.Map String Int),
     eRefs :: IORef (VUM.IOVector (Int, Word64, Word8, Word64)),
+    -- | references from slots outside every definition (patched in place; roots)
+    eLoose :: IORef [(Word64, Word8, Word64)],
     eRefCount :: IORef Int,
     eLabels :: IORef [(Word64, Bool)],
     eAnomalies :: IORef [String]
@@ -293,21 +302,26 @@ analyze opts im0 = do
   firstPass <- newIORef True
   tableLabels <- newIORef []
   pins <- newIORef []
+  pinCounts <- newIORef M.empty
   refs <- VUM.new (1 `shiftL` 20) >>= newIORef
+  loose <- newIORef []
   refCount <- newIORef 0
   labels <- newIORef []
   anomalies <- newIORef []
-  let env = Env im bytes text visited tabled isTable firstPass tableLabels pins refs refCount labels anomalies
+  let env = Env im bytes text visited tabled isTable firstPass tableLabels pins pinCounts refs loose refCount labels anomalies
   -- Fixed code is swept for what it points at; the targets stay put.
   forM_ (V.toList (imDefs im)) $ \d ->
     when (dKind d == Fixed && isCode (imSections im V.! dSect d)) (sweepFixed env d)
-  -- Pointer slots: inside Haskell data they are references; elsewhere they pin.
+  -- Pointer slots are references wherever they are: a pointer in C data is
+  -- an absolute address that can be rewritten like any other. A slot in
+  -- no definition at all (the GOT, a C constant section) is a loose
+  -- reference, patched in place and a root.
   VU.forM_ (imRebases im) $ \(slot, value) ->
     case defAt im slot of
-      Just d | dKind d == Haskell -> do
+      Just d -> do
         addRef env (dIndex d) slot RPointer value
         when (inText env value) (pushLabel env value True)
-      _ -> pinTarget env value
+      Nothing -> addLoose env slot RPointer value
   -- Every Haskell code definition is decoded from its own label. The first
   -- pass finds the labels and so the info tables; the second decodes with
   -- the tables known, so that a fall-through into one (after an exhaustive
@@ -328,12 +342,13 @@ analyze opts im0 = do
   VUM.set visited False
   VUM.set tabled False
   -- the pointer references are re-added; the pins from the fixed sweep stay
+  writeIORef (eLoose env) []
   VU.forM_ (imRebases im) $ \(slot, value) ->
     case defAt im slot of
-      Just d | dKind d == Haskell -> do
+      Just d -> do
         addRef env (dIndex d) slot RPointer value
         when (inText env value) (pushLabel env value True)
-      _ -> pure ()
+      Nothing -> addLoose env slot RPointer value
   seed
   drain env
   -- References, by address.
@@ -420,18 +435,25 @@ analyze opts im0 = do
          in VU.slice lo (hi - lo) byAddr
   -- Pins: a definition overlapping a pinned range stays where it is.
   pinnedM <- VUM.replicate ndefs' False
+  pinWhy <- newIORef M.empty
   ranges <- readIORef pins
-  forM_ ranges $ \(lo, hi) -> do
+  forM_ ranges $ \(why, lo, hi) -> do
     let firstPast = let go a b | a >= b = a | otherwise = let mid = (a + b) `div` 2 in if dEnd (refined V.! mid) <= lo then go (mid + 1) b else go a mid in go 0 ndefs'
         loop i
           | i >= ndefs' = pure ()
           | otherwise = do
               let d = refined V.! i
               when (dStart d < hi) $ do
-                when (dKind d == Haskell) (VUM.write pinnedM i True)
+                when (dKind d == Haskell) $ do
+                  already <- VUM.read pinnedM i
+                  unless already $ do
+                    VUM.write pinnedM i True
+                    modifyIORef' pinWhy (M.insertWith (+) (why ++ " in " ++ BC.unpack (secName (sectOf d))) (1 :: Int))
                 loop (i + 1)
     loop firstPast
   pinnedV <- VU.freeze pinnedM
+  pinCountsV <- readIORef pinWhy
+  looseV <- readIORef loose
   -- Cut by prefix, then mark from the roots.
   -- Only code and closures are cut: a literal a kept definition still uses
   -- has nothing sensible to be replaced by, so it stays.
@@ -441,7 +463,8 @@ analyze opts im0 = do
          in dKind d == Haskell
               && (isCode sect || secName sect == "__data")
               && any (\p -> any (p `isPrefixOf`) (prefixForms d)) (optRemovePrefixes opts)
-      roots = [i | i <- [0 .. ndefs' - 1], let d = refined V.! i, dKind d == Fixed || pinnedV VU.! i, not (cut VU.! i)]
+      looseTargets = [dIndex d | (_, _, t) <- looseV, Just d <- [defAt im' t]]
+      roots = looseTargets ++ [i | i <- [0 .. ndefs' - 1], let d = refined V.! i, dKind d == Fixed || pinnedV VU.! i, not (cut VU.! i)]
       conDesc = fromIntegral (fromEnum RConDesc) :: Word8
       follows k = optKeepConDesc opts || k /= conDesc
   kept <- VUM.replicate ndefs' False
@@ -478,7 +501,9 @@ analyze opts im0 = do
         anCutReferenced = cutRefV,
         anAnomalies = anoms,
         anRoots = length roots,
-        anKeepConDesc = optKeepConDesc opts
+        anKeepConDesc = optKeepConDesc opts,
+        anPinCounts = pinCountsV,
+        anLoose = VU.fromList looseV
       }
 
 -- | Splits a definition at the given points (address to table size).
@@ -547,18 +572,23 @@ addRef env di at kind target = do
   VUM.write buf' n (di, at, fromIntegral (fromEnum kind), target)
   writeIORef (eRefCount env) (n + 1)
 
+addLoose :: Env -> Word64 -> RefKind -> Word64 -> IO ()
+addLoose env at kind target = modifyIORef' (eLoose env) ((at, fromIntegral (fromEnum kind), target) :)
+
 pushLabel :: Env -> Word64 -> Bool -> IO ()
 pushLabel env a tbl = when (inText env a) $ modifyIORef' (eLabels env) ((a, tbl) :)
 
-pinRange :: Env -> Word64 -> Word64 -> IO ()
-pinRange env lo hi = modifyIORef' (ePins env) ((lo, hi) :)
+pinRange :: Env -> String -> Word64 -> Word64 -> IO ()
+pinRange env why lo hi = do
+  modifyIORef' (ePins env) ((why, lo, hi) :)
+  modifyIORef' (ePinCounts env) (M.insertWith (+) why 1)
 
-pinTarget :: Env -> Word64 -> IO ()
-pinTarget env a = pinRange env a (a + 1)
+pinTargetAs :: Env -> String -> Word64 -> IO ()
+pinTargetAs env why a = pinRange env why a (a + 1)
 
 -- | Pins the 4 KB page an adrp names.
 pinPage :: Env -> Word64 -> IO ()
-pinPage env page = pinRange env page (page + 4096)
+pinPage env page = pinRange env "page" page (page + 4096)
 
 -- | A linear sweep of fixed code for what it refers to.
 sweepFixed :: Env -> Def -> IO ()
@@ -571,12 +601,12 @@ sweepFixed env d = go (dStart d)
             Adrp rd page ->
               -- the exact targets when the register's uses can be followed, else the page
               case adrpConsumers rd [wordAt env (pc + 4 * k) | k <- [1 .. 8], pc + 4 * k + 4 <= dEnd d] of
-                Just offs -> mapM_ (pinTarget env . (page +)) offs
+                Just offs -> mapM_ (pinTargetAs env "adrp" . (page +)) offs
                 Nothing -> pinPage env page
-            Adr t -> pinTarget env t
-            B t -> pinTarget env t
-            Bl t -> pinTarget env t
-            LdrLit t -> pinTarget env t
+            Adr t -> pinTargetAs env "adr" t
+            B t -> pinTargetAs env "branch" t
+            Bl t -> pinTargetAs env "branch" t
+            LdrLit t -> pinTargetAs env "literal" t
             _ -> pure ()
           go (pc + 4)
 
@@ -621,10 +651,10 @@ parseTable env d label = do
             check :: RefKind -> Int -> Word64 -> IO ()
             check kind fieldOff target
               | isJust (fileOffsetOf (eImage env) target) || target == label =
-                  if dKind d == Haskell
-                    then addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
-                    else pinTarget env target
-              | otherwise = anomaly env (show kind ++ " at " ++ hex label ++ " in " ++ BC.unpack (dName d) ++ " points outside the file: " ++ hex target)
+                  addRef env di (fromIntegral (fromIntegral label + fieldOff :: Int)) kind target
+              -- hand-written runtime tables need not have every field; in a fixed region the field is left alone
+              | dKind d == Haskell = anomaly env (show kind ++ " at " ++ hex label ++ " in " ++ BC.unpack (dName d) ++ " points outside the file: " ++ hex target)
+              | otherwise = pure ()
         if hd == 0 || label - fromIntegral hd < dStart d
           then when (dKind d == Haskell) (anomaly env ("no info table before label " ++ hex label ++ " in " ++ BC.unpack (dName d)))
           else do
@@ -678,7 +708,7 @@ decodeFrom env d = go
               Bl t -> do
                 addRef env di pc RBl t
                 -- a call into a Haskell definition's region means C code lives there; it must not move
-                when (inDef t || isHaskellAt t) (pinTarget env t)
+                when (inDef t || isHaskellAt t) (pinTargetAs env "bl from Haskell" t)
                 go (pc + 4)
               BCond t -> branch pc t RBcond
               Cbz t -> branch pc t RCbz

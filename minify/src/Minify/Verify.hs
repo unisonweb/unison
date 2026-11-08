@@ -72,7 +72,7 @@ verify an pl out = case loadImage out of
               let msg = hsDisplay d2 ++ " (output): " ++ show (length wrong) ++ " of " ++ show (length a) ++ " references are not as planned; first: " ++ showRef (head wrong)
           ]
         missing =
-          [ "missing in the output: " ++ hsDisplay d
+          [ "missing in the output: " ++ hsDisplay d ++ " planned at " ++ hex new ++ (if anPinned an VU.! i then " (pinned)" else "")
             | (new, i) <- keptNew,
               let d = defs V.! i,
               case defAt (anImage an2) new of

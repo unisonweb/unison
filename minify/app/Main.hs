@@ -117,6 +117,16 @@ main = do
     Just out -> do
       pl <- either die pure (plan an (argHoles a) (not (argTextInOrder a)))
       printf "%d segments; %d holes (%d bytes) dropped from the file; %d branch islands\n" (length (plPieces pl)) (length (plHoles pl)) (plSaved pl) (M.size (plIslands pl))
+      -- dead bytes per compacted section that stay in the file (not in a dropped hole)
+      forM_ (V.toList (imSections (anImage an))) $ \sc -> when (isCompactedSection sc) $ do
+        let lo = secAddr sc
+            hi = lo + secSize sc
+            keptBytes = sum [dEnd d - dStart d | d <- V.toList (imDefs (anImage an)), anKept an VU.! dIndex d, dSect d == maybe 0 id (V.findIndex (\x -> secAddr x == secAddr sc) (imSections (anImage an)))]
+            dropped = sum [min hi e - max lo s | (s, e) <- plHoles pl, e > lo, s < hi]
+            si = maybe 0 id (V.findIndex (\x -> secAddr x == secAddr sc) (imSections (anImage an)))
+            anchors = length [() | d <- V.toList (imDefs (anImage an)), dSect d == si, anKept an VU.! dIndex d, dKind d == Fixed || anPinned an VU.! dIndex d]
+            holesHere = [(s, e) | (s, e) <- plHoles pl, e > lo, s < hi]
+        printf "  %s,%s: %d dead bytes, %d dropped in %d holes, %d remain in the file; %d anchors\n" (BC.unpack (secSegName sc)) (BC.unpack (secName sc)) (secSize sc - keptBytes) dropped (length holesHere) (secSize sc - keptBytes - dropped) anchors
       (bytes', stats) <- rewrite an pl (Choices (argKeepHaskellExports a) (argStrip a))
       B.writeFile out bytes'
       when (argVerify a) $ do
@@ -154,6 +164,7 @@ report top an = do
       pinnedCount = VU.length (VU.filter id (anPinned an))
       refsTotal = sum [VU.length r | r <- V.toList (anRefs an)]
   printf "%d definitions (%d fixed, %d pinned), %d references, %d roots\n" (length defs) fixedCount pinnedCount refsTotal (anRoots an)
+  printf "pins by source: %s\n" (show (M.toList (anPinCounts an)))
   printf "%-20s %12s %12s %12s %12s\n" ("section" :: String) ("kept" :: String) ("kept bytes" :: String) ("removed" :: String) ("removed bytes" :: String)
   forM_ bySect $ \(s, (kc, kb, rc, rb)) -> printf "%-20s %12d %12d %12d %12d\n" s kc kb rc rb
   printf "removable: %d of %d bytes (%.1f%%)\n" removed total (100 * fromIntegral removed / fromIntegral (max 1 total) :: Double)

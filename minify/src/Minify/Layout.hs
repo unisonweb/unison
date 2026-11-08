@@ -17,6 +17,7 @@ import qualified Data.ByteString.Char8 as BC
 import Data.List (sortOn)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import qualified Data.Sequence as Seq
 import Data.Ord (Down (..))
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
@@ -116,28 +117,54 @@ plan an maxHoles textLast = do
       kept i = anKept an VU.! i
       pinned i = anPinned an VU.! i
       ndefs = V.length defs
-      -- placement, section by section (definitions are in address order)
-      place :: Int -> Word64 -> Int -> [(Int, Word64)] -> Either String [(Int, Word64)]
-      place i cursor sect acc
-        | i >= ndefs = Right (reverse acc)
-        | otherwise =
-            let d = defs V.! i
-                cursor0 = if dSect d /= sect then secAddr (sects V.! dSect d) else cursor
-                size = dEnd d - dStart d
-             in if not (kept i)
-                  then place (i + 1) cursor0 (dSect d) acc
-                  else
-                    if dKind d == Fixed || pinned i
-                      then
-                        if cursor0 > dStart d
-                          then Left ("compaction overran the fixed definition " ++ show (dName d))
-                          else place (i + 1) (dEnd d) (dSect d) ((i, dStart d) : acc)
-                      else
-                        let a = alignUp cursor0 (alignOf (dStart d))
-                         in if a > dStart d
-                              then Left ("compaction moved " ++ show (dName d) ++ " upward")
-                              else place (i + 1) (a + size) (dSect d) ((i, a) : acc)
-  placed <- place 0 0 (-1) []
+      -- Placement, section by section. Fixed and pinned definitions are
+      -- anchors that stay put; the movable ones fill the gaps before each
+      -- anchor first-fit, in address order with a bounded look-ahead for one
+      -- that fits when the next in line does not, so that dead space collects
+      -- at the end of the section where whole pages leave the file.
+      sectionOf i = dSect (defs V.! i)
+      sizeOf i = let d = defs V.! i in dEnd d - dStart d
+      isAnchor i = dKind (defs V.! i) == Fixed || pinned i
+      perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], kept i]
+      lookAhead = 4000 :: Int
+      -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
+      fill :: Word64 -> Word64 -> Seq.Seq Int -> ([(Int, Word64)], Seq.Seq Int)
+      fill cursor limit queue = case Seq.viewl queue of
+        Seq.EmptyL -> ([], queue)
+        i Seq.:< rest ->
+          let a = alignUp cursor (alignOf (dStart (defs V.! i)))
+           in if a + sizeOf i <= limit
+                then let (more, q') = fill (a + sizeOf i) limit rest in ((i, a) : more, q')
+                else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit) (Seq.take lookAhead rest) of
+                  Nothing -> ([], queue)
+                  Just k ->
+                    let j = Seq.index rest k
+                        b = alignUp cursor (alignOf (dStart (defs V.! j)))
+                        (more, q') = fill (b + sizeOf j) limit (i Seq.<| Seq.deleteAt k rest)
+                     in ((j, b) : more, q')
+      placeSection :: [Int] -> Either String [(Int, Word64)]
+      placeSection is =
+        let sect = sects V.! sectionOf (headOr is)
+            anchors = [i | i <- is, isAnchor i]
+            queue0 = Seq.fromList [i | i <- is, not (isAnchor i)]
+            go cursor [] q =
+              let (ps, q') = fill cursor (secAddr sect + secSize sect) q
+               in if Seq.null q' then Right ps else Left ("no room left in " ++ show (secName sect) ++ " for " ++ show (Seq.length q') ++ " definitions")
+            go cursor (anc : more) q =
+              let d = defs V.! anc
+                  (ps, q') = fill cursor (dStart d) q
+               in if cursor > dStart d
+                    then Left ("compaction overran the fixed definition " ++ show (dName d))
+                    else (\later -> (anc, dStart d) : ps ++ later) <$> go (dEnd d) more q'
+         in go (secAddr sect) anchors queue0
+      headOr (x : _) = x
+      headOr [] = 0
+      groupBy' f = foldr step []
+        where
+          step x [] = [[x]]
+          step x (g : gs) | f x == f (headOr g) = (x : g) : gs
+          step x gs = [x] : gs
+  placed <- concat <$> mapM placeSection perSection
   let newStart = VU.replicate ndefs 0 VU.// placed
       segs = imSegments im
       newAddr a = case defAt im a of
