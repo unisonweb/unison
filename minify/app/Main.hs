@@ -5,6 +5,7 @@ import Control.Monad
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.List (sortOn)
+import Data.Maybe (isNothing)
 import qualified Data.Map.Strict as M
 import Data.Ord (Down (..))
 import qualified Data.Vector as V
@@ -54,7 +55,8 @@ data Args = Args
     argPadAfter :: Maybe String,
     argDisasm :: Maybe String,
     argGotRoots :: Bool,
-    argKeepRange :: [String]
+    argKeepRange :: [String],
+    argGuessPointers :: Bool
   }
 
 args :: Parser Args
@@ -91,6 +93,7 @@ args =
     <*> optional (strOption (long "disasm" <> metavar "0xLO-0xHI" <> help "Debugging: print the instruction boundaries the x86 decoder finds in this range and stop"))
     <*> switch (long "got-roots" <> help "Debugging: every GOT entry keeps what it points at")
     <*> many (strOption (long "keep-range" <> metavar "0xLO-0xHI" <> help "Debugging: keep every definition starting in this range"))
+    <*> switch (long "guess-pointers" <> help "Write an output even when the file has no relocation list and the pointers in data had to be found by parsing static closures (an integer that looks like an address could be rewritten; link with --emit-relocs or as PIE instead)")
 
 main :: IO ()
 main = do
@@ -159,6 +162,8 @@ main = do
     -- an anomaly means code this tool would move was not understood; the output would be unsound
     when (argOutput a /= Nothing && not (argForce a)) $
       die "not writing an output after anomalies (--force overrides)"
+  when (argOutput a /= Nothing && not (argGuessPointers a) && isNothing (ldSlots (imLoaded (anImage an)))) $
+    die "the file has no relocation list (a non-PIE ELF without --emit-relocs), so the pointers in its data can only be guessed; link with -optl-fuse-ld=bfd -optl-Wl,--emit-relocs or as PIE, or pass --guess-pointers to accept the risk"
   case argOutput a of
     Nothing -> pure ()
     Just out -> do
@@ -185,7 +190,8 @@ main = do
       forM_ (V.toList (imSections (anImage an))) $ \sc -> when (isCompactedSection sc) $ do
         let lo = secAddr sc
             hi = lo + secSize sc
-            keptBytes = sum [dEnd d - dStart d | d <- V.toList (imDefs (anImage an)), anKept an VU.! dIndex d, dSect d == maybe 0 id (V.findIndex (\x -> secAddr x == secAddr sc) (imSections (anImage an)))]
+            -- a folded copy is kept but its bytes are not placed
+            keptBytes = sum [dEnd d - dStart d | d <- V.toList (imDefs (anImage an)), anKept an VU.! dIndex d, anRep an VU.! dIndex d == dIndex d, dSect d == maybe 0 id (V.findIndex (\x -> secAddr x == secAddr sc) (imSections (anImage an)))]
             dropped = sum [min hi e - max lo s | (s, e) <- plHoles pl, e > lo, s < hi]
             si = maybe 0 id (V.findIndex (\x -> secAddr x == secAddr sc) (imSections (anImage an)))
             anchors = length [() | d <- V.toList (imDefs (anImage an)), dSect d == si, anKept an VU.! dIndex d, dKind d == Fixed || anPinned an VU.! dIndex d]

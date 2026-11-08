@@ -12,6 +12,111 @@ The input is the only source of information: there are no object files, no
 link map and no relocations. The symbol table has to be present, since it is
 what makes "a definition" a thing in the file at all.
 
+## Formats and architectures
+
+The tool reads Mach-O and ELF executables for AArch64 and x86-64. The
+format reader turns the file into one description the rest of the tool
+works with: segments (Mach-O segments, ELF program headers of type
+PT_LOAD), sections with a role in compaction (code, strings, constants,
+static closures, or none), symbols with a class (an external definition, a
+C compiler's local, a GHC local label, or a mapping symbol to ignore), the
+pointer slots the loader fixes up, and the slots it binds to named
+symbols. The architecture module sits behind a small set of hooks: given
+a definition, it decodes code from a label, sweeps fixed code for what it
+names, and reports references, labels and pins; the analysis knows nothing
+about instructions and the architecture modules nothing about definitions.
+A reference carries its kind and, for the x86-64 kinds and jump table
+entries, the anchor the displacement is measured from. The writers share
+the compaction of the pieces and differ in what surrounds them.
+
+### x86-64
+
+GHC's native code generator names addresses through rel32 branches and
+calls, RIP-relative operands, and, in a non-PIE executable, sign-extended
+32-bit immediates and displacements. Decoding is by instruction length: a
+decoder that knows every legacy, VEX and EVEX encoding well enough to find
+the end of an instruction and the position of its displacement and
+immediate fields. A definition is decoded by recursive descent as on
+AArch64, at byte granularity, stopping at an unconditional jump, a return
+or a trap. A call into a Haskell definition's region means C code lives
+there and pins its target, as a `bl` does on AArch64. A RIP-relative
+operand whose target is in the code section is a label with a table (a
+return point) unless it begins a jump table.
+
+Switches with dense cases compile to a jump table. On Darwin the table
+lives in the text section after the procedure's code and holds 64-bit
+displacements from the table; on Linux with PIC it lives in read-only data
+and holds 32-bit displacements; without PIC it holds absolute addresses.
+The lookup is one contiguous sequence, `lea T(%rip), r` then `add (r, i,
+8), r` and `jmp *r` (or `movslq (r, i, 4), c; add c, r; jmp *r`), with
+spills and reloads of other registers possibly between, so a table is
+recognised at the `lea` by looking at the instructions after it. The
+tables of one procedure are adjacent and their entries look alike, so a
+table's entries can only be read once the address of the next one is
+known: every definition's bytes are scanned for the lookup idiom before any
+table is read, the discovery passes repeat until no new table turns up,
+and an entry whose target lands inside an instruction already decoded is
+taken as the end of the table. Each entry is a reference from the table to
+a block (invariant when both move together, rewritten when the table is in
+read-only data) and a label to decode from. On Darwin the 32-bit
+`.long info - dsp` datum that GHC's dead-strip preventer leaves after each
+procedure is data the descent never reaches; the `_dsp_` symbols are
+ignored, and the `L`-prefixed local symbols Darwin keeps for return points
+and local closures are carve points when their table is a closure's.
+
+The macOS x86-64 linker dead-strips at the symbol level (GHC emits
+`.subsections_via_symbols` there), so little is unreachable in such a
+binary; the gains come from folding, constructor names and the link-edit
+data. x86 needs no branch islands: rel32 reaches 2 GB.
+
+### ELF
+
+A PT_LOAD program header is a segment; `.text`, `.rodata` and `.data` are
+the compacted sections, mixing C and Haskell as on Mach-O. GHC's local
+labels survive in the symbol table as untyped local symbols (constructor
+name strings among them), which are carve points of their own; the C
+compiler's statics are typed locals and begin fixed regions; the mapping
+symbols `$x` and `$d` are ignored. The program header table cannot grow in
+place, so the output's goes in the patch area in the code section, and the
+holes are capped so that the table fits the one page the kernel loads it
+into (73 headers of 56 bytes). Each piece keeps its address congruent to
+its file offset modulo the page size, which is the largest alignment the
+program headers ask for (64 KB for Linux arm64 links). The section headers
+are rebuilt with the compacted sections cut into `.text`, `.text.1` and so
+on, the symbol table relocated and renumbered, the dynamic symbols' values
+moved with their definitions, and every relocation's slot moved with its
+definition (a bind can sit in a Haskell closure, the payload of a
+`foreign import "&f"`). In a position-independent executable the relative
+relocations are the pointer slots, like Mach-O's rebases, and their addends
+are relocated; the ones whose slots were removed are pointed at a scratch
+word, since the loader applies the first DT_RELACOUNT entries without
+looking at their type. The GOT's entries have no relocations of their own
+in an executable, so they are read directly: a GOT entry is an edge from
+the code that loads it to what it holds, not a root, and one that fixed
+code names is a root. A table of closures in a constant section, indexed at
+run time, is a root as before.
+
+### Pointer slots without a relocation list
+
+A Linux executable GHC links by default is not position independent and
+carries no relative relocations: nothing lists the pointer slots in data.
+With `-optl-fuse-ld=bfd -optl-Wl,--emit-relocs` the linker keeps every
+relocation of the link in non-loaded sections, and their absolute 64-bit
+entries are an exact list, which the reader uses; a PIE link gives the
+same guarantee. Without either, the tool parses the static closures: from
+every Haskell data symbol, every address code or a GOT entry names in
+data, every SRT, and every pointer field found, the info table's layout
+gives the pointer fields, and a static thunk's leading words are looked at
+as well since the precomputed `unpackCString#` closure keeps its string
+address behind the header. A non-pointer field whose value lands in a
+Haskell string is taken for an `Addr#` literal. This is a heuristic in two
+directions: an integer field whose value falls inside a Haskell definition
+would be rewritten, and a closure shape not modelled is missed, so writing
+an output on that basis needs `--guess-pointers`. Pointers in C data are
+never rewritten there, only pinned. The C compiler's unlabeled constants
+lie in the region of whatever symbol precedes them, so a pointer-like word
+in a Haskell string region pins its target too.
+
 ## What GHC leaves in the file
 
 GHC compiles every top-level binding to a handful of symbols: `f_info` (an
@@ -242,11 +347,13 @@ is the other half: the Unison transcript suite against the minified
 
 ## What it does not do
 
-Only AArch64 Mach-O is implemented. The instruction decoding is the one
-architecture-specific part and sits behind its own module; x86_64 would add
-RIP-relative forms and GHC's jump tables there. Linux ELF would replace the
-Mach-O reading and writing. Stripped binaries cannot be processed. C code is
-never removed, even when unreferenced. Dead bytes that do not fill a page
-stay in the file as zeros. The unwinder looks for `__eh_frame` under a
-segment named `__TEXT`, so C code in a later piece has no unwind
-information at runtime; the GHC runtime does not use it.
+Mach-O and ELF, AArch64 and x86-64, 64-bit little-endian only. Stripped
+binaries cannot be processed. C code is never removed, even when
+unreferenced. Dead bytes that do not fill a page stay in the file as zeros.
+The unwinder looks for `__eh_frame` under a segment named `__TEXT`, so C
+code in a later Mach-O piece has no unwind information at runtime; the GHC
+runtime does not use it. A Linux executable without a relocation list is
+handled by the heuristic above. RELR relocation sections are not handled.
+The relocation sections a link with `--emit-relocs` kept describe the
+input and are dropped from the output, so such an output cannot be
+minified again exactly.
