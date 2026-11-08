@@ -62,9 +62,17 @@ definition landing at or below its old address, and every reference inside
 moved code and data is rewritten. Where compaction leaves a gap of whole
 pages before a fixed stretch, the file omits those pages: the segment is
 split there into two segments whose virtual addresses are unchanged, so
-fixed code keeps its addresses while the file loses the pages between. The
-dyld opcode formats address at most 16 segments, so the tool drops the
-largest gaps that fit in that budget and keeps the bytes of the rest.
+fixed code keeps its addresses while the file loses the pages between.
+
+dyld allows one segment named `__TEXT` (the one holding the header), so the
+later pieces are `__TEXT_1`, `__TEXT_2` and so on, and `__DATA_1` for data.
+Its rebase and bind opcodes name a segment with a four-bit immediate, which
+would allow 16 segments in all, but only the data segments ever hold a
+pointer slot, so the extra `__TEXT` pieces are listed after the data
+segments in the load commands and the data segments keep small indices
+however many pieces `__TEXT` is cut into. dyld does not require the load
+commands to be in address order. The holes in the data segments are
+limited by the budget that remains; the largest are taken.
 
 Classification is by name: a symbol of the form `package_Module_name_kind`
 with a z-encoded module (an uppercase initial) and one of GHC's kind
@@ -125,30 +133,46 @@ trailing padding, so a definition never lands above its old address.
 
 Every reference is then re-encoded for the new addresses of both ends:
 `adrp` gets the new page difference and its `add` or `ldr` the new low 12
-bits; `b` and `bl` get the new displacement (an out-of-range branch is an
-error, since the file has no branch islands to spare); the conditional
-branches, which stay within a definition, are re-encoded the same way; info
-table offsets become the new target minus the new label; rebase slots get
-the new value, tag bits preserved, wherever the slot is, moved or fixed.
+bits; `b` and `bl` get the new displacement; the conditional branches, which
+stay within a definition, are re-encoded the same way; info table offsets
+become the new target minus the new label; rebase slots get the new value,
+tag bits preserved, wherever the slot is, moved or fixed.
+
+A `b` or `bl` reaches 128 MB either way. `__text` is longer than that, and
+the original only linked because ld64 planted branch islands, which are
+ordinary code to this tool and travel with their definitions. Compaction
+moves early code further from the runtime at the far end, so a few branches
+stop reaching (22 in unison). For each target of such a branch the tool
+writes an island, `adrp x16; add x16; br x16`, in a patch area placed in
+the gap nearest the middle of `__text`, which every branch in the section
+reaches; x16 is the register the ABI reserves for exactly this. The abort
+stubs for cut definitions and their message strings go in the same area,
+and the closure stubs in a gap in `__data`, since the garbage collector
+writes to a static closure's link field.
 
 The link-edit data is rebuilt: the symbol table keeps the surviving symbols
-at their new addresses with the indirect symbol table renumbered, the
-export trie is regenerated, the rebase stream is regenerated from the
-surviving slots, binds are re-emitted against the new segment numbering
-with lazy binds converted to ordinary ones (the lazy stream's byte offsets
-are baked into `__stub_helper`, so it cannot be re-encoded in place), and
-function starts are regenerated. The code signature is dropped and the
-output is re-signed ad hoc with `codesign`.
+at their new addresses and in their new sections, with the indirect symbol
+table renumbered; the export trie is regenerated; the rebase stream is
+regenerated from the surviving slots plus the closure stubs' info words;
+binds are re-emitted against the new segment numbering with lazy binds
+converted to ordinary ones (the lazy stream's byte offsets are baked into
+`__stub_helper`, so it cannot be re-encoded in place); function starts are
+regenerated. The code signature is dropped and the output is re-signed ad
+hoc with `codesign`.
 
 ### Checking the result
 
 With `--verify`, the tool analyzes the file it wrote the same way it
-analyzed the input and compares: each surviving definition must have the
-same references, each landing at the same offset in the same (named)
-definition, and the same non-relocated instruction words. This catches a
+analyzed the input and compares: every reference the output's decoding
+finds must be one the plan made, at the planned address and pointing at
+the planned target, with branches through islands counted as reaching the
+island's target. The output may decode fewer references than the input,
+since a label that only a removed static closure pointed at is gone and
+the code behind it with it, but it may not decode a different one. An
+anomaly in decoding the output fails the check too. This catches a
 mis-rewritten reference without running the program. Running the program
 is the other half: the Unison transcript suite against the minified
-`unison`.
+`unison`, compared with the original binary's output on the same files.
 
 ## What it does not do
 
@@ -156,4 +180,7 @@ Only AArch64 Mach-O is implemented. The instruction decoding is the one
 architecture-specific part and sits behind its own module; x86_64 would add
 RIP-relative forms and GHC's jump tables there. Linux ELF would replace the
 Mach-O reading and writing. Stripped binaries cannot be processed. C code is
-never removed, even when unreferenced.
+never removed, even when unreferenced. Dead bytes that do not fill a page
+stay in the file as zeros. The unwinder looks for `__eh_frame` under a
+segment named `__TEXT`, so C code in a later piece has no unwind
+information at runtime; the GHC runtime does not use it.

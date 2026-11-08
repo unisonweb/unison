@@ -3,6 +3,7 @@
 module Minify.Layout
   ( Plan (..),
     Piece (..),
+    Stub (..),
     plan,
     pageSize,
     newAddrOf,
@@ -53,11 +54,32 @@ data Plan = Plan
     -- | bytes the holes save
     plSaved :: !Word64,
     plHoles :: [(Word64, Word64)],
+    -- | the pieces in load-command order (the segment numbering dyld sees)
+    plOrder :: [Piece],
     -- | branch islands: target address to island address
     plIslands :: M.Map Word64 Word64,
-    -- | the island pool's address and size
-    plIslandPool :: (Word64, Word64)
+    -- | the patch area in __text (islands, abort stubs, their messages): address and size
+    plIslandPool :: (Word64, Word64),
+    -- | the patch area in __data (closure stubs): address and size
+    plDataArea :: (Word64, Word64),
+    -- | abort stubs for cut definitions still referred to, by definition index
+    plStubs :: M.Map Int Stub
   }
+
+-- | A replacement for a cut definition that is still referred to.
+data Stub = Stub
+  { -- | the code label (its info table precedes it)
+    sbCode :: !Word64,
+    -- | start of the info table
+    sbTable :: !Word64,
+    sbTableSize :: !Int,
+    -- | the message string
+    sbMsg :: !Word64,
+    sbMsgText :: B.ByteString,
+    -- | the static closure, for a cut data definition
+    sbClosure :: Maybe Word64
+  }
+  deriving (Show)
 
 -- | A b or bl reaches this far either way.
 branchRange :: Word64
@@ -80,9 +102,12 @@ alignDown a n = a .&. complement (n - 1)
 alignOf :: Word64 -> Word64
 alignOf a = min 8 (a .&. negate a)
 
--- | The second argument caps the number of holes (segments added).
-plan :: Analysis -> Int -> Either String Plan
-plan an maxHoles = do
+-- | The second argument caps the number of holes (segments added); the
+-- third puts the extra __TEXT pieces after the data pieces in the load
+-- commands, so that the data segments keep indices the dyld opcodes can
+-- express however many holes __TEXT has.
+plan :: Analysis -> Int -> Bool -> Either String Plan
+plan an maxHoles textLast = do
   let im = anImage an
       defs = imDefs im
       sects = imSections im
@@ -141,33 +166,65 @@ plan an maxHoles = do
             extras = [(a, a + n) | (a, n) <- extra, inSeg a]
          in mergeRanges (sortOn fst (header ++ fromSects ++ fromDefs ++ extras))
       farTargets = S.toList (S.fromList (map snd far))
-      poolSize = alignUp (fromIntegral (length farTargets) * islandSize) 16
+      islandsSize = alignUp (fromIntegral (length farTargets) * islandSize) 16
+      -- cut definitions a kept one refers to, each with its stub's sizes
+      stubbed =
+        [ (i, tableSz, msg)
+          | i <- [0 .. ndefs - 1],
+            anCutReferenced an VU.! i,
+            let d = defs V.! i,
+            let tableSz = if isCode (sects V.! dSect d) then max 16 (dHead d) else 24,
+            let msg = BC.pack ("minify: " ++ hsDisplay d ++ " was removed") <> B.singleton 0
+        ]
+      stubCodeSize = 16
+      stubsSize = sum [fromIntegral (alignUp (fromIntegral tsz) 8) + stubCodeSize | (_, tsz, _) <- stubbed]
+      msgsSize = alignUp (sum [fromIntegral (B.length m) | (_, _, m) <- stubbed]) 16
+      poolSize = islandsSize + stubsSize + msgsSize
+      dataStubs = [i | (i, _, _) <- stubbed, not (isCode (sects V.! dSect (defs V.! i)))]
+      dataAreaSize = 16 * fromIntegral (length dataStubs)
+      midText = secAddr textSect + secSize textSect `div` 2
       textSect = case [s | s <- V.toList sects, isCode s] of
         s : _ -> s
         [] -> error "no __text"
-  -- The pool goes in a gap of the placed layout that every far source reaches.
+  -- The patch area goes in the gap of the placed layout nearest the middle
+  -- of __text, which every branch in the section reaches.
   pool <-
-    if null farTargets
+    if poolSize == 0
       then Right (0, 0)
       else
-        let textSeg = [sg | sg <- segs, segName sg == "__TEXT"]
-            gaps = case textSeg of
-              sg : _ -> deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg)
-              [] -> []
-            srcLo = minimum (map fst far)
-            srcHi = maximum (map fst far)
+        let gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segName sg == "__TEXT"]
             fits (g0, g1) =
               let a = alignUp g0 16
-               in a + poolSize <= g1
-                    && a >= secAddr textSect
-                    && a + poolSize <= secAddr textSect + secSize textSect
-                    && distance a srcLo < branchRange - poolSize
-                    && distance a srcHi < branchRange - poolSize
-         in case [alignUp g0 16 | g@(g0, _) <- gaps, fits g] of
+               in a + poolSize <= g1 && a >= secAddr textSect && a + poolSize <= secAddr textSect + secSize textSect
+            candidates = sortOn (distance midText) [alignUp g0 16 | g@(g0, _) <- gaps, fits g]
+            reaches a = all (\(src, _) -> distance a src < branchRange - poolSize) far
+         in case filter reaches candidates of
               a : _ -> Right (a, poolSize)
-              [] -> Left ("no gap for " ++ show (length farTargets) ++ " branch islands within reach of every far branch")
+              [] -> Left ("no gap of " ++ show poolSize ++ " bytes in __text for the islands and stubs")
+  dataArea <-
+    if dataAreaSize == 0
+      then Right (0, 0)
+      else
+        let dataSect = [sc | sc <- V.toList sects, secSegName sc == "__DATA", secName sc == "__data"]
+            gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segName sg == "__DATA"]
+            fits sc (g0, g1) = let a = alignUp g0 16 in a + dataAreaSize <= g1 && a >= secAddr sc && a + dataAreaSize <= secAddr sc + secSize sc
+         in case [alignUp g0 16 | sc <- dataSect, g@(g0, _) <- gaps, fits sc g] of
+              a : _ -> Right (a, dataAreaSize)
+              [] -> Left ("no gap of " ++ show dataAreaSize ++ " bytes in __data for the closure stubs")
   let islands = M.fromList (zip farTargets [fst pool, fst pool + islandSize ..])
-      poolLive = [pool | snd pool > 0]
+      stubsStart = fst pool + islandsSize
+      msgsStart = stubsStart + stubsSize
+      stubList = go stubsStart msgsStart (fst dataArea) stubbed
+        where
+          go _ _ _ [] = []
+          go c m dc ((i, tsz, msg) : rest) =
+            let tableStart = c
+                code = c + alignUp (fromIntegral tsz) 8
+                isData = i `elem` dataStubs
+                st = Stub {sbCode = code, sbTable = tableStart, sbTableSize = tsz, sbMsg = m, sbMsgText = msg, sbClosure = if isData then Just dc else Nothing}
+             in (i, st) : go (code + stubCodeSize) (m + fromIntegral (B.length msg)) (if isData then dc + 16 else dc) rest
+      stubs = M.fromList stubList
+      poolLive = [pool | snd pool > 0] ++ [dataArea | snd dataArea > 0]
       liveRanges = liveRangesWith poolLive
       -- dead gaps rounded inward to whole pages
       holesOf seg =
@@ -179,7 +236,12 @@ plan an maxHoles = do
         ]
       candidates = [(seg, h) | seg <- segs, segFileSize seg > 0, segName seg /= "__LINKEDIT", h <- holesOf seg]
       budget = min maxHoles (maxSegments - length segs)
-      chosen = take budget (sortOn (\(_, (s, e)) -> Down (e - s)) candidates)
+      -- with the text pieces ordered last, only data holes count against the opcode limit
+      dataBudget = min maxHoles (maxSegments - length segs)
+      byLargest = sortOn (\(_, (s, e)) -> Down (e - s)) candidates
+      chosen
+        | textLast = take dataBudget [c | c@(sg, _) <- byLargest, segName sg /= "__TEXT"] ++ take maxHoles [c | c@(sg, _) <- byLargest, segName sg == "__TEXT"]
+        | otherwise = take budget byLargest
       holesFor seg = sortOn fst [h | (sg, h) <- chosen, segName sg == segName seg]
       -- pieces, with file offsets assigned in order
       mkPieces [] _ = []
@@ -219,6 +281,10 @@ plan an maxHoles = do
       splitAt' s e [] = [(s, e)]
       splitAt' s e ((hs, he) : more) = (s, hs) : splitAt' he e more
       pieces = mkPieces segs 0
+      order
+        | textLast = [p | p <- pieces, not (isExtraText p)] ++ [p | p <- pieces, isExtraText p]
+        | otherwise = pieces
+      isExtraText p = "__TEXT_" `B.isPrefixOf` pcName p
       linkeditOff = case pieces of
         [] -> 0
         _ -> let l = last pieces in alignUp (pcFileOff l + (pcFileEnd l - pcVmStart l)) pageSize
@@ -231,8 +297,11 @@ plan an maxHoles = do
         plLinkeditVm = linkeditVm,
         plSaved = sum [e - s | (_, (s, e)) <- chosen],
         plHoles = [h | (_, h) <- chosen],
+        plOrder = order,
         plIslands = islands,
-        plIslandPool = pool
+        plIslandPool = pool,
+        plDataArea = dataArea,
+        plStubs = stubs
       }
 
 mergeRanges :: [(Word64, Word64)] -> [(Word64, Word64)]

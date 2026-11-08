@@ -56,11 +56,19 @@ rewrite an pl = do
       relocate :: Word64 -> Either String Word64
       relocate a = case newAddrOf an pl a of
         Just a' -> Right a'
-        Nothing -> Left ("reference into a removed definition at " ++ hex a ++ maybe "" ((" in " ++) . hsDisplay) (defAt im a))
+        Nothing -> case defAt im a of
+          Just d | Just st <- M.lookup (dIndex d) (plStubs pl) -> Right $ case sbClosure st of
+            -- a pointer to a cut closure keeps its tag bits
+            Just c -> c + (a .&. 7)
+            Nothing -> sbCode st
+          _ -> Left ("reference into a removed definition at " ++ hex a ++ maybe "" ((" in " ++) . hsDisplay) (defAt im a))
+      barf = case [nValue nl | (nl, n) <- imSymbols im, n == "_barf", nType nl .&. 0x0e == 0x0e] of
+        v : _ -> Just v
+        [] -> Nothing
       textBase = head ([segVmAddr s | s <- imSegments im, segName s == "__TEXT"] ++ [0])
       -- segment numbering in the output: __PAGEZERO, the pieces, __LINKEDIT
       hasPageZero = any ((== "__PAGEZERO") . segName) (imSegments im)
-      pieceIndex p = (if hasPageZero then 1 else 0) + length (takeWhile (\q -> pcVmStart q /= pcVmStart p) (plPieces pl))
+      pieceIndex p = (if hasPageZero then 1 else 0) + length (takeWhile (\q -> pcVmStart q /= pcVmStart p) (plOrder pl))
       pieceOf a = case [p | p <- plPieces pl, a >= pcVmStart p, a < pcVmEnd p] of
         p : _ -> Just p
         [] -> Nothing
@@ -80,7 +88,13 @@ rewrite an pl = do
           then relocate (nValue nl)
           else Right (nValue nl)
       decided = [(nl, name, either (const Nothing) Just (keepSym (nl, name))) | (nl, name) <- syms]
-      keptSyms = [(nl {nValue = v}, name) | (nl, name, Just v) <- decided]
+      -- sections are renumbered in the output: a symbol's n_sect follows its address
+      newSections = concatMap pcSections (plOrder pl)
+      sectIndexOf v = case [k | (k, sc) <- zip [1 :: Int ..] newSections, v >= secAddr sc, v < secAddr sc + max 1 (secSize sc)] of
+        k : _ -> fromIntegral k
+        [] -> 0
+      renumber nl v = if nType nl .&. 0x0e == 0x0e then nl {nValue = v, nSect = sectIndexOf v} else nl {nValue = v}
+      keptSyms = [(renumber nl v, name) | (nl, name, Just v) <- decided]
       indexMap = M.fromList [(oldIx, newIx) | (newIx, (oldIx, _)) <- zip [0 :: Int ..] [(i, ()) | (i, (_, _, Just _)) <- zip [0 :: Int ..] decided]]
       countIn lo n = length [() | (i, (_, _, Just _)) <- zip [0 :: Int ..] decided, i >= lo, i < lo + n]
       nlocal' = countIn ilocal nlocal
@@ -113,7 +127,8 @@ rewrite an pl = do
             Just a' <- [newAddrOf an pl a],
             Just (si, so) <- [segLoc a']
         ]
-      rebaseBytes = toStrict (encodeRebases rebases)
+      stubRebases = [Rebase si so 1 | st <- M.elems (plStubs pl), Just c <- [sbClosure st], Just (si, so) <- [segLoc c]]
+      rebaseBytes = toStrict (encodeRebases (rebases ++ stubRebases))
   -- Binds: every kind becomes an ordinary bind at its (unchanged) address.
   let dyld = head ([d | LCDyldInfo d <- moCommands mo] ++ [DyldInfo lcDyldInfoOnly 0 0 0 0 0 0 0 0 0 0])
       slice off sz = B.take (fromIntegral sz) (B.drop (fromIntegral off) orig)
@@ -164,7 +179,7 @@ rewrite an pl = do
           <> putU32 (secReserved1 s) <> putU32 (secReserved2 s) <> putU32 (secReserved3 s)
       padName n = B.take 16 (n <> B.replicate 16 0)
       pageZero = [segCmd (segName s) (segVmAddr s) (segVmSize s) 0 0 (segMaxProt s) (segInitProt s) (segFlags s) [] | s <- imSegments im, segName s == "__PAGEZERO"]
-      pieceCmds = [segCmd (pcName p) (pcVmStart p) (pcVmEnd p - pcVmStart p) (pcFileOff p) (pcFileEnd p - pcVmStart p) (pcMaxProt p) (pcInitProt p) (pcFlags p) (pcSections p) | p <- plPieces pl]
+      pieceCmds = [segCmd (pcName p) (pcVmStart p) (pcVmEnd p - pcVmStart p) (pcFileOff p) (pcFileEnd p - pcVmStart p) (pcMaxProt p) (pcInitProt p) (pcFlags p) (pcSections p) | p <- plOrder pl]
       linkeditSeg = head [s | s <- imSegments im, segName s == "__LINKEDIT"]
       linkeditCmd = segCmd "__LINKEDIT" (plLinkeditVm pl) (alignUp (fromIntegral linkeditLen) pageSize) (plLinkeditOff pl) (fromIntegral linkeditLen) (segMaxProt linkeditSeg) (segInitProt linkeditSeg) (segFlags linkeditSeg) []
       others = flip mapMaybe (moCommands mo) $ \case
@@ -232,6 +247,53 @@ rewrite an pl = do
             Right t' -> case newFileOffsetOf pl at' of
               Nothing -> fail ("no file offset for a reference in " ++ hsDisplay d)
               Just o -> patch (\t -> M.lookup t (plIslands pl)) ptr (fromIntegral o) at' t' kind
+      -- abort stubs for cut definitions
+      forM_ (M.toList (plStubs pl)) $ \(i, st) -> do
+        let d = defs V.! i
+            isData = sbClosure st /= Nothing
+        tableOff <- maybe (fail "stub table has no file offset") pure (newFileOffsetOf pl (sbTable st))
+        let tOff = fromIntegral tableOff :: Int
+            code = sbCode st
+            codeOff = tOff + fromIntegral (code - sbTable st)
+        if isData
+          then do
+            -- a FUN_STATIC of one pointer argument, no pointers, no SRT
+            pokeByteOff ptr tOff (5 :: Word32)
+            pokeByteOff ptr (tOff + 4) (1 :: Word32)
+            pokeByteOff ptr (tOff + 8) (0 :: Word64)
+            pokeByteOff ptr (tOff + 16) (14 :: Word32)
+            pokeByteOff ptr (tOff + 20) (0 :: Word32)
+          else do
+            -- the cut definition's own table, with the SRT cleared and the
+            -- relative fields re-encoded for the stub's place
+            case fileOffsetOf im (dStart d) of
+              Just o | dHead d > 0 -> copyBytes (ptr `plusPtr` tOff) (src `plusPtr` fromIntegral o) (dHead d)
+              _ -> fail ("no info table to copy for the stub of " ++ hsDisplay d)
+            pokeByteOff ptr (codeOff - 4) (0 :: Word32)
+            let ty = u32 orig (fromIntegral (maybe 0 id (fileOffsetOf im (dSym d))) - 8)
+            when (ty >= 1 && ty <= 7) $ pokeByteOff ptr (codeOff - 24) (fromIntegral (fromIntegral (sbMsg st) - fromIntegral code :: Int64) :: Word64)
+            when (ty == 31) $ fail ("the stub of " ++ hsDisplay d ++ " would need its large bitmap")
+            when (dHead d == 40) $ do
+              let ft = u32 orig (fromIntegral (maybe 0 id (fileOffsetOf im (dSym d))) - 24)
+              when (ft == 1) $ fail ("the stub of " ++ hsDisplay d ++ " would need its argument bitmap")
+              case [t | (at, k, t) <- VU.toList (anRefs an V.! i), at == dSym d - 40, toEnum (fromIntegral k) == RSlowApply] of
+                t : _ -> pokeByteOff ptr (codeOff - 40) (fromIntegral (fromIntegral t - fromIntegral code :: Int64) :: Word64)
+                [] -> fail ("no slow-apply offset recorded for " ++ hsDisplay d)
+        -- adrp x0, msg; add x0, x0, lo; bl barf (or brk); brk #0
+        w1 <- either fail pure (adrpInsn 0 code (sbMsg st))
+        pokeByteOff ptr codeOff w1
+        pokeByteOff ptr (codeOff + 4) (addInsn 0 0 (sbMsg st))
+        w3 <- case barf of
+          Just b -> either fail pure (blInsn (code + 8) b)
+          Nothing -> pure brkInsn
+        pokeByteOff ptr (codeOff + 8) w3
+        pokeByteOff ptr (codeOff + 12) brkInsn
+        mOff <- maybe (fail "stub message has no file offset") pure (newFileOffsetOf pl (sbMsg st))
+        BU.unsafeUseAsCString (sbMsgText st) $ \m -> copyBytes (ptr `plusPtr` fromIntegral mOff) (castPtr m) (B.length (sbMsgText st))
+        forM_ (sbClosure st) $ \c -> do
+          cOff <- maybe (fail "closure stub has no file offset") pure (newFileOffsetOf pl c)
+          pokeByteOff ptr (fromIntegral cOff) code
+          pokeByteOff ptr (fromIntegral cOff + 8) (0 :: Word64)
       -- branch islands: adrp x16, target; add x16, x16, lo; br x16
       forM_ (M.toList (plIslands pl)) $ \(t, a) -> case newFileOffsetOf pl a of
         Nothing -> fail "island pool has no file offset"

@@ -206,8 +206,10 @@ defAt im a =
 carve :: (Word64 -> Int) -> V.Vector Section -> [(Nlist, B.ByteString)] -> V.Vector Def
 carve headOf sects named = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (concat perSection))
   where
+    -- symbols are filed by address, not by their n_sect, which a split
+    -- section would make ambiguous
     perSection =
-      [ carveSection si s [(nValue nl, nm) | (nl, nm) <- named, fromIntegral (nSect nl) == si + 1, nType nl .&. 0x0e == 0x0e]
+      [ carveSection si s [(nValue nl, nm) | (nl, nm) <- named, nType nl .&. 0x0e == 0x0e, nValue nl >= secAddr s, nValue nl < secAddr s + secSize s]
         | (si, s) <- zip [0 ..] (V.toList sects),
           isCompactedSection s
       ]
@@ -335,9 +337,14 @@ analyze opts im0 = do
   pinnedV <- VU.freeze pinned
   anoms <- reverse <$> readIORef anomalies
   -- Cut by prefix, then mark from the roots.
+  -- Only code and closures are cut: a literal a kept definition still uses
+  -- has nothing sensible to be replaced by, so it stays.
   let cut = VU.generate ndefs $ \i ->
         let d = imDefs im V.! i
-         in dKind d == Haskell && any (\p -> any (p `isPrefixOf`) (prefixForms d)) (optRemovePrefixes opts)
+            sect = imSections im V.! dSect d
+         in dKind d == Haskell
+              && (isCode sect || secName sect == "__data")
+              && any (\p -> any (p `isPrefixOf`) (prefixForms d)) (optRemovePrefixes opts)
       roots = [i | i <- [0 .. ndefs - 1], let d = imDefs im V.! i, dKind d == Fixed || pinnedV VU.! i, not (cut VU.! i)]
   kept <- VUM.replicate ndefs False
   cutRef <- VUM.replicate ndefs False

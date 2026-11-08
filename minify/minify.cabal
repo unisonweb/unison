@@ -24,6 +24,7 @@ executable minify
       Minify.Layout
       Minify.MachO
       Minify.Rewrite
+      Minify.Verify
       Minify.ZEncoding
       Paths_minify
   hs-source-dirs:
