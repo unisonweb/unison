@@ -1,9 +1,19 @@
--- | The AArch64 instruction forms that carry a PC-relative or page-relative
--- address, decoded and re-encoded. This is the one architecture-specific
--- module.
+-- | AArch64: the instruction forms that carry a PC-relative or
+-- page-relative address, decoded and re-encoded; the recursive-descent
+-- decoding of a Haskell definition and the linear sweep of fixed code; the
+-- stubs and islands the writer plants.
 module Minify.Arm64
   ( Insn (..),
     decode,
+    decodeFrom,
+    sweepFixed,
+    patchInsn,
+    maskInsn,
+    stubCode,
+    islandCode,
+    islandSize,
+    branchRange,
+    needsIslands,
     isAdd12For,
     isLdr12For,
     add12Imm,
@@ -24,9 +34,12 @@ module Minify.Arm64
   )
 where
 
+import Control.Monad
 import Data.Bits
 import Data.Int
 import Data.Word
+import Minify.Hooks
+import Minify.Ref
 
 -- | What an instruction word is, as far as this tool cares.
 data Insn
@@ -200,3 +213,153 @@ adrpConsumers rd = go (8 :: Int) []
       RegJump -> True
       Udf -> True
       _ -> False
+
+-- * Decoding a definition
+
+hex :: Word64 -> String
+hex a = "0x" ++ go a
+  where
+    go 0 = ""
+    go n = go (n `shiftR` 4) ++ [("0123456789abcdef" !!) (fromIntegral (n .&. 15))]
+
+-- | Recursive-descent decoding from a label within a Haskell definition.
+-- GHC's native code generator emits a closed set of address-carrying
+-- forms: adrp+add (adjacent) for a label, adrp+ldr for a GOT slot, b for
+-- jumps and tail calls, bl for foreign calls, and b.cond, cbz, tbz within
+-- a procedure. Anything else that names an address is an anomaly.
+decodeFrom :: Hooks -> Word64 -> IO ()
+decodeFrom hk = go
+  where
+    inDef a = a >= hkDefStart hk && a < hkDefEnd hk
+    name = hkDefName hk
+    go pc
+      | pc + 4 > hkDefEnd hk = pure ()
+      | otherwise = do
+          fresh <- hkVisit hk pc 4
+          when fresh $ do
+            let w = word32At hk pc
+            case decode pc w of
+              Adrp rd page -> do
+                let w2 = word32At hk (pc + 4)
+                if
+                  | isAdd12For rd w2 -> do
+                      let t = page + add12Imm w2
+                      hkRef hk pc RAdrpAdd t 0
+                      if hkInText hk t then hkLabel hk t True else hkData hk t
+                      _ <- hkVisit hk (pc + 4) 4
+                      go (pc + 8)
+                  | isLdr12For rd w2 -> do
+                      hkRef hk pc RAdrpLdr (page + ldr12Imm w2) 0
+                      _ <- hkVisit hk (pc + 4) 4
+                      go (pc + 8)
+                  | otherwise -> hkAnomaly hk ("adrp without add or ldr at " ++ hex pc ++ " in " ++ name)
+              B t -> do
+                hkRef hk pc RB t 0
+                if inDef t then go t else hkLabel hk t False
+              Bl t -> do
+                hkRef hk pc RBl t 0
+                -- a call into a Haskell definition's region means C code lives there; it must not move
+                when (inDef t || hkIsHaskellAt hk t) (hkPin hk "bl from Haskell" t)
+                go (pc + 4)
+              BCond t -> branch pc t RBcond
+              Cbz t -> branch pc t RCbz
+              Tbz t -> branch pc t RTbz
+              Adr _ -> hkAnomaly hk ("adr at " ++ hex pc ++ " in " ++ name)
+              LdrLit _ -> hkAnomaly hk ("literal load at " ++ hex pc ++ " in " ++ name)
+              Udf -> do
+                -- a zero word before an info table is alignment padding after a fall-through
+                nextIsTable <- if pc + 4 < hkDefEnd hk then hkIsTable hk (pc + 4) else pure False
+                first <- hkFirstPass hk
+                unless (first || (w == 0 && nextIsTable)) $
+                  hkAnomaly hk ("data decoded as code at " ++ hex pc ++ " in " ++ name)
+              RegJump -> pure ()
+              Other -> go (pc + 4)
+    branch pc t kind = do
+      hkRef hk pc kind t 0
+      if inDef t
+        then go t >> go (pc + 4)
+        else hkAnomaly hk ("conditional branch leaves the definition at " ++ hex pc ++ " in " ++ name)
+
+-- | A linear sweep of fixed code for what it refers to. An adrp is paired
+-- with its consumers when the register's uses can all be followed, and
+-- each target pinned; otherwise the page is pinned.
+sweepFixed :: Hooks -> Word64 -> Word64 -> IO ()
+sweepFixed hk start end = go start
+  where
+    go pc
+      | pc + 4 > end = pure ()
+      | otherwise = do
+          case decode pc (word32At hk pc) of
+            Adrp rd page ->
+              case adrpConsumers rd [word32At hk (pc + 4 * k) | k <- [1 .. 8], pc + 4 * k + 4 <= end] of
+                Just offs -> mapM_ (hkPin hk "adrp" . (page +)) offs
+                Nothing -> hkPinPage hk page
+            Adr t -> hkPin hk "adr" t
+            B t -> hkPin hk "branch" t
+            Bl t -> hkPin hk "branch" t
+            LdrLit t -> hkPin hk "literal" t
+            _ -> pure ()
+          go (pc + 4)
+
+-- * Rewriting
+
+-- | Re-encodes one instruction reference: the words at the field, its new
+-- address, its new target, and the island for a branch that cannot reach.
+-- Returns the new words, or an error.
+patchInsn :: RefKind -> (Word64 -> Maybe Word64) -> [Word32] -> Word64 -> Word64 -> Either String [Word32]
+patchInsn kind island ws at' t' = case (kind, ws) of
+  (RAdrpAdd, [w1, w2]) -> (\a -> [a, encodeAdd12 w2 t']) <$> encodeAdrp w1 at' t'
+  (RAdrpLdr, [w1, w2]) -> do
+    a <- encodeAdrp w1 at' t'
+    l <- encodeLdr12 w2 t'
+    pure [a, l]
+  (RB, [w]) -> imm26 w
+  (RBl, [w]) -> imm26 w
+  (RBcond, [w]) -> (: []) <$> encodeImm19 w at' t'
+  (RCbz, [w]) -> (: []) <$> encodeImm19 w at' t'
+  (RTbz, [w]) -> (: []) <$> encodeImm14 w at' t'
+  _ -> Left ("not an AArch64 reference: " ++ show kind)
+  where
+    imm26 w = case encodeImm26 w at' t' of
+      Right w' -> Right [w']
+      Left e -> case island t' of
+        Just a -> (: []) <$> encodeImm26 w at' a
+        Nothing -> Left (e ++ " and no island")
+
+-- | The instruction words with their address bits cleared, for comparing
+-- code by shape.
+maskInsn :: RefKind -> [Word32] -> [Word32]
+maskInsn kind ws = case (kind, ws) of
+  (RAdrpAdd, [w1, w2]) -> [w1 .&. 0x9f00001f, w2 .&. complement 0x003ffc00]
+  (RAdrpLdr, [w1, w2]) -> [w1 .&. 0x9f00001f, w2 .&. complement 0x003ffc00]
+  (RB, [w]) -> [w .&. 0xfc000000]
+  (RBl, [w]) -> [w .&. 0xfc000000]
+  (RBcond, [w]) -> [w .&. complement 0x00ffffe0]
+  (RCbz, [w]) -> [w .&. complement 0x00ffffe0]
+  (RTbz, [w]) -> [w .&. complement 0x0007ffe0]
+  _ -> ws
+
+-- | An abort stub at @code@: loads the message into x0 and calls barf (or
+-- traps when there is no barf), then traps. 16 bytes.
+stubCode :: Word64 -> Word64 -> Maybe Word64 -> Either String [Word32]
+stubCode code msg barf = do
+  w1 <- adrpInsn 0 code msg
+  w3 <- maybe (Right brkInsn) (blInsn (code + 8)) barf
+  pure [w1, addInsn 0 0 msg, w3, brkInsn]
+
+-- | A branch island at @a@ for @target@: adrp x16; add x16; br x16. x16 is
+-- the register the ABI reserves for exactly this.
+islandCode :: Word64 -> Word64 -> Either String [Word32]
+islandCode a t = do
+  w1 <- adrpInsn 16 a t
+  pure [w1, addInsn 16 16 t, 0xd61f0200]
+
+islandSize :: Word64
+islandSize = 12
+
+-- | A b or bl reaches this far either way.
+branchRange :: Word64
+branchRange = 128 * 1024 * 1024
+
+needsIslands :: Bool
+needsIslands = True

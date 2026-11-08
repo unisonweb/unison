@@ -13,15 +13,19 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 import Data.Word
 import Minify.Analysis
+import Data.Maybe (isJust)
+import Minify.Format (Loaded (..), Role (..), Section (..))
 import Minify.Layout
-import Minify.MachO
 
 -- | Problems found, as messages; empty when the output checks out.
 verify :: Analysis -> Plan -> B.ByteString -> IO [String]
 verify an pl out = case loadImage out of
   Left e -> pure ["the output does not load: " ++ e]
   Right im2 -> do
-    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt] Nothing True True False []) im2
+    let im0 = anImage an
+        planned = [(plNewStart pl VU.! i + fromIntegral (dHead d), dHead d > 0) | i <- [0 .. V.length (imDefs im0) - 1], let d = imDefs im0 V.! i, anKept an VU.! i, anRep an VU.! i == i, dKind d == Haskell, isCode (imSections im0 V.! dSect d)]
+        plannedData = [plNewStart pl VU.! i | i <- [0 .. V.length (imDefs im0) - 1], let d = imDefs im0 V.! i, anKept an VU.! i, anRep an VU.! i == i, dKind d == Haskell, secRole (imSections im0 V.! dSect d) == Data]
+    an2 <- analyze (Options [] True True True True True [RPointer, RAdrpAdd, RSrt, RRel32, RAbs32] Nothing True True False [] planned False [] plannedData) im2
     let im = anImage an
         defs = imDefs im
         islandTargets = M.fromList [(a, t) | (t, a) <- M.toList (plIslands pl)]
@@ -39,10 +43,10 @@ verify an pl out = case loadImage out of
         expectedFor i =
           let d = defs V.! i
               delta = plNewStart pl VU.! i - dStart d
-           in S.fromList [(at + delta, k, t') | (at, k, t) <- VU.toList (anRefs an V.! i), Just t' <- [resolve k t]]
+           in S.fromList [(at + delta, k, t') | (at, k, t, _) <- VU.toList (anRefs an V.! i), Just t' <- [resolve k t]]
         actualFor d2 =
           [ (at, k, M.findWithDefault t t islandTargets)
-            | (at, k, t) <- VU.toList (anRefs an2 V.! dIndex d2),
+            | (at, k, t, _) <- VU.toList (anRefs an2 V.! dIndex d2),
               not (inPool at)
           ]
         -- Every reference the output's decoding finds must be one the plan
@@ -82,30 +86,24 @@ verify an pl out = case loadImage out of
         showRef (at, k, t) = show (toEnum (fromIntegral k) :: RefKind) ++ " at " ++ hex at ++ " -> " ++ hex t
         newStarts = S.fromList [plNewStart pl VU.! i | i <- [0 .. V.length defs - 1], anKept an VU.! i]
         extra = [hsDisplay d2 | d2 <- V.toList (imDefs (anImage an2)), dKind d2 == Haskell, not (dLocal d2), not (S.member (dStart d2) newStarts)]
-        -- every pointer slot in a kept definition must still be rebased
-        outSlots = S.fromList (map fst (VU.toList (imRebases (anImage an2))))
-        expectedSlots = [(slot, d) | (slot, _) <- VU.toList (imRebases im), Just d <- [defAt im slot], anKept an VU.! dIndex d, anRep an VU.! dIndex d == dIndex d]
+        -- every pointer slot in a kept definition must still be a slot
+        outSlots = S.fromList (map fst (VU.toList (imSlots (anImage an2))))
+        expectedSlots = [(slot, d) | (slot, _) <- VU.toList (imSlots im), Just d <- [defAt im slot], anKept an VU.! dIndex d, anRep an VU.! dIndex d == dIndex d]
+        -- when the loader listed the input's slots but not the output's (a
+        -- link with --emit-relocs, whose relocation sections are not kept),
+        -- the output's slots are only what closure parsing finds, and the
+        -- comparison means nothing
+        comparable = maybe True (const (isJust (ldSlots (imLoaded (anImage an2))))) (ldSlots (imLoaded im))
         lostRebases =
-          [ "rebase lost for the slot at " ++ hex slot ++ " (now " ++ hex slot' ++ ") in " ++ hsDisplay d
-            | (slot, d) <- expectedSlots,
+          [ "pointer slot lost at " ++ hex slot ++ " (now " ++ hex slot' ++ ") in " ++ hsDisplay d
+            | comparable,
+              (slot, d) <- expectedSlots,
               Just slot' <- [newAddrOf an pl slot],
               not (S.member slot' outSlots)
           ]
         -- every bind slot in a kept definition must be bound at its new place, and nothing else bound
-        bindSlots mo' segs' =
-          case [d | LCDyldInfo d <- moCommands mo'] of
-            d : _ ->
-              let bytes' = moBytes mo'
-                  slice o n = B.take (fromIntegral n) (B.drop (fromIntegral o) bytes')
-               in S.fromList
-                    [ (segVmAddr (segs' !! bdSeg b) + bdOff b, bdSymbol b)
-                      | (o, n) <- [(bindOff d, bindSize d), (lazyBindOff d, lazyBindSize d), (weakBindOff d, weakBindSize d)],
-                        n > 0,
-                        b <- decodeBinds (slice o n)
-                    ]
-            [] -> S.empty
-        expectedBinds = S.fromList [(a', sym) | (a, sym) <- S.toList (bindSlots (imMachO im) (imSegments im)), Just a' <- [newAddrOf an pl a]]
-        actualBinds = bindSlots (imMachO (anImage an2)) (imSegments (anImage an2))
+        expectedBinds = S.fromList [(a', sym) | (a, sym) <- imBinds im, Just a' <- [newAddrOf an pl a]]
+        actualBinds = S.fromList (imBinds (anImage an2))
         bindProblems =
           ["bind of " ++ BC.unpack sym ++ " expected at " ++ hex a | (a, sym) <- S.toList (S.difference expectedBinds actualBinds)]
             ++ ["bind of " ++ BC.unpack sym ++ " at " ++ hex a ++ " was not planned" | (a, sym) <- S.toList (S.difference actualBinds expectedBinds)]

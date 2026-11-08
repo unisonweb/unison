@@ -21,10 +21,19 @@ executable minify
   other-modules:
       Minify.Analysis
       Minify.Arm64
+      Minify.Bytes
+      Minify.Elf
+      Minify.ElfWrite
+      Minify.Format
+      Minify.Hooks
       Minify.Layout
       Minify.MachO
+      Minify.MachOWrite
+      Minify.Ref
+      Minify.Relocate
       Minify.Rewrite
       Minify.Verify
+      Minify.X86
       Minify.ZEncoding
       Paths_minify
   hs-source-dirs:

@@ -5,9 +5,9 @@ module Minify.Layout
     Piece (..),
     Stub (..),
     plan,
-    pageSize,
     newAddrOf,
     newFileOffsetOf,
+    stubCodeSize,
   )
 where
 
@@ -16,31 +16,32 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.List (sortOn)
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
-import qualified Data.Sequence as Seq
 import Data.Ord (Down (..))
+import qualified Data.Sequence as Seq
+import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 import Data.Word
 import Minify.Analysis
-import Minify.MachO
-
-pageSize :: Word64
-pageSize = 16384
+import qualified Minify.Arm64 as Arm64
+import Minify.Elf (Elf (..), Phdr (..), ptLoad, ptPhdr)
+import Minify.Format
+import qualified Minify.X86 as X86
 
 -- | A segment of the output: a run of the original segment's address space
 -- that the file keeps, with its clipped sections.
 data Piece = Piece
   { pcName :: B.ByteString,
+    -- | the segment it was cut from
+    pcSegment :: Segment,
+    -- | not the first piece of its segment
+    pcExtra :: !Bool,
     pcVmStart :: !Word64,
     -- | end of the address range the piece covers
     pcVmEnd :: !Word64,
     -- | end of the file-backed part (the rest is zero fill)
     pcFileEnd :: !Word64,
     pcFileOff :: !Word64,
-    pcMaxProt :: !Word32,
-    pcInitProt :: !Word32,
-    pcFlags :: !Word32,
     pcSections :: [Section]
   }
   deriving (Show)
@@ -51,24 +52,27 @@ data Plan = Plan
     -- | where each placed definition's own bytes go (0 when not placed)
     plPlacedStart :: VU.Vector Word64,
     plPieces :: [Piece],
-    -- | file offset where __LINKEDIT begins
+    -- | file offset where the pieces end: the link-edit data (Mach-O) or the
+    -- section headers and symbol table (ELF) follow
     plLinkeditOff :: !Word64,
     plLinkeditVm :: !Word64,
     -- | bytes the holes save
     plSaved :: !Word64,
     plHoles :: [(Word64, Word64)],
-    -- | the pieces in load-command order (the segment numbering dyld sees)
+    -- | the pieces in load-command order (the segment numbering the loader sees)
     plOrder :: [Piece],
     -- | branch islands: target address to island address
     plIslands :: M.Map Word64 Word64,
-    -- | the patch area in __text (islands, abort stubs, their messages): address and size
+    -- | the patch area in the code section (islands, abort stubs, their messages, ELF program headers): address and size
     plIslandPool :: (Word64, Word64),
-    -- | the patch area in __data (closure stubs): address and size
+    -- | the patch area in data (closure stubs): address and size
     plDataArea :: (Word64, Word64),
     -- | abort stubs for cut definitions still referred to, by definition index
     plStubs :: M.Map Int Stub,
     -- | the empty string constructor names point at when they are dropped (0 when kept)
-    plEmptyString :: !Word64
+    plEmptyString :: !Word64,
+    -- | where an ELF output's program headers go: address and the bytes reserved
+    plPhdrArea :: (Word64, Word64)
   }
 
 -- | A replacement for a cut definition that is still referred to.
@@ -86,16 +90,9 @@ data Stub = Stub
   }
   deriving (Show)
 
--- | A b or bl reaches this far either way.
-branchRange :: Word64
-branchRange = 128 * 1024 * 1024
-
-islandSize :: Word64
-islandSize = 12
-
--- | The segment-index immediates in dyld's opcodes are 4 bits.
-maxSegments :: Int
-maxSegments = 16
+-- | The abort stub's code, on either architecture.
+stubCodeSize :: Word64
+stubCodeSize = 16
 
 alignUp :: Word64 -> Word64 -> Word64
 alignUp a n = (a + n - 1) .&. complement (n - 1)
@@ -108,16 +105,21 @@ alignOf :: Word64 -> Word64
 alignOf a = min 8 (a .&. negate a)
 
 -- | The second argument caps the number of holes (segments added); the
--- third puts the extra __TEXT pieces after the data pieces in the load
--- commands, so that the data segments keep indices the dyld opcodes can
--- express however many holes __TEXT has.
--- | 'packSections' names the sections whose movable definitions are packed
+-- third puts the extra code-segment pieces after the data pieces in the
+-- load commands, so that the data segments keep indices dyld's opcodes can
+-- express however many holes the code segment has (Mach-O only).
+-- 'packRoles' names the sections whose movable definitions are packed
 -- first-fit; the rest keep their order (a debugging knob).
-plan :: Analysis -> Int -> Bool -> [B.ByteString] -> Maybe (Word64, Word64) -> Bool -> Maybe (Word64, Word64) -> Either String Plan
-plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
+plan :: Analysis -> Int -> Bool -> [Role] -> Maybe (Word64, Word64) -> Bool -> Maybe (Word64, Word64) -> Either String Plan
+plan an maxHoles textLast packRoles crossRange keepCopies padAfter = do
   let im = anImage an
       defs = imDefs im
       sects = imSections im
+      pageSize = imPageSize im
+      isMachO = imFormat im == MachOFormat
+      (needsIslands, branchRange, islandSize) = case imArch im of
+        Arm64 -> (Arm64.needsIslands, Arm64.branchRange, Arm64.islandSize)
+        X86_64 -> (X86.needsIslands, X86.branchRange, 0)
       kept i = anKept an VU.! i
       pinned i = anPinned an VU.! i
       ndefs = V.length defs
@@ -132,12 +134,12 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
       placedDef i = kept i && (keepCopies || anRep an VU.! i == i)
       perSection = groupBy' sectionOf [i | i <- [0 .. ndefs - 1], placedDef i]
       lookAhead = 4000 :: Int
-      -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
       -- debugging: a definition may be placed before an anchor it originally
       -- followed only when its address is in the range (none: never)
       mayCross i = case crossRange of
         Nothing -> False
         Just (lo, hi) -> let a = dStart (defs V.! i) in a >= lo && a < hi
+      -- fills [cursor, limit) from the queue; returns placements and the rest of the queue
       fill :: Bool -> Word64 -> Word64 -> Word64 -> Seq.Seq Int -> ([(Int, Word64)], Seq.Seq Int)
       fill pack cursor limit anchorAt queue = case Seq.viewl queue of
         Seq.EmptyL -> ([], queue)
@@ -160,7 +162,7 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
       placeSection :: [Int] -> Either String [(Int, Word64)]
       placeSection is =
         let sect = sects V.! sectionOf (headOr is)
-            pack = secName sect `elem` packSections
+            pack = secRole sect `elem` packRoles
             anchors = [i | i <- is, isAnchor i]
             queue0 = Seq.fromList [i | i <- is, not (isAnchor i)]
             go cursor [] q =
@@ -192,11 +194,12 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
       -- branches that no longer reach their target
       far =
         [ (at', t')
-          | (i, a) <- placed,
+          | needsIslands,
+            (i, a) <- placed,
             let d = defs V.! i,
             dKind d == Haskell,
             anRep an VU.! i == i,
-            (at, k, t) <- VU.toList (anRefs an V.! i),
+            (at, k, t, _) <- VU.toList (anRefs an V.! i),
             k == fromIntegral (fromEnum RB) || k == fromIntegral (fromEnum RBl),
             let at' = at - dStart d + a,
             Just t' <- [newAddr t],
@@ -208,9 +211,9 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
         let segEnd = segVmAddr seg + segFileSize seg
             inSeg a = a >= segVmAddr seg && a < segEnd
             fromDefs = [(a, a + (dEnd d - dStart d)) | (i, a) <- placed, let d = defs V.! i, inSeg a]
-            fromSects = [(secAddr s, secAddr s + secSize s) | s <- segSections seg, not (isCompactedSection s), secFlags s .&. 0xff /= 1]
-            -- compacted sections' fixed leads are definitions already; the header area is live
-            header = [(segVmAddr seg, secAddr (head (segSections seg))) | segName seg == "__TEXT", not (null (segSections seg))]
+            fromSects = [(secAddr s, secAddr s + secSize s) | s <- segSections seg, not (isCompactedSection s), not (secNoBits s)]
+            -- compacted sections' fixed leads are definitions already; the file header area is live
+            header = [(segVmAddr seg, minimum (map secAddr (segSections seg))) | segFileOff seg == 0, not (null (segSections seg))]
             extras = [(a, a + n) | (a, n) <- extra, inSeg a]
          in mergeRanges (sortOn fst (header ++ fromSects ++ fromDefs ++ extras))
       farTargets = S.toList (S.fromList (map snd far))
@@ -224,24 +227,32 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
             let tableSz = if isCode (sects V.! dSect d) then max 16 (dHead d) else 24,
             let msg = BC.pack ("minify: " ++ hsDisplay d ++ " was removed") <> B.singleton 0
         ]
-      stubCodeSize = 16
       stubsSize = sum [fromIntegral (alignUp (fromIntegral tsz) 8) + stubCodeSize | (_, tsz, _) <- stubbed]
       msgsSize = alignUp (sum [fromIntegral (B.length m) | (_, _, m) <- stubbed]) 16
       emptySize = if anKeepConDesc an then 0 else 16
-      poolSize = islandsSize + stubsSize + msgsSize + emptySize
+      -- an ELF output's program headers move into the patch area too, since
+      -- the holes add program headers and the original table has no room
+      phdrSize = case imRaw im of
+        RawElfImage e -> alignUp (56 * fromIntegral (length (elfPhdrs e) + maxHoles + 4)) 16
+        _ -> 0
+      poolSize = islandsSize + stubsSize + msgsSize + emptySize + phdrSize
       dataStubs = [i | (i, _, _) <- stubbed, not (isCode (sects V.! dSect (defs V.! i)))]
-      dataAreaSize = 16 * fromIntegral (length dataStubs)
+      -- a position-independent ELF keeps a scratch word for the relative
+      -- relocations whose slots were removed (the loader applies the first
+      -- DT_RELACOUNT entries blindly, so they cannot become no-ops)
+      scratch = if imFormat im == ElfFormat && imPie im then 16 else 0
+      dataAreaSize = 16 * fromIntegral (length dataStubs) + scratch
       midText = secAddr textSect + secSize textSect `div` 2
       textSect = case [s | s <- V.toList sects, isCode s] of
         s : _ -> s
-        [] -> error "no __text"
+        [] -> error "no code section"
   -- The patch area goes in the gap of the placed layout nearest the middle
-  -- of __text, which every branch in the section reaches.
+  -- of the code section, which every branch in the section reaches.
   pool <-
     if poolSize == 0
       then Right (0, 0)
       else
-        let gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segName sg == "__TEXT"]
+        let gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segRole sg == SegText]
             fits (g0, g1) =
               let a = alignUp g0 16
                in a + poolSize <= g1 && a >= secAddr textSect && a + poolSize <= secAddr textSect + secSize textSect
@@ -249,21 +260,21 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
             reaches a = all (\(src, _) -> distance a src < branchRange - poolSize) far
          in case filter reaches candidates of
               a : _ -> Right (a, poolSize)
-              [] -> Left ("no gap of " ++ show poolSize ++ " bytes in __text for the islands and stubs")
+              [] -> Left ("no gap of " ++ show poolSize ++ " bytes in the code section for the islands and stubs")
   dataArea <-
     if dataAreaSize == 0
       then Right (0, 0)
       else
-        let dataSect = [sc | sc <- V.toList sects, secSegName sc == "__DATA", secName sc == "__data"]
-            gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segName sg == "__DATA"]
+        let dataSect = [sc | sc <- V.toList sects, secRole sc == Data]
+            gaps = concat [deadGaps (liveRangesWith [] sg) (segVmAddr sg + segFileSize sg) | sg <- segs, segRole sg == SegData]
             fits sc (g0, g1) = let a = alignUp g0 16 in a + dataAreaSize <= g1 && a >= secAddr sc && a + dataAreaSize <= secAddr sc + secSize sc
          in case [alignUp g0 16 | sc <- dataSect, g@(g0, _) <- gaps, fits sc g] of
               a : _ -> Right (a, dataAreaSize)
-              [] -> Left ("no gap of " ++ show dataAreaSize ++ " bytes in __data for the closure stubs")
+              [] -> Left ("no gap of " ++ show dataAreaSize ++ " bytes in the data section for the closure stubs")
   let islands = M.fromList (zip farTargets [fst pool, fst pool + islandSize ..])
       stubsStart = fst pool + islandsSize
       msgsStart = stubsStart + stubsSize
-      stubList = go stubsStart msgsStart (fst dataArea) stubbed
+      stubList = go stubsStart msgsStart (fst dataArea + scratch) stubbed
         where
           go _ _ _ [] = []
           go c m dc ((i, tsz, msg) : rest) =
@@ -275,6 +286,7 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
       stubs = M.fromList stubList
       poolLive = [pool | snd pool > 0] ++ [dataArea | snd dataArea > 0]
       emptyString = if emptySize == 0 then 0 else msgsStart + msgsSize
+      phdrArea = if phdrSize == 0 then (0, 0) else (msgsStart + msgsSize + emptySize, phdrSize)
       liveRanges = liveRangesWith poolLive
       -- dead gaps rounded inward to whole pages
       holesOf seg =
@@ -284,61 +296,65 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
             let e = alignDown g1 pageSize,
             e > s
         ]
-      candidates = [(seg, h) | seg <- segs, segFileSize seg > 0, segName seg /= "__LINKEDIT", h <- holesOf seg]
+      candidates = [(seg, h) | seg <- segs, segFileSize seg > 0, segRole seg /= SegLinkedit, h <- holesOf seg]
+      -- the segment-index immediates in dyld's opcodes are 4 bits; the Linux
+      -- kernel loads the program header table into one page (4 KB on x86-64
+      -- and most arm64 kernels), so an ELF may have 73 program headers in all
+      maxSegments = case imRaw im of
+        RawMachOImage _ _ -> 16
+        RawElfImage e -> 4096 `div` 56 - 1 - length [p | p <- elfPhdrs e, phType p /= ptLoad, phType p /= ptPhdr]
       budget = min maxHoles (maxSegments - length segs)
-      -- with the text pieces ordered last, only data holes count against the opcode limit
-      dataBudget = min maxHoles (maxSegments - length segs)
       byLargest = sortOn (\(_, (s, e)) -> Down (e - s)) candidates
       chosen
-        | textLast = take dataBudget [c | c@(sg, _) <- byLargest, segName sg /= "__TEXT"] ++ take maxHoles [c | c@(sg, _) <- byLargest, segName sg == "__TEXT"]
+        | isMachO && textLast = take budget [c | c@(sg, _) <- byLargest, segRole sg /= SegText] ++ take maxHoles [c | c@(sg, _) <- byLargest, segRole sg == SegText]
         | otherwise = take budget byLargest
       holesFor seg = sortOn fst [h | (sg, h) <- chosen, segName sg == segName seg]
-      -- pieces, with file offsets assigned in order
+      -- pieces, with file offsets assigned in order; a piece's offset is
+      -- congruent to its address modulo the page size, as the loaders require
       mkPieces [] _ = []
       mkPieces (seg : rest) cursor
-        | segName seg == "__LINKEDIT" || segFileSize seg == 0 && segName seg == "__PAGEZERO" = mkPieces rest cursor
+        | segRole seg == SegLinkedit || segRole seg == SegPageZero || segFileSize seg == 0 && null (segSections seg) = mkPieces rest cursor
         | otherwise =
             let bounds = splitAt' (segVmAddr seg) (segVmAddr seg + segVmSize seg) (holesFor seg)
                 fileBackedEnd = segVmAddr seg + segFileSize seg
                 go _ [] = []
                 go c ((s, e) : more) =
                   let fe = min e fileBackedEnd
-                      -- dyld allows one segment named __TEXT (the one at file offset 0)
                       k = length (takeWhile ((/= s) . fst) bounds)
+                      off = if c == 0 && s == segVmAddr seg && segFileOff seg == 0 then 0 else alignUp c pageSize + (s .&. (pageSize - 1))
                       p =
                         Piece
-                          { pcName = if k == 0 then segName seg else segName seg <> "_" <> BC.pack (show k),
+                          { -- dyld allows one segment named __TEXT (the one at file offset 0)
+                            pcName = if k == 0 then segName seg else segName seg <> "_" <> BC.pack (show k),
+                            pcSegment = seg,
+                            pcExtra = k > 0,
                             pcVmStart = s,
                             pcVmEnd = e,
                             pcFileEnd = fe,
-                            pcFileOff = c,
-                            pcMaxProt = segMaxProt seg,
-                            pcInitProt = segInitProt seg,
-                            pcFlags = segFlags seg,
-                            pcSections = [clip s e c sec | sec <- segSections seg, secAddr sec < e, secAddr sec + secSize sec > s || (secSize sec == 0 && secAddr sec >= s)]
+                            pcFileOff = off,
+                            pcSections = [clip s e off sec | sec <- segSections seg, secAddr sec < e, secAddr sec + secSize sec > s || (secSize sec == 0 && secAddr sec >= s)]
                           }
-                   in p : go (alignUp (c + (fe - s)) pageSize) more
+                   in p : go (off + (fe - s)) more
                 ps = go cursor bounds
                 next = case ps of
                   [] -> cursor
-                  _ -> let l = last ps in alignUp (pcFileOff l + (pcFileEnd l - pcVmStart l)) pageSize
+                  _ -> let l = last ps in pcFileOff l + (pcFileEnd l - pcVmStart l)
              in ps ++ mkPieces rest next
-      clip s e c sec =
+      clip s e off sec =
         let a = max s (secAddr sec)
             b = min e (secAddr sec + secSize sec)
-            zerofill = secFlags sec .&. 0xff == 1
-         in sec {secAddr = a, secSize = b - a, secOffset = if zerofill then 0 else fromIntegral (c + (a - s))}
+         in sec {secAddr = a, secSize = b - a, secOffset = if secNoBits sec then 0 else off + (a - s)}
       splitAt' s e [] = [(s, e)]
       splitAt' s e ((hs, he) : more) = (s, hs) : splitAt' he e more
       pieces = mkPieces segs 0
       order
-        | textLast = [p | p <- pieces, not (isExtraText p)] ++ [p | p <- pieces, isExtraText p]
+        | isMachO && textLast = [p | p <- pieces, not (isExtraText p)] ++ [p | p <- pieces, isExtraText p]
         | otherwise = pieces
-      isExtraText p = "__TEXT_" `B.isPrefixOf` pcName p
+      isExtraText p = pcExtra p && segRole (pcSegment p) == SegText
       linkeditOff = case pieces of
         [] -> 0
         _ -> let l = last pieces in alignUp (pcFileOff l + (pcFileEnd l - pcVmStart l)) pageSize
-      linkeditVm = head ([segVmAddr s | s <- segs, segName s == "__LINKEDIT"] ++ [0])
+      linkeditVm = head ([segVmAddr s | s <- segs, segRole s == SegLinkedit] ++ [0])
   pure
     Plan
       { plNewStart = newStart,
@@ -353,7 +369,8 @@ plan an maxHoles textLast packSections crossRange keepCopies padAfter = do
         plIslandPool = pool,
         plDataArea = dataArea,
         plStubs = stubs,
-        plEmptyString = emptyString
+        plEmptyString = emptyString,
+        plPhdrArea = phdrArea
       }
 
 mergeRanges :: [(Word64, Word64)] -> [(Word64, Word64)]

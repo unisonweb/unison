@@ -66,13 +66,13 @@ data HsName = HsName
 kinds :: [BC.ByteString]
 kinds = ["_con_info", "_static_info", "_info", "_closure", "_entry", "_bytes", "_srt", "_slow", "_fast", "_str", "_ret"]
 
--- | Splits a linked symbol name (with its leading underscore). A module
--- component starts with an uppercase letter; a binding and a module never
--- contain an underscore, since z-encoding escapes it, so the components are
--- unambiguous.
+-- | Splits a linked symbol name (with its leading underscore on Darwin,
+-- without on ELF). A module component starts with an uppercase letter; a
+-- binding and a module never contain an underscore, since z-encoding
+-- escapes it, so the components are unambiguous.
 parseHsName :: BC.ByteString -> Maybe HsName
 parseHsName sym0 = do
-  sym <- BC.stripPrefix "_" sym0
+  let sym = maybe sym0 id (BC.stripPrefix "_" sym0)
   (stem, kind) <- firstJust [(,k) <$> BC.stripSuffix k sym | k <- kinds]
   case BC.split '_' stem of
     [m, b] | m `elem` ["ZCMain", "Main"] -> Just (HsName BC.empty m b kind)
