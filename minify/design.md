@@ -1,0 +1,159 @@
+# minify: removing unreachable definitions from a linked GHC executable
+
+`minify` takes an executable that GHC linked and writes a smaller one that
+behaves the same. It removes every definition that nothing reachable from
+`main` or from the runtime system refers to, and compacts what remains so
+the file shrinks by what was removed. A second mode removes named
+definitions first, by prefix, so that whole modules or packages can be cut
+out of a binary even when they are reachable; a cut definition that is still
+referred to becomes an abort that names it.
+
+The input is the only source of information: there are no object files, no
+link map and no relocations. The symbol table has to be present, since it is
+what makes "a definition" a thing in the file at all.
+
+## What GHC leaves in the file
+
+GHC compiles every top-level binding to a handful of symbols: `f_info` (an
+info table followed by the entry code, in `__text`), `f_closure` (a static
+closure in `__data`), and for data constructors `C_con_info`, plus string
+literals as `f1_bytes` in `__cstring`. The names are z-encoded
+`package_Module_name_kind`. Every one of them is an external symbol in the
+linked file, so the file carries a complete, sorted map from address to
+definition. Local closures (`sat_s1Xy_info`) have no symbol of their own;
+their info table and code sit inside the region of the external symbol that
+precedes them. A region bounded by two consecutive symbols is therefore the
+unit this tool works with: a *definition* is the bytes from one external
+symbol to the next, less the info table that belongs to the next.
+
+The info table sits before the code its label points at (tables next to
+code). Its size follows from the closure type in the table: 16 bytes for
+thunks and return points, 24 for constructors (a `con_desc` offset first)
+and for functions whose argument pattern is one of the standard ones, 40 for
+functions with a general argument pattern (`slow_apply` and bitmap offsets
+first). The table holds relative offsets rather than pointers: the SRT
+offset in the last 4 bytes, `con_desc`, `slow_apply_offset`, and large
+bitmap offsets. Each is measured from the info label, so moving a definition
+relative to its target means rewriting them.
+
+References from code use a small, closed set of forms on AArch64. GHC's
+native code generator emits `adrp` followed immediately by `add` for the
+address of a label, `adrp` followed by `ldr` for a GOT entry, `b` for tail
+calls and jumps, `bl` for foreign calls, and `b.cond`, `cbz`, `cbnz` within
+a function. It emits no jump tables (switches are compare-and-branch
+chains), no literal pools and no `adr`. Static closures in `__data` refer to
+other definitions through absolute pointers, every one of which has a dyld
+rebase entry, so the rebase stream is an exact list of the pointer slots in
+data. These are the only references that have to be found and rewritten,
+and the tool fails rather than guess when it meets an instruction outside
+the set in code it intends to move.
+
+Code the C compiler produced has none of these guarantees (its `adrp` may be
+scheduled away from its `add` and shared, and its switch tables are relative
+offsets in `__const`). It is interleaved with the Haskell code: the runtime
+system, the C parts of libraries such as sqlite and crypton, GHC's foreign
+call wrappers, about seventy stretches in all. The tool never moves it.
+
+## The approach
+
+Nothing C made moves, and no address it refers to changes. Haskell
+definitions are compacted into the gaps between the fixed stretches, each
+definition landing at or below its old address, and every reference inside
+moved code and data is rewritten. Where compaction leaves a gap of whole
+pages before a fixed stretch, the file omits those pages: the segment is
+split there into two segments whose virtual addresses are unchanged, so
+fixed code keeps its addresses while the file loses the pages between. The
+dyld opcode formats address at most 16 segments, so the tool drops the
+largest gaps that fit in that budget and keeps the bytes of the rest.
+
+Classification is by name: a symbol of the form `package_Module_name_kind`
+with a z-encoded module (an uppercase initial) and one of GHC's kind
+suffixes is a Haskell definition; everything else is fixed. The `stg_*`
+procedures of the runtime are written in Cmm and compiled by the same code
+generator, but they are classified fixed with the rest of the runtime,
+which costs nothing.
+
+### Finding the references
+
+The code of a movable definition is decoded by recursive descent from its
+labels, not by a linear sweep: info tables and padding lie between the basic
+blocks, and a linear sweep would read them as instructions. A label is the
+definition's own symbol, any address inside the definition that an
+`adrp`/`add` pair or a branch anywhere in the file points at, and any
+address a rebase pointer holds (a static closure's info pointer names the
+code of a local closure). Decoding runs from each label to the first
+unconditional transfer (`b`, `br`, `ret`), adding branch targets inside the
+definition as new labels. The set of labels grows as other definitions are
+decoded, so the whole thing is a fixpoint over a worklist. Code never
+reached this way is dead local code and travels with its definition
+untouched. Each info table found before a label is parsed for its relative
+fields.
+
+Fixed code is swept linearly for `adrp`, `adr`, `b`, `bl` and literal loads
+whose target falls in a movable definition. Pairing is not attempted; the
+target's page is pinned instead, and every definition overlapping a pinned
+page keeps its address. Fixed data pins what its rebase pointers point at.
+This is how the runtime's references to `ZCMain_main_closure`, the
+exception closures and the rest become roots and stay where C expects them.
+
+### Reachability
+
+Roots are all fixed definitions and all pinned ones. Edges run from a
+definition to each definition one of its references lands in: decoded
+instructions, info table offsets, rebase pointers within its range. A
+reference landing anywhere inside a definition keeps the whole definition,
+so a live local closure keeps its host. Marking is a plain traversal.
+
+In prefix mode, definitions whose decoded name (`Module.name`, or
+`package:Module.name`) starts with a given prefix are cut before marking.
+Nothing is marked through a cut definition. A cut definition that a kept one
+still refers to is replaced: an `_info` by a copy of its info table (SRT
+cleared) whose code calls `barf` with a message naming the definition, and
+a `_closure` by a static function closure whose entry does the same.
+Entering either aborts the program with that message. Inspecting such a
+value without entering it, as code does with a static constructor, is
+undefined; the report lists every replacement so this can be seen. Cut
+literals that are still referred to are kept.
+
+### Layout and rewriting
+
+Within each compacted section (`__text`, `__cstring`, `__const` in `__TEXT`,
+and `__data`), kept definitions are placed in their original order: a fixed
+or pinned definition at its old address, a movable one at the current
+cursor, aligned as its old address was (to at most 8). Sizes include
+trailing padding, so a definition never lands above its old address.
+
+Every reference is then re-encoded for the new addresses of both ends:
+`adrp` gets the new page difference and its `add` or `ldr` the new low 12
+bits; `b` and `bl` get the new displacement (an out-of-range branch is an
+error, since the file has no branch islands to spare); the conditional
+branches, which stay within a definition, are re-encoded the same way; info
+table offsets become the new target minus the new label; rebase slots get
+the new value, tag bits preserved, wherever the slot is, moved or fixed.
+
+The link-edit data is rebuilt: the symbol table keeps the surviving symbols
+at their new addresses with the indirect symbol table renumbered, the
+export trie is regenerated, the rebase stream is regenerated from the
+surviving slots, binds are re-emitted against the new segment numbering
+with lazy binds converted to ordinary ones (the lazy stream's byte offsets
+are baked into `__stub_helper`, so it cannot be re-encoded in place), and
+function starts are regenerated. The code signature is dropped and the
+output is re-signed ad hoc with `codesign`.
+
+### Checking the result
+
+With `--verify`, the tool analyzes the file it wrote the same way it
+analyzed the input and compares: each surviving definition must have the
+same references, each landing at the same offset in the same (named)
+definition, and the same non-relocated instruction words. This catches a
+mis-rewritten reference without running the program. Running the program
+is the other half: the Unison transcript suite against the minified
+`unison`.
+
+## What it does not do
+
+Only AArch64 Mach-O is implemented. The instruction decoding is the one
+architecture-specific part and sits behind its own module; x86_64 would add
+RIP-relative forms and GHC's jump tables there. Linux ELF would replace the
+Mach-O reading and writing. Stripped binaries cannot be processed. C code is
+never removed, even when unreferenced.

@@ -1,0 +1,49 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.39.6.
+--
+-- see: https://github.com/sol/hpack
+
+name:           minify
+version:        0.1.0
+synopsis:       Removes unreachable definitions from a linked GHC executable
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2026 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+executable minify
+  main-is: Main.hs
+  other-modules:
+      Minify.Analysis
+      Minify.Arm64
+      Minify.Layout
+      Minify.MachO
+      Minify.Rewrite
+      Minify.ZEncoding
+      Paths_minify
+  hs-source-dirs:
+      app
+      src
+  default-extensions:
+      BangPatterns
+      LambdaCase
+      MultiWayIf
+      OverloadedStrings
+      RecordWildCards
+      ScopedTypeVariables
+      TupleSections
+  ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A64m"
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , optparse-applicative
+    , process
+    , vector
+    , vector-algorithms
+  default-language: Haskell2010
