@@ -83,7 +83,10 @@ allow-newer-deps:
 
 ghc-options:
   # All packages
-  "$locals": -Wall -Werror -Wwarn=x-partial -Wno-missing-pattern-synonym-signatures -Wno-name-shadowing -Wunused-packages -fprint-expanded-synonyms -funbox-strict-fields -fwrite-ide-info # -freverse-errors
+  #
+  # -Wno-inconsistent-flags: on x86-64 macOS GHC warns that -split-sections
+  # (below) is not useful there, which -Werror would make an error.
+  "$locals": -Wall -Werror -Wno-inconsistent-flags -Wwarn=x-partial -Wno-missing-pattern-synonym-signatures -Wno-name-shadowing -Wunused-packages -fprint-expanded-synonyms -funbox-strict-fields -fwrite-ide-info # -freverse-errors
 
   # See https://github.com/haskell/haskell-language-server/issues/208
   #
