@@ -21,7 +21,6 @@ import Data.Maybe (mapMaybe)
 import Data.Word (Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
-import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Optimize as ANF
@@ -29,6 +28,7 @@ import Unison.Runtime.ANF.POp as ANF
 import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
+import Unison.Runtime.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Referenced

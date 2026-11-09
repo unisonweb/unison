@@ -16,12 +16,12 @@ import Hedgehog.Range qualified as Range
 import Unison.Prelude
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
-import Unison.Runtime.Interface
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode (Args (..), Arm (..), BaseFrame (..), Branch, Comb, CombIx (..), Deopt (..), FieldRef (..), FrameLayout (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, Slot (..), mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.Standalone (StoredCache (..), getStoredCache, putStoredCache)
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
 import Unison.Util.BiMap (BiMap)

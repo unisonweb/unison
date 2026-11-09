@@ -30,11 +30,11 @@ import Data.Set (insert)
 import Data.Set qualified as Set
 import Data.Text qualified
 import Unison.ABT.Normalized hiding (TTm)
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Optimize as ANF
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.Stack (UnboxedTypeTag (..), Val (..), unboxedTypeTagToInt)
@@ -646,8 +646,8 @@ ref'write =
 -- IORef, which can be used to retry a failed CAS.
 -- This strategy is more efficient than returning a Boolean only
 -- because it uses a single call to cmpxchg in assembly (see [1]) to
--- avoid an extra read per CAS iteration, however it's not supported
--- in Scheme.
+-- avoid an extra read per CAS iteration, however it is not what most
+-- platforms offer.
 -- Therefore, we adopt the more common signature that only returns a
 -- Boolean, which doesn't even suffer from spurious failures because
 -- GHC issues loads of mutable variables with memory_order_acquire

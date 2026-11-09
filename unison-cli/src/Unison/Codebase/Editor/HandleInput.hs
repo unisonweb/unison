@@ -55,6 +55,7 @@ import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.Bundle (handleBundle)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
 import Unison.Codebase.Editor.HandleInput.Config (handleConfigGet, handleConfigSet)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
@@ -573,6 +574,7 @@ loop e = do
         ListDependentsI hq -> handleDependents hq
         LoadI maybePath -> handleLoad maybePath
         MakeStandaloneI output main -> doCompile False output main
+        BundleI output main -> handleBundle (doCompile False) output main
         MergeBuiltinsI opath -> do
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be
@@ -884,6 +886,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     LoadI {} -> wat
     MakeStandaloneI {} -> wat
+    BundleI {} -> wat
     MergeCommitI {} -> wat
     MergeI {} -> wat
     NamesI {} -> wat

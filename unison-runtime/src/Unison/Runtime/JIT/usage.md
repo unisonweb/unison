@@ -12,6 +12,8 @@ unison --jit on
 
 or, equivalently, `UNISON_JIT=on unison`. The flag overrides the variable. The setting applies to everything that `unison` process evaluates: `run`, transcripts, evaluation from the editor, and compiled programs (`run.compiled`, since 2026-10-18; the program is compiled by the process that runs it, not by `compile`, so the setting is the running process's).
 
+`unisonrt`, which runs a compiled program without a codebase, takes the same flag before the file: `unisonrt --jit on prog.uc` ([unisonrt/README.md](../../../../unisonrt/README.md)).
+
 | Mode | What it does |
 | --- | --- |
 | `off` | The default. Nothing is compiled and LLVM is not loaded. |

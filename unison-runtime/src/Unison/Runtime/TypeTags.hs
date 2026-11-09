@@ -60,8 +60,8 @@ import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
 import U.Codebase.Reference (Reference)
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Runtime.Builtin.Types (anyTypeNumber, booleanTypeNumber, builtinTypeNumbering)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Type qualified as Ty

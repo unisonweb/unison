@@ -57,8 +57,6 @@ import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
-import Unison.Builtin.Decls (exceptionRef)
-import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
@@ -81,6 +79,8 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.Builtin.Decls (exceptionRef)
+import Unison.Runtime.Builtin.Decls qualified as Rf
 import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
@@ -124,7 +124,6 @@ import Unison.Type qualified as Rf
 import Unison.Util.BiMap qualified as BM
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
@@ -780,7 +779,7 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
               PE _stk _issues msg ->
-                (Rf.runtimeFailureRef, Util.Text.fromText $ P.toPlain 0 msg, unitValue)
+                (Rf.runtimeFailureRef, Util.Text.fromText msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -2246,7 +2245,7 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- exceptions for top-level constant dependencies of docs and such, in
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
-isSandboxingException (PE _ _ (P.toPlain 0 -> msg)) =
+isSandboxingException (PE _ _ msg) =
   Text.isPrefixOf sdbx1 msg || Text.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"

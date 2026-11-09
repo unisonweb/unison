@@ -3,6 +3,7 @@
 module Unison.PrintError
   ( Env,
     defaultWidth,
+    ordinal,
     prettyParseError,
     prettyResolutionFailures,
     prettyVar,
@@ -81,7 +82,6 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
-import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -2596,3 +2596,22 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
+
+-- | Return the ordinal representation of a number in English.
+--   A number ending with '1' must finish with 'st'
+--   A number ending with '2' must finish with 'nd'
+--   A number ending with '3' must finish with 'rd'
+--   _except_ for 11, 12, and 13 which must finish with 'th'
+ordinal :: (IsString s) => Int -> s
+ordinal n = do
+  let s = show n
+  fromString $
+    s ++ case drop (length s - 2) s of
+      ['1', '1'] -> "th"
+      ['1', '2'] -> "th"
+      ['1', '3'] -> "th"
+      _ -> case last s of
+        '1' -> "st"
+        '2' -> "nd"
+        '3' -> "rd"
+        _ -> "th"
