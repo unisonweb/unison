@@ -4,7 +4,10 @@ synopsis: Removes unreachable definitions from a linked GHC executable
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2026 Unison Computing, PBC and contributors
 
-ghc-options: -Wall -O2
+# On Windows the directory of the Minify modules and the package's own
+# (minify) differ only in case, which clang's preprocessor would refuse, as
+# for unison-cli-main
+ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path
 
 library:
   source-dirs: src

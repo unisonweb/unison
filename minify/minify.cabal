@@ -46,7 +46,7 @@ library
       RecordWildCards
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -O2
+  ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path
   build-depends:
       base
     , bytestring
@@ -69,7 +69,7 @@ executable minify
       RecordWildCards
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A64m"
+  ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path -rtsopts "-with-rtsopts=-A64m"
   build-depends:
       base
     , bytestring
