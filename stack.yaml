@@ -90,6 +90,12 @@ ghc-options:
   # -fno-omit-yields allows non-allocating loops to be preempted by the
   # GHC scheduler. Building all dependencies with it results in fewer
   # opportunities for uninterruptible loops.
-  "$everything": -haddock -fno-omit-yields
+  #
+  # -split-sections puts each definition in a section of its own, so that
+  # the linker, which GHC runs with --gc-sections on Linux and Windows, drops
+  # the ones nothing uses instead of keeping whole modules. On macOS it
+  # changes nothing: the linker strips dead code by symbol there anyway.
+  # (GHC's own libraries, such as base, come prebuilt without it.)
+  "$everything": -haddock -fno-omit-yields -split-sections
 
   statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173

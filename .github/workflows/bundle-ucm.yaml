@@ -75,10 +75,14 @@ jobs:
                 --local-bin-path ucm-bin \
                 --copy-bins
 
-          # minify doesn't read Windows executables: there, unisonrt ships whole
-          # minify needs unisonrt's symbol table, which Stack strips when it
-          # copies an executable on Linux: the build directory's is whole
-          if [[ ${{runner.os}} != 'Windows' ]]; then
+          # minify doesn't read Windows executables and isn't ready for Linux
+          # x86-64: there, unisonrt ships whole (with split sections). It
+          # needs unisonrt's symbol table, which Stack strips when it copies
+          # an executable on Linux: the build directory's is whole.
+          minified=yes
+          [[ ${{runner.os}} = 'Windows' ]] && minified=no
+          [[ ${{runner.os}} = 'Linux' && ${{runner.arch}} = 'X64' ]] && minified=no
+          if [[ $minified = yes ]]; then
             whole="unison-runtime/$(cd unison-runtime && stack path --dist-dir)/build/unisonrt/unisonrt"
             ucm-bin/minify "$whole" -o ucm-bin/unisonrt-min --strip --verify
             mv ucm-bin/unisonrt-min ucm-bin/unisonrt

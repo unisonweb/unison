@@ -372,16 +372,21 @@ jobs:
           grep -q ': compiling ' "$RUNNER_TEMP/jit.log" || { echo "::error::nothing was compiled"; exit 1; }
           diff --strip-trailing-cr "$RUNNER_TEMP/jit-tests.md" "$RUNNER_TEMP/jit-tests.output.md"
 
-      - name: bundles and unisonrt, minified, with the JIT off and on
+      - name: bundles and unisonrt, with the JIT off and on
         # scripts/bundle-check.sh: compiles and bundles the programs of
         # unison-src/tests/bundle/programs.md on a copy of the codebase the
-        # JIT's transcript just made, with unisonrt minified as a release
-        # minifies it (Windows ships it whole: minify doesn't read it), runs
-        # them and compares what they print with expected.txt
+        # JIT's transcript just made, runs them and compares what they print
+        # with expected.txt. unisonrt is minified first, as a release minifies
+        # it, except where a release ships it whole (with split sections):
+        # Windows, which minify doesn't read, and Linux x86-64, which minify
+        # isn't ready for.
         run: |
           if [[ ${{runner.os}} = "Windows" ]]; then
             scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
               "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt.exe"
+          elif [[ ${{runner.os}} = "Linux" && ${{runner.arch}} = "X64" ]]; then
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt"
           else
             scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
               "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt" "${{env.ucm_local_bin}}/minify"
