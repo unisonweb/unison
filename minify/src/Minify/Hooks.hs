@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | What an architecture's decoder needs from the analysis and reports back
 -- to it, so that "Minify.Analysis" knows nothing about instructions and the
 -- architecture modules know nothing about definitions. One record is built

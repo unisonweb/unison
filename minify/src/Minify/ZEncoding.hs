@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | GHC's z-encoding of symbol names, and how a linked symbol's name splits
 -- into package, module, binding and kind.
 module Minify.ZEncoding
@@ -11,8 +12,8 @@ module Minify.ZEncoding
   )
 where
 
-import Data.Char (chr, isDigit, isHexDigit, isUpper)
 import qualified Data.ByteString.Char8 as BC
+import Data.Char (chr, isDigit, isHexDigit, isUpper)
 import Numeric (readHex)
 
 -- | Decodes a z-encoded string. Unknown escapes are left as they are.
@@ -48,9 +49,25 @@ zdecode ('z' : c : rest)
       Nothing -> 'z' : zdecode (c : rest)
   where
     table =
-      [ ('z', 'z'), ('a', '&'), ('b', '|'), ('c', '^'), ('d', '$'), ('e', '='), ('g', '>'), ('h', '#'),
-        ('i', '.'), ('l', '<'), ('m', '-'), ('n', '!'), ('p', '+'), ('q', '\''), ('r', '\\'), ('s', '/'),
-        ('t', '*'), ('u', '_'), ('v', '%')
+      [ ('z', 'z'),
+        ('a', '&'),
+        ('b', '|'),
+        ('c', '^'),
+        ('d', '$'),
+        ('e', '='),
+        ('g', '>'),
+        ('h', '#'),
+        ('i', '.'),
+        ('l', '<'),
+        ('m', '-'),
+        ('n', '!'),
+        ('p', '+'),
+        ('q', '\''),
+        ('r', '\\'),
+        ('s', '/'),
+        ('t', '*'),
+        ('u', '_'),
+        ('v', '%')
       ]
 zdecode (c : rest) = c : zdecode rest
 

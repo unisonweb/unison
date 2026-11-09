@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Carving the file into definitions, finding every reference between
 -- them, and deciding which ones are kept. See design.md.
 module Minify.Analysis
@@ -186,21 +187,23 @@ loadImage bytes = do
   let sects = V.fromList (ldSections loaded)
       sectMap =
         VU.fromList
-          ( sortOn (\(a, _, _) -> a)
+          ( sortOn
+              (\(a, _, _) -> a)
               [(secAddr s, secSize s, secOffset s) | s <- V.toList sects, not (secNoBits s), secSize s > 0]
           )
       slots = case ldSlots loaded of
         Nothing -> VU.empty
         Just ss ->
           VU.fromList
-            ( sortOn fst
+            ( sortOn
+                fst
                 [ (a, v)
-                  | a <- S.toList (S.fromList ss),
-                    Just off <- [fileOffsetOf' sectMap a],
-                    let v = u64 bytes (fromIntegral off),
-                    -- a null word is not a reference (this tool's own output
-                    -- points the relocations of removed slots at one scratch word)
-                    v /= 0
+                | a <- S.toList (S.fromList ss),
+                  Just off <- [fileOffsetOf' sectMap a],
+                  let v = u64 bytes (fromIntegral off),
+                  -- a null word is not a reference (this tool's own output
+                  -- points the relocations of removed slots at one scratch word)
+                  v /= 0
                 ]
             )
       headOf a = maybe 0 (tableSize bytes . fromIntegral) (fileOffsetOf' sectMap a)
@@ -268,8 +271,8 @@ carve headOf typeAt byteAt sects syms = V.fromList (zipWith (\i d -> d {dIndex =
     -- split section would make ambiguous
     perSection =
       [ carveSection si s [(syValue sy, syName sy, syClass sy) | sy <- syms, syDefined sy, syClass sy /= SymIgnore, syValue sy >= secAddr s, syValue sy < secAddr s + secSize s]
-        | (si, s) <- zip [0 ..] (V.toList sects),
-          isCompactedSection s
+      | (si, s) <- zip [0 ..] (V.toList sects),
+        isCompactedSection s
       ]
     carveSection si s named =
       let byAddr = M.toAscList (M.fromListWith (++) [(a, [(nm, cls)]) | (a, nm, cls) <- named])
@@ -286,12 +289,12 @@ carve headOf typeAt byteAt sects syms = V.fromList (zipWith (\i d -> d {dIndex =
           -- definition that is Haskell's but has no module of its own
           starts0 =
             [ (a, nm, rest, hs, kind, hd, cls == SymLocalHs)
-              | (a, nms) <- byAddr,
-                let (nm, cls, rest) = pick nms,
-                let hs = if cls == SymExternal then parseHsName nm else Nothing,
-                let kind = if isJust hs || cls == SymLocalHs then Haskell else Fixed,
-                let hd = if isCode s && infoLike nm then headOf a else 0,
-                not (cls == SymLocalHs && isCode s && infoLike nm && (hd == 0 || isReturnTable (typeAt a)))
+            | (a, nms) <- byAddr,
+              let (nm, cls, rest) = pick nms,
+              let hs = if cls == SymExternal then parseHsName nm else Nothing,
+              let kind = if isJust hs || cls == SymLocalHs then Haskell else Fixed,
+              let hd = if isCode s && infoLike nm then headOf a else 0,
+              not (cls == SymLocalHs && isCode s && infoLike nm && (hd == 0 || isReturnTable (typeAt a)))
             ]
           -- The linker merges identical strings and shares suffixes: a
           -- symbol in a string section that is preceded by a byte other than
@@ -573,46 +576,46 @@ analyze opts im0 = do
           _ -> True
       textSplits =
         [ (l - fromIntegral hd, hd)
-          | l <- tls2,
-            Just d <- [defAt im l],
-            dKind d == Haskell,
-            l /= dSym d,
-            inRange l,
-            let ty = typeAt l,
-            ty >= 1 && ty <= 22,
-            Just o <- [fileOffsetOf im l],
-            let hd = tableSize bytes (fromIntegral o),
-            hd > 0,
-            l - fromIntegral hd > dStart d
+        | l <- tls2,
+          Just d <- [defAt im l],
+          dKind d == Haskell,
+          l /= dSym d,
+          inRange l,
+          let ty = typeAt l,
+          ty >= 1 && ty <= 22,
+          Just o <- [fileOffsetOf im l],
+          let hd = tableSize bytes (fromIntegral o),
+          hd > 0,
+          l - fromIntegral hd > dStart d
         ]
       refTargets = VU.toList byAddr
       dataSplits =
         [ (t', 0)
-          | (_, k, t, _) <- refTargets,
-            k `elem` map (fromIntegral . fromEnum) (optDataSplitKinds opts),
-            let t' = t .&. complement 7,
-            inRange t',
-            Just d <- [defAt im t'],
-            dKind d == Haskell,
-            secRole (sectOf d) == Data,
-            t' - dStart d >= 8,
-            isSlot t'
+        | (_, k, t, _) <- refTargets,
+          k `elem` map (fromIntegral . fromEnum) (optDataSplitKinds opts),
+          let t' = t .&. complement 7,
+          inRange t',
+          Just d <- [defAt im t'],
+          dKind d == Haskell,
+          secRole (sectOf d) == Data,
+          t' - dStart d >= 8,
+          isSlot t'
         ]
       strSplits =
         [ (t, 0)
-          | (_, k, t, _) <- refTargets,
-            k == fromIntegral (fromEnum RConDesc),
-            Just d <- [defAt im t],
-            dKind d == Haskell,
-            secRole (sectOf d) == Strings,
-            t > dStart d
+        | (_, k, t, _) <- refTargets,
+          k == fromIntegral (fromEnum RConDesc),
+          Just d <- [defAt im t],
+          dKind d == Haskell,
+          secRole (sectOf d) == Strings,
+          t > dStart d
         ]
       tableSplits =
         [ (t, 0)
-          | t <- jts,
-            Just d <- [defAt im t],
-            not (isCode (sectOf d)),
-            t > dStart d
+        | t <- jts,
+          Just d <- [defAt im t],
+          not (isCode (sectOf d)),
+          t > dStart d
         ]
       splits = M.fromList ((if optSplitText opts then textSplits else []) ++ (if optSplitData opts then dataSplits else []) ++ (if optSplitStrings opts then strSplits else []) ++ tableSplits)
       refined = V.fromList (zipWith (\i d -> d {dIndex = i}) [0 ..] (concatMap (refine splits) (V.toList (imDefs im))))
@@ -732,7 +735,7 @@ refine splits d =
       firstEnd = maybe (dEnd d) fst (listToMaybe points)
       locals =
         [ d {dSym = p + fromIntegral hd, dStart = p, dEnd = e, dHead = hd, dLocal = True, dAliases = []}
-          | ((p, hd), e) <- zip points ends
+        | ((p, hd), e) <- zip points ends
         ]
    in d {dEnd = firstEnd} : locals
 
@@ -936,61 +939,63 @@ parseClosure env c = do
   unless (done || exact) $ do
     modifyIORef' (eClosuresDone env) (S.insert c)
     case defAt (eImage env) c of
-      Just d | dKind d == Haskell, secRole (imSections (eImage env) V.! dSect d) == Data -> do
-        let im = eImage env
-            bytes = eBytes env
-            info = word64At' env c
-            label = info
-            tbl = case fileOffsetOf im label of
-              Just o | inText env label -> tableSize bytes (fromIntegral o)
-              _ -> 0
-            slot s v = do
-              addRef env (dIndex d) s RPointer v 0
-              modifyIORef' (eFoundSlots env) ((s, v) :)
-        if tbl == 0
-          then when (c == dStart d && not (dLocal d)) $ do
-            bump env "data definitions that are not closures"
-            modifyIORef' (eNotes env) (("not a closure: " ++ hsDisplay d ++ " (first word " ++ hex info ++ ")") :)
-          else do
-            slot c info
-            pushLabel env info True
-            let off = fromIntegral (fromMaybe 0 (fileOffsetOf im label)) :: Int
-                ty = u32 bytes (off - 8)
-                ptrs = fromIntegral (u32 bytes (off - 16)) :: Int
-                nptrs = fromIntegral (u32 bytes (off - 12)) :: Int
-                -- where the pointer fields begin and how many there are
-                -- a static thunk keeps its payload behind the thunk header, the
-                -- static link and the saved info (stg_unpack_cstring's
-                -- precomputed closure has an Addr# there that its table does
-                -- not declare), so its first words are all looked at
-                (payload, count, nonPtrs)
-                  | ty >= 1 && ty <= 14 = (c + 8, ptrs, nptrs)
-                  | ty >= 15 && ty <= 22 = (c + 8, 0, ptrs + nptrs + 4)
-                  | ty == 28 = (c + 8, 1, 0) -- IND_STATIC: the indirectee
-                  | ty >= 43 && ty <= 46 = (c + 24, fromIntegral (word64At' env (c + 8)), 0) -- MUT_ARR_PTRS: ptrs, size, payload
-                  | ty >= 55 && ty <= 58 = (c + 16, fromIntegral (word64At' env (c + 8)), 0) -- SMALL_MUT_ARR_PTRS: ptrs, payload
-                  | otherwise = (c + 8, 0, 0)
-            forM_ [0 .. count - 1] $ \k -> do
-              let s = payload + 8 * fromIntegral k
-                  v = word64At' env s
-              when (v /= 0 && isJust (fileOffsetOf im s) && isJust (fileOffsetOf im (v .&. complement 7))) $ do
-                slot s v
-                case defAt im (v .&. complement 7) of
-                  Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) == Data -> pushData env (v .&. complement 7)
-                  _ -> pure ()
-                when (inText env v) (pushLabel env v True)
-            forM_ [count .. count + nonPtrs - 1] $ \k -> do
-              let s = payload + 8 * fromIntegral k
-                  v = word64At' env s
-              case defAt im (v .&. complement 7) of
-                Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) `elem` [Strings, Const] -> do
-                  slot s v
-                  bump env "addresses in non-pointer fields"
-                Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) == Data && ty >= 15 && ty <= 22 -> do
-                  slot s v
-                  pushData env (v .&. complement 7)
-                  bump env "pointers in static thunks"
-                _ -> pure ()
+      Just d
+        | dKind d == Haskell,
+          secRole (imSections (eImage env) V.! dSect d) == Data -> do
+            let im = eImage env
+                bytes = eBytes env
+                info = word64At' env c
+                label = info
+                tbl = case fileOffsetOf im label of
+                  Just o | inText env label -> tableSize bytes (fromIntegral o)
+                  _ -> 0
+                slot s v = do
+                  addRef env (dIndex d) s RPointer v 0
+                  modifyIORef' (eFoundSlots env) ((s, v) :)
+            if tbl == 0
+              then when (c == dStart d && not (dLocal d)) $ do
+                bump env "data definitions that are not closures"
+                modifyIORef' (eNotes env) (("not a closure: " ++ hsDisplay d ++ " (first word " ++ hex info ++ ")") :)
+              else do
+                slot c info
+                pushLabel env info True
+                let off = fromIntegral (fromMaybe 0 (fileOffsetOf im label)) :: Int
+                    ty = u32 bytes (off - 8)
+                    ptrs = fromIntegral (u32 bytes (off - 16)) :: Int
+                    nptrs = fromIntegral (u32 bytes (off - 12)) :: Int
+                    -- where the pointer fields begin and how many there are
+                    -- a static thunk keeps its payload behind the thunk header, the
+                    -- static link and the saved info (stg_unpack_cstring's
+                    -- precomputed closure has an Addr# there that its table does
+                    -- not declare), so its first words are all looked at
+                    (payload, count, nonPtrs)
+                      | ty >= 1 && ty <= 14 = (c + 8, ptrs, nptrs)
+                      | ty >= 15 && ty <= 22 = (c + 8, 0, ptrs + nptrs + 4)
+                      | ty == 28 = (c + 8, 1, 0) -- IND_STATIC: the indirectee
+                      | ty >= 43 && ty <= 46 = (c + 24, fromIntegral (word64At' env (c + 8)), 0) -- MUT_ARR_PTRS: ptrs, size, payload
+                      | ty >= 55 && ty <= 58 = (c + 16, fromIntegral (word64At' env (c + 8)), 0) -- SMALL_MUT_ARR_PTRS: ptrs, payload
+                      | otherwise = (c + 8, 0, 0)
+                forM_ [0 .. count - 1] $ \k -> do
+                  let s = payload + 8 * fromIntegral k
+                      v = word64At' env s
+                  when (v /= 0 && isJust (fileOffsetOf im s) && isJust (fileOffsetOf im (v .&. complement 7))) $ do
+                    slot s v
+                    case defAt im (v .&. complement 7) of
+                      Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) == Data -> pushData env (v .&. complement 7)
+                      _ -> pure ()
+                    when (inText env v) (pushLabel env v True)
+                forM_ [count .. count + nonPtrs - 1] $ \k -> do
+                  let s = payload + 8 * fromIntegral k
+                      v = word64At' env s
+                  case defAt im (v .&. complement 7) of
+                    Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) `elem` [Strings, Const] -> do
+                      slot s v
+                      bump env "addresses in non-pointer fields"
+                    Just t | dKind t == Haskell && secRole (imSections im V.! dSect t) == Data && ty >= 15 && ty <= 22 -> do
+                      slot s v
+                      pushData env (v .&. complement 7)
+                      bump env "pointers in static thunks"
+                    _ -> pure ()
       _ -> pure ()
 
 -- | Parses the info table before a label, once.
@@ -1095,20 +1100,21 @@ fold im bytes perDef kept pinned cut ranges = go (VU.generate n id) (5 :: Int)
     canon rep i =
       let d = defs V.! i
        in [ (at - dStart d, k, target)
-            | (at, k, t, _) <- VU.toList (perDef V.! i),
-              let target = case defAt im t of
-                    Just e | dIndex e == i -> Left (-1, t - dStart e) -- self
-                    Just e -> Left (rep VU.! dIndex e, t - dStart e)
-                    Nothing -> Right t
+          | (at, k, t, _) <- VU.toList (perDef V.! i),
+            let target = case defAt im t of
+                  Just e | dIndex e == i -> Left (-1, t - dStart e) -- self
+                  Just e -> Left (rep VU.! dIndex e, t - dStart e)
+                  Nothing -> Right t
           ]
     go rep 0 = rep
     go rep k =
       let groups =
-            M.fromListWith (\_ old -> old) -- keep the first (lowest index) as the representative
+            M.fromListWith
+              (\_ old -> old) -- keep the first (lowest index) as the representative
               [ ((dEnd d - dStart d, masked i, canon rep i), i)
-                | i <- [0 .. n - 1],
-                  candidate i,
-                  let d = defs V.! i
+              | i <- [0 .. n - 1],
+                candidate i,
+                let d = defs V.! i
               ]
           rep' = VU.generate n $ \i ->
             if candidate i

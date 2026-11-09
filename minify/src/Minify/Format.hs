@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | What the tool needs to know about an executable regardless of its
 -- file format: its segments and sections, its symbols, where the loader
 -- fixes pointers up, and which parts play which role in compaction. The
@@ -26,7 +27,7 @@ where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import Data.Char (isAlphaNum, isAlpha)
+import Data.Char (isAlpha, isAlphaNum)
 import Data.Word
 
 data Format = MachOFormat | ElfFormat deriving (Eq, Show)

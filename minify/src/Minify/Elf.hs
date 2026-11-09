@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Reading a 64-bit little-endian ELF executable: the header, the program
 -- and section headers, the symbol tables and the dynamic relocations.
 module Minify.Elf
@@ -13,6 +14,7 @@ module Minify.Elf
     sectionName,
     symbolsOf,
     dynamicEntries,
+
     -- * Constants
     ptLoad,
     ptPhdr,
@@ -180,9 +182,9 @@ parseElf b
           parseShdr o = Shdr (u32 b o) (u32 b (o + 4)) (u64 b (o + 8)) (u64 b (o + 16)) (u64 b (o + 24)) (u64 b (o + 32)) (u32 b (o + 40)) (u32 b (o + 44)) (u64 b (o + 48)) (u64 b (o + 56))
           parseRelas s =
             [ Rela (u64 b o) (fromIntegral (info .&. 0xffffffff)) (fromIntegral (info `shiftR` 32)) (i64 b (o + 16))
-              | i <- [0 .. fromIntegral (shSize s `div` 24) - 1],
-                let o = fromIntegral (shOffset s) + 24 * i,
-                let info = u64 b (o + 8)
+            | i <- [0 .. fromIntegral (shSize s `div` 24) - 1],
+              let o = fromIntegral (shOffset s) + 24 * i,
+              let info = u64 b (o + 8)
             ]
           -- RELR: an even entry is an address; an odd one a bitmap of the
           -- 63 words following the last address
@@ -226,9 +228,9 @@ symbolsOf e ix =
       strBase = fromIntegral (shOffset strs)
       n = fromIntegral (shSize s `div` 24)
    in [ (sym, cstringAt b (strBase + fromIntegral (stName sym)))
-        | i <- [0 .. n - 1],
-          let o = fromIntegral (shOffset s) + 24 * i,
-          let sym = ElfSym (u32 b o) (u8 b (o + 4)) (u8 b (o + 5)) (u16 b (o + 6)) (u64 b (o + 8)) (u64 b (o + 16))
+      | i <- [0 .. n - 1],
+        let o = fromIntegral (shOffset s) + 24 * i,
+        let sym = ElfSym (u32 b o) (u8 b (o + 4)) (u8 b (o + 5)) (u16 b (o + 6)) (u64 b (o + 8)) (u64 b (o + 16))
       ]
 
 -- | The (tag, value) pairs of the dynamic section.
@@ -273,11 +275,11 @@ loadElf e = do
               F.secOrig = si,
               F.secRaw = F.ElfSect (shType s) (shFlags s) (shLink s) (shInfo s) (shAddralign s) (shEntsize s)
             }
-          | (si, s) <- shdrs,
-            shType s /= shtNull,
-            shFlags s .&. shfAlloc /= 0,
-            inLoad p s,
-            let nm = sectionName e s
+        | (si, s) <- shdrs,
+          shType s /= shtNull,
+          shFlags s .&. shfAlloc /= 0,
+          inLoad p s,
+          let nm = sectionName e s
         ]
       prot f = (if f .&. 4 /= 0 then 1 else 0) .|. (if f .&. 2 /= 0 then 2 else 0) .|. (if f .&. 1 /= 0 then 4 else 0)
       segs =
@@ -294,8 +296,8 @@ loadElf e = do
               F.segSections = secs,
               F.segOrig = li
             }
-          | (li, p) <- loads,
-            let secs = sectionsIn (li, p)
+        | (li, p) <- loads,
+          let secs = sectionsIn (li, p)
         ]
       sects = sortOn F.secOrig (concatMap F.segSections segs)
       classify sym name
@@ -311,7 +313,7 @@ loadElf e = do
           bind = stInfo sym `shiftR` 4
       syms =
         [ F.Symbol {F.syName = name, F.syValue = stValue sym, F.syDefined = stShndx sym /= 0 && stShndx sym < 0xff00, F.syClass = classify sym name, F.syOrig = i}
-          | (i, (sym, name)) <- zip [0 ..] (symbolsOf e symIx)
+        | (i, (sym, name)) <- zip [0 ..] (symbolsOf e symIx)
         ]
       relTy = relativeType (elfMachine e)
       -- a link with --emit-relocs keeps every relocation in non-loaded
@@ -320,29 +322,29 @@ loadElf e = do
       absTy = if elfMachine e == emAarch64 then 257 else 1
       emitted =
         [ rOffset r
-          | (sh, rs) <- elfRelaSections e,
-            shFlags sh .&. shfAlloc == 0,
-            r <- rs,
-            rType r == absTy
+        | (sh, rs) <- elfRelaSections e,
+          shFlags sh .&. shfAlloc == 0,
+          r <- rs,
+          rType r == absTy
         ]
       relative = [rOffset r | r <- elfRelas e, rType r == relTy] ++ elfRelr e ++ emitted
       hasEmitted = any (\(sh, _) -> shFlags sh .&. shfAlloc == 0) (elfRelaSections e)
       -- R_X86_64_32 and R_X86_64_32S: the only ways a 32-bit field holds an address
       absFields =
         [ rOffset r
-          | (sh, rs) <- elfRelaSections e,
-            shFlags sh .&. shfAlloc == 0,
-            r <- rs,
-            elfMachine e == emX86_64,
-            rType r == 10 || rType r == 11
+        | (sh, rs) <- elfRelaSections e,
+          shFlags sh .&. shfAlloc == 0,
+          r <- rs,
+          elfMachine e == emX86_64,
+          rType r == 10 || rType r == 11
         ]
       dynNames = maybe [] (map snd . symbolsOf e) (elfDynsymIx e)
       binds =
         [ (rOffset r, nm)
-          | r <- elfRelas e,
-            isBindType (elfMachine e) (rType r),
-            rSym r /= 0,
-            nm <- take 1 (drop (fromIntegral (rSym r)) dynNames)
+        | r <- elfRelas e,
+          isBindType (elfMachine e) (rType r),
+          rSym r /= 0,
+          nm <- take 1 (drop (fromIntegral (rSym r)) dynNames)
         ]
       pageSize = maximum (4096 : [phAlign p | (_, p) <- loads])
   pure

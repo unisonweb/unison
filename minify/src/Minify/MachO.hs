@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Reading a 64-bit Mach-O executable: the header, the load commands, the
 -- symbol table and the link-edit streams dyld reads (rebases, binds,
 -- exports, function starts). Encoders for the streams the tool regenerates
@@ -21,6 +22,7 @@ module Minify.MachO
     segments,
     cpuArm64,
     cpuX86_64,
+
     -- * Rebases, binds, exports, function starts
     Rebase (..),
     decodeRebases,
@@ -33,8 +35,10 @@ module Minify.MachO
     encodeExports,
     decodeFunctionStarts,
     encodeFunctionStarts,
+
     -- * Byte helpers
     module Minify.Bytes,
+
     -- * Constants
     lcSegment64,
     lcSymtab,
@@ -254,7 +258,7 @@ loadMachO mo = do
               F.secOrig = i,
               F.secRaw = F.MachOSect (secAlign s) (secRelOff s) (secNReloc s) (secFlags s) (secReserved1 s) (secReserved2 s) (secReserved3 s)
             }
-          | (i, s) <- zip [0 ..] (sectionsInOrder mo)
+        | (i, s) <- zip [0 ..] (sectionsInOrder mo)
         ]
       sectsOf sg = [sc | sc <- sects, F.secSegName sc == segName sg]
       segRole sg
@@ -277,7 +281,7 @@ loadMachO mo = do
               F.segSections = sectsOf sg,
               F.segOrig = i
             }
-          | (i, sg) <- zip [0 ..] msegs
+        | (i, sg) <- zip [0 ..] msegs
         ]
       classify nl name
         | nType nl .&. 0x0e /= 0x0e = F.SymIgnore
@@ -287,8 +291,8 @@ loadMachO mo = do
         | otherwise = F.SymLocalC
       syms =
         [ F.Symbol {F.syName = name, F.syValue = nValue nl, F.syDefined = nType nl .&. 0x0e == 0x0e, F.syClass = classify nl name, F.syOrig = i}
-          | (i, nl) <- zip [0 ..] nls,
-            let name = symbolName mo st nl
+        | (i, nl) <- zip [0 ..] nls,
+          let name = symbolName mo st nl
         ]
       dyld = case [d | LCDyldInfo d <- moCommands mo] of
         d : _ -> Just d
@@ -301,9 +305,9 @@ loadMachO mo = do
         Nothing -> []
         Just d ->
           [ (segAddr (bdSeg bd) + bdOff bd, bdSymbol bd)
-            | (o, sz) <- [(bindOff d, bindSize d), (lazyBindOff d, lazyBindSize d), (weakBindOff d, weakBindSize d)],
-              sz > 0,
-              bd <- decodeBinds (slice o sz)
+          | (o, sz) <- [(bindOff d, bindSize d), (lazyBindOff d, lazyBindSize d), (weakBindOff d, weakBindSize d)],
+            sz > 0,
+            bd <- decodeBinds (slice o sz)
           ]
   pure
     ( F.Loaded

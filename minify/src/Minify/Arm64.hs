@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | AArch64: the instruction forms that carry a PC-relative or
 -- page-relative address, decoded and re-encoded; the recursive-descent
 -- decoding of a Haskell definition and the linear sweep of fixed code; the

@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Checking the output by analyzing it the same way as the input: every
 -- kept definition must have the same references, each landing where the
 -- plan says its old target went. See design.md, "Checking the result".
@@ -10,12 +11,12 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.List (sortOn)
 import qualified Data.Map.Strict as M
+import Data.Maybe (isJust)
 import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 import Data.Word
 import Minify.Analysis
-import Data.Maybe (isJust)
 import Minify.Format (Loaded (..), Role (..), Section (..))
 import Minify.Layout
 
@@ -48,8 +49,8 @@ verify an pl out = case loadImage out of
            in S.fromList [(at + delta, k, t') | (at, k, t, _) <- VU.toList (anRefs an V.! i), Just t' <- [resolve k t]]
         actualFor d2 =
           [ (at, k, M.findWithDefault t t islandTargets)
-            | (at, k, t, _) <- VU.toList (anRefs an2 V.! dIndex d2),
-              not (inPool at)
+          | (at, k, t, _) <- VU.toList (anRefs an2 V.! dIndex d2),
+            not (inPool at)
           ]
         -- Every reference the output's decoding finds must be one the plan
         -- made. The output may find fewer: a label that only a removed
@@ -67,23 +68,23 @@ verify an pl out = case loadImage out of
            in map snd (takeWhile ((< hi) . fst) (V.toList (V.drop first keptNewV)))
         problems =
           [ msg
-            | d2 <- V.toList (imDefs (anImage an2)),
-              dKind d2 == Haskell,
-              let inputs = inputsIn (dStart d2) (dEnd d2),
-              not (null inputs),
-              let e = S.unions (map expectedFor inputs),
-              let a = actualFor d2,
-              let wrong = [r | r <- a, not (S.member r e)],
-              not (null wrong),
-              let msg = hsDisplay d2 ++ " (output): " ++ show (length wrong) ++ " of " ++ show (length a) ++ " references are not as planned; first: " ++ showRef (head wrong)
+          | d2 <- V.toList (imDefs (anImage an2)),
+            dKind d2 == Haskell,
+            let inputs = inputsIn (dStart d2) (dEnd d2),
+            not (null inputs),
+            let e = S.unions (map expectedFor inputs),
+            let a = actualFor d2,
+            let wrong = [r | r <- a, not (S.member r e)],
+            not (null wrong),
+            let msg = hsDisplay d2 ++ " (output): " ++ show (length wrong) ++ " of " ++ show (length a) ++ " references are not as planned; first: " ++ showRef (head wrong)
           ]
         missing =
           [ "missing in the output: " ++ hsDisplay d ++ " planned at " ++ hex new ++ (if anPinned an VU.! i then " (pinned)" else "")
-            | (new, i) <- keptNew,
-              let d = defs V.! i,
-              case defAt (anImage an2) new of
-                Nothing -> True
-                Just _ -> False
+          | (new, i) <- keptNew,
+            let d = defs V.! i,
+            case defAt (anImage an2) new of
+              Nothing -> True
+              Just _ -> False
           ]
         showRef (at, k, t) = show (toEnum (fromIntegral k) :: RefKind) ++ " at " ++ hex at ++ " -> " ++ hex t
         newStarts = S.fromList [plNewStart pl VU.! i | i <- [0 .. V.length defs - 1], anKept an VU.! i]
@@ -98,10 +99,10 @@ verify an pl out = case loadImage out of
         comparable = maybe True (const (isJust (ldSlots (imLoaded (anImage an2))))) (ldSlots (imLoaded im))
         lostRebases =
           [ "pointer slot lost at " ++ hex slot ++ " (now " ++ hex slot' ++ ") in " ++ hsDisplay d
-            | comparable,
-              (slot, d) <- expectedSlots,
-              Just slot' <- [newAddrOf an pl slot],
-              not (S.member slot' outSlots)
+          | comparable,
+            (slot, d) <- expectedSlots,
+            Just slot' <- [newAddrOf an pl slot],
+            not (S.member slot' outSlots)
           ]
         -- every bind slot in a kept definition must be bound at its new place, and nothing else bound
         expectedBinds = S.fromList [(a', sym) | (a, sym) <- imBinds im, Just a' <- [newAddrOf an pl a]]

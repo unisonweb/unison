@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Finishing a Mach-O output: the symbol table, the dyld streams
 -- (rebases, binds, exports), the function starts, and the load commands
 -- that describe the pieces. See design.md, "Layout and rewriting".
@@ -74,7 +75,7 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
         toStrict $
           mconcat
             [ putU32 (fromIntegral so) <> BB.word8 (nType nl) <> BB.word8 (nSect nl) <> BB.word16LE (nDesc nl) <> putU64 (nValue nl)
-              | ((nl, _), so) <- zip keptSyms strOffsets
+            | ((nl, _), so) <- zip keptSyms strOffsets
             ]
       indirectOff = fromIntegral (dys !! 12)
       nindirect = fromIntegral (dys !! 13)
@@ -82,18 +83,18 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
         toStrict $
           mconcat
             [ putU32 v'
-              | k <- [0 .. nindirect - 1],
-                let v = u32 orig (indirectOff + 4 * k),
-                let v' = if v .&. 0xc0000000 /= 0 then v else fromIntegral (M.findWithDefault (error ("indirect symbol " ++ show v ++ " was removed")) (fromIntegral v) indexMap)
+            | k <- [0 .. nindirect - 1],
+              let v = u32 orig (indirectOff + 4 * k),
+              let v' = if v .&. 0xc0000000 /= 0 then v else fromIntegral (M.findWithDefault (error ("indirect symbol " ++ show v ++ " was removed")) (fromIntegral v) indexMap)
             ]
 
   -- Rebases: slots inside removed definitions go; the rest move with their definition.
   let rebases =
         [ Rebase si so (rbType r)
-          | r <- rebaseRecords,
-            let a = segVmAddr (segs !! rbSeg r) + rbOff r,
-            Just a' <- [newAddrOf an pl a],
-            Just (si, so) <- [segLoc a']
+        | r <- rebaseRecords,
+          let a = segVmAddr (segs !! rbSeg r) + rbOff r,
+          Just a' <- [newAddrOf an pl a],
+          Just (si, so) <- [segLoc a']
         ]
       stubRebases = [Rebase si so 1 | stb <- M.elems (plStubs pl), Just c <- [sbClosure stb], Just (si, so) <- [segLoc c]]
       rebaseBytes = toStrict (encodeRebases (rebases ++ stubRebases))
@@ -105,10 +106,10 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
       allBinds = concat [decodeBinds (slice o s) | (o, s) <- [(bindOff dyld, bindSize dyld), (lazyBindOff dyld, lazyBindSize dyld), (weakBindOff dyld, weakBindSize dyld)], s > 0]
       binds =
         [ b {bdSeg = si, bdOff = so}
-          | b <- allBinds,
-            let a = segVmAddr (segs !! bdSeg b) + bdOff b,
-            Just a' <- [newAddrOf an pl a],
-            Just (si, so) <- [segLoc a']
+        | b <- allBinds,
+          let a = segVmAddr (segs !! bdSeg b) + bdOff b,
+          Just a' <- [newAddrOf an pl a],
+          Just (si, so) <- [segLoc a']
         ]
       bindBytes = toStrict (encodeBinds binds)
   -- Exports.
@@ -143,15 +144,31 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
   entryOff <- maybe (fail "entry point has no file offset") pure (newFileOffsetOf pl entryNew)
   let segCmd name vmaddr vmsize fileoff filesize maxp initp flags secs =
         let body =
-              BB.byteString (padName name) <> putU64 vmaddr <> putU64 vmsize <> putU64 fileoff <> putU64 filesize
-                <> putU32 maxp <> putU32 initp <> putU32 (fromIntegral (length secs)) <> putU32 flags
+              BB.byteString (padName name)
+                <> putU64 vmaddr
+                <> putU64 vmsize
+                <> putU64 fileoff
+                <> putU64 filesize
+                <> putU32 maxp
+                <> putU32 initp
+                <> putU32 (fromIntegral (length secs))
+                <> putU32 flags
                 <> mconcat (map secCmd secs)
          in putU32 lcSegment64 <> putU32 (fromIntegral (72 + 80 * length secs)) <> body
       secCmd s =
         let raw = secRaw s
-         in BB.byteString (padName (secName s)) <> BB.byteString (padName (secSegName s)) <> putU64 (secAddr s) <> putU64 (secSize s)
-              <> putU32 (fromIntegral (secOffset s)) <> putU32 (msAlign raw) <> putU32 (msRelOff raw) <> putU32 (msNReloc raw) <> putU32 (msFlags raw)
-              <> putU32 (msReserved1 raw) <> putU32 (msReserved2 raw) <> putU32 (msReserved3 raw)
+         in BB.byteString (padName (secName s))
+              <> BB.byteString (padName (secSegName s))
+              <> putU64 (secAddr s)
+              <> putU64 (secSize s)
+              <> putU32 (fromIntegral (secOffset s))
+              <> putU32 (msAlign raw)
+              <> putU32 (msRelOff raw)
+              <> putU32 (msNReloc raw)
+              <> putU32 (msFlags raw)
+              <> putU32 (msReserved1 raw)
+              <> putU32 (msReserved2 raw)
+              <> putU32 (msReserved3 raw)
       padName n = B.take 16 (n <> B.replicate 16 0)
       pageZero = [segCmd (segName s) (segVmAddr s) (segVmSize s) 0 0 (segMaxProt s) (segInitProt s) (segFlags s) [] | s <- segs, segRole s == SegPageZero]
       pieceCmds = [segCmd (pcName p) (pcVmStart p) (pcVmEnd p - pcVmStart p) (pcFileOff p) (pcFileEnd p - pcVmStart p) (segMaxProt sg) (segInitProt sg) (segFlags sg) (pcSections p) | p <- plOrder pl, let sg = pcSegment p]
@@ -166,12 +183,18 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
            in Just (putU32 lcDysymtab <> putU32 80 <> mconcat (map (putU32 . fromIntegral) ws))
         LCDyldInfo d ->
           Just
-            ( putU32 (diCmd d) <> putU32 48
-                <> putU32 (fromIntegral rebaseO) <> putU32 (fromIntegral (B.length rebaseBytes))
-                <> putU32 (fromIntegral bindO) <> putU32 (fromIntegral (B.length bindBytes))
-                <> putU32 0 <> putU32 0
-                <> putU32 0 <> putU32 0
-                <> putU32 (fromIntegral exportO) <> putU32 (fromIntegral (B.length exportBytes))
+            ( putU32 (diCmd d)
+                <> putU32 48
+                <> putU32 (fromIntegral rebaseO)
+                <> putU32 (fromIntegral (B.length rebaseBytes))
+                <> putU32 (fromIntegral bindO)
+                <> putU32 (fromIntegral (B.length bindBytes))
+                <> putU32 0
+                <> putU32 0
+                <> putU32 0
+                <> putU32 0
+                <> putU32 (fromIntegral exportO)
+                <> putU32 (fromIntegral (B.length exportBytes))
             )
         LCLinkeditData c _ _
           | c == lcFunctionStarts -> Just (putU32 c <> putU32 16 <> putU32 (fromIntegral fsO) <> putU32 (fromIntegral (B.length fsBytes)))
@@ -184,8 +207,14 @@ parts an pl Choices {rwKeepHaskellExports = keepHaskellExports, rwStrip = strip}
       cmdBytes = toStrict (mconcat cmds)
       header =
         toStrict $
-          putU32 0xfeedfacf <> putU32 (moCpuType mo) <> putU32 (moCpuSubtype mo) <> putU32 (moFileType mo)
-            <> putU32 (fromIntegral (length cmds)) <> putU32 (fromIntegral (B.length cmdBytes)) <> putU32 (moFlags mo) <> putU32 (moReserved mo)
+          putU32 0xfeedfacf
+            <> putU32 (moCpuType mo)
+            <> putU32 (moCpuSubtype mo)
+            <> putU32 (moFileType mo)
+            <> putU32 (fromIntegral (length cmds))
+            <> putU32 (fromIntegral (B.length cmdBytes))
+            <> putU32 (moFlags mo)
+            <> putU32 (moReserved mo)
       firstSectOff = minimum (fromIntegral (plLinkeditOff pl) : [fromIntegral (secOffset s) | p <- plPieces pl, s <- pcSections p, secOffset s /= 0])
   when (32 + B.length cmdBytes > firstSectOff) $
     fail ("the load commands need " ++ show (32 + B.length cmdBytes) ++ " bytes but the first section starts at " ++ show firstSectOff)

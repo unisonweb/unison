@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Finishing an ELF output: the program headers (in the patch area, since
 -- the holes add some and the original table has no room), the section
 -- headers with the compacted sections cut into pieces, the symbol table
@@ -58,13 +59,13 @@ parts an pl Choices {rwStrip = strip} e = do
       -- input's layout, not the output's, and are dropped
       unloaded =
         [ (i, s)
-          | (i, s) <- shdrs,
-            shType s /= shtNull,
-            not (isAlloc s),
-            shType s /= shtRela,
-            Just i /= symtabIx,
-            Just i /= strtabIx,
-            i /= elfShstrndx e
+        | (i, s) <- shdrs,
+          shType s /= shtNull,
+          not (isAlloc s),
+          shType s /= shtRela,
+          Just i /= symtabIx,
+          Just i /= strtabIx,
+          i /= elfShstrndx e
         ]
   -- Symbols: relocated, with their section numbers mapped to the new
   -- sections. Symbols in removed definitions go; with --strip the table goes.
@@ -115,7 +116,7 @@ parts an pl Choices {rwStrip = strip} e = do
         toStrict $
           mconcat
             [ putU32 (if B.null n then 0 else fromIntegral so) <> BB.word8 (stInfo s) <> BB.word8 (stOther s) <> putU16 (remapShndx (stShndx s) (stValue s)) <> putU64 (stValue s) <> putU64 (stSize s)
-              | ((s, n), so) <- zip symsKept strOffsets
+            | ((s, n), so) <- zip symsKept strOffsets
             ]
   -- The trailer: unloaded sections, symtab, strtab, shstrtab, section headers.
   let pad8 b = b <> B.replicate (fromIntegral (alignUp (fromIntegral (B.length b)) 8) - B.length b) 0
@@ -154,13 +155,13 @@ parts an pl Choices {rwStrip = strip} e = do
       prot p = (if p .&. 1 /= 0 then 4 else 0) .|. (if p .&. 2 /= 0 then 2 else 0) .|. (if p .&. 4 /= 0 then 1 else 0) :: Word32
       loadPhdrs =
         [ Phdr ptLoad (prot (segInitProt (pcSegment p))) (pcFileOff p) (pcVmStart p) (pcVmStart p) (pcFileEnd p - pcVmStart p) (pcVmEnd p - pcVmStart p) pageSize
-          | p <- plPieces pl
+        | p <- plPieces pl
         ]
       otherPhdrs =
         [ ph {phOffset = fromMaybe (phOffset ph) (newFileOffsetOf pl (phVaddr ph))}
-          | ph <- elfPhdrs e,
-            phType ph /= ptLoad,
-            phType ph /= ptPhdr
+        | ph <- elfPhdrs e,
+          phType ph /= ptLoad,
+          phType ph /= ptPhdr
         ]
       nph = length loadPhdrs + length otherPhdrs + 1
       phdrHeader = Phdr ptPhdr 4 0 phdrAddr phdrAddr (56 * fromIntegral nph) (56 * fromIntegral nph) 8
@@ -179,14 +180,14 @@ parts an pl Choices {rwStrip = strip} e = do
         Just ix ->
           let s = elfShdrs e !! ix
            in [ (fileOff, newV, newShndx)
-                | (k, (sym, _)) <- zip [0 :: Int ..] (symbolsOf e ix),
-                  stShndx sym /= 0 && stShndx sym < 0xff00,
-                  let oldOff = fromIntegral (shOffset s) + 24 * k,
-                  Just fileOff <- [newFileOffsetOf pl (shAddr s + fromIntegral (24 * k))],
-                  let (newV, newShndx) = case relocate an pl (stValue sym) of
-                        Right v -> (v, remapShndx (stShndx sym) v)
-                        Left _ -> (0, 0),
-                  oldOff >= 0
+              | (k, (sym, _)) <- zip [0 :: Int ..] (symbolsOf e ix),
+                stShndx sym /= 0 && stShndx sym < 0xff00,
+                let oldOff = fromIntegral (shOffset s) + 24 * k,
+                Just fileOff <- [newFileOffsetOf pl (shAddr s + fromIntegral (24 * k))],
+                let (newV, newShndx) = case relocate an pl (stValue sym) of
+                      Right v -> (v, remapShndx (stShndx sym) v)
+                      Left _ -> (0, 0),
+                oldOff >= 0
               ]
       -- every relocation's slot moves with its definition (a bind can sit in
       -- a Haskell closure, the payload of a @foreign import "&f"@); a
@@ -195,20 +196,20 @@ parts an pl Choices {rwStrip = strip} e = do
       relTy = relativeType (elfMachine e)
       relaFixes =
         [ (fileOff, slot', addend')
-          | sh <- elfShdrs e,
-            shType sh == shtRela,
-            shFlags sh .&. shfAlloc /= 0,
-            k <- [0 .. fromIntegral (shSize sh `div` 24) - 1],
-            let o = fromIntegral (shOffset sh) + 24 * k,
-            let ty = fromIntegral (u64 orig (o + 8) .&. 0xffffffff) :: Word32,
-            Just fileOff <- [newFileOffsetOf pl (shAddr sh + fromIntegral (24 * k))],
-            let slot = u64 orig o,
-            let addend = u64 orig (o + 16),
-            let (slot', addend') = case newAddrOf an pl slot of
-                  Just s'
-                    | ty /= relTy -> (Just s', addend)
-                    | Right a' <- relocate an pl addend -> (Just s', a')
-                  _ -> (Nothing, 0)
+        | sh <- elfShdrs e,
+          shType sh == shtRela,
+          shFlags sh .&. shfAlloc /= 0,
+          k <- [0 .. fromIntegral (shSize sh `div` 24) - 1],
+          let o = fromIntegral (shOffset sh) + 24 * k,
+          let ty = fromIntegral (u64 orig (o + 8) .&. 0xffffffff) :: Word32,
+          Just fileOff <- [newFileOffsetOf pl (shAddr sh + fromIntegral (24 * k))],
+          let slot = u64 orig o,
+          let addend = u64 orig (o + 16),
+          let (slot', addend') = case newAddrOf an pl slot of
+                Just s'
+                  | ty /= relTy -> (Just s', addend)
+                  | Right a' <- relocate an pl addend -> (Just s', a')
+                _ -> (Nothing, 0)
         ]
   unless (null (elfRelr e)) $ fail "RELR relocations are not supported yet"
   let finish ptr = do

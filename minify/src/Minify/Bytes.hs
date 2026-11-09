@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Little-endian reads from a strict ByteString, and the builders the
 -- writers use.
 module Minify.Bytes

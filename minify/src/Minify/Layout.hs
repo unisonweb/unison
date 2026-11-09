@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Where every kept definition goes, and how the segments are split so the
 -- file omits the pages compaction frees. See design.md, "Layout".
 module Minify.Layout
@@ -154,13 +155,16 @@ plan an maxHoles textLast packRoles crossRange keepCopies padAfter = do
                 _ -> 0
            in if a + sizeOf i + padded i <= limit && allowed i
                 then let (more, q') = fill pack (a + sizeOf i + padded i) limit anchorAt rest in ((i, a) : more, q')
-                else if not pack then ([], queue) else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit && allowed j) (Seq.take lookAhead rest) of
-                  Nothing -> ([], queue)
-                  Just k ->
-                    let j = Seq.index rest k
-                        b = alignUp cursor (alignOf (dStart (defs V.! j)))
-                        (more, q') = fill pack (b + sizeOf j) limit anchorAt (i Seq.<| Seq.deleteAt k rest)
-                     in ((j, b) : more, q')
+                else
+                  if not pack
+                    then ([], queue)
+                    else case Seq.findIndexL (\j -> let b = alignUp cursor (alignOf (dStart (defs V.! j))) in b + sizeOf j <= limit && allowed j) (Seq.take lookAhead rest) of
+                      Nothing -> ([], queue)
+                      Just k ->
+                        let j = Seq.index rest k
+                            b = alignUp cursor (alignOf (dStart (defs V.! j)))
+                            (more, q') = fill pack (b + sizeOf j) limit anchorAt (i Seq.<| Seq.deleteAt k rest)
+                         in ((j, b) : more, q')
       placeSection :: [Int] -> Either String [(Int, Word64)]
       placeSection is =
         let sect = sects V.! sectionOf (headOr is)
@@ -196,16 +200,16 @@ plan an maxHoles textLast packRoles crossRange keepCopies padAfter = do
       -- branches that no longer reach their target
       far =
         [ (at', t')
-          | needsIslands,
-            (i, a) <- placed,
-            let d = defs V.! i,
-            dKind d == Haskell,
-            anRep an VU.! i == i,
-            (at, k, t, _) <- VU.toList (anRefs an V.! i),
-            k == fromIntegral (fromEnum RB) || k == fromIntegral (fromEnum RBl),
-            let at' = at - dStart d + a,
-            Just t' <- [newAddr t],
-            distance at' t' >= branchRange - islandSize
+        | needsIslands,
+          (i, a) <- placed,
+          let d = defs V.! i,
+          dKind d == Haskell,
+          anRep an VU.! i == i,
+          (at, k, t, _) <- VU.toList (anRefs an V.! i),
+          k == fromIntegral (fromEnum RB) || k == fromIntegral (fromEnum RBl),
+          let at' = at - dStart d + a,
+          Just t' <- [newAddr t],
+          distance at' t' >= branchRange - islandSize
         ]
       distance x y = if x > y then x - y else y - x
       -- live address ranges in the new layout, per segment
@@ -223,11 +227,11 @@ plan an maxHoles textLast packRoles crossRange keepCopies padAfter = do
       -- cut definitions a kept one refers to, each with its stub's sizes
       stubbed =
         [ (i, tableSz, msg)
-          | i <- [0 .. ndefs - 1],
-            anCutReferenced an VU.! i,
-            let d = defs V.! i,
-            let tableSz = if isCode (sects V.! dSect d) then max 16 (dHead d) else 24,
-            let msg = BC.pack ("minify: " ++ hsDisplay d ++ " was removed") <> B.singleton 0
+        | i <- [0 .. ndefs - 1],
+          anCutReferenced an VU.! i,
+          let d = defs V.! i,
+          let tableSz = if isCode (sects V.! dSect d) then max 16 (dHead d) else 24,
+          let msg = BC.pack ("minify: " ++ hsDisplay d ++ " was removed") <> B.singleton 0
         ]
       stubsSize = sum [fromIntegral (alignUp (fromIntegral tsz) 8) + stubCodeSize | (_, tsz, _) <- stubbed]
       msgsSize = alignUp (sum [fromIntegral (B.length m) | (_, _, m) <- stubbed]) 16
@@ -293,10 +297,10 @@ plan an maxHoles textLast packRoles crossRange keepCopies padAfter = do
       -- dead gaps rounded inward to whole pages
       holesOf seg =
         [ (s, e)
-          | (g0, g1) <- deadGaps (liveRanges seg) (segVmAddr seg + segFileSize seg),
-            let s = alignUp g0 pageSize,
-            let e = alignDown g1 pageSize,
-            e > s
+        | (g0, g1) <- deadGaps (liveRanges seg) (segVmAddr seg + segFileSize seg),
+          let s = alignUp g0 pageSize,
+          let e = alignDown g1 pageSize,
+          e > s
         ]
       candidates = [(seg, h) | seg <- segs, segFileSize seg > 0, segRole seg /= SegLinkedit, h <- holesOf seg]
       -- the segment-index immediates in dyld's opcodes are 4 bits; the Linux

@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | x86-64: an instruction-length decoder that also says where an
 -- instruction's address-carrying fields are, the recursive-descent
 -- decoding of a Haskell definition (with GHC's jump tables), the linear
@@ -385,25 +386,33 @@ tableFollowing hk pc0 r = scan pc0 (8 :: Int) Nothing
             | Just (False, c) <- loadedReg, isAddReg i c -> scan next (n - 1) (Just (False, c))
             | mentions i -> Nothing
             | otherwise -> scan next (n - 1) loadedReg
-    isAdd8 i = xMap i == 0 && xOp i == 0x03 && case (xModRm i, xSib i) of
-      (Just (md, rr, _), Just (3, _, base)) -> md /= 3 && rr == r && base == r
-      _ -> False
-    isMovslq i = xMap i == 0 && xOp i == 0x63 && xRexW i && case (xModRm i, xSib i) of
-      (Just (md, _, _), Just (2, _, base)) -> md /= 3 && base == r
-      _ -> False
+    isAdd8 i =
+      xMap i == 0 && xOp i == 0x03 && case (xModRm i, xSib i) of
+        (Just (md, rr, _), Just (3, _, base)) -> md /= 3 && rr == r && base == r
+        _ -> False
+    isMovslq i =
+      xMap i == 0 && xOp i == 0x63 && xRexW i && case (xModRm i, xSib i) of
+        (Just (md, _, _), Just (2, _, base)) -> md /= 3 && base == r
+        _ -> False
     loaded i = maybe 0 (\(_, rr, _) -> rr) (xModRm i)
-    isAddReg i cReg = xMap i == 0 && case (xOp i, xModRm i) of
-      (0x01, Just (3, src, dst)) -> src == cReg && dst == r
-      (0x03, Just (3, dst, src)) -> src == cReg && dst == r
-      _ -> False
-    isJmpReg i = xKind i == KJmpInd && case xModRm i of
-      Just (3, _, rr) -> rr == r
-      _ -> False
+    isAddReg i cReg =
+      xMap i == 0 && case (xOp i, xModRm i) of
+        (0x01, Just (3, src, dst)) -> src == cReg && dst == r
+        (0x03, Just (3, dst, src)) -> src == cReg && dst == r
+        _ -> False
+    isJmpReg i =
+      xKind i == KJmpInd && case xModRm i of
+        Just (3, _, rr) -> rr == r
+        _ -> False
     -- whether an instruction names r in any operand
     mentions i = case xModRm i of
-      Just (md, rr, rm) -> rr == r || (md == 3 && rm == r) || (md /= 3 && case xSib i of
-        Just (_, ix, base) -> ix == r || base == r
-        Nothing -> rm == r && md /= 0 || (rm == r && md == 0 && rm /= 5))
+      Just (md, rr, rm) ->
+        rr == r
+          || (md == 3 && rm == r)
+          || ( md /= 3 && case xSib i of
+                 Just (_, ix, base) -> ix == r || base == r
+                 Nothing -> rm == r && md /= 0 || (rm == r && md == 0 && rm /= 5)
+             )
       Nothing -> case xOp i of
         -- push/pop/xchg/mov-immediate forms name a register in the opcode
         op | xMap i == 0 && (op >= 0x50 && op <= 0x5f || op >= 0x90 && op <= 0x97 || op >= 0xb8 && op <= 0xbf) -> fromIntegral (op .&. 7) == r .&. 7

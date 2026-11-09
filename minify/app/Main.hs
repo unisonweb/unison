@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+
 module Main (main) where
 
 import Control.Monad
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Data.List (sortOn)
-import Data.Maybe (isNothing)
 import qualified Data.Map.Strict as M
+import Data.Maybe (isNothing)
 import Data.Ord (Down (..))
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
@@ -16,13 +17,13 @@ import Minify.Layout
 import Minify.Rewrite
 import Minify.Verify
 import qualified Minify.X86 as X86
-import System.Process (callProcess)
 import Minify.ZEncoding
+import Numeric (readHex)
 import Options.Applicative hiding (Const)
 import System.Exit
 import System.IO
+import System.Process (callProcess)
 import Text.Printf
-import Numeric (readHex)
 
 data Args = Args
   { argInput :: FilePath,
@@ -116,8 +117,11 @@ main = do
         (x, []) -> [x]
         (x, _ : rest) -> x : splitOn c rest
   forM_ (argDisasm a) $ \spec -> case break (== '-') spec of
-    (lo, '-' : hi) | [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) -> do
-      let go pc | pc >= h = pure ()
+    (lo, '-' : hi)
+      | [(l, "")] <- readHex (drop 2 lo),
+        [(h, "")] <- readHex (drop 2 hi) -> do
+          let go pc
+                | pc >= h = pure ()
                 | otherwise = case fileOffsetOf im pc of
                     Nothing -> putStrLn "not in the file"
                     Just off -> do
@@ -125,8 +129,8 @@ main = do
                           bs = B.take (X86.xLen ins) (B.drop (fromIntegral off) bytes)
                       printf "%x: %-24s %s rel=%s rip=%s abs=%s imm=%s modrm=%s sib=%s\n" pc (unwords [printf "%02x" w | w <- B.unpack bs]) (show (X86.xKind ins)) (show (X86.xRel ins)) (show (X86.xRip ins)) (show (X86.xAbs ins)) (show (X86.xImm ins)) (show (X86.xModRm ins)) (show (X86.xSib ins))
                       go (pc + fromIntegral (max 1 (X86.xLen ins)))
-      go l
-      exitSuccess
+          go l
+          exitSuccess
     _ -> die "bad --disasm range"
   an <- analyze (Options (argRemove a) (argKeepDead a) (argKeepConDesc a) ("text" `notElem` argNoSplit a) ("data" `notElem` argNoSplit a) ("strings" `notElem` argNoSplit a) kinds range ("pointers" `notElem` argNoFixedPatch a) ("srt" `notElem` argNoFixedPatch a) (not (argNoFold a)) foldRange [] (argGotRoots a) keepRanges [] pinRanges) im
   when (argDumpFolds a) $ do
@@ -136,12 +140,14 @@ main = do
   forM_ (argRefsTo a) $ \spec -> do
     let im' = anImage an
     case spec of
-      '0' : 'x' : hexDigits | [(addr, "")] <- readHex hexDigits, Just target <- defAt im' addr -> do
-        printf "%s [%x, %x) kept %s pinned %s\n" (hsDisplay target) (dStart target) (dEnd target) (show (anKept an VU.! dIndex target)) (show (anPinned an VU.! dIndex target))
-        forM_ (V.toList (imDefs im')) $ \d ->
-          VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t, _) ->
-            when (t >= dStart target && t < dEnd target) $
-              printf "  from %s at %x: %s -> %x (kept %s)\n" (hsDisplay d) at (show (toEnum (fromIntegral k) :: RefKind)) t (show (anKept an VU.! dIndex d))
+      '0' : 'x' : hexDigits
+        | [(addr, "")] <- readHex hexDigits,
+          Just target <- defAt im' addr -> do
+            printf "%s [%x, %x) kept %s pinned %s\n" (hsDisplay target) (dStart target) (dEnd target) (show (anKept an VU.! dIndex target)) (show (anPinned an VU.! dIndex target))
+            forM_ (V.toList (imDefs im')) $ \d ->
+              VU.forM_ (anRefs an V.! dIndex d) $ \(at, k, t, _) ->
+                when (t >= dStart target && t < dEnd target) $
+                  printf "  from %s at %x: %s -> %x (kept %s)\n" (hsDisplay d) at (show (toEnum (fromIntegral k) :: RefKind)) t (show (anKept an VU.! dIndex d))
       _ -> putStrLn "no definition there"
     exitSuccess
   forM_ (argDump a) $ \name -> do
@@ -151,8 +157,11 @@ main = do
             case defAt (anImage an) addr of
               Just d -> [imDefs (anImage an) V.! j | j <- [max 0 (dIndex d - 2) .. min (V.length (imDefs (anImage an)) - 1) (dIndex d + 2)]]
               Nothing -> []
-          _ | (lo, '-' : hi) <- break (== '-') name, [(l, "")] <- readHex (drop 2 lo), [(h, "")] <- readHex (drop 2 hi) ->
-            [d | d <- V.toList (imDefs (anImage an)), dStart d < h, dEnd d > l]
+          _
+            | (lo, '-' : hi) <- break (== '-') name,
+              [(l, "")] <- readHex (drop 2 lo),
+              [(h, "")] <- readHex (drop 2 hi) ->
+                [d | d <- V.toList (imDefs (anImage an)), dStart d < h, dEnd d > l]
           _ -> [d | d <- V.toList (imDefs (anImage an)), hsDisplay d == name || BC.unpack (dName d) == name]
     forM_ picked $ \d -> do
       printf "%s %s [%x, %x) sym %x head %d kept %s pinned %s%s\n" (hsDisplay d) (show (dKind d)) (dStart d) (dEnd d) (dSym d) (dHead d) (show (anKept an VU.! dIndex d)) (show (anPinned an VU.! dIndex d)) (if anRep an VU.! dIndex d /= dIndex d then " folded onto " ++ hsDisplay (imDefs (anImage an) V.! (anRep an VU.! dIndex d)) else "")
@@ -228,7 +237,7 @@ report top an = do
           M.fromListWith
             add4
             [ (sectName d, (if kept (dIndex d) then (1, size d, 0, 0) else (0, 0, 1, size d)))
-              | d <- defs
+            | d <- defs
             ]
       add4 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
       add4 (a, b, c, d) (e, f, g, h) = (a + e, b + f, c + g, d + h)
@@ -253,7 +262,7 @@ report top an = do
           M.fromListWith
             add4
             [ (maybe (if dKind d == Haskell then "(local labels)" else "(fixed)") (packageBase . hsPackage) (dHs d), if kept (dIndex d) then (1, size d, 0, 0) else (0, 0, 1, size d))
-              | d <- defs
+            | d <- defs
             ]
   putStrLn ""
   printf "%-50s %8s %12s %8s %12s\n" ("package" :: String) ("kept" :: String) ("kept bytes" :: String) ("removed" :: String) ("removed bytes" :: String)

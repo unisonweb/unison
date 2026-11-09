@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | What the writers share: the choices made on the command line, the
 -- statistics they report, and the relocation of an address through the
 -- plan (including to the stub of a cut definition).

@@ -1,5 +1,6 @@
 -- Optimized in every build, --fast too: minifying is slow without it
 {-# OPTIONS_GHC -O2 #-}
+
 -- | Producing the output file: copying and relocating the kept definitions
 -- into the planned layout, then handing the format's writer the file to
 -- finish (headers, link-edit data, symbol tables). See design.md, "Layout
@@ -187,11 +188,11 @@ fillBody an pl Choices {rwZeroFolded = zeroFolded} ptr = do
 pieceSpans :: Image -> Piece -> [(Word64, Word64, Word64)]
 pieceSpans im p =
   [ (a, b - a, off)
-    | (sa, sz, soff) <- VU.toList (imSectMap im),
-      let a = max sa (pcVmStart p),
-      let b = min (sa + sz) (pcFileEnd p),
-      b > a,
-      let off = soff + (a - sa)
+  | (sa, sz, soff) <- VU.toList (imSectMap im),
+    let a = max sa (pcVmStart p),
+    let b = min (sa + sz) (pcFileEnd p),
+    b > a,
+    let off = soff + (a - sa)
   ]
     ++ headerSpan
   where
