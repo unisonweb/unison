@@ -214,7 +214,14 @@ main = do
       when (imFormat (anImage an) == MachOFormat) $ callProcess "codesign" ["-f", "-s", "-", out]
       callProcess "chmod" ["+x", out]
       when (argVerify a) $ do
-        problems <- verify an pl bytes'
+        -- Stripping drops what verify reads the output's definitions from on
+        -- ELF (no symbol table is left), so it checks the same layout with
+        -- its symbols, which differs from what was written only in them.
+        checked <-
+          if argStrip a
+            then fst <$> rewrite an pl (Choices (argKeepHaskellExports a) False (argFoldZeroCopies a))
+            else pure bytes'
+        problems <- verify an pl checked
         if null problems
           then putStrLn "verify: every reference in the output resolves as planned"
           else do

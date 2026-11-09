@@ -429,7 +429,7 @@ analyze opts im0 = do
   -- an absolute address that can be rewritten like any other. A slot in
   -- no definition at all (the GOT, a C constant section) is a loose
   -- reference, patched in place and a root.
-  let hasTable a = maybe False (\o -> tableSize bytes (fromIntegral o) > 0) (fileOffsetOf im a)
+  let hasTable = looksLikeTable im
       -- a pointer into code names a closure's entry (with its table) or, in a
       -- file whose local symbols were stripped, a C function lying in a
       -- Haskell definition's region; the latter has nothing to parse
@@ -752,6 +752,23 @@ prefixForms d = case dHs d of
 -- type in it. Constructors carry a con_desc offset; functions carry their
 -- type and arity, and the general ones also a slow-apply offset and a
 -- bitmap; thunks and return frames carry only the standard table.
+-- | Whether a label in code has an info table before it. The closure type
+-- must be one a table can have, and the SRT field, unless the table is a
+-- constructor's (where the field is the tag), must be zero or lead to a
+-- place in the file: the bytes before a plain block of code (a jump
+-- table's target) can pass the first test by chance, but not both.
+looksLikeTable :: Image -> Word64 -> Bool
+looksLikeTable im label = case fileOffsetOf im label of
+  Nothing -> False
+  Just o ->
+    let off = fromIntegral o
+        bytes = imBytes im
+        ty = u32 bytes (off - 8)
+        srt = i32 bytes (off - 4)
+        target = fromIntegral (fromIntegral label + fromIntegral srt :: Int64)
+     in tableSize bytes off > 0
+          && ((ty >= 1 && ty <= 7) || srt == 0 || isJust (fileOffsetOf im target))
+
 tableSize :: B.ByteString -> Int -> Int
 tableSize bytes off
   | off < 40 = 0
@@ -879,7 +896,7 @@ mkHooks env d =
       hkAnomaly = anomaly env,
       hkFirstPass = readIORef (eFirstPass env),
       hkInText = inText env,
-      hkHasTable = \a -> inText env a && maybe False (\o -> tableSize (eBytes env) (fromIntegral o) > 0) (fileOffsetOf (eImage env) a),
+      hkHasTable = \a -> inText env a && looksLikeTable (eImage env) a,
       hkIsHaskellAt = \a -> maybe False ((== Haskell) . dKind) (defAt (eImage env) a),
       hkInImage = isJust . fileOffsetOf (eImage env),
       hkPie = imPie (eImage env),

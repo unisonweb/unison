@@ -334,11 +334,14 @@ decodeFrom hk start = go start
         KJcc -> do
           let t = branchTarget pc ins
           when (relSize ins == 4) $ hkRef hk (pc + fromIntegral (relOff ins)) RRel32 t next
-          if inDef t
-            then go t >> go next
-            else do
-              hkAnomaly hk ("conditional branch leaves the definition at " ++ hex pc ++ " in " ++ name)
-              go next
+          if
+            | inDef t -> go t >> go next
+            -- a conditional tail call (GHC emits them on x86-64): a 32-bit
+            -- branch reaches anywhere, so it is a reference like a jump's
+            | relSize ins == 4 -> hkLabel hk t False >> go next
+            | otherwise -> do
+                hkAnomaly hk ("short conditional branch leaves the definition at " ++ hex pc ++ " in " ++ name)
+                go next
         KJmp -> do
           let t = branchTarget pc ins
           when (relSize ins == 4) $ hkRef hk (pc + fromIntegral (relOff ins)) RRel32 t next
