@@ -377,7 +377,7 @@ jobs:
         # unison-src/tests/bundle/programs.md on a copy of the codebase the
         # JIT's transcript just made, runs them and compares what they print
         # with expected.txt. unisonrt is minified first, as a release minifies
-        # it, except where a release ships it whole (with split sections):
+        # it, except where a release ships it whole:
         # Windows, which minify doesn't read, and Linux x86-64, which minify
         # isn't ready for.
         run: |

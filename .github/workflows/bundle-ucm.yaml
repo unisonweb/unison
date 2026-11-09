@@ -76,7 +76,7 @@ jobs:
                 --copy-bins
 
           # minify doesn't read Windows executables and isn't ready for Linux
-          # x86-64: there, unisonrt ships whole (with split sections). It
+          # x86-64: there, unisonrt ships whole. It
           # needs unisonrt's symbol table, which Stack strips when it copies
           # an executable on Linux: the build directory's is whole.
           minified=yes

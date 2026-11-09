@@ -95,10 +95,14 @@ ghc-options:
   # opportunities for uninterruptible loops.
   #
   # -split-sections puts each definition in a section of its own, so that
-  # the linker, which GHC runs with --gc-sections on Linux and Windows, drops
-  # the ones nothing uses instead of keeping whole modules. On macOS it
-  # changes nothing: the linker strips dead code by symbol there anyway.
-  # (GHC's own libraries, such as base, come prebuilt without it.)
+  # on Linux the linker, which GHC runs with --gc-sections, drops the ones
+  # nothing uses instead of keeping whole modules. It halves unisonrt there.
+  # It made no difference to unisonrt's size on Windows. On macOS it changes
+  # nothing. On x86-64 the linker already drops unused code by symbol. On
+  # arm64 GHC's dead-code elimination is disabled
+  # (https://gitlab.haskell.org/ghc/ghc/-/issues/24962), and minify does
+  # that job for unisonrt. GHC's own libraries, such as base, come prebuilt
+  # without it.
   "$everything": -haddock -fno-omit-yields -split-sections
 
   statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173

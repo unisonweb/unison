@@ -52,7 +52,7 @@ stack exec -- minify $(stack exec -- which unisonrt) -o unisonrt-min --strip --v
 UNISONRT=unisonrt-min ucm bundle demo/main:apps.hello.main
 ```
 
-Releases minify `unisonrt` on macOS and Linux arm64. On Windows, which minify doesn't read, and on Linux x86-64, which minify isn't ready for, it ships whole. Every package is compiled with `-split-sections` ([`stack.yaml`](../../stack.yaml)), so on those platforms the linker has already dropped the definitions nothing uses, except in GHC's own libraries, which come prebuilt without it. On Linux, minify needs `unisonrt` linked with its relocations kept, which [`package.yaml`](../package.yaml) asks for.
+Releases minify `unisonrt` on macOS and Linux arm64. On Windows, which minify doesn't read, and on Linux x86-64, which minify isn't ready for, it ships whole. Every package is compiled with `-split-sections` ([`stack.yaml`](../../stack.yaml)). On Linux x86-64 that lets the linker drop the definitions nothing uses, which halves `unisonrt`, except in GHC's own libraries, which come prebuilt without it. It made no difference on Windows, where `unisonrt` is about 70 MB. On Linux, minify needs `unisonrt` linked with its relocations kept, which [`package.yaml`](../package.yaml) asks for.
 
 `unisonrt bundle` makes a bundle from a `.uc` file, with the unisonrt running it, minified or not:
 

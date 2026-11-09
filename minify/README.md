@@ -1,5 +1,17 @@
 # minify
 
+## How this was built
+
+This package and these docs were built with Claude Fable 5.1, with minimal oversight. It has no tests of its own. What checks it:
+
+- `--verify` analyzes the written file again and checks that every reference survived. Releases and CI always use it.
+- CI's bundle check runs programs on a minified `unisonrt`, with the JIT off and on, on macOS arm64, macOS x86-64 and Linux arm64.
+- A minified `unison` gave the same output as the original on every transcript of the suite, on macOS arm64, macOS x86-64 and Linux arm64. That was checked by hand, not in CI (see [Results](#results)).
+
+A bug in minify can break a minified executable in ways these checks miss, so run a minified executable before relying on it.
+
+## What it does
+
 Removes the definitions a GHC-linked executable never uses and compacts the
 file. `design.md` explains how; this file says how to run it. It handles
 Mach-O (macOS) and ELF (Linux) executables for AArch64 and x86-64.
