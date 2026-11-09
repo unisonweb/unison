@@ -218,7 +218,7 @@ bundleCommand =
   command "bundle" (info bundleParser (fullDesc <> progDesc help))
   where
     help =
-      "[Experimental] Write a self-contained executable that runs a definition from the codebase, as the `bundle` command does: "
+      "Write a self-contained executable that runs a definition from the codebase, as the `bundle` command does: "
         <> "the compiled program with a copy of unisonrt, the runtime that ships with ucm. It is named after the definition unless OUTPUT is given."
 
 bundleParser :: Parser Command
@@ -353,14 +353,14 @@ jitParser =
   optional . strOption $
     long "jit"
       <> metavar "MODE"
-      <> help "[Experimental] JIT compilation mode: off, on, or eager. Needs LLVM 20 or newer installed (UNISON_LLVM_LIB can point at the library). Same as the UNISON_JIT environment variable."
+      <> help "JIT compilation mode: off, on, or eager. Needs LLVM 20 or newer installed (UNISON_LLVM_LIB can point at the library). Same as the UNISON_JIT environment variable."
 
 jitDumpIRParser :: Parser (Maybe String)
 jitDumpIRParser =
   optional . strOption $
     long "jit-dump-ir"
       <> metavar "DIR"
-      <> help "[Experimental] Write the LLVM IR the JIT generates, with the MCode of each function as a comment, to one .ll file per definition in DIR, or to stderr if DIR is '-'. Same as the UNISON_JIT_DUMP_IR environment variable."
+      <> help "Write the LLVM IR the JIT generates, with the MCode of each function as a comment, to one .ll file per definition in DIR, or to stderr if DIR is '-'. Same as the UNISON_JIT_DUMP_IR environment variable."
 
 lspFormattingParser :: Parser LspFormattingConfig
 lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)
