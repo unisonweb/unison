@@ -112,4 +112,38 @@ The runtime needs the references of the builtin declarations (`Optional`, `Eithe
 
 ## Ideas not done yet
 
-- **Strip the builtins a program can't use.** `bundle` could read the `.uc` file's code and list the builtins it calls. If it calls none of those that load code at run time (`Code.load`, `Value.load` and the like), that list is complete, and the runtime's implementations of every other builtin can go: TLS, sockets, crypto, the FFI, and so on. minify's `--remove` already does the cutting, replacing what it removes with stubs that fail loudly if reached. What's missing is the map from a builtin to the Haskell definitions that implement it (its entry in `Unison.Runtime.Foreign.Function` and what only that reaches), and making the builtin table hold its entries in a way minify can cut one at a time. A program that loads code keeps everything. It brings minify back into `bundle`, and minify needs a `unisonrt` with its symbol table, which the release's minified one no longer has: a release would ship that one too, or minify could keep a map of what it moved, so that a second cut needs no symbols. The runtime's own code is about 16 MB of a release bundle, and TLS alone is about 2.5 MB, so this could take a hello world well under 20 MB.
+### Strip the builtins a program can't use
+
+`bundle` could read the `.uc` file's code and list the builtins it calls. If it calls none of those that load code at run time (`Code.load`, `Value.load`, a code lookup and the like), that list is complete. The implementations of every other builtin could then go, along with whatever only they use: TLS, sockets, crypto, the FFI.
+
+How the cut would work:
+
+- The interpreter reaches every builtin through one function, [`foreignCall`](../src/Unison/Runtime/Foreign/Function.hs), which is a `case` on the `ForeignFunc` that a `ForeignCall` instruction carries. GHC compiles that `case` to a jump table, so every implementation is reachable from that table and nothing else.
+- Point an unused builtin's entry at a stub that fails loudly, and minify's reachability removes what only that entry reached. No list of modules is needed.
+- The jump table has no names, and GHC may lay it out differently. Writing the dispatch as a named top-level array of implementations, indexed by builtin number, gives minify something it can find and edit.
+- `bundle` decides which entries to cut. minify does the cut, through a generic option such as redirecting given slots of a symbol to another symbol, since a pointer slot is a relocation or chained fixup that only minify rewrites.
+- The builtin definitions table in `Unison.Runtime.Builtin` may need the same treatment.
+
+The cost: minify runs again at bundle time, about 15 to 25 seconds. It needs a `unisonrt` with its symbol table, which the release's minified one no longer has. A release would ship that one and minify too, or minify could keep a map of what it moved, so that a second cut needs no symbols.
+
+The gain, measured with `minify --remove Unison.Runtime.Foreign.Function` on an optimized macOS arm64 build, which cuts every builtin and so is an upper bound:
+
+| | Kept |
+|---|---|
+| All builtins | 25.1 MB |
+| No builtins | 18.7 MB |
+
+Of the 18.7 MB:
+
+| Part | Size |
+|---|---|
+| The JIT (`JIT.Codegen` alone is 5.0 MB) | 6.5 MB |
+| The interpreter (`Machine`, `MCode`, the stack) | 3.9 MB |
+| C: the GHC runtime system, libc glue, C libraries | 3.3 MB |
+| Loading the program: decoding, ANF, builtin tables | 1.8 MB |
+| Text, bytestring, containers, vector, GHC's base libraries | 1.1 MB |
+| Many small modules | 2.0 MB |
+
+### Leave the JIT out of a bundle
+
+A bundle that always runs interpreted could cut the JIT, about 6.5 MB. `JIT.Codegen` is most of it, and its size is likely GHC inlining in one large module, which may be worth looking at on its own.
