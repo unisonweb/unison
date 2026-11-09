@@ -28,6 +28,10 @@ On startup, Unison prints a URL for the codebase UI. If you did step 2, visiting
 
 `./scripts/check.sh` runs the tests, transcripts and integration tests the way CI does, and the formatting and migration checks besides; see the next section.
 
+### Generated code
+
+`unison-runtime/src/Unison/Runtime/Builtin/Decls.hs` holds the references of the builtin declarations (`Optional`, `Either`, the IO failures and so on) as constants, because the runtime library that `unisonrt` is built from can't depend on parser-typechecker, where the declarations are. After changing a builtin declaration or the list of builtin types, run `unison-runtime/scripts/gen-builtin-decls.sh` and commit the result. You don't have to remember this: the runtime test `Unison.Test.Runtime.BuiltinDecls` fails until you do, and says so.
+
 ### Profiled builds
 
 `stack build --profile unison-parser-typechecker` (or without the package, for everything), then run an executable with `stack exec -- <executable-name> +RTS -p`. That writes a `<executable-name>.prof` text file with the profiling data. [More on profiling](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html).

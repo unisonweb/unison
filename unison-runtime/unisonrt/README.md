@@ -16,7 +16,7 @@ unisonrt hello.uc arg1 arg2
 
 ## Flags
 
-The flags come before the file. Everything after the file is the program's, `+RTS` included.
+The flags come before the file. Everything after the file is the program's, `+RTS` included. On Windows, the GHC runtime reads the process's command line from the system, so `+RTS ... -RTS` after the file is still read by it there (a bundle's arguments are the program's on every platform).
 
 ```
 unisonrt [+RTS <GHC RTS flags> -RTS] [--jit MODE] [--jit-dump-ir DIR] FILE.uc [ARGS]

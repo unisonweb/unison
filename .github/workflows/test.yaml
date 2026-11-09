@@ -118,6 +118,13 @@ jobs:
             --local-bin-path ${{env.ucm_local_bin}} \
             --copy-bins
 
+      - name: an unstripped unisonrt
+        # minify needs unisonrt's symbol table, which Stack strips when it
+        # copies an executable on Linux: the bundle check (jit job) takes the
+        # one in the build directory instead
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: cp "unison-runtime/$(cd unison-runtime && stack path --dist-dir)/build/unisonrt/unisonrt" "${{env.ucm_local_bin}}/unisonrt"
+
       - name: the JIT's embedded IR is in step with its C
         # clang and the GHC headers are both here on macOS and Linux; the
         # check compares the headers' source hashes and, where the runner's
@@ -149,6 +156,12 @@ jobs:
       - name: unison-parser-typechecker tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-parser-typechecker
+
+      - name: unison-runtime tests
+        # among them the bundle format and the generated builtin
+        # declarations (development.md, "Generated code")
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-runtime
 
       - name: unison-sqlite tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'

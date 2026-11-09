@@ -63,10 +63,8 @@ int main(int argc, char *argv[]) {
   char **args = malloc(sizeof(char *) * (argc + 2));
   int n = 0, i = 0, rts = 0, placed = 0;
   args[n++] = argv[i++];
-  if (is_bundle()) {
-    args[n++] = "--RTS";
-    placed = 1;
-  }
+  int bundle = is_bundle();
+  if (bundle) placed = 1;
   for (; i < argc; i++) {
     const char *a = argv[i];
     if (!placed) {
@@ -88,7 +86,11 @@ int main(int argc, char *argv[]) {
   args[n] = NULL;
 
   RtsConfig conf = defaultRtsConfig;
-  conf.rts_opts_enabled = RtsOptsAll;
+  /* A bundle's arguments are all the program's: the RTS reads none of them,
+   * though it still reads GHCRTS. (Inserting --RTS, as below for a .uc
+   * file, would not do: on Windows the RTS reads the process's command line
+   * from the system, not the argv given here.) */
+  conf.rts_opts_enabled = bundle ? RtsOptsIgnore : RtsOptsAll;
   /* ucm's defaults (unison-cli-main/package.yaml), less its statistics */
   conf.rts_opts = "-I0 -N -qn4 -qg1";
   conf.rts_hs_main = true;

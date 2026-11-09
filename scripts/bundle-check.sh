@@ -114,7 +114,7 @@ expected=$root/unison-src/tests/bundle/expected.txt
 if [[ -n $update ]]; then
   cp "$results" "$expected"
   echo "wrote $expected"
-elif ! diff -u "$expected" "$results"; then
+elif ! diff -u --strip-trailing-cr "$expected" "$results"; then
   echo "FAIL: the bundled programs printed something else (above)"
   exit 1
 fi

@@ -154,6 +154,7 @@ library core
       Unison.Runtime.Builtin.Decls
       Unison.Runtime.Builtin.Types
       Unison.Runtime.Bundle
+      Unison.Runtime.Bundle.MachO
       Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.P256
       Unison.Runtime.Crypto.Rsa
