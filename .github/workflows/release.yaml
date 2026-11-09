@@ -32,6 +32,15 @@ jobs:
     with:
       ref: ${{github.ref}}
 
+  build-docker-image:
+    name: build ucm docker image
+    uses: ./.github/workflows/ucm-docker-image.yaml
+    needs:
+      - bundle-ucm
+    with:
+      version: ${{inputs.version}}
+      is_release: true
+
   release:
     name: create release
     runs-on: ubuntu-24.04
@@ -68,3 +77,51 @@ jobs:
             --notes-start-tag "${prev_tag}" \
             \
             /tmp/ucm/**/ucm-*.{zip,tar.gz}
+
+
+      # Configure Docker's builder,
+      # This seems necessary to support docker cache layers.
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+
+      # Uses the `docker/login-action` action to log in to the Container registry registry using the account and password that will publish the packages. Once published, the packages are scoped to the account defined here.
+      - name: Log in to the Container registry
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20
+        with:
+          registry: ${{ env.container_registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # This step uses [docker/metadata-action](https://github.com/docker/metadata-action#about) to extract tags and labels that will be applied to the specified image. The `id` "meta" allows the output of this step to be referenced in a subsequent step. The `images` value provides the base name for the tags and labels.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.container_registry }}/${{ env.docker_image_name }}
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=sha,format=long
+
+
+      # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
+      # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
+        with:
+          context: ./docker/
+          push: ${{ env.is_published_build }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Use github actions cache for docker image layers
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            SHARE_COMMIT=${{ github.sha }}
+          # Save image locally for use in tests even if we don't push it.
+          outputs: type=docker,dest=/tmp/share-docker-image.tar # export docker image
+
