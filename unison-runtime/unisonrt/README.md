@@ -88,6 +88,17 @@ Values print on one line with a small printer, not ucm's pretty-printer ([`Uniso
 
 Constructors print by the names the codebase gave them when the program was compiled. `compile` writes them into the `.uc` file, for every type the program's code mentions ([`constructorNames`](../ucm/Unison/Runtime/Interface.hs)). A constructor without a name there prints as its type's hash and its number.
 
+## Testing
+
+- **The bundle format.** `Unison.Test.Runtime.Bundle`, in the runtime's test suite, writes bundles from `unisonrt` and from each other, reads their programs back, runs one, and on macOS checks its signature with `codesign --verify --strict`.
+- **Bundles end to end.** [`scripts/bundle-check.sh`](../../scripts/bundle-check.sh) compiles the programs of [`unison-src/tests/bundle/programs.md`](../../unison-src/tests/bundle/programs.md) and bundles them three ways: ucm's `bundle`, `ucm bundle`, and `unisonrt bundle`. It minifies `unisonrt` first as a release does, then runs the programs with the JIT off and on, and compares what they print and their exit codes with `expected.txt`. The programs cover arguments, value printing, traces, failures, and small versions of the JIT's tests, which get hot enough with the JIT on to be compiled. CI's `jit` job runs it on every platform, on the codebase the JIT's transcript made. It takes about half a minute:
+
+```
+scripts/bundle-check.sh --codebase jit_codebase $(stack exec -- which unison) $(stack exec -- which unisonrt) $(stack exec -- which minify)
+```
+
+`--update` rewrites `expected.txt` after an intended change.
+
 ## What it is built from
 
 unison-runtime has two libraries ([`package.yaml`](../package.yaml)):

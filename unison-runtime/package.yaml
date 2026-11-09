@@ -218,6 +218,9 @@ tests:
       - condition: "!os(windows)"
         dependencies: unix
         c-sources: tests/cbits/signals.c
+    # the bundle test writes bundles from it
+    build-tools:
+      - unison-runtime:unisonrt
     dependencies:
       - async
       - base
@@ -243,6 +246,7 @@ tests:
       - unison-util-bytes
       - unison-util-relation
       - unison-util-rope
+      - temporary
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer

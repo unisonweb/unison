@@ -10,6 +10,7 @@ import System.IO.CodePage (withCP65001)
 import Unison.Test.Runtime.ANF qualified as ANF
 import Unison.Test.Runtime.ANF.Serialization qualified as ANF.Serialization
 import Unison.Test.Runtime.BuiltinDecls qualified as BuiltinDecls
+import Unison.Test.Runtime.Bundle qualified as Bundle
 import Unison.Test.Runtime.Crypto.P256 qualified as P256
 import Unison.Test.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Test.Runtime.Foreign.Arrays qualified as Arrays
@@ -28,6 +29,7 @@ test =
   tests
     [ ANF.test,
       ANF.Serialization.test,
+      Bundle.test,
       BuiltinDecls.test,
       MCode.test,
       MCode.Serialization.test,

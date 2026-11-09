@@ -268,7 +268,7 @@ main version = do
               Bundle.bundleFromCodebase theCodebase runtime mainPath output >>= \case
                 Left (Bundle.BundleProblem why) -> exitError (P.text why)
                 Left (Bundle.BundleCompileError err) -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
-                Right () -> putStrLn ("Wrote " ++ output)
+                Right written -> putStrLn ("Wrote " ++ written)
         Run (RunCompiled file) args ->
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case

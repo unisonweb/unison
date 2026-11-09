@@ -147,7 +147,7 @@ bundle self = \case
       _ <- decodeProgram file program
       writeBundle self program out >>= \case
         Left err -> failWith ("can't bundle " ++ file ++ ": " ++ err)
-        Right () -> putStrLn ("unisonrt: wrote " ++ out)
+        Right written -> putStrLn ("unisonrt: wrote " ++ written)
 
 -- | With the JIT on, loads LLVM. When it can't be, says why and runs the
 -- program interpreted, as with the JIT off.

@@ -389,6 +389,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.ANF
       Unison.Test.Runtime.ANF.Serialization
       Unison.Test.Runtime.BuiltinDecls
+      Unison.Test.Runtime.Bundle
       Unison.Test.Runtime.Crypto.P256
       Unison.Test.Runtime.Crypto.Rsa
       Unison.Test.Runtime.Foreign.Arrays
@@ -437,6 +438,8 @@ test-suite runtime-tests
       TypeFamilies
       ViewPatterns
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tool-depends:
+      unison-runtime:unisonrt
   build-depends:
       async
     , base
@@ -457,6 +460,7 @@ test-suite runtime-tests
     , primitive
     , process
     , stm
+    , temporary
     , text
     , unison-core1
     , unison-hash

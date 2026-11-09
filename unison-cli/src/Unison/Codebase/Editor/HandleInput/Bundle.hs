@@ -57,7 +57,7 @@ handleBundle compile output main = do
     liftIO (B.readFile (dir </> "program.uc"))
   liftIO (writeBundle runtime program output) >>= \case
     Left err -> Cli.returnEarly (BundleFailed (Text.pack err))
-    Right () -> Cli.respond (BundleWritten output)
+    Right written -> Cli.respond (BundleWritten written)
   where
     withTempDirectory :: (FilePath -> Cli a) -> Cli a
     withTempDirectory action = Cli.with (withSystemTempDirectory "ucm-bundle") action
@@ -81,7 +81,7 @@ data BundleProblem
 
 -- | `ucm bundle project/branch:path.to.main OUTPUT`: the bundle command,
 -- without the interactive loop.
-bundleFromCodebase :: Codebase IO Symbol Ann -> Runtime Symbol -> PP.ProjectPathNames -> FilePath -> IO (Either BundleProblem ())
+bundleFromCodebase :: Codebase IO Symbol Ann -> Runtime Symbol -> PP.ProjectPathNames -> FilePath -> IO (Either BundleProblem FilePath)
 bundleFromCodebase codebase runtime mainPath output = runExceptT do
   let problem = throwError . BundleProblem
   ids <-

@@ -359,6 +359,21 @@ jobs:
           grep -q ': compiling ' "$RUNNER_TEMP/jit.log" || { echo "::error::nothing was compiled"; exit 1; }
           diff --strip-trailing-cr "$RUNNER_TEMP/jit-tests.md" "$RUNNER_TEMP/jit-tests.output.md"
 
+      - name: bundles and unisonrt, minified, with the JIT off and on
+        # scripts/bundle-check.sh: compiles and bundles the programs of
+        # unison-src/tests/bundle/programs.md on a copy of the codebase the
+        # JIT's transcript just made, with unisonrt minified as a release
+        # minifies it (Windows ships it whole: minify doesn't read it), runs
+        # them and compares what they print with expected.txt
+        run: |
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt.exe"
+          else
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt" "${{env.ucm_local_bin}}/minify"
+          fi
+
       - name: a few rows of the test matrix
         run: |
           UCM=${{env.ucm}} JIT_CODEBASE="$RUNNER_TEMP/jit-codebase" scripts/jit-test-matrix.sh on-t1 stress-all install-all no-irhelpers

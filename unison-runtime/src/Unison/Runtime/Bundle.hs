@@ -18,6 +18,7 @@
 -- (cbits/bundle.c).
 module Unison.Runtime.Bundle
   ( readBundle,
+    bundledProgram,
     writeBundle,
     signExecutable,
     makeExecutable,
@@ -27,6 +28,9 @@ where
 import Data.Bits (shiftL, shiftR)
 import Data.ByteString qualified as B
 import Data.Word (Word64)
+#if defined(mingw32_HOST_OS)
+import System.FilePath (takeExtension, (<.>))
+#endif
 #if !defined(mingw32_HOST_OS)
 import System.Posix.Files (setFileMode)
 #endif
@@ -52,22 +56,33 @@ bundleMagic = "UNISONRT"
 -- | The program this executable carries, if it is a bundle.
 readBundle :: FilePath -> IO (Maybe B.ByteString)
 
+-- | The program in the bytes of a bundle, from a file (not this process's
+-- image, which 'readBundle' reads)
+bundledProgram :: B.ByteString -> Maybe B.ByteString
+
 -- | The bytes of a bundle of the given program, from the bytes of this
 -- executable (a bundle or not). On macOS the result has to be signed
 -- again, which 'writeBundle' does.
 bundleBytes :: B.ByteString -> B.ByteString -> Either String B.ByteString
 
 -- | Writes a bundle of the program, from the file of a unisonrt (a
--- bundle or not), as an executable that anyone can run.
-writeBundle :: FilePath -> B.ByteString -> FilePath -> IO (Either String ())
-writeBundle runtime program out = do
+-- bundle or not), as an executable that anyone can run, and says where:
+-- on Windows a name without an extension gets @.exe@.
+writeBundle :: FilePath -> B.ByteString -> FilePath -> IO (Either String FilePath)
+writeBundle runtime program out0 = do
   this <- B.readFile runtime
   case bundleBytes this program of
     Left err -> pure (Left err)
     Right bytes -> do
       B.writeFile out bytes
       makeExecutable out
-      signExecutable out
+      fmap (const out) <$> signExecutable out
+  where
+#if defined(mingw32_HOST_OS)
+    out = if null (takeExtension out0) then out0 <.> "exe" else out0
+#else
+    out = out0
+#endif
 
 -- | Lets everyone run it, as the linker leaves an executable
 makeExecutable :: FilePath -> IO ()
@@ -95,13 +110,7 @@ readBundle _ = alloca \sizePtr -> do
     then pure Nothing
     else do
       -- the image's own memory: copied, so that nothing points into it
-      section <- B.copy <$> BU.unsafePackCStringLen (castPtr p, size)
-      let (magic, rest) = B.splitAt 8 section
-          len = fromIntegral (fromLittleEndian (B.take 8 rest))
-      pure $
-        if magic == bundleMagic && len <= B.length rest - 8
-          then Just (B.take len (B.drop 8 rest))
-          else Nothing
+      fromSection . B.copy <$> BU.unsafePackCStringLen (castPtr p, size)
 
 -- | Re-signs a rewritten executable, ad hoc: macOS on arm64 runs nothing
 -- whose signature doesn't match it. It can be signed again with a real
@@ -122,7 +131,7 @@ data Segment = Segment
   { segName :: B.ByteString,
     -- | where its load command is
     segCmd :: Int,
-    segVmAddr, segVmSize, segFileOff, segFileSize :: Word64,
+    segVmAddr, segFileOff, segFileSize :: Word64,
     segSections :: [(B.ByteString, Int)]
   }
 
@@ -131,7 +140,7 @@ pageSize = 0x4000
 
 bundleBytes this program = do
   unless (u32 0 == 0xfeedfacf) (Left "not a 64-bit Mach-O executable")
-  let segments = [segment at | (at, cmd) <- commands, cmd == lcSegment64]
+  let segments = machoSegments this
   uni <- maybe (Left "no __UNISON segment: this unisonrt was linked without one") Right (find ((== "__UNISON") . segName) segments)
   le <- maybe (Left "no __LINKEDIT segment") Right (find ((== "__LINKEDIT") . segName) segments)
   sect <- maybe (Left "no __UNISON,__uc section") Right (lookup "__uc" (segSections uni))
@@ -169,34 +178,62 @@ bundleBytes this program = do
           <> B.replicate (fromIntegral newSize - fromIntegral sectOff - B.length content) 0
   pure (header <> segmentBytes <> B.drop (fromIntegral (segFileOff le)) this)
   where
-    u32 :: Int -> Word32
-    u32 at = fromIntegral (fromLittleEndian (B.take 4 (B.drop at this)))
-    u64 :: Int -> Word64
-    u64 at = fromLittleEndian (B.take 8 (B.drop at this))
-    lcSegment64 = 0x19
+    u32 = machoU32 this
+    commands = machoCommands this
     -- the linkedit_data_command load commands
     linkEditData = [0x1d, 0x1e, 0x26, 0x29, 0x2b, 0x2e, 0x80000033, 0x80000034]
-    commands = go 32 (u32 16 :: Word32)
-      where
-        go _ 0 = []
-        go at n = (at, u32 at) : go (at + fromIntegral (u32 (at + 4))) (n - 1)
-    segment at =
-      Segment
-        { segName = B.takeWhile (/= 0) (B.take 16 (B.drop (at + 8) this)),
-          segCmd = at,
-          segVmAddr = u64 (at + 24),
-          segVmSize = u64 (at + 32),
-          segFileOff = u64 (at + 40),
-          segFileSize = u64 (at + 48),
-          segSections =
-            [ (B.takeWhile (/= 0) (B.take 16 (B.drop s this)), s)
-            | k <- [0 .. fromIntegral (u32 (at + 64)) - 1],
-              let s = at + 72 + 80 * k
-            ]
-        }
     roundUp n = (n + pageSize - 1) .&. negate pageSize
     put32 at (v :: Word32) bs = B.take at bs <> B.take 4 (littleEndian (fromIntegral v)) <> B.drop (at + 4) bs
     put64 at (v :: Word64) bs = B.take at bs <> littleEndian v <> B.drop (at + 8) bs
+
+machoU32 :: B.ByteString -> Int -> Word32
+machoU32 this at = fromIntegral (fromLittleEndian (B.take 4 (B.drop at this)))
+
+machoU64 :: B.ByteString -> Int -> Word64
+machoU64 this at = fromLittleEndian (B.take 8 (B.drop at this))
+
+-- | The load commands: where each is, and its type
+machoCommands :: B.ByteString -> [(Int, Word32)]
+machoCommands this = go 32 (machoU32 this 16)
+  where
+    go _ 0 = []
+    go at n = (at, machoU32 this at) : go (at + fromIntegral (machoU32 this (at + 4))) (n - 1)
+
+machoSegments :: B.ByteString -> [Segment]
+machoSegments this = [machoSegment this at | (at, cmd) <- machoCommands this, cmd == 0x19]
+
+machoSegment :: B.ByteString -> Int -> Segment
+machoSegment this at =
+  Segment
+    { segName = B.takeWhile (/= 0) (B.take 16 (B.drop (at + 8) this)),
+      segCmd = at,
+      segVmAddr = machoU64 this (at + 24),
+      segFileOff = machoU64 this (at + 40),
+      segFileSize = machoU64 this (at + 48),
+      segSections =
+        [ (B.takeWhile (/= 0) (B.take 16 (B.drop sect this)), sect)
+        | k <- [0 .. fromIntegral (machoU32 this (at + 64)) - 1],
+          let sect = at + 72 + 80 * k
+        ]
+    }
+
+bundledProgram this
+  | B.length this < 32 || machoU32 this 0 /= 0xfeedfacf = Nothing
+  | otherwise = do
+      uni <- find ((== "__UNISON") . segName) (machoSegments this)
+      sect <- lookup "__uc" (segSections uni)
+      let off = fromIntegral (machoU32 this (sect + 48))
+          size = fromIntegral (machoU64 this (sect + 40))
+      fromSection (B.take size (B.drop off this))
+
+-- | A bundle's program, from its section's contents
+fromSection :: B.ByteString -> Maybe B.ByteString
+fromSection section
+  | magic == bundleMagic, len <= B.length rest - 8 = Just (B.take len (B.drop 8 rest))
+  | otherwise = Nothing
+  where
+    (magic, rest) = B.splitAt 8 section
+    len = fromIntegral (fromLittleEndian (B.take 8 rest))
 
 #else
 
@@ -220,6 +257,15 @@ readBundle self = withBinaryFile self ReadMode \h -> do
 
 signExecutable :: FilePath -> IO (Either String ())
 signExecutable _ = pure (Right ())
+
+bundledProgram this
+  | B.length this >= 16,
+    (off, magic) <- B.splitAt 8 (B.drop (B.length this - 16) this),
+    magic == bundleMagic,
+    start <- fromIntegral (fromLittleEndian off),
+    start <= B.length this - 16 =
+      Just (B.take (B.length this - 16 - start) (B.drop start this))
+  | otherwise = Nothing
 
 bundleBytes this program = Right (runtime <> program <> littleEndian (fromIntegral (B.length runtime)) <> bundleMagic)
   where
