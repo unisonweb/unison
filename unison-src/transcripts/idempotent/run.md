@@ -200,7 +200,7 @@ scratch/main> run baz
 
 However, the user then deletes `bar` from their scratch file, and now the `baz` in the scratch file depends on the `bar`
 in the *codebase*, which depends on the `foo` in the *codebase*, which is shadowed by the updated `foo` in the scratch
-file. In this case, `run baz` doesn't work.
+file. `load` adds that `bar` to the file, rebuilt on the new `foo`, so `run baz` works.
 
 ``` unison
 foo = do 2
@@ -210,33 +210,23 @@ baz = do bar() + 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ~ foo : 'Nat
+  Also typechecking, from the codebase: bar. They use what this
+  file redefines, so they are part of the file now, and `update`
+  saves them rebuilt on the new definition.
 
-  (and 1 unchanged term)
+  ~ bar : 'Nat
+  ~ baz : 'Nat
+  ~ foo : 'Nat
 
   ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
 
-``` ucm :error
+``` ucm
 scratch/main> run baz
 
-  Sorry, I don't want to run baz because it depends on something
-  that hasn't been committed to the codebase yet:
-
-    baz (in file)
-    └ bar (in codebase)
-      └ foo (in file)
-
-  You can `update` to save and propagate these changes into your
-  branch.
-
-  If you don't want that, you can run `edit.dependents foo` to
-  add all callers of foo to the scratch file without performing
-  an `update`.
-
-  Then, you can try `run baz` again for an up-to-date result.
+  4
 ```
 
 ``` ucm :hide

@@ -1,0 +1,79 @@
+# MCP benchmarks
+
+Tasks for measuring whether the `learn` topics and the server instructions are enough for an agent with no other context to get a job done, in few tokens and few turns. Iterate on `docs/mcp/learn` against these.
+
+## Layout
+
+```
+docs/mcp/benchmarks/
+  <task>/
+    prompt.md          the task, given verbatim to the worker agent
+    setup.md           optional: a transcript that prepares the starting codebase
+    judges/
+      <judge>.md       a prompt for a judge agent; there may be several per task
+```
+
+## The codebase
+
+`prepare.sh [<task>]` prints the directory of a fresh codebase (project `scratch`, branch `main`, `@unison/base` installed in `lib`). The base codebase is built once from `base-codebase.md` (it needs the network the first time, about 15 seconds) and cached under `$TMPDIR`, keyed by the hash of that file, so changing the pinned library version rebuilds it. Each call then copies it, which takes milliseconds, so runs never share state. If the task has a `setup.md`, it is run on the copy first.
+
+``` 
+UNISON="$(stack exec -- which unison)" docs/mcp/benchmarks/prepare.sh list-pick
+```
+
+Point the worker's MCP server at the printed directory with `unison -C <dir> mcp`, and copy the directory again for each judge. Set `UNISON` to the executable under test; the default is `unison` on the PATH.
+
+## Protocol
+
+1. **Prepare** a fresh codebase with `prepare.sh <task>`.
+2. **Work.** A fresh agent with only the MCP server connected gets `prompt.md` and nothing else. It is not told about `learn` topics or the repository. Record its tool calls, the tokens it used, and its turns.
+3. **Judge.** For each file in `judges/`, copy the codebase the worker produced and give it to a fresh agent, with the judge file as its prompt. A judge sees the codebase and its prompt, not the worker's conversation.
+4. **Score.** Every judge ends its reply with a line that is exactly `PASS` or `FAIL`, after a short paragraph of reasons. A judge may define more ratings: the `reuses-existing` judges end with `GREAT` (the exact alias), `PASS` (a wrapper that could be eta reduced, partial credit) or `FAIL`. The task passes when all its judges pass.
+
+A judge that needs to see how the worker worked (the `method` judges of the refactoring tasks) cannot tell from the codebase, so its prompt contains placeholders that the harness replaces before giving it to the judge: `{{WORKER_TRANSCRIPTS}}` is the path of a directory holding the worker's submitted transcripts, one Markdown file per call to a transcript tool (the files the worker wrote for `ask.py`, i.e. the worker's `agent/` directory), and `{{CALLS_LOG}}` is the path of the worker's `calls.log` (tool, `learn` path, reply size and error flag per call; it does not hold the transcripts themselves). In the proxy scripts, `jstart.sh` (called by `jall.sh` and `jbundle.sh`) copies those two into the judge's directory (`worker-transcripts/`, `worker-calls.log`) and substitutes the paths with `sed` when it writes `judge-prompt.txt`; judges without the placeholders are unaffected. With any other harness, copy the worker's transcripts somewhere the judge can read and substitute the path the same way.
+
+Metrics worth recording per run: pass/fail per judge, the worker's turns, tool calls, `learn` calls, failed transcript stanzas, and total tokens (the server instructions and every `learn` reply count).
+
+Run each variant several times, since a single run is noise. Keep some tasks out of the loop (don't tune topics against them) to check for overfitting.
+
+## Writing a judge
+
+- Say exactly what to check and what to run. A check that a command can settle (`ls` of the tests, `dependencies`, comparing `crypto.hash` of two functions) is better named explicitly than left to the judge's discretion.
+- Name the topics the judge may read, if any. A judge that tests whether the documentation stands on its own must not read the topics that teach how to write it.
+- End with: "Reply with a short paragraph of reasons, then a final line that is exactly PASS or FAIL."
+
+## Tasks
+
+- `list-pick`: write a small documented, tested function that returns the elements (not the indices) selected by a list of Booleans. Judges: `implementation` (type, values not indices, edge cases, tail recursive, long list), `docs-quality`, and `tests`.
+- `list-xf`: `List.xf`, a function that is `List.map` under another name. Don't read the source of `List` functions. Judges: `implementation` (tests exist and pass, tail recursive, following helpers through `dependencies`, function first, 100 elements) and `reuses-existing` (is it `List.map`, by comparing hashes: GREAT for the alias, PASS for a wrapper, FAIL for a new implementation).
+- `list-sift`: the same for `List.sift`, which is `List.filter`.
+- `list-xf-keep`: the same for `List.xfKeep`, which is `List.filterMap`.
+- `list-run-lengths`, `list-neighbors`, `list-running-totals`, `list-merge-sorted`: list tasks. The first three have a `reuses-existing` judge (a base function behind them); merge has an `efficiency` judge.
+- `map-word-counts`, `map-invert`, `map-add-counts`, `map-group-by-length`: `Map` tasks with `behavior`, `tests` and `reuses-existing` judges.
+- `euler-factorial-digits`, `euler-nth-prime`: Project Euler style; `Natural` needed for the first, an `efficiency` judge for the first.
+- `types-shape-area`, `types-person-record`: a data type and a record.
+- `text-extract-numbers`, `text-parse-log-line`: text patterns (`Pattern`); the reuse judge rates `Pattern` use GREAT.
+- `abilities-coro`, `abilities-collect-log`: new abilities with handlers; an `ability-polymorphic` judge checks the signature lets other abilities through.
+- `abilities-random-seeded`, `abilities-store-label`: using base's `Random` and `Store`; an `ability-use` judge.
+- `errors-parse-all`, `errors-safe-average`: error handling with `Either`, `Exception` and `Abort`; an `errors` judge.
+- `threads-slow-squares`, `threads-first-done`: structured concurrency with `IO.Threads`; they need the IO transcript tool.
+
+Judges named `behavior` run the function on inputs the prompt doesn't show. `ideas.md` has the reasoning behind the set.
+
+### Workflow and refactoring tasks
+
+Whole UCM workflows rather than single functions; the starting codebase comes from each task's `setup.md`. See `workflows.md` for the ideas and the setup tricks.
+
+- Merges and history: `workflow-merge-clean`, `workflow-merge-conflict`, `workflow-merge-type-break`, `workflow-merge-silent-combine`, `workflow-merge-cancel`, `workflow-merge-long` (a 638-line merge file: read how the worker read it with `harness/fileread.py`), `workflow-undo-update`.
+- Updates and deletes: `workflow-update-clean`, `workflow-update-type-conflict`, `workflow-update-multiround`, `workflow-delete-with-dependents`.
+- Libraries: `workflow-lib-install-upgrade`, `workflow-lib-install-fresh` (these two need the network), `workflow-lib-upgrade-conflict`, `workflow-lib-upgrade-two` (offline).
+- Finding libraries and branches: `workflow-http-json-server`, `workflow-json-encode-record` (network), `workflow-feature-branch`.
+- Refactorings: `refactor-rename` (`move`, with the doc, tests and constructor following), `refactor-change-implementation` (a type-preserving change: send the new definition and `update`, touch nothing else), `refactor-add-argument`, `refactor-swap-arguments`, `refactor-constructor-fields` (value-first constructors: `signature`, `case` and `term` rules), `refactor-ability-operation`, `refactor-add-constructor`. Every one has a `method` judge that reads the worker's submitted transcripts: GREAT for the route `skills/refactor` teaches (a structural `rewrite`; `move`; only the changed definition sent; `rewrite.find` or `dependents` to find the matchers or handlers before adding a constructor or an operation), PASS for reaching the right state another way; the other judges check the outcome only.
+
+Each folder also has `about.md` (what it tests, traps, topics, reliability) and `validation/` (`good*.md` and `bad-*.md` solutions for checking the judges).
+
+### Held-out tasks
+
+Added on 3 November 2026, after the topics had been tuned against every task above for 25 rounds (several topics carried a task's own solution as their example, since fixed). Never edit a topic because one of these failed; they measure whether the topics carry over to problems they weren't written for. Each has a `behavior` and a `tests` judge, plus the one named here.
+
+- `list-chunks` (`List.chunk`; `reuses-existing`), `map-merge-max` (`Map.unionWith`; `reuses-existing`), `random-sample` (a seeded choice without repetition; `reuses-existing`), `mutable-word-ids` (numbering by first appearance; `state-use`), `threads-timed-pair` (two waits at once; `reuses-existing`), `text-parse-kv` (`key=value;...` with `Pattern`; `reuses-existing`), `abilities-counter` (an ability with a stateful handler; `ability-polymorphic`), `errors-parse-port` (a failing parser and its `Optional` twin; `errors`).

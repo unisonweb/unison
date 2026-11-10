@@ -51,6 +51,15 @@
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
 
+  bundle
+  `bundle main file`  Writes a self-contained executable,
+                      `file`, that runs `!main`. It is the
+                      program `compile` writes, with a copy of
+                      unisonrt, the runtime that runs compiled
+                      programs without a codebase, and needs
+                      nothing else to run. The arguments it is
+                      given are the program's.
+
   cancel
   `cancel`  cancels the in-progress merge, update, or upgrade.
 
@@ -224,7 +233,7 @@
   List the dependencies of the specified definition.
 
   dependents
-  List the named dependents of the specified definition.
+  List the named dependents of the specified definition: the definitions that use it directly, not the ones that use those.
 
   deprecated.cd (or deprecated.namespace)
   Moves your perspective to a different namespace. Deprecated for now because too many important things depend on your perspective selection.
@@ -261,7 +270,7 @@
   run. This is a read-only operation that doesn't modify the
   codebase.
 
-  display
+  display (or render)
   `display foo` prints a rendered version of the term `foo`.
   `display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH.
 
@@ -270,7 +279,7 @@
   term `foo` to the given file.
 
   docs
-  `docs foo` shows documentation for the definition `foo`.
+  `docs foo` shows the type signature of the term `foo` (or the heading of the type `foo`), then its documentation.
   `docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH.
 
   docs.to-html
@@ -308,16 +317,33 @@
   `edit foo` prepends the definition of `foo` to the top of the most recently saved file.
   `edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH.
 
+  See also `edit.to` to send the definitions to a file of your
+  choice.
+
   edit.dependents
   Like `edit`, but also includes all transitive dependents in the current project.
+
+  edit.dependents.to
+  Like `edit.dependents`, but sends the definitions to the given file, creating it if it doesn't exist.
 
   edit.namespace
   `edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).
   `edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
   `edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces.
 
+  edit.namespace.to
+  Like `edit.namespace`, but sends the definitions to the given file, creating it if it doesn't exist.
+
   edit.new
   Like `edit`, but adds a new fold line below the definitions.
+
+  edit.new.to
+  Like `edit.new`, but sends the definitions to the given file, creating it if it doesn't exist.
+
+  edit.to
+  `edit.to <filename> foo` is like `edit foo` but prepends the
+  definition of `foo` to the given file, creating it if it
+  doesn't exist.
 
   find
   `find`                           lists all definitions in the
@@ -813,6 +839,9 @@
   quit (or exit, :q)
   Exits the Unison command line interface.
 
+  redo
+  `redo` restores what `undo` reverted, until the next change to the branch.
+
   reflog (or reflog.branch, branch.reflog)
   `reflog` lists all the changes that have affected the current branch.
   `reflog /mybranch` lists all the changes that have affected /mybranch.
@@ -846,11 +875,35 @@
   previous state.
 
   rewrite (or sfind.replace)
-  `rewrite rule1` rewrites definitions in the latest scratch file.
+  `rewrite <rewrites> [<target>]` applies the rewrites to the
+  definitions in the target that match them: a file is rewritten
+  in place, and for the branch the rewritten definitions go to a
+  new file for you to review.
 
-  The argument `rule1` must refer to a `@rewrite` block or a
-  function that immediately returns a `@rewrite` block. It can
-  be in the codebase or scratch file. An example:
+  The `<rewrites>` argument says which `@rewrite` blocks (or
+  functions that immediately return one) to use. It is one of:
+
+    foo.u:r1,r2 the rewrites `r1` and `r2` in the file `foo.u`.
+    foo.u       the rewrite in `foo.u`, which must be its only definition.
+    :r1,r2      the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.
+
+  The target says what to rewrite:
+
+    (none)           the current branch (excluding `lib`).
+    foo.u            the definitions in the file `foo.u`.
+    path.to.mymodule the definitions in that namespace of the current branch.
+
+  For a file target, the file itself is rewritten, and the
+  version before is saved as
+  `rewrites/<yyyy-mm-dd-hh-mm>-<file>-<short-guid>.u` in a
+  `rewrites` directory next to it (unless the file is already in
+  one, and then beside it). For the branch or a namespace, the
+  rewritten definitions go to a new file,
+  `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`. Nothing is
+  changed in the branch until you `update`. Review the file,
+  typecheck it with `load` and run `update` when you are done.
+
+  An example of a rewrite:
 
       rule1 x = @rewrite term x + 1 ==> Nat.increment x
 
@@ -863,12 +916,20 @@
   Also see the related command `rewrite.find`
 
   rewrite.find (or sfind)
-  `rewrite.find rule1` finds definitions that match any of the
-  left side(s) of `rule` in the current namespace.
+  `rewrite.find <rewrites>` lists the definitions in the current
+  branch (excluding `lib`) that match the left side of any of
+  the rewrites. Use `edit 1-<n>` to bring them into your scratch
+  file.
 
-  The argument `rule1` must refer to a `@rewrite` block or a
-  function that immediately returns a `@rewrite` block. It can
-  be in the codebase or scratch file. An example:
+  The `<rewrites>` argument says which `@rewrite` blocks (or
+  functions that immediately return one) to use. It is one of:
+
+    foo.u:r1,r2 the rewrites `r1` and `r2` in the file `foo.u`.
+    foo.u       the rewrite in `foo.u`, which must be its only definition.
+    :r1,r2      the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.
+
+  The right side of a rewrite is ignored by this command. An
+  example:
 
       -- right of ==> is ignored by this command
       rule1 x = @rewrite term x + 1 ==> ()
@@ -925,6 +986,105 @@
     Any provided arguments will be passed as program arguments
     as though they were provided at the command line when
     running `mymain` as an executable.
+
+  share.docs
+  `share.docs @user/project:name`  prints the type signature of
+                                   a definition on Share, then
+                                   its rendered documentation,
+                                   like `docs` does for your own
+                                   code.
+  `share.docs 2`                   does the same for the second
+                                   result of the last
+                                   `share.search` .
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
+
+  share.project-search
+  `share.project-search <query>`  searches Unison Share for
+                                  projects and libraries
+                                  matching the query.
+
+  share.releases
+  `share.releases @user/project`  lists the releases of a
+                                  project on Share, newest first
+                                  (up to 100), with their dates.
+
+  The list is numbered: `share.releases.detail 2` shows the
+  release notes of the second one.
+
+  share.releases.detail
+  `share.releases.detail @user/project/releases/2.3.1`  prints
+                                                        the
+                                                        release
+                                                        notes of
+                                                        that
+                                                        release
+                                                        of a
+                                                        project
+                                                        on
+                                                        Share.
+  `share.releases.detail 2`                             does the
+                                                        same for
+                                                        the
+                                                        second
+                                                        release
+                                                        in the
+                                                        list
+                                                        that
+                                                        `share.releases`
+                                                        printed.
+  `share.releases.detail @user/project`                 prints
+                                                        the
+                                                        release
+                                                        notes of
+                                                        the
+                                                        latest
+                                                        release.
+
+  share.render
+  `share.render @user/project`       prints the README of a
+                                     project on Share.
+  `share.render @user/project:name`  prints the rendered
+                                     documentation of a
+                                     definition, or of a doc if
+                                     it names one.
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
+
+  share.search
+  `share.search <name>`                    searches Unison Share
+                                           for terms and types
+                                           with that name, like
+                                           `List.map` or `map`.
+  `share.search <type>`                    searches for terms by
+                                           type, like `[a] ->
+                                           Nat`.
+  `share.search @<name>`                   searches for users,
+                                           organizations and
+                                           projects, like
+                                           `@unison`.
+  `share.search <query> in @user/project`  searches only that
+                                           project, and `in
+                                           @user` only that
+                                           user's projects.
+
+  Each match is printed with a reference you can give to
+  `share.source` or `share.render`.
+
+  share.source
+  `share.source @user/project:name`  prints the source of a
+                                     definition on Share.
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
 
   signature (or sig)
   `signature foo` displays the type signature of `foo`.
@@ -1010,7 +1170,7 @@
   `ui` opens the Local UI in the default browser.
 
   undo
-  `undo` reverts the most recent change to the codebase.
+  `undo` reverts the most recent change to the current branch. It goes back as far as the last `reset`.
 
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.
@@ -1023,17 +1183,20 @@
                                        currently watched paths.
 
   update (or add)
-  Adds everything in the most recently typechecked file to the
-  namespace, replacing existing definitions having the same
-  name, and attempts to update all the existing dependents
+  `update` adds everything in the most recently typechecked file
+  to the namespace, replacing existing definitions having the
+  same name, and attempts to update all the existing dependents
   accordingly. If the process can't be completed automatically,
   the dependents will be added back to the scratch file for your
   review.
 
+  `update foo.u` typechecks the file first, as `load foo.u`
+  would, and then does the same.
+
   version
   Print the version of unison you're running
 
-  view
+  view (or source)
   `view foo` shows definitions named `foo` within your current
   namespace.
   `view` without arguments invokes a search to select

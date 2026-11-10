@@ -1,0 +1,17 @@
+``` unison
+slowSquares : [Nat] ->{IO, Exception, Threads} [Nat]
+slowSquares xs =
+  slowSquare n =
+    Threads.sleep (Duration.milliseconds +200)
+    n Nat.* n
+  List.map slowSquare xs
+
+slowSquares.tests.example : '{IO, Exception} [Result]
+slowSquares.tests.example = do test.verify do
+  ensureEqual (Threads.run do slowSquares [1, 2, 3]) [1, 4, 9]
+  ensureEqual (Threads.run do slowSquares []) []
+```
+``` ucm
+scratch/main> add
+scratch/main> io.test slowSquares.tests.example
+```

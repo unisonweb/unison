@@ -123,7 +123,7 @@ function cx sect = do
 native :: Cx -> RComb Val -> IO (Bool, Double)
 native cx comb = case unRComb comb of
   CachedVal {} -> pure (False, 0)
-  Comb (LamI _ _ entry cell)
+  Comb (LamI _ _ entry cell) _
     -- code not loaded through the cache: never compiled
     | cell == noNativeCell -> pure (False, 0)
     | cell == cxSelf cx -> pure (True, cxSelfExits cx)
@@ -184,7 +184,7 @@ walk cx = \case
   RMatch {} -> pure (Just exit)
   where
     isSelf comb = case unRComb comb of
-      Comb (LamI _ _ _ cell) -> cell == cxSelf cx && cell /= noNativeCell
+      Comb (LamI _ _ _ cell) _ -> cell == cxSelf cx && cell /= noNativeCell
       _ -> False
     -- A tail call leaves nothing of the caller behind, so what the callee
     -- does afterwards is not the caller's concern.
@@ -200,7 +200,7 @@ walk cx = \case
     -- a combinator used as a value is a constant, and so is a top-level
     -- value that was evaluated when it was loaded
     constant comb args = case (unRComb comb, args) of
-      (Comb (LamI arity _ _ _), ZArgs) -> arity > 0
+      (Comb (LamI arity _ _ _) _, ZArgs) -> arity > 0
       (CachedVal {}, ZArgs) -> True
       _ -> False
     -- A binding that is a call is a native call if the callee is native,

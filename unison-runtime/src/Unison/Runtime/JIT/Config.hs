@@ -25,13 +25,15 @@ import System.Environment (lookupEnv)
 import System.IO (hFlush, hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
+import Unison.Runtime.Optimizations (Optimization (..), optimizationSetting)
 
 data Mode
   = -- | never compile
     Off
   | -- | compile what gets hot, in the background (LLVM is loaded at startup)
     On
-  | -- | compile everything as it is loaded (for testing)
+  | -- | compile each definition as it is loaded, before it runs, and a
+    -- re-entry function at its first miss (for testing)
     Eager
   deriving (Show, Eq)
 
@@ -61,8 +63,9 @@ data ReplacementUse = Always | InterpreterOnly
 -- A compiled program chooses it before any code loads, from the mode it
 -- was compiled under ('setReplacements'; the file carries it, since its
 -- MCode has the replacements of that mode baked in); otherwise the
--- environment decides: @UNISON_REPLACEMENTS@ if set, else it follows
--- @UNISON_JIT@.
+-- environment decides: @UNISON_OPTIMIZATIONS=replacements@ (all of them)
+-- or @-replacements@ (none) if set (Unison.Runtime.Optimizations), else
+-- it follows @UNISON_JIT@.
 replacements :: Replacements
 replacements = unsafePerformIO $ do
   chosen <- readIORef replacementsRef
@@ -75,10 +78,9 @@ replacements = unsafePerformIO $ do
 replacementsFromEnvironment :: IO Replacements
 replacementsFromEnvironment = do
   mode <- lookupEnv "UNISON_JIT"
-  repl <- lookupEnv "UNISON_REPLACEMENTS"
-  pure $ case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
-    (Just "on", _) -> AllReplacements
-    (Just "off", _) -> NoReplacements
+  pure $ case (optimizationSetting Replacements, map toLower (fromMaybe "off" mode)) of
+    (Just True, _) -> AllReplacements
+    (Just False, _) -> NoReplacements
     (_, "on") -> TaggedReplacements
     (_, "eager") -> TaggedReplacements
     _ -> AllReplacements
@@ -112,8 +114,9 @@ replacementActive use = case replacements of
 
 data Config = Config
   { mode :: Mode,
-    -- | with 'On': interpreted calls before a definition is compiled
-    -- (@UNISON_JIT_THRESHOLD@)
+    -- | with 'On': interpreted calls before a definition is compiled, and
+    -- in both modes the misses before a re-entry function left for later
+    -- is asked for (@UNISON_JIT_THRESHOLD@; 1 with 'Eager')
     threshold :: Int,
     -- | with 'On': the most definitions compiled together as one module
     -- (@UNISON_JIT_BATCH@)
@@ -194,6 +197,14 @@ data Config = Config
     stressCStack :: Int,
     -- | allocation budget between polls, in words (stress mode @alloc=N@)
     stressAlloc :: Int,
+    -- | a minor GC after every this-many-th return from native code (stress
+    -- mode @gc=N@): a pointer native code stored into a card the write
+    -- barrier did not mark dies at the next return, which the debug RTS
+    -- then reports at once instead of one run in several
+    stressGC :: Int,
+    -- | returns from native code before @gc=N@ starts (@gcskip=M@), to reach
+    -- a late fault sooner
+    stressGCSkip :: Int,
     -- | milliseconds to sleep between installing each function of a
     -- module (stress mode @install=N@)
     stressInstall :: Int,
@@ -254,13 +265,15 @@ readConfig = do
   stress <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_STRESS"
   disabledFeatures <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_DISABLE"
   let setting key = listToMaybe' (mapMaybe (stripPrefix (key ++ "=")) stress) >>= readMaybe
+      jitMode = case map toLower (fromMaybe "off" mode) of
+        "eager" -> Eager
+        "on" -> On
+        _ -> Off
   pure
     Config
-      { mode = case map toLower (fromMaybe "off" mode) of
-          "eager" -> Eager
-          "on" -> On
-          _ -> Off,
-        threshold = max 1 (fromMaybe 100 (thresh >>= readMaybe)),
+      { mode = jitMode,
+        -- eager mode asks for a re-entry function at its first miss
+        threshold = max 1 (fromMaybe (if jitMode == Eager then 1 else 100) (thresh >>= readMaybe)),
         batch = max 1 (fromMaybe 32 (batchSize >>= readMaybe)),
         batchGate = max 1 (fromMaybe (max 1 (fromMaybe 100 (thresh >>= readMaybe)) `div` 4) (gate >>= readMaybe)),
         sizeUnit = max 1 (fromMaybe 500 (sizeU >>= readMaybe)),
@@ -282,6 +295,8 @@ readConfig = do
         stressCallee = fromMaybe 0 (setting "callee"),
         stressCStack = fromMaybe 0 (setting "cstack"),
         stressAlloc = fromMaybe 0 (setting "alloc"),
+        stressGC = fromMaybe 0 (setting "gc"),
+        stressGCSkip = fromMaybe 0 (setting "gcskip"),
         stressInstall = fromMaybe 0 (setting "install"),
         stressPool = setting "pool",
         stressLists = fromMaybe 0 (setting "lists"),

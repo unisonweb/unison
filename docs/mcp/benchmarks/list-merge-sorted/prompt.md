@@ -1,0 +1,1 @@
+In the current Unison project, I need `List.mergeSorted : [a] -> [a] -> [a]`, which merges two lists that are each sorted ascending into one sorted list, in a single pass over both. For example, `List.mergeSorted [1, 4, 6] [2, 3, 7, 8]` is `[1, 2, 3, 4, 6, 7, 8]`. The inputs can be very long. Add it to the codebase, with tests.

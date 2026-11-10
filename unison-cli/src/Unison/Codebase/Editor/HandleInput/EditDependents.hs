@@ -14,7 +14,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.EditNamespace (getNamesForEdit)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
-import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..))
+import Unison.Codebase.Editor.Input (OutputLocation)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.HashQualified qualified as HQ
@@ -30,8 +30,8 @@ import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Defns qualified as Defns
 import Unison.Util.Relation qualified as Relation
 
-handleEditDependents :: HQ.HashQualified Name -> Cli ()
-handleEditDependents name = do
+handleEditDependents :: OutputLocation -> HQ.HashQualified Name -> Cli ()
+handleEditDependents outputLoc name = do
   -- Get all of the referents and type references this name refers to
   refs0 <- resolveHQName name
 
@@ -101,4 +101,4 @@ handleEditDependents name = do
       pure (ppe, types, terms)
 
   let misses = []
-  showDefinitions (LatestFileLocation WithinFold) (const True) ppe terms types misses
+  showDefinitions outputLoc (const True) ppe terms types misses

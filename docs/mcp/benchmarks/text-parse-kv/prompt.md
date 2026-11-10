@@ -1,0 +1,3 @@
+In the current Unison project, I need `KV.parse : Text -> Optional (Map Text Text)`, which reads text of the form `key=value;key=value;...`: keys are one or more letters or digits, values are any characters other than `;` (possibly none), pairs are separated by `;`, and there is no trailing `;`. For example, `KV.parse "host=example.com;port=8080"` is `Some` of a map with `host -> "example.com"` and `port -> "8080"`, and `KV.parse ""` is `Some Map.empty`. Anything else, such as a pair with no `=` or a key with a space, gives `None`. Add it to the codebase, with tests.
+
+Don't look at the source code of existing functions in `lib` or in base (`view`, `source` or similar on a definition outside this project). Reading documentation (`docs`) is fine.

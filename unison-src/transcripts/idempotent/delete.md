@@ -62,7 +62,7 @@ scratch/main> delete Foo
 
 scratch/main> ls
 
-  1. lib. (951 terms, 138 types)
+  1. lib. (856 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -173,7 +173,7 @@ scratch/main> delete.force Foo.Foo
 scratch/main> ls
 
   1. Foo  (type)
-  2. lib. (951 terms, 138 types)
+  2. lib. (856 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -391,7 +391,7 @@ scratch/main> delete foo
 
 scratch/main> ls
 
-  1. lib. (951 terms, 138 types)
+  1. lib. (856 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -536,15 +536,27 @@ scratch/main> delete a b c
   I couldn't complete the delete, because some definitions are
   still in use.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, update-main, and the
+  definitions to fix are in delete-main-0c8e56de.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      scratch/update-main> load delete-main-0c8e56de.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      scratch/update-main> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the delete instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm delete-main-0c8e56de.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -738,15 +750,27 @@ scratch/main> delete ping
   I couldn't complete the delete, because some definitions are
   still in use.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, update-main, and the
+  definitions to fix are in delete-main-0b295472.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      scratch/update-main> load delete-main-0b295472.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      scratch/update-main> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the delete instead, run `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm delete-main-0b295472.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 

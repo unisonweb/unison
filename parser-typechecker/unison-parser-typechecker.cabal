@@ -150,14 +150,10 @@ library
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd
-      Unison.Util.EnumContainers
       Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.Pretty.MegaParsec
-      Unison.Util.RefPromise
       Unison.Util.Star2
-      Unison.Util.Text
-      Unison.Util.Text.Pattern
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   hs-source-dirs:
@@ -198,7 +194,6 @@ library
       ListLike
     , aeson
     , async
-    , atomic-primops
     , base
     , bytes
     , bytestring
@@ -217,11 +212,9 @@ library
     , megaparsec
     , mmorph
     , mtl
-    , murmur-hash
     , mutable-containers
     , nonempty-containers
     , pretty-simple
-    , primitive
     , regex-tdfa
     , semialign
     , stm
@@ -248,7 +241,6 @@ library
     , unison-util-cache
     , unison-util-recursion
     , unison-util-relation
-    , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uuid
@@ -268,6 +260,7 @@ test-suite parser-typechecker-tests
       Unison.Test.CodebaseInit
       Unison.Test.Common
       Unison.Test.DataDeclaration
+      Unison.Test.PrintError
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
@@ -281,7 +274,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
-      Unison.Test.Util.Text
       Unison.Test.Var
   hs-source-dirs:
       tests
@@ -318,8 +310,7 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      async
-    , base
+      base
     , code-page
     , containers
     , easytest
@@ -336,7 +327,5 @@ test-suite parser-typechecker-tests
     , unison-prelude
     , unison-pretty-printer
     , unison-syntax
-    , unison-util-bytes
     , unison-util-relation
-    , unison-util-rope
   default-language: Haskell2010

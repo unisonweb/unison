@@ -56,6 +56,10 @@ module Unison.CommandLine.InputPatterns
     edit,
     editDependents,
     editNamespace,
+    editNamespaceTo,
+    editTo,
+    editNewTo,
+    editDependentsTo,
     execute,
     execProfiled,
     execProfiledFull,
@@ -78,6 +82,7 @@ module Unison.CommandLine.InputPatterns
     libInstallLocalInputPattern,
     load,
     makeStandalone,
+    bundle,
     mergeBuiltins,
     mergeCommitInputPattern,
     mergeIOBuiltins,
@@ -112,11 +117,14 @@ module Unison.CommandLine.InputPatterns
     signature,
     sfind,
     sfindReplace,
+    shareDocs,
+    shareSource,
     textfind,
     test,
     testAll,
     todo,
     ui,
+    redo,
     undo,
     up,
     update,
@@ -181,6 +189,7 @@ import Unison.Cli.Pretty
     prettySlashProjectBranchName,
     prettyURI,
   )
+import Unison.Cli.Share.Ref (ShareBranch (..), ShareRef (..), parseSearchWords, parseShareRef)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
@@ -265,6 +274,8 @@ formatStructuredArgument schLength = \case
   SA.ShallowListEntry path entry -> entryToHQText path entry
   SA.SearchResult searchRoot searchResult -> HQ.toText $ searchResultToHQ searchRoot searchResult
   SA.FilePath fp -> Text.pack fp
+  SA.ShareReleaseRef ref -> ref
+  SA.ShareDefinitionRef ref -> ref
   where
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
@@ -378,6 +389,8 @@ wrongStructuredArgument expected actual =
       SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
       SA.FilePath _ -> "a file path"
+      SA.ShareReleaseRef _ -> "a release"
+      SA.ShareDefinitionRef _ -> "a definition on Share"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
@@ -885,14 +898,25 @@ update =
     { patternName = "update",
       aliases = ["add"],
       visibility = I.Visible,
-      params = noParams,
+      params = Parameters [] $ Optional [("scratch file", filePathArg)] Nothing,
       help =
-        P.wrap $
-          "Adds everything in the most recently typechecked file to the namespace,"
-            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
-            <> "can't be completed automatically, the dependents will be added back to the scratch file"
-            <> "for your review.",
-      parse = const $ pure Input.Update2I
+        P.lines
+          [ P.wrap $
+              makeExample update []
+                <> "adds everything in the most recently typechecked file to the namespace,"
+                <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+                <> "can't be completed automatically, the dependents will be added back to the scratch file"
+                <> "for your review.",
+            "",
+            P.wrap $
+              makeExample update ["foo.u"]
+                <> "typechecks the file first, as"
+                <> makeExample load ["foo.u"]
+                <> "would, and then does the same."
+          ],
+      parse = \case
+        [] -> pure (Input.Update2I Nothing)
+        file : _ -> Input.Update2I . Just <$> unsupportedStructuredArgument update "a file name" file
     }
 
 diffUpdate :: InputPattern
@@ -913,7 +937,7 @@ view :: InputPattern
 view =
   InputPattern
     "view"
-    []
+    ["source"]
     I.Visible
     (Parameters [] $ OnePlus ("definition to view", definitionQueryArg))
     ( P.lines
@@ -976,7 +1000,7 @@ display :: InputPattern
 display =
   InputPattern
     "display"
-    []
+    ["render"]
     I.Visible
     (Parameters [] $ OnePlus ("definition to display", definitionQueryArg))
     ( P.lines
@@ -1015,7 +1039,7 @@ docs =
     I.Visible
     (Parameters [] $ OnePlus ("definition", definitionQueryArg))
     ( P.lines
-        [ "`docs foo` shows documentation for the definition `foo`.",
+        [ "`docs foo` shows the type signature of the term `foo` (or the heading of the type `foo`), then its documentation.",
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
@@ -1052,9 +1076,20 @@ undo =
     []
     I.Visible
     noParams
-    "`undo` reverts the most recent change to the codebase."
+    "`undo` reverts the most recent change to the current branch. It goes back as far as the last `reset`."
     . const
     $ pure Input.UndoI
+
+redo :: InputPattern
+redo =
+  InputPattern
+    "redo"
+    []
+    I.Visible
+    noParams
+    "`redo` restores what `undo` reverted, until the next change to the branch."
+    . const
+    $ pure Input.RedoI
 
 textfind :: Bool -> InputPattern
 textfind allowLib =
@@ -1101,24 +1136,26 @@ sfind =
     "rewrite.find"
     ["sfind"]
     I.Visible
-    (Parameters [("rewrite-rule definition", definitionQueryArg)] $ Optional [] Nothing)
+    (Parameters [("rewrites", rewritesSpecArg)] $ Optional [] Nothing)
     msg
     parse
   where
     parse = \case
-      q : _ -> Input.StructuredFindI (Input.FindLocal Path.Current') <$> handleHashQualifiedNameArg q
+      [spec] -> Input.StructuredFindI <$> parseRewritesSpec sfind spec
       args -> wrongArgsLength "exactly one argument" args
     msg =
       P.lines
         [ P.wrap $
-            makeExample sfind ["rule1"]
-              <> " finds definitions that match any of the left side(s) of `rule`"
-              <> "in the current namespace.",
+            makeExample sfind ["<rewrites>"]
+              <> "lists the definitions in the current branch (excluding `lib`) that match the left side of any of the rewrites."
+              <> "Use"
+              <> makeExample edit ["1-<n>"]
+              <> "to bring them into your scratch file.",
+          "",
+          rewritesSpecHelp,
           "",
           P.wrap $
-            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
-              <> "a `@rewrite` block."
-              <> "It can be in the codebase or scratch file. An example:",
+            "The right side of a rewrite is ignored by this command. An example:",
           "",
           "    -- right of ==> is ignored by this command",
           "    rule1 x = @rewrite term x + 1 ==> ()",
@@ -1139,21 +1176,53 @@ sfindReplace =
     "rewrite"
     ["sfind.replace"]
     I.Visible
-    (Parameters [("rewrite-rule definition", definitionQueryArg)] $ Optional [] Nothing)
+    ( Parameters
+        [("rewrites", rewritesSpecArg)]
+        (Optional [("target", rewriteTargetArg)] Nothing)
+    )
     msg
     parse
   where
-    parse (q : _) = Input.StructuredFindReplaceI <$> handleHashQualifiedNameArg q
-    parse args = wrongArgsLength "exactly one argument" args
+    parse = \case
+      [spec] -> (\spec -> Input.StructuredFindReplaceI spec Nothing) <$> parseRewritesSpec sfindReplace spec
+      [spec, target] -> do
+        spec <- parseRewritesSpec sfindReplace spec
+        target <- unsupportedStructuredArgument sfindReplace "a file name or namespace" target
+        let rewriteTarget
+              | ".u" `List.isSuffixOf` target = pure (Input.RewriteFile target)
+              | otherwise = Input.RewriteNamespace <$> Path.parsePath' target
+        Input.StructuredFindReplaceI spec . Just <$> first P.text rewriteTarget
+      args -> wrongArgsLength "one or two arguments" args
     msg :: P.Pretty CT.ColorText
     msg =
       P.lines
-        [ makeExample sfindReplace ["rule1"] <> " rewrites definitions in the latest scratch file.",
+        [ P.wrap $
+            makeExample sfindReplace ["<rewrites>", "[<target>]"]
+              <> "applies the rewrites to the definitions in the target that match them:"
+              <> "a file is rewritten in place, and for the branch the rewritten definitions go to a new file for you to review.",
+          "",
+          rewritesSpecHelp,
+          "",
+          P.wrap "The target says what to rewrite:",
+          "",
+          P.indentN 2 . P.column2 $
+            [ ("(none)", "the current branch (excluding `lib`)."),
+              ("foo.u", "the definitions in the file `foo.u`."),
+              ("path.to.mymodule", "the definitions in that namespace of the current branch.")
+            ],
           "",
           P.wrap $
-            "The argument `rule1` must refer to a `@rewrite` block or a function that immediately returns"
-              <> "a `@rewrite` block."
-              <> "It can be in the codebase or scratch file. An example:",
+            "For a file target, the file itself is rewritten, and the version before is saved as `rewrites/<yyyy-mm-dd-hh-mm>-<file>-<short-guid>.u`"
+              <> "in a `rewrites` directory next to it (unless the file is already in one, and then beside it)."
+              <> "For the branch or a namespace, the rewritten definitions go to a new file, `rewrites/<yyyy-mm-dd-hh-mm>-<short-guid>.u`."
+              <> "Nothing is changed in the branch until you `update`."
+              <> "Review the file, typecheck it with"
+              <> makeExample' load
+              <> "and run"
+              <> makeExample' update
+              <> "when you are done.",
+          "",
+          P.wrap "An example of a rewrite:",
           "",
           "    rule1 x = @rewrite term x + 1 ==> Nat.increment x",
           "",
@@ -1168,6 +1237,52 @@ sfindReplace =
           "",
           P.wrap ("Also see the related command" <> makeExample sfind [])
         ]
+
+rewritesSpecHelp :: P.Pretty CT.ColorText
+rewritesSpecHelp =
+  P.lines
+    [ P.wrap "The `<rewrites>` argument says which `@rewrite` blocks (or functions that immediately return one) to use. It is one of:",
+      "",
+      P.indentN 2 . P.column2 $
+        [ ("foo.u:r1,r2", "the rewrites `r1` and `r2` in the file `foo.u`."),
+          ("foo.u", "the rewrite in `foo.u`, which must be its only definition."),
+          (":r1,r2", "the rewrites `r1` and `r2` in the latest typechecked file, or else in the branch.")
+        ]
+    ]
+
+-- | Parse a rewrites spec: @foo.u:r1,r2@, @foo.u@, or @:r1,r2@ (or just @r1,r2@).
+parseRewritesSpec :: InputPattern -> I.Argument -> Either (P.Pretty CT.ColorText) Input.RewritesSpec
+parseRewritesSpec command arg = do
+  spec <- Text.pack <$> unsupportedStructuredArgument command "a rewrites spec" arg
+  let (file, names) =
+        case Text.breakOn ".u:" spec of
+          (before, after) | not (Text.null after) -> (Just (before <> ".u"), Text.drop 3 after)
+          _
+            | ".u" `Text.isSuffixOf` spec -> (Just spec, "")
+            | Just names <- Text.stripPrefix ":" spec -> (Nothing, names)
+            | otherwise -> (Nothing, spec)
+  rules <- traverse (handleHashQualifiedNameArg . I.RawArg . Text.unpack) (filter (not . Text.null) (Text.splitOn "," names))
+  when (isNothing file && null rules) do
+    Left . P.wrap $ makeExample' command <> "needs the name of at least one rewrite, as in `:rule1,rule2`, or a file."
+  pure Input.RewritesSpec {file = Text.unpack <$> file, rewrites = rules}
+
+rewritesSpecArg :: ParameterType
+rewritesSpecArg =
+  ParameterType
+    { typeName = "rewrites",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+rewriteTargetArg :: ParameterType
+rewriteTargetArg =
+  ParameterType
+    { typeName = "file-or-namespace",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
 
 find :: InputPattern
 find = find' "find" (Input.FindLocal Path.Current')
@@ -2677,15 +2792,29 @@ edit =
         P.lines
           [ "`edit foo` prepends the definition of `foo` to the top of the most "
               <> "recently saved file.",
-            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+            "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH.",
+            "",
+            P.wrap ("See also" <> makeExample editTo [] <> "to send the definitions to a file of your choice.")
           ],
-      parse =
-        maybe
-          (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.WithinFold) Input.ShowDefinitionLocal)
-              . traverse handleHashQualifiedNameArg
-          )
-          . NE.nonEmpty
+      parse = parseEditDefinitions (Input.LatestFileLocation Input.WithinFold)
+    }
+
+editTo :: InputPattern
+editTo =
+  InputPattern
+    { patternName = "edit.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("definition to edit", definitionQueryArg),
+      help =
+        P.wrap $
+          makeExample editTo ["<filename>", "foo"]
+            <> "is like"
+            <> P.backticked "edit foo"
+            <> "but prepends the definition of `foo` to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editTo args
+        parseEditDefinitions (Input.FileLocation file Input.WithinFold) rest
     }
 
 editNew :: InputPattern
@@ -2696,13 +2825,20 @@ editNew =
       visibility = I.Visible,
       params = Parameters [] $ OnePlus ("definition to edit", definitionQueryArg),
       help = "Like `edit`, but adds a new fold line below the definitions.",
-      parse =
-        maybe
-          (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.AboveFold) Input.ShowDefinitionLocal)
-              . traverse handleHashQualifiedNameArg
-          )
-          . NE.nonEmpty
+      parse = parseEditDefinitions (Input.LatestFileLocation Input.AboveFold)
+    }
+
+editNewTo :: InputPattern
+editNewTo =
+  InputPattern
+    { patternName = "edit.new.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("definition to edit", definitionQueryArg),
+      help = "Like `edit.new`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editNewTo args
+        parseEditDefinitions (Input.FileLocation file Input.AboveFold) rest
     }
 
 editDependents :: InputPattern
@@ -2714,8 +2850,24 @@ editDependents =
       params = Parameters [("definition to edit", definitionQueryArg)] $ Optional [] Nothing,
       help = "Like `edit`, but also includes all transitive dependents in the current project.",
       parse = \case
-        [name] -> Input.EditDependentsI <$> handleHashQualifiedNameArg name
+        [name] -> Input.EditDependentsI (Input.LatestFileLocation Input.WithinFold) <$> handleHashQualifiedNameArg name
         args -> wrongArgsLength "exactly one argument" args
+    }
+
+editDependentsTo :: InputPattern
+editDependentsTo =
+  InputPattern
+    { patternName = "edit.dependents.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg), ("definition to edit", definitionQueryArg)] $ Optional [] Nothing,
+      help =
+        "Like `edit.dependents`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editDependentsTo args
+        case rest of
+          [name] -> Input.EditDependentsI (Input.FileLocation file Input.WithinFold) <$> handleHashQualifiedNameArg name
+          _ -> wrongArgsLength "a file name and exactly one definition" args
     }
 
 editNamespace :: InputPattern
@@ -2731,8 +2883,36 @@ editNamespace =
             "`edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
+      parse = fmap (Input.EditNamespaceI (Input.LatestFileLocation Input.AboveFold)) . traverse handlePath'Arg
     }
+
+editNamespaceTo :: InputPattern
+editNamespaceTo =
+  InputPattern
+    { patternName = "edit.namespace.to",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("destination file name", filePathArg)] $ OnePlus ("namespace to load definitions from", namespaceArg),
+      help =
+        "Like `edit.namespace`, but sends the definitions to the given file, creating it if it doesn't exist.",
+      parse = \args -> do
+        (file, rest) <- parseDestinationFile editNamespaceTo args
+        Input.EditNamespaceI (Input.FileLocation file Input.AboveFold) <$> traverse handlePath'Arg rest
+    }
+
+-- | Parse the definitions of an @edit@ or @edit.new@ command, which go to the given location.
+parseEditDefinitions :: Input.OutputLocation -> [I.Argument] -> Either (P.Pretty CT.ColorText) Input
+parseEditDefinitions location =
+  maybe
+    (wrongArgsLength "at least one argument" [])
+    (fmap (Input.ShowDefinitionI location Input.ShowDefinitionLocal) . traverse handleHashQualifiedNameArg)
+    . NE.nonEmpty
+
+-- | Split off the destination file name that begins the arguments of a @.to@ command.
+parseDestinationFile :: InputPattern -> [I.Argument] -> Either (P.Pretty CT.ColorText) (FilePath, [I.Argument])
+parseDestinationFile command = \case
+  file : rest -> (,rest) <$> unsupportedStructuredArgument command "a file name" file
+  [] -> wrongArgsLength "a file name followed by at least one argument" []
 
 newBranchNameArg :: ParameterType
 newBranchNameArg =
@@ -3020,7 +3200,7 @@ dependents =
     []
     I.Visible
     (Parameters [("definition", definitionQueryArg)] $ Optional [] Nothing)
-    "List the named dependents of the specified definition."
+    "List the named dependents of the specified definition: the definitions that use it directly, not the ones that use those."
     \case
       [thing] -> Input.ListDependentsI <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
@@ -3459,6 +3639,31 @@ makeStandalone =
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
 
+bundle :: InputPattern
+bundle =
+  InputPattern
+    "bundle"
+    []
+    I.Visible
+    ( Parameters [("definition to bundle", exactDefinitionTermQueryArg), ("output file", filePathArg)] $
+        Optional [] Nothing
+    )
+    ( P.wrapColumn2
+        [ ( "`bundle main file`",
+            "Writes a self-contained executable, `file`, that runs `!main`."
+              <> "It is the program `compile` writes, with a copy of unisonrt,"
+              <> "the runtime that runs compiled programs without a codebase,"
+              <> "and needs nothing else to run. The arguments it is given are the program's."
+          )
+        ]
+    )
+    \case
+      [main, file] ->
+        Input.BundleI
+          <$> unsupportedStructuredArgument bundle "a file name" file
+          <*> handleHashQualifiedNameArg main
+      args -> wrongArgsLength "exactly two arguments" args
+
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -3606,6 +3811,221 @@ projectsInputPattern =
       params = noParams,
       help = P.wrap "List projects.",
       parse = const $ pure Input.ProjectsI
+    }
+
+shareProjectSearch :: InputPattern
+shareProjectSearch =
+  InputPattern
+    { patternName = "share.project-search",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [] $ OnePlus ("query", noCompletionsArg),
+      help =
+        P.wrapColumn2
+          [ ( makeExample shareProjectSearch ["<query>"],
+              "searches Unison Share for projects and libraries matching the query."
+            )
+          ],
+      parse = \args ->
+        Input.ShareProjectSearchI . Text.pack . unwords
+          <$> traverse (unsupportedStructuredArgument shareProjectSearch "a search query") args
+    }
+
+shareSearch :: InputPattern
+shareSearch =
+  InputPattern
+    { patternName = "share.search",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [] $ OnePlus ("query", noCompletionsArg),
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareSearch ["<name>"],
+                  "searches Unison Share for terms and types with that name, like `List.map` or `map`."
+                ),
+                ( makeExample shareSearch ["<type>"],
+                  "searches for terms by type, like `[a] -> Nat`."
+                ),
+                ( makeExample shareSearch ["@<name>"],
+                  "searches for users, organizations and projects, like `@unison`."
+                ),
+                ( makeExample shareSearch ["<query> in @user/project"],
+                  "searches only that project, and `in @user` only that user's projects."
+                )
+              ],
+            "",
+            P.wrap "Each match is printed with a reference you can give to `share.source` or `share.render`."
+          ],
+      parse = \args -> do
+        words_ <- traverse (unsupportedStructuredArgument shareSearch "a search query") args
+        (query, filter_) <- first (P.wrap . P.text) (parseSearchWords (Text.words (Text.pack (unwords words_))))
+        when ("@" `Text.isPrefixOf` query && isJust filter_) do
+          Left . P.wrap $ "A filter with `in` only applies when searching for definitions, not for users and projects."
+        pure (Input.ShareSearchI query filter_)
+    }
+
+-- | Shared by the @share.source@ and @share.render@ parsers.
+parseShareRefArg :: InputPattern -> Bool -> I.Arguments -> Either (P.Pretty CT.ColorText) ShareRef
+parseShareRefArg pat pathRequired = \case
+  [I.StructuredArg (SA.ShareDefinitionRef ref)] -> do
+    ref <- first (P.wrap . P.text) (parseShareRef ref)
+    when (pathRequired && isNothing ref.path) do
+      Left . P.wrap $ "I expected a definition name after the `:`, like @user/project:some.name"
+    pure ref
+  [arg] -> do
+    raw <- unsupportedStructuredArgument pat "a reference to a project or definition on Share" arg
+    ref <- first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+    when (pathRequired && isNothing ref.path) do
+      Left . P.wrap $ "I expected a definition name after the `:`, like @user/project:some.name"
+    pure ref
+  args -> wrongArgsLength "exactly one argument" args
+
+shareRefHelp :: P.Pretty P.ColorText
+shareRefHelp =
+  "By default these look at the latest release of the project, or its default branch if it has none. "
+    <> "Use `@user/project/releases/1.2.3:name` for a specific release, or `@user/project/branch:name` for a branch."
+
+shareSource :: InputPattern
+shareSource =
+  InputPattern
+    { patternName = "share.source",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareSource ["@user/project:name"],
+                  "prints the source of a definition on Share."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
+          ],
+      parse = fmap Input.ShareSourceI . parseShareRefArg shareSource True
+    }
+
+shareDefinitionArg :: ParameterType
+shareDefinitionArg =
+  ParameterType
+    { typeName = "definition on Share",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
+shareDocs :: InputPattern
+shareDocs =
+  InputPattern
+    { patternName = "share.docs",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareDocs ["@user/project:name"],
+                  "prints the type signature of a definition on Share, then its rendered documentation, like `docs` does for your own code."
+                ),
+                ( makeExample shareDocs ["2"],
+                  "does the same for the second result of the last " <> makeExample' shareSearch <> "."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
+          ],
+      parse = fmap Input.ShareDocsI . parseShareRefArg shareDocs True
+    }
+
+shareRender :: InputPattern
+shareRender =
+  InputPattern
+    { patternName = "share.render",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("project or definition on Share", shareDefinitionArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareRender ["@user/project"],
+                  "prints the README of a project on Share."
+                ),
+                ( makeExample shareRender ["@user/project:name"],
+                  "prints the rendered documentation of a definition, or of a doc if it names one."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
+          ],
+      parse = fmap Input.ShareRenderI . parseShareRefArg shareRender False
+    }
+
+shareReleases :: InputPattern
+shareReleases =
+  InputPattern
+    { patternName = "share.releases",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("project on Share", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareReleases ["@user/project"],
+                  "lists the releases of a project on Share, newest first (up to 100), with their dates."
+                )
+              ],
+            "",
+            P.wrap $
+              "The list is numbered: "
+                <> makeExample shareReleaseDetail ["2"]
+                <> "shows the release notes of the second one."
+          ],
+      parse = \case
+        [arg] -> do
+          raw <- unsupportedStructuredArgument shareReleases "a project on Share" arg
+          ref <- first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+          when (ref.branch /= ShareLatest || isJust ref.path) do
+            Left . P.wrap $ "I expected a project, like @user/project."
+          pure (Input.ShareReleasesI ref.handle ref.slug)
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+shareReleaseDetail :: InputPattern
+shareReleaseDetail =
+  InputPattern
+    { patternName = "share.releases.detail",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("release on Share", shareReleaseArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareReleaseDetail ["@user/project/releases/2.3.1"],
+                  "prints the release notes of that release of a project on Share."
+                ),
+                ( makeExample shareReleaseDetail ["2"],
+                  "does the same for the second release in the list that " <> makeExample' shareReleases <> " printed."
+                ),
+                ( makeExample shareReleaseDetail ["@user/project"],
+                  "prints the release notes of the latest release."
+                )
+              ]
+          ],
+      parse = \case
+        [I.StructuredArg (SA.ShareReleaseRef ref)] -> Input.ShareReleaseDetailI <$> first (P.wrap . P.text) (parseShareRef ref)
+        [I.StructuredArg other] -> Left (wrongStructuredArgument "a release" other)
+        [I.RawArg raw] -> Input.ShareReleaseDetailI <$> first (P.wrap . P.text) (parseShareRef (Text.pack raw))
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+shareReleaseArg :: ParameterType
+shareReleaseArg =
+  ParameterType
+    { typeName = "release",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
     }
 
 branchesInputPattern :: InputPattern
@@ -3960,7 +4380,11 @@ validInputs =
       edit,
       editDependents,
       editNamespace,
+      editNamespaceTo,
       editNew,
+      editNewTo,
+      editTo,
+      editDependentsTo,
       execute,
       execProfiled,
       execProfiledFull,
@@ -3988,6 +4412,7 @@ validInputs =
       libInstallLocalInputPattern,
       load,
       makeStandalone,
+      bundle,
       mergeBuiltins,
       mergeIOBuiltins,
       mergeInputPattern,
@@ -4001,6 +4426,13 @@ validInputs =
       projectRenameInputPattern,
       projectSwitch,
       projectsInputPattern,
+      shareProjectSearch,
+      shareDocs,
+      shareReleases,
+      shareReleaseDetail,
+      shareRender,
+      shareSearch,
+      shareSource,
       pull,
       pullWithoutHistory,
       push,
@@ -4027,6 +4459,7 @@ validInputs =
       todo,
       ui,
       undo,
+      redo,
       up,
       update,
       diffUpdate,

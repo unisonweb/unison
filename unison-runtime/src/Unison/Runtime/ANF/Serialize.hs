@@ -21,7 +21,6 @@ import Data.Maybe (mapMaybe)
 import Data.Word (Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
-import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Optimize as ANF
@@ -29,6 +28,7 @@ import Unison.Runtime.ANF.POp as ANF
 import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
+import Unison.Runtime.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Referenced
@@ -89,6 +89,7 @@ putCCs ccs = putLength n <> foldMap putCC ccs
     n = length ccs
     putCC UN = BU.word8 0
     putCC BX = BU.word8 1
+    putCC WD = exn [] "putCCs: a wide binder is never serialized"
 
 getCCs :: (PrimBase m) => Get m [Mem]
 getCCs =
@@ -260,6 +261,9 @@ putNormal ::
   Builder
 putNormal refrep fops ctx tm = case tm of
   TVar v -> putTag VarT <> putVar ctx v
+  -- placed by Unison.Runtime.MCode.Wide in a batch's loaded code; nothing
+  -- stored has it
+  TBox _ -> exn [] "putNormal: a box is never serialized"
   TFrc v -> putTag ForceT <> putVar ctx v
   TApp f as -> putTag AppT <> putFunc refrep fops ctx f <> putArgs ctx as
   THnd rs nh _ah e ->
@@ -380,6 +384,10 @@ putFunc refrep allowFop ctx f = case f of
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
   FRec schema -> putTag FRecT <> putRecordSchema schema
   FRecSet field -> putTag FRecSetT <> putText field
+  -- the two forms the explosion (Unison.Runtime.MCode.Explode) writes
+  -- into a batch's code after it is loaded; nothing stored has them
+  FWorker {} -> exn [] "putFunc: a worker call is never serialized"
+  FYield -> exn [] "putFunc: a yield of several values is never serialized"
 
 getFunc ::
   (PrimBase m, Var v) => [v] -> GDeserial m (Func Reference v)

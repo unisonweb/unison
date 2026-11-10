@@ -118,6 +118,9 @@ for row in "${matrix[@]}"; do
     note="the JIT was off: $(grep -m1 'the JIT is off' "$log")"
   elif ! grep -q ': compiling ' "$log"; then
     note="nothing was compiled"
+  elif grep -q 'JIT: adding a module\|could not be linked' "$log"; then
+    # LLVM rejected a module's IR: its functions ran interpreted
+    note="a module failed: $(grep -m1 'JIT: adding a module\|could not be linked' "$log")"
   fi
   if [ -z "$note" ]; then
     printf '%-14s %-6s %ss\n' "$name" PASS "$secs"

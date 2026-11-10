@@ -1,0 +1,1 @@
+In the current Unison project, I need `nthPrime : Nat -> Nat`, the `n`th prime number, counting from 1. For example, `nthPrime 6` is `13` (the primes are 2, 3, 5, 7, 11, 13). It should be reasonably fast. Add it to the codebase, with tests.

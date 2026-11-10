@@ -24,6 +24,7 @@ import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
@@ -33,16 +34,20 @@ import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types qualified as ULSP
 import Unison.LSP.VFS qualified as UVFS
 import Unison.Lexer.Pos qualified as Lexer
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -53,6 +58,7 @@ import UnliftIO qualified
 
 test :: Test ()
 test = do
+  scope "shadowed names" hashQualifyShadowedTest
   scope "annotations" $
     tests
       [ refFinding,
@@ -74,6 +80,27 @@ test = do
 
 newtype TestLsp a = TestLsp {unTestLsp :: ReaderT ULSP.Env IO a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadUnliftIO, MonadReader ULSP.Env)
+
+-- | A name the file shadows gets a hash, unless the reference has another name. Other names are left alone.
+hashQualifyShadowedTest :: Test ()
+hashQualifyShadowedTest = do
+  let typeNames :: [(Text, Text)] -> Names
+      typeNames names =
+        Names.fromTermsAndTypes [] [(Name.unsafeParseText name, Reference.Builtin ref) | (name, ref) <- names]
+      hqName name ref = HQ'.take 10 (HQ'.fromNamedReference (Name.unsafeParseText name) (Reference.Builtin ref))
+      codebaseNames =
+        typeNames
+          [ ("Shape", "oldShape"),
+            ("Size", "size"),
+            ("Kind", "kind"),
+            ("Kind2", "kind")
+          ]
+      fileNames = typeNames [("Shape", "newShape"), ("Kind", "newKind")]
+      ppe =
+        PPE.hashQualifyShadowed 10 fileNames (PPE.makePPE (PPE.hqNamer 10 codebaseNames) (PPE.suffixifyByHash codebaseNames))
+  expectEqual (Just (hqName "Shape" "oldShape")) (PPE.types ppe (Reference.Builtin "oldShape"))
+  expectEqual (Just (HQ'.fromName (Name.unsafeParseText "Size"))) (PPE.types ppe (Reference.Builtin "size"))
+  expectEqual (Just (HQ'.fromName (Name.unsafeParseText "Kind2"))) (PPE.types ppe (Reference.Builtin "kind"))
 
 runTestLsp :: TestLsp a -> Test a
 runTestLsp action = do

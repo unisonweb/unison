@@ -1,0 +1,1 @@
+In the current Unison project, rename the function `Stock.restock` to `Stock.replenish`, and the type `Sku` to `Item`. Everything that belongs to them, such as their documentation, tests and constructors, should follow the new names, and nothing else should change.

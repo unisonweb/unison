@@ -3,6 +3,7 @@
 module Unison.PrintError
   ( Env,
     defaultWidth,
+    ordinal,
     prettyParseError,
     prettyResolutionFailures,
     prettyVar,
@@ -81,7 +82,6 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
-import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -462,6 +462,7 @@ renderTypeError e env src = case e of
                   ]
               ],
             intLiteralSyntaxTip arg expectedType,
+            shadowedTypeTip (renderTerm env f) (renderType' env foundType) (renderType' env expectedType),
             -- todo: factor this out and use in ExistentialMismatch and any other
             --       "recursive subtypes" situations
             case leafs of
@@ -657,6 +658,10 @@ renderTypeError e env src = case e of
               <> "}",
         "\n\n",
         annotatedAsErrorSite src abilityCheckFailureSite,
+        case (toList requested, toList ambient) of
+          ([e], [e']) -> shadowedTypeTip "the code" (renderType' env e') (renderType' env e)
+          ([e], []) -> shadowedAbilityTip (renderType' env e)
+          _ -> mempty,
         debugSummary note
       ]
   AbilitySubtypeFailure {..} ->
@@ -1576,6 +1581,52 @@ renderPattern env =
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
 renderType' env = fromString . Text.unpack . Pr.toPlain defaultWidth . renderType env (const id)
+
+-- | A note for a mismatch between a type the file defines and the codebase's type of the same name (shown with its hash,
+-- as @Shape#qns7gmlrq1@): the thing applied comes from the codebase and still uses the old type.
+shadowedTypeTip :: Pretty ColorText -> Pretty ColorText -> Pretty ColorText -> Pretty ColorText
+shadowedTypeTip applied found expected =
+  case (Text.breakOn "#" (plain found), Text.breakOn "#" (plain expected)) of
+    ((name, ""), (name', hash)) | name == name', not (Text.null hash) -> tip name (name' <> hash)
+    ((name, hash), (name', "")) | name == name', not (Text.null hash) -> tip name (name <> hash)
+    _ -> mempty
+  where
+    plain = Pr.toPlain defaultWidth
+    tip name hashed =
+      Pr.lines
+        [ "",
+          Pr.wrap $
+            "Note: "
+              <> Pr.backticked (fromString (Text.unpack hashed))
+              <> "is the codebase's"
+              <> Pr.backticked' (fromString (Text.unpack name)) ","
+              <> "and this file defines a new one."
+              <> Pr.backticked applied
+              <> "comes from the codebase and uses the old one. To use it here, add its definition to this file too, unchanged"
+              <> "(`update` will rebuild it on the new type), or leave the code that uses it out of the file.",
+          ""
+        ]
+
+-- | The same note for an ability the file redefines, when the request shows the codebase's hash.
+shadowedAbilityTip :: Pretty ColorText -> Pretty ColorText
+shadowedAbilityTip requested =
+  case Text.breakOn "#" (Pr.toPlain defaultWidth requested) of
+    (name, hash)
+      | not (Text.null name),
+        not (Text.null hash) ->
+          Pr.lines
+            [ "",
+              Pr.wrap $
+                "Note: "
+                  <> Pr.backticked (fromString (Text.unpack (name <> hash)))
+                  <> "is the codebase's"
+                  <> Pr.backticked' (fromString (Text.unpack name)) ","
+                  <> "and this file defines a new one. A definition from the codebase that uses the old one is being"
+                  <> "called here. To use it, add its definition to this file too, unchanged (`update` will rebuild it on the new"
+                  <> "ability), or leave the code that uses it out of the file.",
+              ""
+            ]
+    _ -> mempty
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -2545,3 +2596,22 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
+
+-- | Return the ordinal representation of a number in English.
+--   A number ending with '1' must finish with 'st'
+--   A number ending with '2' must finish with 'nd'
+--   A number ending with '3' must finish with 'rd'
+--   _except_ for 11, 12, and 13 which must finish with 'th'
+ordinal :: (IsString s) => Int -> s
+ordinal n = do
+  let s = show n
+  fromString $
+    s ++ case drop (length s - 2) s of
+      ['1', '1'] -> "th"
+      ['1', '2'] -> "th"
+      ['1', '3'] -> "th"
+      _ -> case last s of
+        '1' -> "st"
+        '2' -> "nd"
+        '3' -> "rd"
+        _ -> "th"

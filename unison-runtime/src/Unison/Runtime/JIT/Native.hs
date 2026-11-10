@@ -43,6 +43,7 @@ module Unison.Runtime.JIT.Native
 
     -- * Startup
     configureNative,
+    stressGCTick,
     ctxLayout,
     rtsFacts,
     hplimValue,
@@ -55,8 +56,9 @@ module Unison.Runtime.JIT.Native
   )
 where
 
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Control.Monad.Primitive (PrimState)
+import Data.IORef
 import Data.Int (Int64)
 import Data.Primitive.Array (MutableArray (..))
 import Data.Primitive.ByteArray (MutableByteArray (..), readByteArray)
@@ -66,6 +68,8 @@ import Foreign.Marshal.Alloc (allocaBytes, free)
 import Foreign.Ptr (FunPtr, Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peekElemOff)
 import GHC.Exts (MutableArray#, MutableByteArray#)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem (performMinorGC)
 import Unison.Runtime.Stack (Closure)
 
 -- ---------------------------------------------------------------------------
@@ -141,6 +145,34 @@ enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) s
   pure $! fromIntegral status
 {-# INLINE enterNative #-}
 
+-- | The stress mode @gc=N@ (Config.stressGC): a minor GC after every Nth
+-- return from native code, so that a store the write barrier missed, or
+-- an allocation left unwritten, is found by the debug RTS at the next
+-- return rather than by chance. Called by the trampoline once it has
+-- described the return, so that the trace says what ran last.
+stressGCTick :: IO ()
+stressGCTick = do
+  every <- readIORef gcEvery
+  when (every > 0) $ do
+    n <- atomicModifyIORef' gcCount (\c -> (c + 1, c + 1))
+    skip <- readIORef gcSkip
+    when (n > skip && n `mod` every == 0) $ do
+      -- the closures the C runtime keeps in statics must be static
+      -- closures; a heap object there dies at the first GC (2026-11-05)
+      bad <- c_checkStatics
+      when (bad /= 0) $ error "a C static holds a dead closure (see the [jit] static lines above)"
+      performMinorGC
+
+foreign import ccall unsafe "unison_jit_check_statics" c_checkStatics :: IO Int64
+
+gcEvery, gcCount, gcSkip :: IORef Int
+gcEvery = unsafePerformIO (newIORef 0)
+{-# NOINLINE gcEvery #-}
+gcSkip = unsafePerformIO (newIORef 0)
+{-# NOINLINE gcSkip #-}
+gcCount = unsafePerformIO (newIORef 0)
+{-# NOINLINE gcCount #-}
+
 frameRecords :: MutableByteArray (PrimState IO) -> Int -> IO [FrameRecord]
 frameRecords out size = do
   n <- readByteArray out (size + 3) :: IO Int
@@ -165,14 +197,19 @@ inlineFrames = 8
 -- ---------------------------------------------------------------------------
 -- Startup
 
-foreign import ccall unsafe "unison_jit_configure" c_configure :: Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> IO ()
+foreign import ccall unsafe "unison_jit_configure" c_configure :: Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> IO ()
 
 -- | Passes stress settings to the C side: poll every N entries, treat every
 -- Nth callee as uncompiled, C stack budget in bytes (0 for the default),
--- allocation budget in words, trace. Called once at startup.
-configureNative :: Int -> Int -> Int -> Int -> Bool -> IO ()
-configureNative pollEvery calleeEvery cstack alloc tr =
-  c_configure (fromIntegral pollEvery) (fromIntegral calleeEvery) (fromIntegral cstack) (fromIntegral alloc) (if tr then 1 else 0)
+-- allocation budget in words, trace, whether the non-moving collector's
+-- write barrier is disabled (@UNISON_JIT_DISABLE=nmbarrier@, the control
+-- for its stress test); and keeps the GC-every-N setting on this side
+-- ('gcEvery'). Called once at startup.
+configureNative :: Int -> Int -> Int -> Int -> Int -> Int -> Bool -> Bool -> IO ()
+configureNative pollEvery calleeEvery cstack alloc gc gcskip tr nmOff = do
+  writeIORef gcEvery gc
+  writeIORef gcSkip gcskip
+  c_configure (fromIntegral pollEvery) (fromIntegral calleeEvery) (fromIntegral cstack) (fromIntegral alloc) (if tr then 1 else 0) (if nmOff then 1 else 0)
 
 foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> Int64 -> IO Int64
 
@@ -181,7 +218,7 @@ foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> 
 ctxLayout :: IO ([Int], Int)
 ctxLayout = allocaBytes (8 * 32) $ \out -> do
   size <- c_ctxLayout out 32
-  offs <- mapM (peekElemOff out) [0 .. 22]
+  offs <- mapM (peekElemOff out) [0 .. 24]
   pure (map fromIntegral offs, fromIntegral size)
 
 foreign import ccall unsafe "unison_jit_rts_facts" c_rtsFacts :: Ptr Int64 -> Int64 -> IO Int64

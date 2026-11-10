@@ -1,0 +1,14 @@
+<!-- expected: outcome FAIL -->
+
+``` unison
+bullets : Nat -> [Text] -> Text
+bullets limit items =
+  shown = List.take limit items
+  extra = List.size (List.drop limit items)
+  more = if extra == 0 then [] else ["... and " ++ Nat.toText extra ++ " more"]
+  Text.join "\n" (List.map (item -> "- " ++ item) shown ++ more)
+```
+
+``` ucm :error
+scratch/main> update
+```

@@ -4,6 +4,7 @@
 module Unison.Codebase.Transcript.Runner
   ( Error (..),
     Config (..),
+    mcpConfig,
     defaultConfig,
     testConfig,
     Runner,
@@ -58,8 +59,6 @@ import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import Unison.MCP qualified as MCP
-import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -71,6 +70,7 @@ import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
@@ -86,8 +86,27 @@ data Config = Config
     -- | Control additional test-related values.
     --
     --  __TODO__: This should be broken down with the individual pieces included here.
-    isTest :: Bool
+    isTest :: Bool,
+    -- | Whether a program, not a person, is driving UCM: see 'Cli.unattended'.
+    unattended :: Bool,
+    -- | Which outputs stop the transcript. A transcript test stops on any failure; the MCP server doesn't stop on an empty
+    -- result.
+    outputIsFailure :: Output.Output -> Bool,
+    outputIsNumberedFailure :: Output.NumberedOutput -> Bool,
+    -- | Whether a command's context (like @myproject/main>@) that names a project or branch that doesn't exist creates it, which
+    -- transcript tests rely on. When it's off, the transcript stops with an error that lists what does exist.
+    createMissingContexts :: Bool,
+    -- | Whether the files UCM writes (for `edit`, `edit.to`, `rewrite` and so on) go to disk, prepended to the file if it exists,
+    -- as at the command line, so that they outlive the transcript. A transcript test keeps them in memory, where they last
+    -- for the one transcript.
+    writeFiles :: Bool,
+    -- | Whether the last file loaded (and typechecked) carries over to the next transcript the runner runs, so that a `load`
+    -- in one call and an `update` in the next work as they would at the command line.
+    rememberFiles :: Bool
   }
+
+-- | What carries over between transcripts when 'rememberFiles' is on: the latest file and the latest typechecked file.
+type CarriedFiles = IORef (Maybe (FilePath, Bool), Maybe (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann)))
 
 -- | A reasonable set of defaults to use.
 --
@@ -100,7 +119,32 @@ defaultConfig =
     { terminalWidth = 65,
       fzfPath = Nothing,
       credentialsFile = Nothing,
-      isTest = False
+      isTest = False,
+      unattended = False,
+      outputIsFailure = Output.isFailure,
+      outputIsNumberedFailure = Output.isNumberedFailure,
+      createMissingContexts = True,
+      writeFiles = False,
+      rememberFiles = False
+    }
+
+-- | What the MCP server uses: an agent is driving UCM, so an empty result is not an error that stops the transcript, and a command
+-- context that names a project or branch that doesn't exist is an error, not a request to create it.
+mcpConfig :: Config
+mcpConfig =
+  defaultConfig
+    { unattended = True,
+      -- An agent has no terminal, so output is laid out for a virtual one of this width.
+      terminalWidth = 100,
+      -- No person is there to answer an interactive search, so a command with no arguments fails instead of opening fzf.
+      fzfPath = pure "NONE",
+      outputIsFailure = Output.isFailureForMcp,
+      outputIsNumberedFailure = Output.isNumberedFailureForMcp,
+      createMissingContexts = False,
+      -- An agent works across many transcripts, so a file it asks for has to be there for the next one, and a file it
+      -- loaded in one is what `update` saves in the next.
+      writeFiles = True,
+      rememberFiles = True
     }
 
 testConfig :: FilePath -> Config
@@ -132,6 +176,7 @@ withRunner ::
   m r
 withRunner jit config verbosity ucmVersion action = do
   credMan <- liftIO . AuthN.newCredentialManager $ credentialsFile config
+  carried <- liftIO (newIORef (Nothing, Nothing))
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
@@ -139,23 +184,11 @@ withRunner jit config verbosity ucmVersion action = do
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
   maybe (pure ()) (liftIO . setEnv Fuzzy.fzfPathEnvVar) $ fzfPath config
   withRuntimes \runtime sbRuntime ->
-    action \transcriptName transcriptSrc codebase -> do
-      let workDir = Nothing
-      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
-      Server.startServer
-        (isTest config)
-        Backend.BackendEnv
-        Server.defaultCodebaseServerOpts
-        runtime
-        codebase
-        (MCP.mcpServer mcpServerConfig)
-        \case
-          Nothing -> pure $ Left PortBindingFailure
-          Just baseUrl -> do
-            let baseUrlText = tShow @Server.BaseUrl baseUrl
-            case (Transcript.parse transcriptName transcriptSrc) of
-              Left parseError -> pure $ Left (ParseError parseError)
-              Right stanzas ->
+    action \transcriptName transcriptSrc codebase ->
+      case Transcript.parse transcriptName transcriptSrc of
+        Left parseError -> pure $ Left (ParseError parseError)
+        Right transcript' -> do
+          let runWith baseUrlText =
                 run
                   config
                   verbosity
@@ -166,8 +199,22 @@ withRunner jit config verbosity ucmVersion action = do
                   baseUrlText
                   authenticatedHTTPClient
                   credMan
-                  stanzas
+                  (if rememberFiles config then Just carried else Nothing)
+                  transcript'
                   & catchExceptions
+          -- The codebase server is only for `api` blocks, so don't start one (and take a port) for transcripts without them.
+          if any (either (const False) isApiBlock) (stanzas transcript')
+            then Server.startServer
+              (isTest config)
+              Backend.BackendEnv
+              Server.defaultCodebaseServerOpts
+              runtime
+              codebase
+              (\_ -> pure Nothing) -- a transcript's codebase server doesn't speak MCP
+              \case
+                Nothing -> pure $ Left PortBindingFailure
+                Just baseUrl -> runWith (tShow @Server.BaseUrl baseUrl)
+            else runWith ""
   where
     catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
     catchExceptions io =
@@ -176,8 +223,8 @@ withRunner jit config verbosity ucmVersion action = do
         Right r -> pure r
     withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
-      RTI.withRuntime jit False RTI.Persistent ucmVersion \runtime ->
-        RTI.withRuntime jit True RTI.Persistent ucmVersion \sbRuntime ->
+      RTI.withRuntime jit False RTI.Persistent \runtime ->
+        RTI.withRuntime jit True RTI.Persistent \sbRuntime ->
           action runtime sbRuntime
     initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do
@@ -185,8 +232,32 @@ withRunner jit config verbosity ucmVersion action = do
           tokenProvider = AuthN.newTokenProvider credMan
       AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
+isApiBlock :: ProcessedBlock -> Bool
+isApiBlock = \case
+  API {} -> True
+  _ -> False
+
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
+
+-- | What to say when a command's context names a project that doesn't exist, and the runner isn't going to create it.
+noSuchProject :: Text -> [Text] -> Text
+noSuchProject projectName projectNames =
+  Text.unlines
+    [ "There is no project named `"
+        <> projectName
+        <> "`. "
+        <> if null projectNames then "The codebase has no projects." else "The projects are: " <> Text.intercalate ", " projectNames <> ".",
+      "A command like `" <> projectName <> "/main> ...` has to name a project and branch that already exist. Use the one you are working in, or create a project first with `project.create`."
+    ]
+
+-- | What to say when a command's context names a branch that doesn't exist, and the runner isn't going to create it.
+noSuchBranch :: Text -> Text -> [Text] -> Text
+noSuchBranch projectName branchName branchNames =
+  Text.unlines
+    [ "The project `" <> projectName <> "` has no branch named `" <> branchName <> "`. The branches are: " <> Text.intercalate ", " branchNames <> ".",
+      "A command like `" <> projectName <> "/" <> branchName <> "> ...` has to name a branch that already exists. Create it first with `branch`."
+    ]
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
@@ -199,9 +270,11 @@ run ::
   Text ->
   AuthN.AuthenticatedHttpClient ->
   AuthN.CredentialManager ->
+  -- | The files carried over from the previous transcript, when 'rememberFiles' is on
+  Maybe CarriedFiles ->
   Transcript ->
   IO (Either Error Transcript)
-run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
+run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan carried transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -350,31 +423,46 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             curPath <- Cli.getCurrentProjectPath
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
             -- the right context first, then run the command next.
-            maybeSwitchCommand <- case context of
-              UcmContextEmpty -> pure Nothing
+            eitherSwitchCommand <- case context of
+              UcmContextEmpty -> pure (Right Nothing)
               UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
-                Project {projectId, name = projectName} <-
-                  Q.loadProjectByName projectName
-                    >>= \case
-                      Nothing -> do
-                        projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
-                        Q.insertProject projectId projectName
-                        pure $ Project {projectId, name = projectName}
-                      Just project -> pure project
-                projectAndBranchIds <-
-                  Q.loadProjectBranchByName projectId branchName >>= \case
-                    Nothing -> do
-                      branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
-                      Q.insertProjectBranch
-                        "Branch Created"
-                        emptyCausalHashId
-                        ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                      pure (ProjectAndBranch projectId branchId)
-                    Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
-                pure
-                  if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
-                    then Nothing
-                    else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                maybeProject <- Q.loadProjectByName projectName
+                case maybeProject of
+                  Nothing
+                    | not (createMissingContexts config) -> do
+                        projectNames <- fmap (\project -> into @Text project.name) <$> Q.loadAllProjects
+                        pure (Left (noSuchProject (into @Text projectName) projectNames))
+                  _ -> do
+                    Project {projectId, name = projectName} <-
+                      case maybeProject of
+                        Nothing -> do
+                          projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
+                          Q.insertProject projectId projectName
+                          pure $ Project {projectId, name = projectName}
+                        Just project -> pure project
+                    maybeBranch <- Q.loadProjectBranchByName projectId branchName
+                    case maybeBranch of
+                      Nothing
+                        | not (createMissingContexts config) -> do
+                            branchNames <- fmap (into @Text . snd) <$> Q.loadAllProjectBranchesBeginningWith projectId Nothing
+                            pure (Left (noSuchBranch (into @Text projectName) (into @Text branchName) branchNames))
+                      _ -> do
+                        projectAndBranchIds <-
+                          case maybeBranch of
+                            Nothing -> do
+                              branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
+                              Q.insertProjectBranch
+                                "Branch Created"
+                                emptyCausalHashId
+                                ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                              pure (ProjectAndBranch projectId branchId)
+                            Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
+                        pure $
+                          Right
+                            if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
+                              then Nothing
+                              else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+            maybeSwitchCommand <- either (liftIO . dieWithMsg) pure eitherSwitchCommand
             case maybeSwitchCommand of
               Just switchCommand -> do
                 atomically . Q.undequeue cmdQueue $ Just p
@@ -440,7 +528,7 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         IO.hFlush IO.stdout
 
       finishTranscript = do
-        showStatus True "✔️" "Completed transcript.\n"
+        showStatus False "✔️" "Completed transcript.\n"
         pure $ Right QuitI
 
       processStanza stanza midx = do
@@ -487,10 +575,15 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
           =<< readIORef unisonFiles
 
       writeSource :: ScratchFileName -> Text -> Bool -> IO ()
-      writeSource fp contents _addFold = do
+      writeSource fp contents addFold = do
         shouldShowSourceChanges <- (== Shown) <$> readIORef isHidden
         when shouldShowSourceChanges . atomically $ Q.enqueue ucmScratchFileUpdatesQueue (fp, contents)
-        updateVirtualFile fp contents
+        if writeFiles config
+          then do
+            defaultWriteSourceFile fp contents addFold
+            -- The file on disk is now the one to load, not a block of this transcript with the same name.
+            modifyIORef' unisonFiles (Map.delete fp)
+          else updateVirtualFile fp contents
 
       updateVirtualFile :: ScratchFileName -> Text -> IO ()
       updateVirtualFile fp = modifyIORef' unisonFiles . Map.insert fp
@@ -501,13 +594,13 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         --     transcript output, it makes transcripts non-reproducible.
         msg <- notifyUser Nothing showIssueUrl o
         outputUcmResult msg
-        when (Output.isFailure o) $ maybeDieWithMsg msg
+        when (outputIsFailure config o) $ maybeDieWithMsg msg
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
         outputUcmResult msg
-        when (Output.isNumberedFailure o) $ maybeDieWithMsg msg
+        when (outputIsNumberedFailure config o) $ maybeDieWithMsg msg
         pure numberedArgs
 
       -- Looks at the current stanza and decides if it is contained in the
@@ -572,6 +665,9 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = isTest config,
+            -- Transcript manages a 2-space indent for output lines, so the width is shortened by that, as for output.
+            getTerminalWidth = pure (terminalWidth config - 2),
+            unattended = unattended config,
             -- Transcripts don't support file watching
             watchState = Nothing
           }
@@ -580,7 +676,9 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       loop s0 = do
         Cli.runCli env s0 awaitInput >>= \case
           (Cli.Success input, s1) ->
-            let next s = loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
+            let next s = do
+                  for_ carried \ref -> writeIORef ref (s ^. #latestFile, s ^. #latestTypecheckedFile)
+                  loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
              in Cli.runCli env s1 (HandleInput.loop input) >>= \case
                   (Cli.Success (), s2) -> next s2
                   (Cli.Continue, s2) -> next s2
@@ -590,7 +688,9 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         where
           onHalt = readIORef out
 
-  Transcript (frontmatter transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
+  (latestFile, latestTypecheckedFile) <- maybe (pure (Nothing, Nothing)) readIORef carried
+  let state0 = (Cli.loopState0 (PP.toIds initialPP)) {Cli.latestFile, Cli.latestTypecheckedFile}
+  Transcript (frontmatter transcript) . toList <$> loop state0
 
 transcriptFailure :: Aeson.Value -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
 transcriptFailure frontmatter out heading mbody = do
