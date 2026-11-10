@@ -103,3 +103,4 @@ The format for this list: name, GitHub handle
 * Alistair Roche (@aroche-p)
 * Olivier Mélois (@Baccata)
 * Frederick Pringle (@fpringle)
+* Giovanni d'Amelio (@giodamelio)
