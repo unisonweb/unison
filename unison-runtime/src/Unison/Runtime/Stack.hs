@@ -4,6 +4,10 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UnboxedTuples #-}
+-- The JIT's code generator relies on the optimized layout of GClosure and
+-- Val (strict fields unboxed), so this module is always compiled with
+-- optimization, even under `stack build --fast`.
+{-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
 
 module Unison.Runtime.Stack
   ( K (..),
@@ -18,9 +22,16 @@ module Unison.Runtime.Stack
         Enum,
         Data1,
         Data2,
+        Data3,
+        Data4,
+        Data5,
+        Data6,
         DataG,
         RecordG,
         Captured,
+        TextC,
+        ListC,
+        BytesC,
         Foreign,
         Affine,
         BlackHole,
@@ -34,13 +45,19 @@ module Unison.Runtime.Stack
     AffineRef (..),
     AEnv,
     DEnv,
+    emptyDEnv,
+    emptyAEnv,
     HEnv (..),
     closureTag,
+    dataTag,
     formDataReplaced,
+    mapFamily,
+    mapReplaced,
     unitClosure,
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
     unboxedTypeTagFromInt,
+    witnessTag,
     IxClosure,
     Callback (..),
     Augment (..),
@@ -69,6 +86,7 @@ module Unison.Runtime.Stack
     BSeg,
     SegList,
     RecordVals,
+    recordVals,
     segToList,
     Val
       ( ..,
@@ -129,6 +147,16 @@ module Unison.Runtime.Stack
     dumpAP,
     dumpFP,
     alloc,
+    defaultStackSlots,
+    MCombs,
+    MSection,
+    MBranch,
+    MInstr,
+    MComb,
+    MRef,
+    nativeOutWords,
+    nativeOutPtrs,
+    bstkSlots,
     peek,
     upeek,
     bpeek,
@@ -146,6 +174,7 @@ module Unison.Runtime.Stack
     grabSeg,
     truncateSeg,
     ensure,
+    ensureGenerously,
     duplicate,
     discardFrame,
     saveFrame,
@@ -199,6 +228,7 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Data.Vector.Mutable qualified as MV
 import Data.Word
 import Data.X509 qualified as X509
 import Foreign.ForeignPtr qualified as Ptr
@@ -216,23 +246,23 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.StableName (makeStableName)
 import System.Process (ProcessHandle)
 import Test.Inspection qualified as TI
-import Unison.Builtin.Decls as Ty hiding
-  ( tlsPrivateKeyRef,
-    tlsSignedCertRef,
-  )
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
 import Unison.Runtime.Array as PA
+import Unison.Runtime.Builtin.Decls as Ty
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Signal qualified as Signal
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.Deque (Deque)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.RefPromise (Promise)
@@ -307,6 +337,7 @@ data K
       !CombIx -- resumption section reference
       !Int -- stack guard
       !(RSection Val) -- resumption section
+      !(Ptr.Ptr NativeCell) -- native code cell of the resumption section's combinator
       !K
   | -- saved context during affine handler
     Local
@@ -361,6 +392,19 @@ type AEnv = EnumMap Word64 AffineRef
 -- dynamic environment
 type DEnv = EnumMap Word64 Val
 
+-- The empty dynamic environment, as one shared value. HEnv's fields are
+-- lazy, so `HEnv aenv mempty` would store a thunk for the map in an
+-- unoptimized build; the JIT's request code reads the environment from
+-- native code and leaves a request to the interpreter when a field isn't
+-- an evaluated map, so the interpreter builds its environments with this.
+emptyDEnv :: DEnv
+emptyDEnv = EC.mapFromList []
+{-# NOINLINE emptyDEnv #-}
+
+emptyAEnv :: AEnv
+emptyAEnv = EC.mapFromList []
+{-# NOINLINE emptyAEnv #-}
+
 -- Handler environment.
 --
 -- Note: the fields are intentionally not strict. This seems to yield
@@ -380,7 +424,9 @@ instance Monoid HEnv where
   mappend = (<>)
 
 -- | Implementation for Unison sequences.
-type USeq = Seq Val
+-- | The runtime's lists.  A strict deque: no thunks inside, so its structure can
+-- be read without evaluating anything.
+type USeq = Deque Val
 
 type IxClosure = GClosure CombIx
 
@@ -390,6 +436,10 @@ data UnboxedTypeTag
   | FloatTag
   | IntTag
   | NatTag
+  | -- | The value slot of a wide variable holding an unboxed constructor of
+    -- this many fields (Unison.Runtime.Wide): the slot's word is the
+    -- constructor's packed tag and the fields are in the slots below.
+    WitnessTag !Int
   deriving stock (Show, Eq, Ord)
 
 unboxedTypeTagToInt :: UnboxedTypeTag -> Int
@@ -398,9 +448,11 @@ unboxedTypeTagToInt = \case
   FloatTag -> 1
   IntTag -> 2
   NatTag -> 3
+  WitnessTag n -> 4 + n
 
 unboxedTypeTagFromInt :: (HasCallStack) => Int -> UnboxedTypeTag
 unboxedTypeTagFromInt = \case
+  n | n >= 4 -> WitnessTag (n - 4)
   0 -> CharTag
   1 -> FloatTag
   2 -> IntTag
@@ -411,23 +463,67 @@ unboxedTypeTagFromInt = \case
 -- value of field @i@ of the accompanying 'RecordShape'.
 type RecordVals = Vector Val
 
+-- | The code the interpreter runs: MCode over resolved combinators and
+-- these values. (Defined here, below the JIT modules, so that the JIT
+-- handle can be a field of the code cache without an import cycle.)
+type MCombs = RCombs Val
+
+type MSection = RSection Val
+
+type MBranch = RBranch Val
+
+type MInstr = RInstr Val
+
+type MComb = RComb Val
+
+type MRef = RRef Val
+
+-- The constructor order sets the pointer tags native code switches on:
+-- the first six constructors get tags 1 to 6 and the rest share tag 7,
+-- told apart by their info pointers. Lists, texts, enums and the data
+-- constructors with one, two and five fields come first because matches and
+-- the text and list primitives are the hot dispatch (five fields is base's
+-- Map node, which is native under the JIT: measured 2 to 5% on map rows,
+-- benchmarks/2026-10-15-text-list.md); a wider constructor pushes more
+-- fields and absorbs the info-table read better, and a partial
+-- application is only scrutinized by a call, whose other work dwarfs it
+-- (benchmarks/2026-10-15-constructor-order.md). A text, a list and a bytes
+-- value are one object each, the rope or the deque their one field (Text
+-- is a newtype over the rope); bytes sit at tag 7, after the six, being
+-- rarer than texts. A data constructor's fields come
+-- first and its reference last, so that with @-funbox-strict-fields@ the
+-- closure is the fields' boxed halves, the reference, the packed tag and
+-- the fields' unboxed halves: field j's boxed half is pointer j. The
+-- segments of a partial application, a wide constructor and a captured
+-- continuation are two fields, not a tuple (which couldn't be unpacked),
+-- so the closure holds the two arrays directly.
 data GClosure comb
-  = GPAp
+  = GList !(Deque Val)
+  | GText !U.Text
+  | GEnum !PackedTag
+  | GData1 !PackedTag !Val
+  | GData2 !PackedTag !Val !Val
+  | GData5 !PackedTag !Val !Val !Val !Val !Val
+  | GData3 !PackedTag !Val !Val !Val
+  | GData4 !PackedTag !Val !Val !Val !Val
+  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val
+  | -- | seven or more fields
+    GDataG !PackedTag !USeg !BSeg
+  | GBytes !Bytes
+  | GPAp
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
       -- | args
-      {-# UNPACK #-} !Seg
-  | GEnum !Reference !PackedTag
-  | GData1 !Reference !PackedTag !Val
-  | GData2 !Reference !PackedTag !Val !Val
-  | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
+      !USeg
+      !BSeg
   | GCaptured
       -- | code cont
       !K
       -- | arg size
       !Int
       -- | u/b data stacks
-      {-# UNPACK #-} !Seg
+      !USeg
+      !BSeg
   | GRecord !RecordShape !RecordVals
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
@@ -469,21 +565,76 @@ blackHole = Closure GBlackHole
 {-# NOINLINE blackHole #-}
 
 pattern PAp :: CombIx -> GCombInfo (RComb Val) -> Seg -> Closure
-pattern PAp cix comb seg = Closure (GPAp cix comb seg)
+pattern PAp cix comb seg <- (matchPAp -> Just (cix, comb, seg))
+  where
+    PAp cix comb (u, b) = Closure (GPAp cix comb u b)
 
-pattern Enum :: Reference -> PackedTag -> Closure
-pattern Enum r t = Closure (GEnum r t)
+matchPAp :: Closure -> Maybe (CombIx, GCombInfo (RComb Val), Seg)
+matchPAp (Closure (GPAp cix comb u b)) = Just (cix, comb, (u, b))
+matchPAp _ = Nothing
+{-# INLINE matchPAp #-}
 
-pattern Data1 r t i = Closure (GData1 r t i)
+-- The data constructors carry their packed tag alone: the type's
+-- reference is the registry's (Unison.Runtime.TypeNumbers, by the tag's
+-- type number), read only at the process boundary and to order values of
+-- different types.
+pattern Enum :: PackedTag -> Closure
+pattern Enum t = Closure (GEnum t)
 
-pattern Data2 r t i j = Closure (GData2 r t i j)
+pattern Data1 :: PackedTag -> Val -> Closure
+pattern Data1 t i = Closure (GData1 t i)
 
-pattern DataG r t seg = Closure (GDataG r t seg)
+pattern Data2 :: PackedTag -> Val -> Val -> Closure
+pattern Data2 t i j = Closure (GData2 t i j)
+
+pattern Data3 :: PackedTag -> Val -> Val -> Val -> Closure
+pattern Data3 t a b c = Closure (GData3 t a b c)
+
+pattern Data4 :: PackedTag -> Val -> Val -> Val -> Val -> Closure
+pattern Data4 t a b c d = Closure (GData4 t a b c d)
+
+pattern Data5 :: PackedTag -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data5 t a b c d e = Closure (GData5 t a b c d e)
+
+pattern Data6 :: PackedTag -> Val -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data6 t a b c d e f = Closure (GData6 t a b c d e f)
+
+-- | A constructor with seven or more fields (fewer go to the fixed-arity
+-- constructors; 'formData' and 'formDataSeg' choose).
+pattern DataG :: PackedTag -> Seg -> Closure
+pattern DataG t seg <- (matchDataG -> Just (t, seg))
+  where
+    DataG t (u, b) = Closure (GDataG t u b)
+
+matchDataG :: Closure -> Maybe (PackedTag, Seg)
+matchDataG (Closure (GDataG t u b)) = Just (t, (u, b))
+matchDataG _ = Nothing
+{-# INLINE matchDataG #-}
 
 pattern RecordG :: RecordShape -> RecordVals -> Closure
 pattern RecordG sh vs = Closure (GRecord sh vs)
 
-pattern Captured k a seg = Closure (GCaptured k a seg)
+pattern Captured :: K -> Int -> Seg -> Closure
+pattern Captured k a seg <- (matchCaptured -> Just (k, a, seg))
+  where
+    Captured k a (u, b) = Closure (GCaptured k a u b)
+
+matchCaptured :: Closure -> Maybe (K, Int, Seg)
+matchCaptured (Closure (GCaptured k a u b)) = Just (k, a, (u, b))
+matchCaptured _ = Nothing
+{-# INLINE matchCaptured #-}
+
+-- | A text: the runtime's one representation of a @Text@ value.
+pattern TextC :: U.Text -> Closure
+pattern TextC t = Closure (GText t)
+
+-- | A list: the runtime's one representation of a @List@ value.
+pattern ListC :: Deque Val -> Closure
+pattern ListC d = Closure (GList d)
+
+-- | A bytes value: the runtime's one representation of a @Bytes@ value.
+pattern BytesC :: Bytes -> Closure
+pattern BytesC b = Closure (GBytes b)
 
 pattern Foreign x = Closure (GForeign x)
 
@@ -500,18 +651,37 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       FloatTag -> floatTypeTag
       IntTag -> intTypeTag
       NatTag -> natTypeTag
+      WitnessTag n -> witnessTag n
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, BytesC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PAp, Captured, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, Captured, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, CapV, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
 natTypeTag = (Closure (GUnboxedTypeTag NatTag))
+
+-- | The witness closures of unboxed constructors ('WitnessTag'), one per
+-- field count, so that writing one allocates nothing.
+witnessTag :: Int -> Closure
+witnessTag = \case
+  0 -> witnessTag0
+  1 -> witnessTag1
+  2 -> witnessTag2
+  n -> Closure (GUnboxedTypeTag (WitnessTag n))
+
+witnessTag0, witnessTag1, witnessTag2 :: Closure
+witnessTag0 = Closure (GUnboxedTypeTag (WitnessTag 0))
+{-# NOINLINE witnessTag0 #-}
+witnessTag1 = Closure (GUnboxedTypeTag (WitnessTag 1))
+{-# NOINLINE witnessTag1 #-}
+witnessTag2 = Closure (GUnboxedTypeTag (WitnessTag 2))
+{-# NOINLINE witnessTag2 #-}
+
 {-# NOINLINE natTypeTag #-}
 
 intTypeTag :: Closure
@@ -530,26 +700,56 @@ traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
     dedup p (Mark _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ (CIx r _ _) _ _ k)
+    dedup p@(cur, n) (Push _ _ (CIx r _ _) _ _ _ k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: Closure -> Maybe (Reference, PackedTag, SegList)
+splitData :: Closure -> Maybe (PackedTag, SegList)
 splitData = \case
-  (Enum r t) -> Just (r, t, [])
-  (Data1 r t u) -> Just (r, t, [u])
-  (Data2 r t i j) -> Just (r, t, [i, j])
-  (DataG r t seg) -> Just (r, t, segToList seg)
+  (Enum t) -> Just (t, [])
+  (Data1 t a) -> Just (t, [a])
+  (Data2 t a b) -> Just (t, [a, b])
+  (Data3 t a b c) -> Just (t, [a, b, c])
+  (Data4 t a b c d) -> Just (t, [a, b, c, d])
+  (Data5 t a b c d e) -> Just (t, [a, b, c, d, e])
+  (Data6 t a b c d e f) -> Just (t, [a, b, c, d, e, f])
+  (DataG t seg) -> Just (t, segToList seg)
   _ -> Nothing
 
+-- | The packed tag of a data constructor closure, or Nothing for any other
+-- closure.
+dataTag :: Closure -> Maybe PackedTag
+dataTag (Closure c) = case c of
+  GEnum t -> Just t
+  GData1 t _ -> Just t
+  GData2 t _ _ -> Just t
+  GData3 t _ _ _ -> Just t
+  GData4 t _ _ _ _ -> Just t
+  GData5 t _ _ _ _ _ -> Just t
+  GData6 t _ _ _ _ _ _ -> Just t
+  GDataG t _ _ -> Just t
+  _ -> Nothing
+{-# INLINE dataTag #-}
+
+-- | The number of fields of a data constructor closure.
+dataArity :: Closure -> Int
+dataArity (Closure c) = case c of
+  GEnum {} -> 0
+  GData1 {} -> 1
+  GData2 {} -> 2
+  GData3 {} -> 3
+  GData4 {} -> 4
+  GData5 {} -> 5
+  GData6 {} -> 6
+  GDataG _ _ b -> sizeofArray b
+  _ -> 0
+{-# INLINE dataArity #-}
+
 closureTag :: Closure -> PackedTag
-closureTag (Enum _ t) = t
-closureTag (Data1 _ t _) = t
-closureTag (Data2 _ t _ _) = t
-closureTag (DataG _ t _) = t
-closureTag c =
-  throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
+closureTag c = case dataTag c of
+  Just t -> t
+  Nothing -> throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
 {-# INLINE closureTag #-}
 
 -- | Converts a list of integers representing an unboxed segment back into the
@@ -569,28 +769,51 @@ bsegToList = reverse . L.toList
 bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
-formData :: Reference -> PackedTag -> SegList -> Closure
-formData r t [] = Enum r t
-formData r t [v1] = Data1 r t v1
-formData r t [v1, v2] = Data2 r t v1 v2
-formData r t segList = DataG r t (segFromList segList)
+formData :: PackedTag -> SegList -> Closure
+formData t = \case
+  [] -> Enum t
+  [a] -> Data1 t a
+  [a, b] -> Data2 t a b
+  [a, b, c] -> Data3 t a b c
+  [a, b, c, d] -> Data4 t a b c d
+  [a, b, c, d, e] -> Data5 t a b c d e
+  [a, b, c, d, e, f] -> Data6 t a b c d e f
+  segList -> DataG t (segFromList segList)
 
-formDataSeg :: Reference -> PackedTag -> Seg -> Closure
-formDataSeg r t (usg, bsg) = case sizeofArray bsg of
-  0 -> Enum r t
-  1 -> Data1 r t (Val (indexByteArray usg 0) (indexArray bsg 0))
-  2 ->
-    Data2
-      r
-      t
-      (Val (indexByteArray usg 1) (indexArray bsg 1))
-      (Val (indexByteArray usg 0) (indexArray bsg 0))
-  _ -> DataG r t (usg, bsg)
+-- | A constructor from a segment, which holds the fields backwards (field 0
+-- last).
+formDataSeg :: PackedTag -> Seg -> Closure
+formDataSeg t (usg, bsg) = case sizeofArray bsg of
+  0 -> Enum t
+  1 -> Data1 t (at 0)
+  2 -> Data2 t (at 1) (at 0)
+  3 -> Data3 t (at 2) (at 1) (at 0)
+  4 -> Data4 t (at 3) (at 2) (at 1) (at 0)
+  5 -> Data5 t (at 4) (at 3) (at 2) (at 1) (at 0)
+  6 -> Data6 t (at 5) (at 4) (at 3) (at 2) (at 1) (at 0)
+  _ -> DataG t (usg, bsg)
+  where
+    at i = Val (indexByteArray usg i) (indexArray bsg i)
 {-# INLINE formDataSeg #-}
 
+-- | The tag of base's @Map@ type and of the functions on @Map@, @Set@ and
+-- @Multimap@, which take and return it (see JIT.Config.ReplacementUse):
+-- native code wins on maps below a few thousand keys, the common case,
+-- the Haskell map above (JIT/benchmarks/2026-10-11-replacements.md), so
+-- the family is left to the JIT.
+mapFamily :: JIT.ReplacementUse
+mapFamily = JIT.InterpreterOnly
+
+-- | Whether the @Map@ type is replaced by the Haskell 'WrapMap' under the
+-- current settings.
+mapReplaced :: Bool
+mapReplaced = JIT.replacementActive mapFamily
+{-# NOINLINE mapReplaced #-}
+
 -- Build a data type, but apply replacements
-formDataReplaced :: Reference -> PackedTag -> Seg -> Closure
-formDataReplaced r t sg@(usg, bsg)
+formDataReplaced :: PackedTag -> Seg -> Closure
+formDataReplaced t sg@(usg, bsg)
+  | not mapReplaced = formDataSeg t sg
   | t == TT.mapTipTag = case sizeofArray bsg of
       0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"
@@ -600,16 +823,14 @@ formDataReplaced r t sg@(usg, bsg)
           !uk <- indexByteArray usg 3,
           !bv <- indexArray bsg 2,
           !uv <- indexByteArray usg 2,
-          Foreign l <- indexArray bsg 1,
-          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin l,
-          Foreign r <- indexArray bsg 0,
-          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin r,
+          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin (indexArray bsg 1),
+          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin (indexArray bsg 0),
           sz <- indexByteArray usg 4,
           Closure (GUnboxedTypeTag NatTag) <- indexArray bsg 4 ->
             Foreign . WrapMap $
               Bin sz (Val uk bk) (Val uv bv) ul ur
       _ -> error "formDataReplaced: bad `Map`"
-  | otherwise = formDataSeg r t sg
+  | otherwise = formDataSeg t sg
 
 tipClosure :: Closure
 tipClosure = Foreign $ WrapMap Tip
@@ -620,7 +841,7 @@ frameDataSize = go 0
     go sz KE = sz
     go sz (CB _) = sz
     go sz (Mark a _ _ k) = go (sz + a) k
-    go sz (Push f a _ _ _ k) =
+    go sz (Push f a _ _ _ _ k) =
       go (sz + f + a) k
     go _ (Keep {}) =
       error "frameDataSize: captured Keep frame"
@@ -629,11 +850,11 @@ frameDataSize = go 0
     go _ (AMark {}) =
       error "frameDataSize: captured AMark frame"
 
-pattern DataC :: Reference -> PackedTag -> SegList -> Closure
-pattern DataC rf ct segs <-
-  (splitData -> Just (rf, ct, segs))
+pattern DataC :: PackedTag -> SegList -> Closure
+pattern DataC ct segs <-
+  (splitData -> Just (ct, segs))
   where
-    DataC rf ct segs = formData rf ct segs
+    DataC ct segs = formData ct segs
 
 pattern RecordC :: RecordShape -> RecordVals -> Closure
 pattern RecordC sh v <- (RecordG sh v)
@@ -682,7 +903,7 @@ pattern IntVal i <- (matchIntVal -> Just i)
 
 matchBoolVal :: Val -> Maybe Bool
 matchBoolVal = \case
-  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.trueTag)
+  (BoxedVal (Enum t)) | TT.isBooleanTag t -> Just (t == TT.trueTag)
   _ -> Nothing
 
 pattern BoolVal :: Bool -> Val
@@ -692,11 +913,11 @@ pattern BoolVal b <- (matchBoolVal -> Just b)
 
 -- Define singletons we can use for the bools to prevent allocation where possible.
 falseVal :: Val
-falseVal = BoxedVal (Enum Ty.booleanRef TT.falseTag)
+falseVal = BoxedVal (Enum TT.falseTag)
 {-# NOINLINE falseVal #-}
 
 trueVal :: Val
-trueVal = BoxedVal (Enum Ty.booleanRef TT.trueTag)
+trueVal = BoxedVal (Enum TT.trueTag)
 {-# NOINLINE trueVal #-}
 
 doubleToInt :: Double -> Int
@@ -733,6 +954,22 @@ ints :: ByteArray -> [Int]
 ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
   where
     n = sizeofByteArray ba `div` 8
+
+-- | A record's values from a segment: slot i holds the segment's i-th value
+-- (the segments are stored backwards). Every element is an evaluated 'Val',
+-- since native code reads the vector's elements as closures.
+recordVals :: Seg -> RecordVals
+recordVals (u, b) = V.create do
+  let n = sizeofByteArray u `div` 8
+  mv <- MV.new n
+  let go i
+        | i == n = pure ()
+        | otherwise = do
+            let j = n - 1 - i
+            MV.write mv i $! Val (indexByteArray u j) (indexArray b j)
+            go (i + 1)
+  go 0
+  pure mv
 
 -- | Converts from the list representation of a segment to the efficient stack form. Segments are stored backwards,
 -- so this reverses the contents.
@@ -788,21 +1025,12 @@ data RuntimePanic = Panic String (Maybe Val)
 instance Exception RuntimePanic
 
 marshalUnwrapForeignIO ::
-  (HasCallStack, BuiltinForeign a) => Closure -> IO a
-marshalUnwrapForeignIO (Foreign x) = unwrapForeignIO x
-marshalUnwrapForeignIO c =
-  throwIO $ Panic "marshalUnwrapForeignIO: unhandled closure" (Just v)
-  where
-    v = BoxedVal c
-
-unwrapForeignIO ::
-  forall a. (HasCallStack, BuiltinForeign a) => Foreign -> IO a
-unwrapForeignIO f = maybe err pure $ maybeUnwrapBuiltin f
+  forall a. (HasCallStack, BuiltinForeign a) => Closure -> IO a
+marshalUnwrapForeignIO c = maybe err pure $ maybeUnwrapBuiltin c
   where
     Tagged exName = builtinName @a
-    v = BoxedVal (Foreign f)
-    err = throwIO $ Panic msg (Just v)
-    msg = "unwrapForeignIO: expected `" <> exName <> "`"
+    err = throwIO $ Panic msg (Just (BoxedVal c))
+    msg = "marshalUnwrapForeignIO: expected `" <> exName <> "`"
 
 type Off = Int
 
@@ -1025,10 +1253,42 @@ type BSeg = Array Closure
 
 type Seg = (USeg, BSeg)
 
-alloc :: IO Stack
-alloc = do
-  ustk <- newByteArray 4096
-  bstk <- newArray 512 BlackHole
+-- | Words past the last slot of the unboxed stack that native code's
+-- entry point writes its results to: @ap@, @fp@, @sp@, a count of frame
+-- records, and up to eight records of three words. Must match
+-- UNISON_JIT_OUT_WORDS in jit_rt.h.
+nativeOutWords :: Int
+nativeOutWords = 28
+
+-- | Pointers past the last slot of the boxed stack, where native code
+-- hands heap pointers back so that the collector sees them: the handler
+-- environment it was running with when it returned, then one environment
+-- per @Local@ frame record it wrote (see @pushRecord@ in Machine.hs). Must
+-- match UNISON_JIT_OUT_PTRS in jit_rt.h.
+nativeOutPtrs :: Int
+nativeOutPtrs = 33
+
+-- | The slots of a boxed stack: its size less the out-area.
+bstkSlots :: MutableArray RealWorld Closure -> Int
+bstkSlots bstk = sizeofMutableArray bstk - nativeOutPtrs
+{-# INLINE bstkSlots #-}
+
+-- | The slots a fresh stack has. The JIT's `ustack` stress mode starts with
+-- a tiny stack instead, so that growing it is exercised constantly.
+defaultStackSlots :: Int
+defaultStackSlots = 512
+
+alloc :: Int -> IO Stack
+alloc slots = do
+  -- Each stack is allocated with an out-area past its last slot
+  -- (nativeOutWords, nativeOutPtrs). Native code returns only a status
+  -- word through the C calling convention, so it hands everything else
+  -- back by writing it there: the new ap, fp and sp and the frame records
+  -- on the unboxed stack, and on the boxed stack the handler environment
+  -- it ran with, which the collector has to see. The trampoline reads
+  -- them after the call (JIT.Native; design.md calls this the out-area). Growing or duplicating a stack keeps the space.
+  ustk <- newByteArray (bytes (slots + nativeOutWords))
+  bstk <- newArray (slots + nativeOutPtrs) BlackHole
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
@@ -1213,13 +1473,13 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
   | sze <= 0 = pure stk
   | sp + sze + 1 < bsz = pure stk
   | otherwise = do
-      bstk' <- newArray (bsz + bext) BlackHole
+      bstk' <- newArray (bsz + bext + nativeOutPtrs) BlackHole
       copyMutableArray bstk' 0 bstk 0 (sp + 1)
       usz <- getSizeofMutableByteArray ustk
       ustk' <- resizeMutableByteArray ustk (usz + uext)
       pure $ Stack ap fp sp ustk' bstk'
   where
-    bsz = sizeofMutableArray bstk
+    bsz = bstkSlots bstk
     bext
       | sze > 1280 = sze + 512
       | otherwise = 1280
@@ -1227,6 +1487,15 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
       | bytes sze > 10240 = bytes sze + 4096
       | otherwise = 10240
 {-# INLINE ensure #-}
+
+-- | Like 'ensure', but grows by at least the stack's current size. Native
+-- code pays for every growth by unwinding all its frames to the
+-- interpreter, so it asks for room in big steps.
+ensureGenerously :: Stack -> SZ -> IO Stack
+ensureGenerously stk@(Stack _ _ _ _ bstk) sze
+  | sze <= 0 = pure stk
+  | otherwise = ensure stk (max sze (bstkSlots bstk))
+{-# INLINE ensureGenerously #-}
 
 bump :: Stack -> IO Stack
 bump (Stack ap fp sp ustk bstk) = do
@@ -1477,11 +1746,11 @@ pokeOffC stk i c = do
 {-# INLINE pokeOffC #-}
 
 pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
-pokeBi stk x = bpoke stk (Foreign $ wrapBuiltin x)
+pokeBi stk x = bpoke stk (wrapBuiltin x)
 {-# INLINE pokeBi #-}
 
 pokeOffBi :: (BuiltinForeign b) => Stack -> Int -> b -> IO ()
-pokeOffBi stk i x = bpokeOff stk i (Foreign $ wrapBuiltin x)
+pokeOffBi stk i x = bpokeOff stk i (wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
 
 peekBi :: (BuiltinForeign b) => Stack -> IO b
@@ -1496,7 +1765,7 @@ peekBool :: Stack -> IO Bool
 peekBool stk = do
   b <- bpeek stk
   pure $ case b of
-    Enum _ t -> t /= TT.falseTag
+    Enum t -> t /= TT.falseTag
     _ -> error "peekBool: not a boolean"
 {-# INLINE peekBool #-}
 
@@ -1504,7 +1773,7 @@ peekOffBool :: Stack -> Int -> IO Bool
 peekOffBool stk i = do
   b <- bpeekOff stk i
   pure $ case b of
-    Enum _ t -> t /= TT.falseTag
+    Enum t -> t /= TT.falseTag
     _ -> error "peekOffBool: not a boolean"
 {-# INLINE peekOffBool #-}
 
@@ -1513,11 +1782,11 @@ peekOffS stk i = marshalUnwrapForeignIO =<< bpeekOff stk i
 {-# INLINE peekOffS #-}
 
 pokeS :: Stack -> USeq -> IO ()
-pokeS stk s = bpoke stk (Foreign $ WrapSeq s)
+pokeS stk s = bpoke stk (ListC s)
 {-# INLINE pokeS #-}
 
 pokeOffS :: Stack -> Int -> USeq -> IO ()
-pokeOffS stk i s = bpokeOff stk i (Foreign $ WrapSeq s)
+pokeOffS stk i s = bpokeOff stk i (ListC s)
 {-# INLINE pokeOffS #-}
 
 unull :: USeg
@@ -1534,7 +1803,7 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push f a ci _g _rsect k) =
+      go com (Push f a ci _g _rsect _ k) =
         com ++ show (f, a, ci) ++ go "," k
       go com (Mark a ps _ k) =
         com ++ "M " ++ show a ++ " " ++ show ps ++ go "," k
@@ -1573,13 +1842,13 @@ closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f = \case
   PAp (CIx r _ _) _ (_useg, bseg) ->
     f r <> foldMap (closureTermRefs f) bseg
-  (DataC _ _ vs) ->
+  (DataC _ vs) ->
     vs & foldMap \case
       BoxedVal c -> closureTermRefs f c
       UnboxedVal {} -> mempty
   (Captured k _ (_useg, bseg)) ->
     contTermRefs f k <> foldMap (closureTermRefs f) bseg
-  (Foreign (WrapSeq cs)) ->
+  (ListC cs) ->
     foldMap (\(Val _i clos) -> closureTermRefs f clos) cs
   _ -> mempty
 
@@ -1590,7 +1859,7 @@ contTermRefs f (Mark _ _ m k) =
       _ -> mempty
   )
     <> contTermRefs f k
-contTermRefs f (Push _ _ (CIx r _ _) _ _ k) =
+contTermRefs f (Push _ _ (CIx r _ _) _ _ _ k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty
 
@@ -1598,7 +1867,7 @@ hasNoAllocations :: TH.Name -> TI.Obligation
 hasNoAllocations n = TI.mkObligation n TI.NoAllocation
 
 unitClosure :: Closure
-unitClosure = Enum Ty.unitRef TT.unitTag
+unitClosure = Enum TT.unitTag
 {-# NOINLINE unitClosure #-}
 
 -- Universal comparison functions
@@ -1608,6 +1877,9 @@ closureNum PAp {} = 0
 closureNum DataC {} = 1
 closureNum Captured {} = 2
 closureNum Foreign {} = 3
+closureNum TextC {} = 3
+closureNum ListC {} = 3
+closureNum BytesC {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
@@ -1622,11 +1894,27 @@ instance Eq Val where
   BoxedVal x == BoxedVal y = x == y
   _ == _ = False
 
+-- | Constructors compare field by field in place: no list of the fields
+-- is built (this runs for every key of a replaced @Map@).
 instance Eq Closure where
-  DataC _ ct1 [w1] == DataC _ ct2 [w2] =
-    matchTags ct1 ct2 && w1 == w2
-  DataC _ ct1 vs1 == DataC _ ct2 vs2 =
-    ct1 == ct2 && eqValList vs1 vs2
+  Enum t1 == Enum t2 = t1 == t2
+  Data1 t1 a1 == Data1 t2 a2 =
+    matchTags t1 t2 && a1 == a2
+  Data2 t1 a1 b1 == Data2 t2 a2 b2 =
+    t1 == t2 && a1 == a2 && b1 == b2
+  Data3 t1 a1 b1 c1 == Data3 t2 a2 b2 c2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2
+  Data4 t1 a1 b1 c1 d1 == Data4 t2 a2 b2 c2 d2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+  Data5 t1 a1 b1 c1 d1 e1 == Data5 t2 a2 b2 c2 d2 e2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
+  Data6 t1 a1 b1 c1 d1 e1 f1 == Data6 t2 a2 b2 c2 d2 e2 f2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2 && f1 == f2
+  Closure (GDataG t1 u1 b1) == Closure (GDataG t2 u2 b2) =
+    t1 == t2 && eqSegs u1 b1 u2 b2
+  -- constructors of different shapes have different arities, so
+  -- different tags
+  (dataTag -> Just _) == (dataTag -> Just _) = False
   -- Shape equality is by field name, so this doesn't depend on intern order.
   RecordC sh1 vs1 == RecordC sh2 vs2 =
     sh1 == sh2 && eqValList (V.toList vs1) (V.toList vs2)
@@ -1634,20 +1922,54 @@ instance Eq Closure where
     cix1 == cix2 && eqValList segs1 segs2
   CapV k1 a1 vs1 == CapV k2 a2 vs2 =
     k1 == k2 && a1 == a2 && eqValList vs1 vs2
+  TextC l == TextC r = l == r
+  ListC l == ListC r = l == r
+  BytesC l == BytesC r = l == r
   Foreign fl == Foreign fr = fl == fr
-  c == d = closureNum c == closureNum d
+  c == d
+    | closureNum c == 3,
+      closureNum d == 3 =
+        error $
+          "Attempting to check equality of values of different types: "
+            <> "`"
+            <> builtinKindName c
+            <> "` vs `"
+            <> builtinKindName d
+            <> "`"
+    | otherwise = closureNum c == closureNum d
+
+-- | The name of a text, a list, a bytes or a foreign value's kind, for
+-- the errors on comparing two of different kinds.
+builtinKindName :: Closure -> String
+builtinKindName = \case
+  TextC {} -> "Text"
+  ListC {} -> "Seq"
+  BytesC {} -> "Bytes"
+  Foreign f -> foreignName f
+  _ -> "closure"
 
 instance Eq K where
   KE == KE = True
   CB cb == CB cb' = cb == cb'
   Mark a ps m k == Mark a' ps' m' k' =
     a == a' && ps == ps' && liftEq (==) m m' && k == k'
-  Push f a ci _ _ k == Push f' a' ci' _ _ k' =
+  Push f a ci _ _ _ k == Push f' a' ci' _ _ _ k' =
     f == f' && a == a' && ci == ci' && k == k'
   _ == _ = False
 
 eqValList :: [Val] -> [Val] -> Bool
 eqValList l r = length l == length r && l == r
+
+-- | Two segments, element by element from field 0 (the last slot).
+eqSegs :: USeg -> BSeg -> USeg -> BSeg -> Bool
+eqSegs u1 b1 u2 b2 = n == sizeofArray b2 && go (n - 1)
+  where
+    n = sizeofArray b1
+    go i
+      | i < 0 = True
+      | otherwise =
+          Val (indexByteArray u1 i) (indexArray b1 i) == Val (indexByteArray u2 i) (indexArray b2 i)
+            && go (i - 1)
 
 -- IEEE floating point layout is such that comparison as integers
 -- somewhat works. Positive floating values map to positive integers
@@ -1678,7 +2000,8 @@ compareAsFloat i j
   | i > 0 || j > 0 = compare i j
   | otherwise = compare (clear j) (clear i)
   where
-    clear k = clearBit k 64
+    -- the sign bit
+    clear k = clearBit k 63
 
 compareVal :: Bool -> Val -> Val -> Ordering
 compareVal tyEq = \cases
@@ -1689,14 +2012,34 @@ compareVal tyEq = \cases
   (UnboxedVal v1 t1) (UnboxedVal v2 t2) ->
     compareUnboxed tyEq (t1, v1) (t2, v2)
 
+-- | Constructors compare by tag, then field by field in place: no list
+-- of the fields is built (this is the key order of a replaced @Map@).
 compareClosure :: Bool -> Closure -> Closure -> Ordering
 compareClosure tyEq = \cases
-  (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
-    (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
-      <> compare (maskTags ct1) (maskTags ct2)
-      -- when comparing corresponding `Any` values, which have
-      -- existentials inside check that type references match
-      <> compareValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
+  (Enum t1) (Enum t2) -> compareTags tyEq t1 t2
+  (Data1 t1 a1) (Data1 t2 a2) ->
+    compareTags tyEq t1 t2 <> compareVal (fieldTyEq tyEq t1) a1 a2
+  (Data2 t1 a1 b1) (Data2 t2 a2 b2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2
+  (Data3 t1 a1 b1 c1) (Data3 t2 a2 b2 c2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2
+  (Data4 t1 a1 b1 c1 d1) (Data4 t2 a2 b2 c2 d2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2
+  (Data5 t1 a1 b1 c1 d1 e1) (Data5 t2 a2 b2 c2 d2 e2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2 <> compareVal e e1 e2
+  (Data6 t1 a1 b1 c1 d1 e1 f1) (Data6 t2 a2 b2 c2 d2 e2 f2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2 <> compareVal e e1 e2 <> compareVal e f1 f2
+  (Closure (GDataG t1 u1 b1)) (Closure (GDataG t2 u2 b2)) ->
+    compareTags tyEq t1 t2 <> compareSegs (fieldTyEq tyEq t1) u1 b1 u2 b2
+  -- constructors of different shapes: of different types (compared
+  -- universally), whose tags may still agree, then by arity
+  c1@(dataTag -> Just t1) c2@(dataTag -> Just t2) ->
+    compareTags tyEq t1 t2 <> compare (dataArity c1) (dataArity c2)
   -- Two records of different shapes can reach this once wrapped in `Any`,
   -- which erases their types. Order those by field name -- via the `Ord
   -- RecordShape` instance -- rather than by interned shape id, so the result
@@ -1714,10 +2057,22 @@ compareClosure tyEq = \cases
     compareK tyEq k1 k2
       <> compare a1 a2
       <> compareValList True vs1 vs2
+  (TextC l) (TextC r) -> compare l r
+  (ListC l) (ListC r) -> liftCompare (compareVal tyEq) l r
+  (BytesC l) (BytesC r) -> compare l r
   (Foreign fl) (Foreign fr) -> compareForeign tyEq fl fr
   (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
   (BlackHole) (BlackHole) -> EQ
-  c d -> comparing closureNum c d
+  c d
+    | closureNum c == 3,
+      closureNum d == 3 ->
+        error $
+          "Attempting to compare two values of different types: `"
+            <> builtinKindName c
+            <> "` vs `"
+            <> builtinKindName d
+            <> "`"
+    | otherwise -> comparing closureNum c d
 
 compareUnboxed ::
   Bool -> (UnboxedTypeTag, Int) -> (UnboxedTypeTag, Int) -> Ordering
@@ -1746,6 +2101,38 @@ compareValList :: Bool -> [Val] -> [Val] -> Ordering
 compareValList tyEq l r =
   compare (length l) (length r) <> fold (zipWith (compareVal tyEq) l r)
 
+-- | Two constructors' tags: values of different types order by their
+-- type references, which are the same in every process where the
+-- numbers need not be (the order is a replaced Map's, serialized as it
+-- is); the registry is consulted only then. Without @tyEq@ the types are
+-- known equal and the constructor tags decide.
+compareTags :: Bool -> PackedTag -> PackedTag -> Ordering
+compareTags tyEq t1 t2
+  | t1 == t2 = EQ
+  | tyEq,
+    TT.typeTag t1 /= TT.typeTag t2 =
+      compare (TN.typeReference (TT.typeTag t1)) (TN.typeReference (TT.typeTag t2))
+  | otherwise = compare (maskTags t1) (maskTags t2)
+{-# INLINE compareTags #-}
+
+-- | Whether the fields of a constructor compare their types: the fields
+-- of an @Any@ have existential types, which the static types of the
+-- values compared say nothing about.
+fieldTyEq :: Bool -> PackedTag -> Bool
+fieldTyEq tyEq t = tyEq || TT.isAnyTag t
+{-# INLINE fieldTyEq #-}
+
+-- | Two segments, element by element from field 0 (the last slot).
+compareSegs :: Bool -> USeg -> BSeg -> USeg -> BSeg -> Ordering
+compareSegs tyEq u1 b1 u2 b2 = compare n (sizeofArray b2) <> go (n - 1)
+  where
+    n = sizeofArray b1
+    go i
+      | i < 0 = EQ
+      | otherwise =
+          compareVal tyEq (Val (indexByteArray u1 i) (indexArray b1 i)) (Val (indexByteArray u2 i) (indexArray b2 i))
+            <> go (i - 1)
+
 compareK :: Bool -> K -> K -> Ordering
 compareK tyEq = \cases
   KE KE -> EQ
@@ -1755,7 +2142,7 @@ compareK tyEq = \cases
       <> compare ps ps'
       <> liftCompare (compareVal tyEq) m m'
       <> compareK tyEq k k'
-  (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') ->
+  (Push f a ci _ _sect _ k) (Push f' a' ci' _ _sect' _ k') ->
     compare f f'
       <> compare a a'
       <> compare ci ci'
@@ -1821,19 +2208,16 @@ matchUnboxedTypes ct1 ct2 =
 -- Turn the pseudo data version of maps back into the closure that
 -- it represents as a unison type.
 inflateMap :: Map Val Val -> Closure
-inflateMap Tip = Enum mapRef TT.mapTipTag
+inflateMap Tip = Enum TT.mapTipTag
 inflateMap (Bin sz k v l r) =
-  DataC
-    mapRef
-    TT.mapBinTag
-    [NatVal $ fromIntegral sz, k, v, BoxedVal $ inflateMap l, BoxedVal $ inflateMap r]
+  Data5 TT.mapBinTag (NatVal $ fromIntegral sz) k v (BoxedVal $ inflateMap l) (BoxedVal $ inflateMap r)
 
 -- Reverses the above conversion, turning a unison data
 -- representation of a map back into a Haskell map.
 deflateMap :: Closure -> Maybe (Map Val Val)
-deflateMap (Enum _ t)
+deflateMap (Enum t)
   | t == TT.mapTipTag = Just Tip
-deflateMap (DataC _ t [NatVal sz, k, v, BoxedVal l, BoxedVal r])
+deflateMap (Data5 t (NatVal sz) k v (BoxedVal l) (BoxedVal r))
   | t == TT.mapBinTag =
       Bin (fromIntegral sz) k v <$> deflateMap l <*> deflateMap r
 deflateMap _ = Nothing
@@ -1845,10 +2229,18 @@ deflateMap _ = Nothing
 -- Disjoint union of wraped Haskell values. Originally this was going to
 -- be an existential type to enable extensibility, but that never
 -- materialized, and a big bunch of cases facilitates some nicer behavior.
+-- The first six constructors are the ones the builtins unwrap most
+-- often (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit. Texts, lists and bytes are
+-- closure constructors of their own ('TextC', 'ListC', 'BytesC'), not
+-- foreign values.
 data Foreign
-  = WrapArray !(Array Val)
+  = WrapMap !(Map Val Val)
+  | WrapArray !(Array Val)
+  | WrapNatural !Natural
   | WrapByteArray !ByteArray
-  | WrapBytes !Bytes
   | WrapCDynFunc !CDynFunc
   | WrapCPattern !CPattern
   | WrapCharPattern !CharPattern
@@ -1862,20 +2254,16 @@ data Foreign
   | WrapIORef !(IORef Val)
   | WrapInteger !Integer
   | WrapListenSocket !ListenSocket
-  | WrapMap !(Map Val Val)
   | WrapMutableByteArray !(MutableByteArray RealWorld)
   | WrapMutableArray !(MutableArray RealWorld Val)
   | WrapMVar !(MVar Val)
-  | WrapNatural !Natural
   | WrapProcessHandle !ProcessHandle
   | WrapPromise !(Promise Val)
   | WrapPtr !(Ptr.Ptr ())
   | WrapForeignPtr !(Ptr.ForeignPtr ())
   | WrapReference !Reference
   | WrapReferent !Referent
-  | WrapSeq !(Seq Val)
   | WrapSocket !Socket
-  | WrapText !U.Text
   | WrapThreadId !ThreadId
   | WrapTicket !(Atomic.Ticket Val)
   | WrapTimeSpec !TimeSpec
@@ -1891,17 +2279,19 @@ data Foreign
   | WrapSignalSubscription !Signal.Subscription
 
 -- Convenience class for (un)wrapping Haskell values automatically
+
+-- | The closure holding a Haskell value: @Foreign (Wrap... x)@ for most,
+-- a 'TextC' or 'ListC' for a text or a list.
 class BuiltinForeign f where
   builtinName :: Tagged f String
-  wrapBuiltin :: f -> Foreign
-  maybeUnwrapBuiltin :: Foreign -> Maybe f
+  wrapBuiltin :: f -> Closure
+  maybeUnwrapBuiltin :: Closure -> Maybe f
 
 foreignRef :: Foreign -> Reference
 foreignRef WrapArray {} = Ty.iarrayRef
 foreignRef WrapSignal {} = Ty.signalRef
 foreignRef WrapSignalSubscription {} = Ty.signalSubscriptionRef
 foreignRef WrapByteArray {} = Ty.ibytearrayRef
-foreignRef WrapBytes {} = Ty.bytesRef
 foreignRef WrapCDynFunc {} = Ty.ffiFuncRef
 foreignRef WrapCPattern {} = Ty.patternRef
 foreignRef WrapCharPattern {} = Ty.charClassRef
@@ -1926,9 +2316,7 @@ foreignRef WrapPtr {} = Ty.ffiPtrRef
 foreignRef WrapForeignPtr {} = Ty.ffiForeignPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
-foreignRef WrapSeq {} = Ty.listRef
 foreignRef WrapSocket {} = Ty.socketRef
-foreignRef WrapText {} = Ty.textRef
 foreignRef WrapThreadId {} = Ty.threadIdRef
 foreignRef WrapTicket {} = Ty.ticketRef
 foreignRef WrapTimeSpec {} = Ty.timeSpecRef
@@ -1946,7 +2334,6 @@ foreignName WrapArray {} = "Array"
 foreignName WrapSignal {} = "IO.signal.Signal"
 foreignName WrapSignalSubscription {} = "IO.signal.Subscription"
 foreignName WrapByteArray {} = "ByteArray"
-foreignName WrapBytes {} = "Bytes"
 foreignName WrapCDynFunc {} = "DLL.Func"
 foreignName WrapCPattern {} = "CPattern"
 foreignName WrapCharPattern {} = "CharPattern"
@@ -1971,9 +2358,7 @@ foreignName WrapPtr {} = "Ptr"
 foreignName WrapForeignPtr {} = "ForeignPtr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
-foreignName WrapSeq {} = "Seq"
 foreignName WrapSocket {} = "Socket"
-foreignName WrapText {} = "Text"
 foreignName WrapThreadId {} = "ThreadId"
 foreignName WrapTicket {} = "Ticket"
 foreignName WrapTimeSpec {} = "TimeSpec"
@@ -2003,12 +2388,9 @@ instance Eq Foreign where
   WrapSignal l == WrapSignal r = l == r
   WrapSignalSubscription l == WrapSignalSubscription r = l == r
   WrapArray l == WrapArray r = l == r
-  WrapText l == WrapText r = l == r
   WrapReferent l == WrapReferent r = l == r
   WrapReference l == WrapReference r = l == r
-  WrapBytes l == WrapBytes r = l == r
   WrapMVar l == WrapMVar r = l == r
-  WrapSeq l == WrapSeq r = l == r
   WrapTVar l == WrapTVar r = l == r
   WrapSocket l == WrapSocket r = l == r
   WrapTls (Tls l _) == WrapTls (Tls r _) = l == r
@@ -2056,10 +2438,8 @@ instance Eq Foreign where
 compareForeign :: Bool -> Foreign -> Foreign -> Ordering
 compareForeign _tyEq (WrapSignal l) (WrapSignal r) = compare l r
 compareForeign _tyEq (WrapSignalSubscription l) (WrapSignalSubscription r) = compare l r
-compareForeign _tyEq (WrapText l) (WrapText r) = compare l r
 compareForeign _tyEq (WrapReference l) (WrapReference r) = compare l r
 compareForeign _tyEq (WrapReferent l) (WrapReferent r) = compare l r
-compareForeign _tyEq (WrapBytes l) (WrapBytes r) = compare l r
 compareForeign _tyEq (WrapThreadId l) (WrapThreadId r) = compare l r
 compareForeign _tyEq (WrapByteArray l) (WrapByteArray r) = compare l r
 compareForeign _tyEq (WrapCPattern l) (WrapCPattern r) = compare l r
@@ -2072,8 +2452,6 @@ compareForeign _tyEq (WrapCDynFunc l) (WrapCDynFunc r) = compare l r
 compareForeign _tyEq (WrapFFIType l) (WrapFFIType r) = compare l r
 compareForeign _tyEq (WrapFFISpec l) (WrapFFISpec r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
-compareForeign tyEq (WrapSeq l) (WrapSeq r) =
-  liftCompare (compareVal tyEq) l r
 compareForeign tyEq (WrapArray l) (WrapArray r) =
   liftCompare (compareVal tyEq) l r
 compareForeign _tyEq l r
@@ -2097,289 +2475,286 @@ instance Show Foreign where
     showParen (p > 9) $
       showString "Wrap "
         . showString (foreignName f)
-        . showString " "
-        . case f of
-          WrapText t -> shows t
-          _ -> showString "_"
+        . showString " _"
 
 instance BuiltinForeign U.Text where
   builtinName = Tagged "Text"
-  wrapBuiltin = WrapText
+  wrapBuiltin = TextC
   maybeUnwrapBuiltin = \case
-    WrapText v -> Just v
+    TextC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Bytes where
   builtinName = Tagged "Bytes"
-  wrapBuiltin = WrapBytes
+  wrapBuiltin = BytesC
   maybeUnwrapBuiltin = \case
-    WrapBytes v -> Just v
+    BytesC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Handle where
   builtinName = Tagged "Handle"
-  wrapBuiltin = WrapHandle
+  wrapBuiltin = Foreign . WrapHandle
   maybeUnwrapBuiltin = \case
-    WrapHandle v -> Just v
+    Foreign (WrapHandle v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ProcessHandle where
   builtinName = Tagged "ProcessHandle"
-  wrapBuiltin = WrapProcessHandle
+  wrapBuiltin = Foreign . WrapProcessHandle
   maybeUnwrapBuiltin = \case
-    WrapProcessHandle v -> Just v
+    Foreign (WrapProcessHandle v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Ptr.Ptr a) where
   builtinName = Tagged "Ptr"
-  wrapBuiltin = WrapPtr . Ptr.castPtr
+  wrapBuiltin = Foreign . WrapPtr . Ptr.castPtr
   maybeUnwrapBuiltin = \case
-    WrapPtr p -> Just (Ptr.castPtr p)
+    Foreign (WrapPtr p) -> Just (Ptr.castPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Ptr.ForeignPtr a) where
   builtinName = Tagged "ForeignPtr"
-  wrapBuiltin = WrapForeignPtr . Ptr.castForeignPtr
+  wrapBuiltin = Foreign . WrapForeignPtr . Ptr.castForeignPtr
   maybeUnwrapBuiltin = \case
-    WrapForeignPtr p -> Just (Ptr.castForeignPtr p)
+    Foreign (WrapForeignPtr p) -> Just (Ptr.castForeignPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 -- | Note: References are assumed to be type links
 instance BuiltinForeign Reference where
   builtinName = Tagged "Reference"
-  wrapBuiltin = WrapReference
+  wrapBuiltin = Foreign . WrapReference
   maybeUnwrapBuiltin = \case
-    WrapReference v -> Just v
+    Foreign (WrapReference v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Referent where
   builtinName = Tagged "Referent"
-  wrapBuiltin = WrapReferent
+  wrapBuiltin = Foreign . WrapReferent
   maybeUnwrapBuiltin = \case
-    WrapReferent v -> Just v
+    Foreign (WrapReferent v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Socket where
   builtinName = Tagged "Socket"
-  wrapBuiltin = WrapSocket
+  wrapBuiltin = Foreign . WrapSocket
   maybeUnwrapBuiltin = \case
-    WrapSocket v -> Just v
+    Foreign (WrapSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ListenSocket where
   builtinName = Tagged "ListenSocket"
-  wrapBuiltin = WrapListenSocket
+  wrapBuiltin = Foreign . WrapListenSocket
   maybeUnwrapBuiltin = \case
-    WrapListenSocket v -> Just v
+    Foreign (WrapListenSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ClientSockAddr where
   builtinName = Tagged "ClientSockAddr"
-  wrapBuiltin = WrapClientSockAddr
+  wrapBuiltin = Foreign . WrapClientSockAddr
   maybeUnwrapBuiltin = \case
-    WrapClientSockAddr v -> Just v
+    Foreign (WrapClientSockAddr v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign UDPSocket where
   builtinName = Tagged "UDPSocket"
-  wrapBuiltin = WrapUDPSocket
+  wrapBuiltin = Foreign . WrapUDPSocket
   maybeUnwrapBuiltin = \case
-    WrapUDPSocket v -> Just v
+    Foreign (WrapUDPSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ThreadId where
   builtinName = Tagged "ThreadId"
-  wrapBuiltin = WrapThreadId
+  wrapBuiltin = Foreign . WrapThreadId
   maybeUnwrapBuiltin = \case
-    WrapThreadId v -> Just v
+    Foreign (WrapThreadId v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TLS.ClientParams where
   builtinName = Tagged "ClientParams"
-  wrapBuiltin = WrapTlsClientParams
+  wrapBuiltin = Foreign . WrapTlsClientParams
   maybeUnwrapBuiltin = \case
-    WrapTlsClientParams v -> Just v
+    Foreign (WrapTlsClientParams v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TLS.ServerParams where
   builtinName = Tagged "ServerParams"
-  wrapBuiltin = WrapTlsServerParams
+  wrapBuiltin = Foreign . WrapTlsServerParams
   maybeUnwrapBuiltin = \case
-    WrapTlsServerParams v -> Just v
+    Foreign (WrapTlsServerParams v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign X509.SignedCertificate where
   builtinName = Tagged "X509.SignedCertificate"
-  wrapBuiltin = WrapX509SignedCertificate
+  wrapBuiltin = Foreign . WrapX509SignedCertificate
   maybeUnwrapBuiltin = \case
-    WrapX509SignedCertificate v -> Just v
+    Foreign (WrapX509SignedCertificate v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign X509.PrivKey where
   builtinName = Tagged "X509.PrivKey"
-  wrapBuiltin = WrapX509PrivKey
+  wrapBuiltin = Foreign . WrapX509PrivKey
   maybeUnwrapBuiltin = \case
-    WrapX509PrivKey v -> Just v
+    Foreign (WrapX509PrivKey v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Tls where
   builtinName = Tagged "Tls"
-  wrapBuiltin = WrapTls
+  wrapBuiltin = Foreign . WrapTls
   maybeUnwrapBuiltin = \case
-    WrapTls v -> Just v
+    Foreign (WrapTls v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Referenced Code) where
   builtinName = Tagged "Code"
-  wrapBuiltin = WrapCode
+  wrapBuiltin = Foreign . WrapCode
   maybeUnwrapBuiltin = \case
-    WrapCode v -> Just v
+    Foreign (WrapCode v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Referenced Value) where
   builtinName = Tagged "Value"
-  wrapBuiltin = WrapValue
+  wrapBuiltin = Foreign . WrapValue
   maybeUnwrapBuiltin = \case
-    WrapValue v -> Just v
+    Foreign (WrapValue v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TimeSpec where
   builtinName = Tagged "TimeSpec"
-  wrapBuiltin = WrapTimeSpec
+  wrapBuiltin = Foreign . WrapTimeSpec
   maybeUnwrapBuiltin = \case
-    WrapTimeSpec v -> Just v
+    Foreign (WrapTimeSpec v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MutableByteArray RealWorld) where
   builtinName = Tagged "MutableByteArray"
-  wrapBuiltin = WrapMutableByteArray
+  wrapBuiltin = Foreign . WrapMutableByteArray
   maybeUnwrapBuiltin = \case
-    WrapMutableByteArray v -> Just v
+    Foreign (WrapMutableByteArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ByteArray where
   builtinName = Tagged "ByteArray"
-  wrapBuiltin = WrapByteArray
+  wrapBuiltin = Foreign . WrapByteArray
   maybeUnwrapBuiltin = \case
-    WrapByteArray v -> Just v
+    Foreign (WrapByteArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Integer where
   builtinName = Tagged "Integer"
-  wrapBuiltin = WrapInteger
+  wrapBuiltin = Foreign . WrapInteger
   maybeUnwrapBuiltin = \case
-    WrapInteger v -> Just v
+    Foreign (WrapInteger v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Natural where
   builtinName = Tagged "Natural"
-  wrapBuiltin = WrapNatural
+  wrapBuiltin = Foreign . WrapNatural
   maybeUnwrapBuiltin = \case
-    WrapNatural v -> Just v
+    Foreign (WrapNatural v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign DLL where
   builtinName = Tagged "DLL"
-  wrapBuiltin = WrapDLL
+  wrapBuiltin = Foreign . WrapDLL
   maybeUnwrapBuiltin = \case
-    WrapDLL v -> Just v
+    Foreign (WrapDLL v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
-instance BuiltinForeign (Seq Val) where
+instance BuiltinForeign (Deque Val) where
   builtinName = Tagged "Seq"
-  wrapBuiltin = WrapSeq
+  wrapBuiltin = ListC
   maybeUnwrapBuiltin = \case
-    WrapSeq v -> Just v
+    ListC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Map Val Val) where
   builtinName = Tagged "Map"
-  wrapBuiltin = WrapMap
+  wrapBuiltin = Foreign . WrapMap
   maybeUnwrapBuiltin = \case
-    WrapMap v -> Just v
+    Foreign (WrapMap v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (IORef Val) where
   builtinName = Tagged "IORef"
-  wrapBuiltin = WrapIORef
+  wrapBuiltin = Foreign . WrapIORef
   maybeUnwrapBuiltin = \case
-    WrapIORef v -> Just v
+    Foreign (WrapIORef v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Atomic.Ticket Val) where
   builtinName = Tagged "Ticket"
-  wrapBuiltin = WrapTicket
+  wrapBuiltin = Foreign . WrapTicket
   maybeUnwrapBuiltin = \case
-    WrapTicket v -> Just v
+    Foreign (WrapTicket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MVar Val) where
   builtinName = Tagged "MVar"
-  wrapBuiltin = WrapMVar
+  wrapBuiltin = Foreign . WrapMVar
   maybeUnwrapBuiltin = \case
-    WrapMVar v -> Just v
+    Foreign (WrapMVar v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (TVar Val) where
   builtinName = Tagged "TVar"
-  wrapBuiltin = WrapTVar
+  wrapBuiltin = Foreign . WrapTVar
   maybeUnwrapBuiltin = \case
-    WrapTVar v -> Just v
+    Foreign (WrapTVar v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Promise Val) where
   builtinName = Tagged "Promise"
-  wrapBuiltin = WrapPromise
+  wrapBuiltin = Foreign . WrapPromise
   maybeUnwrapBuiltin = \case
-    WrapPromise v -> Just v
+    Foreign (WrapPromise v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MutableArray RealWorld Val) where
   builtinName = Tagged "MutableArray"
-  wrapBuiltin = WrapMutableArray
+  wrapBuiltin = Foreign . WrapMutableArray
   maybeUnwrapBuiltin = \case
-    WrapMutableArray v -> Just v
+    Foreign (WrapMutableArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Array Val) where
   builtinName = Tagged "Array"
-  wrapBuiltin = WrapArray
+  wrapBuiltin = Foreign . WrapArray
   maybeUnwrapBuiltin = \case
-    WrapArray v -> Just v
+    Foreign (WrapArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
@@ -2399,64 +2774,64 @@ data Failure a = Failure Reference U.Text a
 
 instance BuiltinForeign HashAlgorithm where
   builtinName = Tagged "HashAlgorithm"
-  wrapBuiltin = WrapHashAlgorithm
+  wrapBuiltin = Foreign . WrapHashAlgorithm
   maybeUnwrapBuiltin = \case
-    WrapHashAlgorithm v -> Just v
+    Foreign (WrapHashAlgorithm v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CPattern where
   builtinName = Tagged "CPattern"
-  wrapBuiltin = WrapCPattern
+  wrapBuiltin = Foreign . WrapCPattern
   maybeUnwrapBuiltin = \case
-    WrapCPattern v -> Just v
+    Foreign (WrapCPattern v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CharPattern where
   builtinName = Tagged "CharPattern"
-  wrapBuiltin = WrapCharPattern
+  wrapBuiltin = Foreign . WrapCharPattern
   maybeUnwrapBuiltin = \case
-    WrapCharPattern v -> Just v
+    Foreign (WrapCharPattern v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Signal.Signal where
   builtinName = Tagged "IO.signal.Signal"
-  wrapBuiltin = WrapSignal
+  wrapBuiltin = Foreign . WrapSignal
   maybeUnwrapBuiltin = \case
-    WrapSignal v -> Just v
+    Foreign (WrapSignal v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Signal.Subscription where
   builtinName = Tagged "IO.signal.Subscription"
-  wrapBuiltin = WrapSignalSubscription
+  wrapBuiltin = Foreign . WrapSignalSubscription
   maybeUnwrapBuiltin = \case
-    WrapSignalSubscription v -> Just v
+    Foreign (WrapSignalSubscription v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign FFType where
   builtinName = Tagged "FFI.Type"
-  wrapBuiltin = WrapFFIType
+  wrapBuiltin = Foreign . WrapFFIType
   maybeUnwrapBuiltin = \case
-    WrapFFIType v -> Just v
+    Foreign (WrapFFIType v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign FFSpec where
   builtinName = Tagged "FFI.Spec"
-  wrapBuiltin = WrapFFISpec
+  wrapBuiltin = Foreign . WrapFFISpec
   maybeUnwrapBuiltin = \case
-    WrapFFISpec v -> Just v
+    Foreign (WrapFFISpec v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CDynFunc where
   builtinName = Tagged "DLL.Func"
-  wrapBuiltin = WrapCDynFunc
+  wrapBuiltin = Foreign . WrapCDynFunc
   maybeUnwrapBuiltin = \case
-    WrapCDynFunc v -> Just v
+    Foreign (WrapCDynFunc v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}

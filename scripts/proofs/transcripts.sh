@@ -20,7 +20,8 @@
 #                   .github/workflows/proofs/transcripts/<hash>-partial.txt. A partial
 #                   attestation satisfies the pull request check but not the
 #                   merge queue, which runs everything, and never makes a
-#                   later full run skip.
+#                   later full run skip. A prefix that selects jit-tests.md
+#                   also runs it with the JIT on, as the full run does.
 #
 # ARGUMENTS:
 #   COMMIT          Optional commit SHA to hash (only valid with --hash)
@@ -39,6 +40,8 @@ PATTERNS=(
     # Native sources and headers (affect runtime behavior)
     '**/*.c'
     '**/*.h'
+    # The JIT's embedded IR (jit-tests.md is run with the JIT on)
+    '**/*.ll'
     # Transcript inputs (need both *.ext and **/*.ext because ** doesn't match zero dirs)
     'unison-src/*.md'
     'unison-src/**/*.md'
@@ -130,6 +133,29 @@ set +e
             unison-src/transcripts-manual/docs.to-html.output.md \
             unison-src/transcripts-manual/docs.to-html
     }
+    # jit-tests.md is run by the transcript runner with the JIT off like any
+    # other; this runs it again with the JIT on (and a low threshold, so that
+    # the short loops compile too), so that a change that breaks native code
+    # shows up here and not in full CI. A machine without LLVM gets a warning,
+    # not a failure: the run then only repeats the interpreter's, and the CI
+    # jit job is the one that insists on native code.
+    run_jit() {
+        echo ""
+        echo "Running jit-tests.md with the JIT on..."
+        local dir
+        dir=$(mktemp -d)
+        cp unison-src/transcripts/idempotent/jit-tests.md "$dir/jit-tests.md"
+        # the transcript uses only builtins, so a fresh codebase does
+        UNISON_JIT=on UNISON_JIT_THRESHOLD=5 UNISON_JIT_LOG=1 "$UCM" -C "$dir/codebase" transcript.fork "$dir/jit-tests.md" 2>&1 | tee "$dir/jit.log"
+        if ! grep -q 'JIT compilation activated' "$dir/jit.log" || grep -q 'the JIT is off' "$dir/jit.log"; then
+            echo "warning: the JIT did not activate (see the log above), so this only repeated the interpreter's run" >&2
+        elif ! grep -q ': compiling ' "$dir/jit.log"; then
+            echo "warning: the JIT was on but compiled nothing (see the log above)" >&2
+        fi
+        echo "Checking for JIT transcript diffs..."
+        diff --strip-trailing-cr unison-src/transcripts/idempotent/jit-tests.md "$dir/jit-tests.output.md"
+        rm -rf "$dir"
+    }
     run_fix5507() {
         echo ""
         echo "Running fix5507 regression test..."
@@ -140,6 +166,7 @@ set +e
     if [[ ${#ONLY[@]} -eq 0 ]]; then
         run_round_trip
         run_main
+        run_jit
         run_docs
         run_fix5507
     else
@@ -154,6 +181,11 @@ set +e
                         exit 1
                     fi
                     run_main "$prefix"
+                    # (not a pipe into grep -q: with pipefail, grep closing the
+                    # pipe early would fail the condition)
+                    if [[ "$(selected_transcripts "$prefix")" == *"/jit-tests.md"* ]]; then
+                        run_jit
+                    fi
                     ;;
             esac
         done

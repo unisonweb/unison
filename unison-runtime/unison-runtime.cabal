@@ -1,6 +1,6 @@
-cabal-version: 1.12
+cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -12,6 +12,21 @@ copyright:      Copyright (C) 2013-2024 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    cbits/jit_builtins_arrays.c
+    cbits/jit_builtins_bytes.c
+    cbits/jit_builtins_compare.c
+    cbits/jit_builtins_lists.c
+    cbits/jit_builtins_math.c
+    cbits/jit_builtins_records.c
+    cbits/jit_builtins_ropes.c
+    cbits/jit_builtins_text.c
+    cbits/jit_builtins.h
+    cbits/jit_internal.h
+    cbits/jit_rt.h
+    cbits/jit_helpers.ll
+    cbits/jit_exit.ll
+    unisonrt/bundle-section
 
 source-repository head
   type: git
@@ -41,6 +56,90 @@ library
   exposed-modules:
       Unison.Codebase.Execute
       Unison.Runtime
+      Unison.Runtime.ANF.Convert
+      Unison.Runtime.Debug
+      Unison.Runtime.Decompile
+      Unison.Runtime.Interface
+      Unison.Runtime.IOSource
+      Unison.Runtime.Pattern
+  reexported-modules:
+      Unison.Runtime.JIT
+    , Unison.Runtime.JIT.Config
+    , Unison.Runtime.Version
+    , Unison.Runtime.Bundle
+  hs-source-dirs:
+      ucm
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
+  build-depends:
+      base
+    , bytestring
+    , containers >=0.6.3
+    , core
+    , filepath
+    , lens
+    , mmorph
+    , mtl
+    , raw-strings-qq
+    , stm
+    , text
+    , unison-codebase-sqlite
+    , unison-core
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-pretty-printer
+    , unison-syntax
+    , unison-util-bytes
+    , unison-util-recursion
+    , unliftio
+    , vector
+  default-language: Haskell2010
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
+  if flag(stackchecks)
+    cpp-options: -DSTACK_CHECK
+  if flag(optchecks)
+    ghc-options: -O2
+    cpp-options: -DOPT_CHECK
+    build-depends:
+        inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
+  if flag(dumpcore)
+    ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
+
+library core
+  exposed-modules:
       Unison.Runtime.ANF
       Unison.Runtime.ANF.MurmurHash.Untyped
       Unison.Runtime.ANF.Optimize
@@ -52,35 +151,60 @@ library
       Unison.Runtime.ANF.Serialize.ValueV5
       Unison.Runtime.Array
       Unison.Runtime.Builtin
+      Unison.Runtime.Builtin.Decls
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Bundle
+      Unison.Runtime.Bundle.MachO
       Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.P256
       Unison.Runtime.Crypto.Rsa
-      Unison.Runtime.Debug
-      Unison.Runtime.Decompile
       Unison.Runtime.Exception
       Unison.Runtime.Foreign.Callback
       Unison.Runtime.Foreign.Dynamic
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
-      Unison.Runtime.Interface
       Unison.Runtime.InternalError
-      Unison.Runtime.IOSource
+      Unison.Runtime.JIT
+      Unison.Runtime.JIT.Codegen
+      Unison.Runtime.JIT.Compile
+      Unison.Runtime.JIT.Config
+      Unison.Runtime.JIT.Estimate
+      Unison.Runtime.JIT.Exits
+      Unison.Runtime.JIT.Frames
+      Unison.Runtime.JIT.Helpers
+      Unison.Runtime.JIT.Layout
+      Unison.Runtime.JIT.LLVM
+      Unison.Runtime.JIT.Native
+      Unison.Runtime.JIT.Native.Probes
+      Unison.Runtime.JIT.Pool
+      Unison.Runtime.JIT.Strict
       Unison.Runtime.Machine
       Unison.Runtime.Machine.Primops
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Explode
+      Unison.Runtime.MCode.Live
       Unison.Runtime.MCode.Serialize
-      Unison.Runtime.Pattern
+      Unison.Runtime.MCode.Wide
+      Unison.Runtime.Optimizations
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
+      Unison.Runtime.Render
       Unison.Runtime.Serialize
       Unison.Runtime.Serialize.Get
       Unison.Runtime.Signal
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
+      Unison.Runtime.Standalone
+      Unison.Runtime.TypeNumbers
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
+      Unison.Runtime.Version
+      Unison.Runtime.Wide
+      Unison.Util.EnumContainers
+      Unison.Util.RefPromise
+      Unison.Util.Text
+      Unison.Util.Text.Pattern
   hs-source-dirs:
       src
   default-extensions:
@@ -116,13 +240,14 @@ library
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
   c-sources:
       cbits/i2d.c
+      cbits/jit_llvm.c
+      cbits/jit_rt.c
+      cbits/bundle.c
   build-depends:
       asn1-encoding
     , asn1-types
     , atomic-primops
-    , avro
     , base
-    , binary
     , bytes
     , bytestring
     , clock
@@ -144,7 +269,6 @@ library
     , lens
     , libffi
     , memory
-    , mmorph
     , mtl
     , murmur-hash
     , network
@@ -153,7 +277,6 @@ library
     , pem
     , primitive
     , process
-    , raw-strings-qq
     , safe-exceptions
     , stm
     , tagged
@@ -163,18 +286,15 @@ library
     , time
     , tls
     , transformers
-    , unison-codebase-sqlite
     , unison-core
     , unison-core1
     , unison-dynlib
     , unison-hash
-    , unison-parser-typechecker
     , unison-prelude
-    , unison-pretty-printer
-    , unison-syntax
     , unison-util-bytes
-    , unison-util-recursion
+    , unison-util-file-embed
     , unison-util-relation
+    , unison-util-rope
     , unliftio
     , unordered-containers
     , vector
@@ -198,6 +318,69 @@ library
     build-depends:
         unix
 
+executable unisonrt
+  main-is: Main.hs
+  hs-source-dirs:
+      unisonrt
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -threaded -rtsopts -no-hs-main
+  c-sources:
+      unisonrt/main.c
+  build-depends:
+      base
+    , bytestring
+    , core
+    , text
+    , unison-core
+    , unison-core1
+  default-language: Haskell2010
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
+  if flag(stackchecks)
+    cpp-options: -DSTACK_CHECK
+  if flag(optchecks)
+    ghc-options: -O2
+    cpp-options: -DOPT_CHECK
+    build-depends:
+        inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
+  if flag(dumpcore)
+    ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
+  if os(darwin)
+    ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
+  if os(linux)
+    ghc-options: -optl-fuse-ld=bfd -optl-Wl,--emit-relocs
+
 test-suite runtime-tests
   type: exitcode-stdio-1.0
   main-is: Suite.hs
@@ -206,14 +389,22 @@ test-suite runtime-tests
       Unison.Test.Gen
       Unison.Test.Runtime.ANF
       Unison.Test.Runtime.ANF.Serialization
+      Unison.Test.Runtime.BuiltinDecls
+      Unison.Test.Runtime.Bundle
       Unison.Test.Runtime.Crypto.P256
       Unison.Test.Runtime.Crypto.Rsa
+      Unison.Test.Runtime.Foreign.Arrays
       Unison.Test.Runtime.Foreign.Dynamic
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization
+      Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
+      Unison.Test.Runtime.TypeNumbers
       Unison.Test.UnisonSources
+      Unison.Test.Util.Text
+      Paths_unison_runtime
+  autogen-modules:
       Paths_unison_runtime
   hs-source-dirs:
       tests
@@ -248,11 +439,15 @@ test-suite runtime-tests
       TypeFamilies
       ViewPatterns
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tool-depends:
+      unison-runtime:unisonrt
   build-depends:
-      base
+      async
+    , base
     , bytestring
     , code-page
     , containers
+    , core
     , crypton
     , directory
     , easytest
@@ -266,6 +461,7 @@ test-suite runtime-tests
     , primitive
     , process
     , stm
+    , temporary
     , text
     , unison-core1
     , unison-hash
@@ -276,6 +472,7 @@ test-suite runtime-tests
     , unison-syntax
     , unison-util-bytes
     , unison-util-relation
+    , unison-util-rope
   default-language: Haskell2010
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK

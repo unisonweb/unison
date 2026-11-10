@@ -27,6 +27,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -255,12 +256,22 @@ handleUpdate2 = do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
                           liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
-                          done Output.UpdateTypecheckingFailure
+                          done
+                            ( Output.UpdateTypecheckingFailure
+                                Output.ScratchFileHandoff
+                                  { action = "update",
+                                    scratchFile = scratchFilePath,
+                                    temporaryBranch = pp.branch.name,
+                                    baseBranch = pp.branch.name,
+                                    project = pp.project.name,
+                                    loadFirst = isNothing env.watchState
+                                  }
+                            )
                         else do
                           uniqueTypeGuidsByName <-
                             Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
-                          (_updateBranchId, _updateBranchName) <-
+                          (_updateBranchId, temporaryBranch) <-
                             HandleInput.Branch.createBranch
                               ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
                               ( HandleInput.Branch.CreateFrom'Update
@@ -275,15 +286,41 @@ handleUpdate2 = do
                                       & unsafeFrom @Text
                                   )
                               )
-                          scratchFilePath <- fst <$> Cli.expectLatestFile
-                          #latestFile ?= (scratchFilePath, True)
-                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
-                          done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name)
+                          scratchFilePath <-
+                            ScratchFile.writeActionScratchFile
+                              "update"
+                              [projectBranchNameToValidProjectBranchNameText pp.branch.name & TextBuilder.toText]
+                              ( into @Text (ProjectAndBranch pp.project.name pp.branch.name)
+                                  : into @Text (Branch.headHash currentBranch)
+                                  : Set.toAscList (Set.map Name.toText (namespaceBindings.terms <> namespaceBindings.types))
+                              )
+                              (Pretty.toPlain 80 prettyUnisonFile)
+                          done
+                            ( Output.UpdateTypecheckingFailure2
+                                Output.ScratchFileHandoff
+                                  { action = "update",
+                                    scratchFile = scratchFilePath,
+                                    temporaryBranch,
+                                    baseBranch = pp.branch.name,
+                                    project = pp.project.name,
+                                    loadFirst = isNothing env.watchState
+                                  }
+                            )
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       #latestFile ?= (scratchFilePath, True)
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
-                      done Output.UpdateTypecheckingFailure
+                      done
+                        ( Output.UpdateTypecheckingFailure
+                            Output.ScratchFileHandoff
+                              { action = "update",
+                                scratchFile = scratchFilePath,
+                                temporaryBranch = pp.branch.name,
+                                baseBranch = pp.branch.name,
+                                project = pp.project.name,
+                                loadFirst = isNothing env.watchState
+                              }
+                        )
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
 

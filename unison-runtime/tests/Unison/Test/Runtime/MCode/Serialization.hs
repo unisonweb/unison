@@ -6,18 +6,22 @@ module Unison.Test.Runtime.MCode.Serialization (Unison.Test.Runtime.MCode.Serial
 import Control.Monad.ST (ST, runST)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
-import Data.Primitive (Prim, PrimArray, primArrayFromList)
+import Data.Primitive (Prim, PrimArray, primArrayFromList, primArrayToList)
+import Data.Set qualified as Set
 import EasyTest qualified as EasyTest
+import GHC.Exts qualified as Exts
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Unison.Prelude
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
-import Unison.Runtime.Interface
-import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), Ref, Section)
+import Unison.Runtime.JIT.Config qualified as JIT
+import Unison.Runtime.MCode (Args (..), Arm (..), BaseFrame (..), Branch, Comb, CombIx (..), Deopt (..), FieldRef (..), FrameLayout (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, Slot (..), mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.Standalone (StoredCache (..), getStoredCache, putStoredCache)
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
 import Unison.Util.BiMap (BiMap)
@@ -33,7 +37,8 @@ test =
         checkParallel $
           Group
             "roundtrip"
-            [ ("SCache", sCacheRoundtrip)
+            [ ("SCache", sCacheRoundtrip),
+              ("RecordShape", recordShapeRoundtrip)
             ]
     EasyTest.expect success
 
@@ -82,12 +87,15 @@ genGRef =
       Dyn <$> genSmallWord64
     ]
 
+genArm :: Gen (Arm CombIx)
+genArm = Arm <$> genSmallInt <*> genSection
+
 genBranch :: Gen Branch
 genBranch =
   Gen.choice
-    [ Test1 <$> genSmallWord64 <*> genSection <*> genSection,
-      Test2 <$> genSmallWord64 <*> genSection <*> genSmallWord64 <*> genSection <*> genSection,
-      TestW <$> genSection <*> genEnumMap genSmallWord64 genSection,
+    [ Test1 <$> genSmallWord64 <*> genArm <*> genSection,
+      Test2 <$> genSmallWord64 <*> genArm <*> genSmallWord64 <*> genArm <*> genSection,
+      TestW <$> genSection <*> genEnumMap genSmallWord64 genArm,
       TestT <$> genSection <*> Gen.map (Range.linear 0 10) ((,) <$> genUText <*> genSection)
     ]
 
@@ -120,7 +128,7 @@ genInstr =
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
-      Pack <$> genReference <*> genPackedTag <*> genArgs,
+      Pack <$> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
       Reset
@@ -130,8 +138,19 @@ genInstr =
       Fork <$> genSmallInt,
       Atomically <$> genSmallInt,
       Seq <$> genArgs,
-      TryForce <$> genSmallInt
+      TryForce <$> genSmallInt,
+      RecPack <$> genRecordShape <*> genArgs,
+      RecUnpack <$> (Exts.fromList <$> Gen.list (Range.linear 0 5) genFieldRef) <*> genSmallInt,
+      RecSet <$> genFieldRef <*> genArgs
     ]
+
+-- | Distinct field names ascending, each with a distinct number, as the
+-- emitter builds them.
+genRecordShape :: Gen RecordShape
+genRecordShape = do
+  names <- Set.toAscList <$> Gen.set (Range.linear 0 6) genSmallText
+  refs <- Gen.subsequence [0 .. 50] >>= Gen.shuffle
+  pure (mkRecordShape (ANF.RecordRef 0) (Exts.fromList names) (map FieldRef (take (length names) (refs ++ [51 ..]))))
 
 genSection :: Gen Section
 genSection = do
@@ -151,7 +170,7 @@ genSection = do
         pure $ Call b cix cix args,
       Match <$> genSmallInt <*> genBranch,
       Ins <$> genInstr <*> genSection,
-      Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection,
+      Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection <*> pure noNativeCell,
       DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
       NMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
       RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 genBranch
@@ -163,14 +182,34 @@ genCombInfo =
     <$> Gen.int (Range.linear 0 10)
     <*> Gen.int (Range.linear 0 10)
     <*> genSection
+    <*> pure noNativeCell
 
 genComb :: Gen Comb
 genComb =
   Gen.choice
-    [ Comb <$> genCombInfo
+    [ Comb <$> genCombInfo <*> genFrameLayout
     -- We omit cached closures from roundtrip tests since we don't currently serialize cached closure results
     -- CachedClosure
     ]
+
+-- | A slot and a width per wide variable of an indirect let's frame, and
+-- sometimes the frames the unoptimized code has there.
+genFrameLayout :: Gen FrameLayout
+genFrameLayout =
+  FrameLayout
+    <$> Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
+    <*> Gen.maybe (Deopt <$> Gen.list (Range.linear 1 3) genBaseFrame)
+    <*> Gen.int (Range.linear 0 20)
+    <*> Gen.int (Range.linear 0 3)
+  where
+    genBaseFrame = BaseFrame <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genSlot
+    genSlot =
+      Gen.recursive
+        Gen.choice
+        [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10), pure Dead]
+        [ PackSlot <$> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
+          RecSlot <$> genRecordShape <*> Gen.list (Range.linear 0 3) genSlot
+        ]
 
 genFieldRef :: Gen FieldRef
 genFieldRef = FieldRef <$> genSmallWord64
@@ -199,25 +238,36 @@ genStoredCache =
   SCache
     <$> (genEnumMap genSmallWord64 genCombs)
     <*> (genEnumMap genSmallWord64 genReference)
+    <*> (genEnumMap genSmallWord64 genSmallWord64)
     <*> (genEnumSet genSmallWord64)
     -- don't generate inlining info for reasons below
     <*> pure (mempty, mempty)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64
-    <*> genSmallWord64
     <*>
     -- We don't yet generate supergroups because generating valid ones is difficult.
     mempty
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
-    <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> genBiMap genRecordSchema genRecordRef
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
     <*> genRecordFieldMappings
+    <*> Gen.element [JIT.AllReplacements, JIT.TaggedReplacements, JIT.NoReplacements]
+    <*> Gen.bool
 
 sCacheRoundtrip :: Property
 sCacheRoundtrip =
   getPutRoundtrip getStoredCache (putStoredCache) genStoredCache
+
+-- | A shape's Eq is by field names only, so the slot arrays are compared
+-- here on their own: every field must come back at the same slot.
+recordShapeRoundtrip :: Property
+recordShapeRoundtrip =
+  property $ do
+    shape <- forAll genRecordShape
+    let bytes = toStrict . toLazyByteString $ putRecordShape shape
+        slotsOf s = (primArrayToList (shapeKeys s), primArrayToList (shapeSlots s))
+    fmap slotsOf (runST (runGetCatch getRecordShape bytes)) === Right (slotsOf shape)
 
 getPutRoundtrip ::
   (Eq a, Show a) =>

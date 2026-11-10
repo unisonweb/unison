@@ -103,6 +103,9 @@ cradle:
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
 
+    - path: "lib/unison-util-rope/test"
+      component: "unison-util-rope:test:util-rope-tests"
+
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 

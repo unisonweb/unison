@@ -125,11 +125,11 @@ casting = (Nat.toInt 100,
 
     37 | > compare +0.0 (-0.0)
            ⧩
-           -1
+           +0
 
     38 | > compare -0.0 (+0.0)
            ⧩
-           +1
+           +0
 
     39 | > compare -1.0 1.0
            ⧩

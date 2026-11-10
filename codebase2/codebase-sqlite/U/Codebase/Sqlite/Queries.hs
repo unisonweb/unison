@@ -214,6 +214,7 @@ module U.Codebase.Sqlite.Queries
     appendProjectBranchReflog,
     getProjectReflog,
     getProjectBranchReflog,
+    reflogSinceReset,
     getGlobalReflog,
 
     -- * garbage collection
@@ -2985,6 +2986,28 @@ getProjectBranchReflog numEntries projectBranchId =
         ROWID DESC
       LIMIT :numEntries
     |]
+
+-- | The states in a branch's reflog, newest first, back to and including the newest @reset@ entry: the entries @undo@
+-- and @redo@ look at. Entries are ordered by @ROWID@, which is the order they were written in, unlike @time@, which
+-- follows the clock.
+reflogSinceReset :: ProjectBranchId -> Transaction [CausalHashId]
+reflogSinceReset branchId =
+  queryListCol
+    [sql|
+      SELECT entry.to_root_causal_id
+      FROM project_branch_reflog AS entry
+      WHERE entry.project_branch_id = :branchId
+        AND NOT EXISTS (
+          SELECT 1
+          FROM project_branch_reflog AS reset
+          WHERE reset.project_branch_id = :branchId
+            AND reset.reason LIKE :resetPattern
+            AND reset.ROWID > entry.ROWID
+        )
+      ORDER BY entry.ROWID DESC
+    |]
+  where
+    resetPattern = ProjectReflog.resetReasonPrefix <> "%"
 
 -- | Get x number of entries from the global reflog spanning all projects
 getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]

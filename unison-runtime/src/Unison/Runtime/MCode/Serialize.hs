@@ -7,11 +7,15 @@ module Unison.Runtime.MCode.Serialize
     getComb,
     putCombIx,
     getCombIx,
+    putRecordShape,
+    getRecordShape,
   )
 where
 
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
+import Data.List (sortOn)
+import Data.Primitive.PrimArray (primArrayToList)
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
@@ -42,8 +46,8 @@ getPackedTag = PackedTag <$> gWord
 
 putComb :: (clos -> Builder) -> GComb clos comb -> Builder
 putComb pClos = \case
-  (Lam a f body) ->
-    putTag LamT <> pInt a <> pInt f <> putSection body
+  (Comb (LamI a f body _) lay) ->
+    putTag LamT <> pInt a <> pInt f <> putLayout lay <> putSection body
   (CachedVal w v) ->
     putTag CachedClosureT <> putNat w <> pClos v
 
@@ -51,8 +55,31 @@ getComb :: (PrimBase m) => Get m (GComb Void CombIx)
 getComb =
   getTag >>= \case
     LamT ->
-      Lam <$> gInt <*> gInt <*> getSection
+      (\a f lay body -> Comb (LamI a f body noNativeCell) lay) <$> gInt <*> gInt <*> getLayout <*> getSection
     CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
+
+putLayout :: FrameLayout -> Builder
+putLayout (FrameLayout wide base depth encl) =
+  putFoldable (putPair pInt pInt) wide <> putMaybe base (\(Deopt frames) -> putFoldable putBaseFrame frames) <> pInt depth <> pInt encl
+  where
+    putBaseFrame (BaseFrame ix slots) = pWord ix <> putFoldable putSlot slots
+    putSlot = \case
+      Copy d i -> BU.word8 0 <> pInt d <> pInt i
+      PackSlot t slots -> BU.word8 1 <> putPackedTag t <> putFoldable putSlot slots
+      RecSlot shape slots -> BU.word8 2 <> putRecordShape shape <> putFoldable putSlot slots
+      Dead -> BU.word8 3
+
+getLayout :: (PrimBase m) => Get m FrameLayout
+getLayout = FrameLayout <$> getList (getPair gInt gInt) <*> getMaybe (Deopt <$> getList getBaseFrame) <*> gInt <*> gInt
+  where
+    getBaseFrame = BaseFrame <$> gWord <*> getList getSlot
+    getSlot =
+      getWord8 >>= \case
+        0 -> Copy <$> gInt <*> gInt
+        1 -> PackSlot <$> getPackedTag <*> getList getSlot
+        2 -> RecSlot <$> getRecordShape <*> getList getSlot
+        3 -> pure Dead
+        t -> fail $ "getLayout: unknown slot tag: " ++ show t
 
 getMForeignFunc :: (PrimBase m) => Get m ForeignFunc
 getMForeignFunc = do
@@ -111,7 +138,7 @@ putSection = \case
   Match i b -> putTag MatchT <> pInt i <> putBranch b
   Yield a -> putTag YieldT <> putArgs a
   Ins i s -> putTag InsT <> putInstr i <> putSection s
-  Let s ci f bd ->
+  Let s ci f bd _ ->
     putTag LetT
       <> putSection s
       <> putCombIx ci
@@ -141,7 +168,7 @@ getSection =
     YieldT -> Yield <$> getArgs
     InsT -> Ins <$> getInstr <*> getSection
     LetT ->
-      Let <$> getSection <*> getCombIx <*> gInt <*> getSection
+      Let <$> getSection <*> getCombIx <*> gInt <*> getSection <*> pure noNativeCell
     DieT -> Die <$> getString
     ExitT -> pure Exit
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
@@ -173,6 +200,8 @@ data InstrT
   | NewForeignPtrT
   | AddFinalizerT
   | RecPackT
+  | PackWideT
+  | BoxT
   | RecUnpackT
   | RecSetT
   | MkCallbackT
@@ -204,6 +233,8 @@ instance Tag InstrT where
   tag2word RecUnpackT = 25
   tag2word RecSetT = 26
   tag2word MkCallbackT = 27
+  tag2word PackWideT = 28
+  tag2word BoxT = 29
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -231,6 +262,8 @@ instance Tag InstrT where
   word2tag 25 = pure RecUnpackT
   word2tag 26 = pure RecSetT
   word2tag 27 = pure MkCallbackT
+  word2tag 28 = pure PackWideT
+  word2tag 29 = pure BoxT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -244,7 +277,9 @@ putInstr = \case
   (Discard i) -> putTag DiscardT <> pInt i
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
-  (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
+  (Pack w a) -> putTag PackT <> putPackedTag w <> putArgs a
+  (PackWide w b a) -> putTag PackWideT <> putPackedTag w <> putBool b <> putArgs a
+  (Box i) -> putTag BoxT <> pInt i
   (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
   (RecSet field args) -> putTag RecSetT <> putFieldRef field <> putArgs args
@@ -272,17 +307,20 @@ putInstr = \case
     error "putInstr: Unexpected serialized DLLCall"
 
 putRecordShape :: RecordShape -> Builder
-putRecordShape (RecordShape ref fields positions) =
-  putRecordRef ref
-    <> putFoldable putText fields
-    <> putEnumMap putFieldRef pInt positions
+putRecordShape shape =
+  putRecordRef (shapeRef shape)
+    <> putFoldable putText (shapeFields shape)
+    -- the field numbers in slot order; the arrays are rebuilt on the way in
+    <> putFoldable putFieldRef (slotRefs shape)
+  where
+    slotRefs s = map snd . sortOn fst $ zip (primArrayToList (shapeSlots s)) (map FieldRef (primArrayToList (shapeKeys s)))
 
 getRecordShape :: (PrimBase m) => Get m RecordShape
 getRecordShape =
-  RecordShape
+  mkRecordShape
     <$> getRecordRef
     <*> getVector getText
-    <*> getEnumMap getFieldRef gInt
+    <*> getList getFieldRef
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -296,7 +334,9 @@ getInstr =
     DiscardT -> Discard <$> gInt
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> getString
-    PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
+    PackT -> Pack <$> getPackedTag <*> getArgs
+    PackWideT -> PackWide <$> getPackedTag <*> getBool <*> getArgs
+    BoxT -> Box <$> gInt
     LitT -> Lit <$> getLit
     PrintT -> Print <$> gInt
     ResetT -> Reset <$> getEnumSet gWord <*> gInt <*> getMaybe gInt
@@ -452,33 +492,40 @@ instance Tag BranchT where
 
 putBranch :: GBranch cix -> Builder
 putBranch (Test1 w s d) =
-  putTag Test1T <> pWord w <> putSection s <> putSection d
+  putTag Test1T <> pWord w <> putArm s <> putSection d
 putBranch (Test2 a sa b sb d) =
   putTag Test2T
     <> pWord a
-    <> putSection sa
+    <> putArm sa
     <> pWord b
-    <> putSection sb
+    <> putArm sb
     <> putSection d
 putBranch (TestW d m) =
-  putTag TestWT <> putSection d <> putEnumMap pWord putSection m
+  putTag TestWT <> putSection d <> putEnumMap pWord putArm m
 putBranch (TestT d m) =
   putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
 putBranch (TestY d m) =
   putTag TestYT <> putSection d <> putMap putBytes putSection m
 
+-- | An arm: the field count it binds, then its code.
+putArm :: Arm cix -> Builder
+putArm (Arm n s) = pInt n <> putSection s
+
+getArm :: (PrimBase m) => Get m (Arm CombIx)
+getArm = Arm <$> gInt <*> getSection
+
 getBranch :: (PrimBase m) => Get m Branch
 getBranch =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
+    Test1T -> Test1 <$> gWord <*> getArm <*> getSection
     Test2T ->
       Test2
         <$> gWord
-        <*> getSection
+        <*> getArm
         <*> gWord
+        <*> getArm
         <*> getSection
-        <*> getSection
-    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
+    TestWT -> TestW <$> getSection <*> getEnumMap gWord getArm
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
     TestYT -> TestY <$> getSection <*> getMap getBytes getSection
 

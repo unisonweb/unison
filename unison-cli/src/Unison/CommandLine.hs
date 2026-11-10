@@ -24,7 +24,7 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import System.FilePath (takeFileName)
+import System.FilePath (takeDirectory, takeFileName)
 import System.IO.Error (isDoesNotExistError)
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
@@ -61,6 +61,7 @@ allow p =
 defaultWriteSourceFile :: Text -> Text -> Bool -> IO ()
 defaultWriteSourceFile fp contents addFold = do
   path <- Directory.canonicalizePath (Text.unpack fp)
+  Directory.createDirectoryIfMissing True (takeDirectory path)
   prependUtf8
     path
     if addFold

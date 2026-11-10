@@ -14,7 +14,6 @@ library:
     - ListLike
     - aeson
     - async
-    - atomic-primops
     - base
     - bytes
     - bytestring
@@ -33,7 +32,6 @@ library:
     - megaparsec
     - mmorph
     - mtl
-    - murmur-hash
     - mutable-containers
     - nonempty-containers
     - pretty-simple
@@ -63,7 +61,6 @@ library:
     - unison-util-cache
     - unison-util-recursion
     - unison-util-relation
-    - unison-util-rope
     - unison-util-serialization
     - unliftio
     - uuid
@@ -89,7 +86,6 @@ tests:
       - unison-pretty-printer
       - unison-syntax
       - unison-util-relation
-      - unison-util-rope
       - megaparsec
       - mtl
       - temporary

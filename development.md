@@ -28,6 +28,10 @@ On startup, Unison prints a URL for the codebase UI. If you did step 2, visiting
 
 `./scripts/check.sh` runs the tests, transcripts and integration tests the way CI does, and the formatting and migration checks besides; see the next section.
 
+### Generated code
+
+`unison-runtime/src/Unison/Runtime/Builtin/Decls.hs` holds the references of the builtin declarations (`Optional`, `Either`, the IO failures and so on) as constants, because the runtime library that `unisonrt` is built from can't depend on parser-typechecker, where the declarations are. After changing a builtin declaration or the list of builtin types, run `unison-runtime/scripts/gen-builtin-decls.sh` and commit the result. You don't have to remember this: the runtime test `Unison.Test.Runtime.BuiltinDecls` fails until you do, and says so.
+
 ### Profiled builds
 
 `stack build --profile unison-parser-typechecker` (or without the package, for everything), then run an executable with `stack exec -- <executable-name> +RTS -p`. That writes a `<executable-name>.prof` text file with the profiling data. [More on profiling](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html).
@@ -43,7 +47,7 @@ Each check keeps one file per hash and a run replaces the directory's contents, 
 | Check | Script | What it runs | Inputs hashed |
 | --- | --- | --- | --- |
 | tests | `scripts/proofs/tests.sh` | `stack build --fast --test` and the CLI integration tests | Haskell and C sources, build config, integration test inputs |
-| transcripts | `scripts/proofs/transcripts.sh` | every transcript, the round-trip and docs transcripts | Haskell and C sources, build config, `unison-src` |
+| transcripts | `scripts/proofs/transcripts.sh` | every transcript, the round-trip and docs transcripts, and the JIT's transcript again with the JIT on | Haskell and C sources, the JIT's embedded IR, build config, `unison-src` |
 | formatting | `scripts/proofs/formatting.sh` | `ormolu --check-idempotence` (see [Formatting](#formatting)) | Haskell sources, `.ormolu` |
 | migration | `scripts/proofs/migration.sh` | `scripts/migration-test.sh`: the latest release makes a codebase, this ucm must migrate it | the migrations, the schema version, the latest release's tag |
 
@@ -51,9 +55,10 @@ Things worth knowing:
 
 - A check whose attestation already covers the current files says `cached (pass)` and does nothing; `--force` reruns it. `--dry-run` says what would run, `--verbose` shows the hashes and where they were found.
 - To run the verification CI does, without running any check: `./scripts/proofs/<check>.sh --check` prints the verdict the committed proofs file holds for the current files (`pass`, `fail`, `partial`, `noentry` or `nofile`) and the hash, which is what the `verify <check> proof` jobs in `ci.yaml` run. `--hash [COMMIT]` prints the hash alone, for the working tree or a commit, and `--list-files` the files it covers, which is the first thing to look at when a hash is not the one you expected. The merge queue's full run is `./scripts/check.sh --force`.
-- The hashes of the tests, transcripts and migration checks ignore comments and whitespace in Haskell and C sources, so a comment edit or a reformat doesn't invalidate them. The formatting check hashes the raw text.
+- A check refuses to run or hash while untracked files that its hash would include sit in the tree (a transcript run's leftover `.output.md` under `unison-src/`, a new source file not yet added): the working tree's hash would include them and CI's hash of the commit would not, so the attestation would be one CI never finds. It lists them; commit or delete them. `PROOFS_ALLOW_UNTRACKED=1` hashes them anyway.
+- The hashes of the tests, transcripts and migration checks ignore comments and whitespace in Haskell and C sources, so a comment edit or a reformat doesn't invalidate them. In YAML files such as `stack.yaml` they ignore comments, trailing whitespace and blank lines, but not indentation, which YAML gives meaning to. The formatting check hashes the raw text.
 - The migration check needs network access (it downloads the latest release from GitHub and installs `@unison/base` from Share), and its attestation includes the release it was run against, recorded in `.github/workflows/proofs/migration-release.txt`. A new release invalidates it until someone runs it again.
-- If you are sure a change can only affect some transcripts, `./scripts/proofs/transcripts.sh --only PREFIX` runs just the transcripts whose file names start with `PREFIX` (repeatable; `round-trip`, `docs.to-html` and `fix5507` name the manual ones) and records a *partial* attestation, with the transcripts run and their hashes in `.github/workflows/proofs/transcripts/<hash>-partial.txt`. Pull request CI accepts it with a notice; the merge queue runs every transcript regardless of any attestation, full or partial; a later full run replaces it.
+- If you are sure a change can only affect some transcripts, `./scripts/proofs/transcripts.sh --only PREFIX` runs just the transcripts whose file names start with `PREFIX` (repeatable; `round-trip`, `docs.to-html` and `fix5507` name the manual ones; a prefix that selects `jit-tests.md` also runs it with the JIT on) and records a *partial* attestation, with the transcripts run and their hashes in `.github/workflows/proofs/transcripts/<hash>-partial.txt`. Pull request CI accepts it with a notice; the merge queue runs every transcript regardless of any attestation, full or partial; a later full run replaces it.
 - The [pre-push hook](#git-hooks) checks the attestations of the commits you push and runs any that are missing, amending the proofs files into the commit, so with the hook installed you rarely run the scripts by hand.
 - To have CI do the full run for a pull request and push the attestations to its branch, a maintainer comments `🤖 run full verification` on it. The bot reacts to the comment, runs `./scripts/check.sh --force`, commits the proofs files, pushes, and comments the outcome. It can push to pull requests from forks only when the repository has a `FULL_VERIFICATION_TOKEN` secret.
 

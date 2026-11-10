@@ -7,10 +7,8 @@ import Data.Bits
 import Data.IORef (IORef)
 import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
-import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Word
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
@@ -25,6 +23,7 @@ import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Bytes qualified as By
+import Unison.Util.Deque qualified as Sq
 import Unison.Util.Text as UText
 
 prim1wrap ::
@@ -396,7 +395,7 @@ vwrs stk s = writeBack stk result
 {-# INLINE vwrs #-}
 
 pakt :: Stack -> USeq -> IO ()
-pakt stk s = pokeBi stk . UText.pack . toList $ val2char <$> s
+pakt stk s = pokeBi stk . UText.pack $ val2char <$> toList s
   where
     val2char :: Val -> Char
     val2char (CharVal c) = c
@@ -773,14 +772,14 @@ decodeSeqView ::
   (ForeignConvention b) =>
   Closure ->
   IO (SeqView a b)
-decodeSeqView (Enum _ t)
+decodeSeqView (Enum t)
   | t == Ty.seqViewEmptyTag = pure SeqViewEmpty
-decodeSeqView (Data2 _ t x y)
+decodeSeqView (Data2 t x y)
   | t == Ty.seqViewElemTag = SeqViewElem <$> decodeVal x <*> decodeVal y
 decodeSeqView v = foreignConventionError "Either" (BoxedVal v)
 
 seqViewE :: Closure
-seqViewE = Enum Ty.seqViewRef Ty.seqViewEmptyTag
+seqViewE = Enum Ty.seqViewEmptyTag
 
 encodeSeqView ::
   (ForeignConvention a) =>
@@ -789,7 +788,7 @@ encodeSeqView ::
   Closure
 encodeSeqView SeqViewEmpty = seqViewE
 encodeSeqView (SeqViewElem x y) =
-  Data2 Ty.seqViewRef Ty.seqViewElemTag (encodeVal x) (encodeVal y)
+  Data2 Ty.seqViewElemTag (encodeVal x) (encodeVal y)
 {-# INLINE encodeSeqView #-}
 
 instance

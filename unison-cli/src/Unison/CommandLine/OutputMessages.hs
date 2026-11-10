@@ -57,13 +57,14 @@ import Unison.Codebase.Editor.Input (BranchIdG (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
+    MergeFileSize (..),
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
+    ScratchFileHandoff (..),
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
     TodoOutput,
-    UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
     todoOutputIsEmpty,
   )
 import Unison.Codebase.Editor.Output qualified as E
@@ -220,6 +221,10 @@ notifyNumbered = \case
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
+  ShowDiffAfterRedo ppe diffOutput ->
+    first
+      (\p -> P.lines ["Here are the changes I redid", "", p])
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
@@ -683,6 +688,8 @@ notifyUser dir issueFn = \case
           $ "The namespaces "
             <> P.commas (either prettySCH prettyProjectPath <$> ps)
             <> " are empty. Was there a typo?"
+  LoadedDefinitionsToSourceFile fp 0 ->
+    pure . P.callout "☝️" . P.wrap $ "Nothing to add: " <> fromString fp <> " already has every definition you asked for."
   LoadedDefinitionsToSourceFile fp numDefinitions ->
     pure $
       P.callout "☝️" $
@@ -695,7 +702,7 @@ notifyUser dir issueFn = \case
                 <> "to replace the definitions currently in this namespace."
           ]
   DisplayDefinitions code -> pure code
-  OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
+  OutputRewrittenFile dest backup vs -> displayOutputRewrittenFile dest backup vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestIncrementalOutputStart ppe (n, total) r -> do
@@ -712,6 +719,8 @@ notifyUser dir issueFn = \case
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
+  NoDocumentation name ->
+    pure . P.wrap $ prettyName name <> "has no documentation."
   TermMissingType ref ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
@@ -721,6 +730,8 @@ notifyUser dir issueFn = \case
             <> " with the codebase, or the term was deleted just now "
             <> " by someone else. Trying your command again might fix it."
       ]
+  BundleWritten out -> pure . P.okCallout . P.wrap $ "I wrote the executable" <> P.backticked' (P.string out) "."
+  BundleFailed why -> pure . P.warnCallout $ P.lines [P.wrap "I couldn't write the executable:", "", P.indentN 2 (P.text why)]
   EvaluationFailure ctx err -> ctx <$> prettyError issueFn err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
@@ -728,6 +739,14 @@ notifyUser dir issueFn = \case
       P.warnCallout "The following names were not found in the codebase. Check your spelling."
         <> P.newline
         <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
+        <> ( if any ((".u" `Text.isSuffixOf`) . HQ.toText) hqs
+               then
+                 P.newline
+                   <> P.newline
+                   <> P.wrap
+                     "It looks like you meant a file. These commands take the names of definitions in the codebase; to see a file, read it, or `load` it to typecheck it."
+               else mempty
+           )
   SearchTermsNotFoundDetailed wasTerm hqMisses otherHits ->
     pure (missMsg <> hitMsg)
     where
@@ -810,9 +829,16 @@ notifyUser dir issueFn = \case
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
-  CantUndo reason -> case reason of
-    CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
-    CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
+  NothingToUndo ->
+    pure . P.warnCallout . P.wrap $
+      "Nothing more to undo. Use"
+        <> IP.makeExample' IP.branchReflog
+        <> "or"
+        <> IP.makeExample' IP.history
+        <> "to find an earlier state, and"
+        <> IP.makeExample' IP.reset
+        <> "to go back to it."
+  NothingToRedo -> pure . P.warnCallout $ "Nothing more to redo."
   NoMainFunction main ppe ts ->
     pure . P.callout "😶" $
       P.lines
@@ -864,6 +890,13 @@ notifyUser dir issueFn = \case
     pure . P.callout "😶" $ IP.helpFor IP.sfindReplace
   InvalidStructuredFind _sym ->
     pure . P.callout "😶" $ IP.helpFor IP.sfind
+  EditDestinationNotUnisonFile path ->
+    pure . P.fatalCallout . P.wrap $
+      "I won't write definitions to"
+        <> P.backticked' (P.string path) ","
+        <> "because it already exists and its name doesn't end in `.u`. Pick a `.u` file, or a file that doesn't exist yet."
+  InvalidRewriteSpec reason ->
+    pure . P.fatalCallout $ P.wrap (P.text reason)
   SourceLoadFailed name ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1088,6 +1121,22 @@ notifyUser dir issueFn = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
+  TypeErrorsInPulledIn firstLine lastLine names ->
+    pure . P.callout "☝️" . P.wrap $
+      "Lines "
+        <> P.shown firstLine
+        <> " to "
+        <> P.shown lastLine
+        <> " are not in your file: they are "
+        <> P.group (P.commas (P.syntaxToColor . prettyName <$> names) <> ",")
+        <> "pulled in from the codebase because they use what the file redefines. An error there means the new definition"
+        <> "doesn't fit the way they use it: add the definition to your file and change it too, or change the file so that it fits."
+  PulledInDependents names written ->
+    pure . P.wrap $
+      (if written then "Added to the file, from the codebase: " else "Also typechecking, from the codebase: ")
+        <> P.group (P.commas (P.syntaxToColor . prettyName <$> names) <> ".")
+        <> " They use what this file redefines, so they are part of the file now, and `update` saves them rebuilt on the new definition."
+        <> (if written then " A comment above them in the file says so; change them if the new definition doesn't fit the way they use it." else "")
   Typechecked oldPpe newPpe slurpEntries aliases isMergeBranch -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
@@ -1968,6 +2017,31 @@ notifyUser dir issueFn = \case
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
+  ShareText text -> pure (P.lines (P.text <$> Text.lines text))
+  ShareDocs docs -> pure docs
+  ShareFailed err -> pure (P.fatalCallout (P.wrap (P.text err)))
+  ShareDefinitionMatches matches firstRef more ->
+    let width = Text.length (tShow (length matches))
+        renderMatch (n, E.ShareMatch {heading, origin}) =
+          let label = Text.justifyRight width ' ' (tShow n) <> ". "
+              pad = Text.replicate (Text.length label) " "
+              headingLines = Text.lines heading
+           in P.lines $
+                [P.hiBlack (P.text label) <> P.text l | l <- take 1 headingLines]
+                  ++ [P.text (pad <> l) | l <- drop 1 headingLines]
+                  ++ [P.hiBlack (P.text (pad <> "  (in " <> origin <> ")"))]
+     in pure . P.lines $
+          map renderMatch (zip [1 :: Int ..] matches)
+            ++ [ "",
+                 P.wrap $
+                   "To read one of these, use its number or its full path:"
+                     <> IP.makeExample IP.shareDocs ["1"]
+                     <> "shows the signature and documentation, and"
+                     <> IP.makeExample IP.shareSource ["1"]
+                     <> "the source. By path, for the first result:"
+                     <> IP.makeExample IP.shareDocs [P.text firstRef]
+               ]
+            ++ [P.wrap "These are the first matches. Narrow the search with `in @user` or `in @user/project`." | more]
   ServantClientError err ->
     pure case err of
       Servant.ConnectionError exception ->
@@ -2153,36 +2227,38 @@ notifyUser dir issueFn = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  DeleteFailure scratchFile0 baseBranch -> do
-    scratchFile <- renderFileName scratchFile0
+  DeleteFailure handoff ->
     pure $
       P.wrap "I couldn't complete the delete, because some definitions are still in use."
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
+        <> scratchFileNextSteps handoff []
+  UpdateTypecheckingFailure handoff ->
+    pure $
+      P.wrap
+        ( "Typechecking failed. I've updated"
+            <> P.group (prettyFilePath handoff.scratchFile)
+            <> "with the definitions that still need fixing."
+        )
         <> P.newline
         <> P.newline
-        <> onceYoureHappy baseBranch
-  UpdateTypecheckingFailure ->
-    pure . P.wrap $
-      "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
-        <> P.newline
-        <> P.newline
-        <> "Once the file is compiling, try"
-        <> makeExample' IP.update
-        <> "again."
-  UpdateTypecheckingFailure2 scratchFile0 baseBranch -> do
-    scratchFile <- renderFileName scratchFile0
+        <> P.lines
+          ( scratchFileCommands handoff
+              ++ [ "",
+                   P.wrap $
+                     "To abandon the"
+                       <> P.text handoff.action
+                       <> "instead, run"
+                       <> P.group (P.backticked "cancel" <> ".")
+                 ]
+          )
+  UpdateTypecheckingFailure2 handoff ->
     pure $
       P.wrap "I couldn't complete the update, because some existing definitions would no longer typecheck."
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
-        <> P.newline
-        <> P.newline
-        <> onceYoureHappy baseBranch
-  UpgradeFailure baseBranch scratchFile0 names -> do
-    scratchFile <- renderFileName scratchFile0
+        <> scratchFileNextSteps handoff []
+  UpgradeFailure handoff names ->
     pure $
       P.wrap
         ( "I couldn't automatically upgrade"
@@ -2199,10 +2275,7 @@ notifyUser dir issueFn = \case
         )
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
-        <> P.newline
-        <> P.newline
-        <> onceYoureHappy baseBranch
+        <> scratchFileNextSteps handoff []
   UpgradeSuccess names unmanglings ->
     pure $
       P.wrap $
@@ -2220,32 +2293,46 @@ notifyUser dir issueFn = \case
                    )
                  & P.oxfordCommasWith "."
              )
-  MergeFailure path aliceAndBob ->
+  MergeFailure handoff aliceAndBob fileSize ->
     pure $
-      P.lines $
-        [ P.wrap $
-            "I couldn't automatically merge"
-              <> prettyMergeSource aliceAndBob.bob
-              <> "into"
-              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-              <> "However, I've added the definitions that need attention to the top of"
-              <> P.group (prettyFilePath path <> "."),
-          "",
-          P.wrap "When you're done, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
-          "",
-          P.wrap $
-            "to merge your changes back into"
-              <> prettyProjectBranchName aliceAndBob.alice.branch
-              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
-          "",
-          P.wrap $
-            "to delete the temporary branch and switch back to"
-              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
-        ]
+      P.wrap
+        ( "I couldn't automatically"
+            <> P.group (P.text handoff.action)
+            <> prettyMergeSource aliceAndBob.bob
+            <> "into"
+            <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+        )
+        <> P.newline
+        <> P.newline
+        <> scratchFileNextSteps
+          handoff
+          ( case fileSize of
+              Nothing -> []
+              Just size
+                | size.conflictCount == 0 -> [P.wrap ("The file is" <> mergeFileLines size <> "long.")]
+                | otherwise ->
+                    [ P.wrap $
+                        "The file is"
+                          <> mergeFileLines size
+                          <> "long and has"
+                          <> P.group (P.shown size.conflictCount <> if size.conflictCount == 1 then " conflict," else " conflicts,")
+                          <> "with markers in git's style where the branches disagree. In each, the first part is"
+                          <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> "'s")
+                          <> "version (after"
+                          <> P.group "<<<<<<<),"
+                          <> "then the original (after"
+                          <> P.group "|||||||),"
+                          <> "and then"
+                          <> P.group (prettyMergeSource aliceAndBob.bob <> "'s")
+                          <> "(after"
+                          <> P.group "=======)."
+                          <> "Keep what you want and delete the marker lines. Search the file for"
+                          <> P.group "<<<<<<<"
+                          <> "and"
+                          <> P.group "`-- **`"
+                          <> "to find the parts that need attention."
+                    ]
+          )
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
@@ -2307,6 +2394,12 @@ notifyUser dir issueFn = \case
         <> prettyProjectAndBranchName libdep
         <> "into"
         <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
+  LibdepAlreadyInstalled libdep segment ->
+    pure . P.wrap $
+      prettyProjectAndBranchName libdep
+        <> "is already installed as"
+        <> P.group (P.text (into @Text (Path.fromList [NameSegment.libSegment, segment])) <> ".")
+        <> "I didn't install it again."
   UseLibInstallNotPull libdep ->
     pure . P.wrap $
       "The use of"
@@ -2962,11 +3055,62 @@ notifyUser dir issueFn = \case
   CantUpdateLib names ->
     pure (P.fatalCallout (modifyingLibNotAllowed names))
   where
-    iveCreatedATemporaryBranch scratchFile =
-      P.wrap $
-        "I've created a temporary branch and added the affected definitions to"
-          <> P.group (scratchFile <> ",")
-          <> "where you can fix them up or remove any that are obsolete."
+    mergeFileLines :: MergeFileSize -> Pretty
+    mergeFileLines size = P.group (P.shown size.lineCount <> if size.lineCount == 1 then " line" else " lines")
+
+    -- What an agent (or person) needs to do next after an action left them on a temporary branch with a scratch file.
+    scratchFileNextSteps :: ScratchFileHandoff -> [Pretty] -> Pretty
+    scratchFileNextSteps handoff extra =
+      P.lines $
+        [ P.wrap $
+            "You're now on a temporary branch,"
+              <> P.group (prettyProjectBranchName handoff.temporaryBranch <> ",")
+              <> "and the definitions to fix are in"
+              <> P.group (prettyFilePath handoff.scratchFile <> "."),
+          ""
+        ]
+          ++ foldMap (\paragraph -> [paragraph, ""]) extra
+          ++ scratchFileCommands handoff
+          ++ [ "",
+               P.wrap $
+                 P.backticked "update"
+                   <> "saves the file's definitions into"
+                   <> P.group (prettyProjectBranchName handoff.baseBranch <> ",")
+                   <> "removes any definitions you deleted from the file, and deletes the temporary branch. To abandon the"
+                   <> P.text handoff.action
+                   <> "instead, run"
+                   <> P.group (P.backticked "cancel" <> "."),
+               "",
+               P.wrap $
+                 "Note: Definitions listed in the file don't exist in the branch until a successful"
+                   <> P.group (P.backticked "update" <> ".")
+             ]
+
+    -- Edit the file, check it, then update: the commands to get out of a temporary branch.
+    scratchFileCommands :: ScratchFileHandoff -> [Pretty]
+    scratchFileCommands handoff =
+      [ P.wrap $
+          if handoff.loadFirst
+            then "Edit the file, then run:"
+            else "Edit the file until it compiles, then run:",
+        ""
+      ]
+        ++ ( if handoff.loadFirst
+               then
+                 [ P.indentN 4 (prompt <> "load " <> P.group file),
+                   "",
+                   P.wrap $
+                     "If"
+                       <> P.backticked "load"
+                       <> "reports errors, fix them and run it again. When the file loads with no errors, run:",
+                   ""
+                 ]
+               else []
+           )
+        ++ [P.indentN 4 (prompt <> "update")]
+      where
+        file = prettyFilePath handoff.scratchFile
+        prompt = P.string (Text.unpack (into @Text (ProjectAndBranch handoff.project handoff.temporaryBranch))) <> "> "
 
     modifyingLibNotAllowed :: (Foldable f) => f Name -> Pretty
     modifyingLibNotAllowed names =
@@ -2984,16 +3128,6 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> P.wrap "Modifying definitions in `lib` is not allowed."
-
-    onceYoureHappy baseBranch =
-      P.wrap $
-        "Once you're happy with the results, use"
-          <> makeExample' IP.update
-          <> "to merge them back into"
-          <> P.group (prettyProjectBranchName baseBranch <> ",")
-          <> "or"
-          <> makeExample' IP.cancelInputPattern
-          <> "if you change your mind."
 
 prettyAddUpdateDeleteLegend :: Bool -> Bool -> Bool -> Maybe Pretty
 prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes
@@ -3321,16 +3455,34 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: (Var v) => FilePath -> [v] -> IO Pretty
-displayOutputRewrittenFile _fp [] =
-  pure "😶️ I couldn't find any matches in the file."
-displayOutputRewrittenFile fp vs = do
+displayOutputRewrittenFile :: (Var v) => FilePath -> Maybe FilePath -> [v] -> IO Pretty
+displayOutputRewrittenFile _fp _backup [] =
+  pure "😶️ I couldn't find any definitions that these rewrites match."
+displayOutputRewrittenFile fp backup vs = do
   let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
   pure $
     P.callout "☝️" . P.lines $
       [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
         "",
-        "The rewritten file has been added to the top of " <> fromString fp
+        P.wrap case backup of
+          Nothing ->
+            "The rewritten definitions are in"
+              <> P.backticked' (fromString fp) "."
+              <> "Review them, typecheck that file with"
+              <> IP.makeExample IP.load [fromString fp]
+              <> "and run"
+              <> IP.makeExample' IP.update
+              <> "when you are done."
+          Just previous ->
+            "I rewrote"
+              <> P.backticked (fromString fp)
+              <> "in place; the version before is saved as"
+              <> P.backticked' (fromString previous) "."
+              <> "Review the file, typecheck it with"
+              <> IP.makeExample IP.load [fromString fp]
+              <> "and run"
+              <> IP.makeExample' IP.update
+              <> "when you are done."
       ]
 
 displayDefinitions' ::
@@ -4158,12 +4310,15 @@ noResults fscope =
       ]
         ++ case fscope of
           Input.FindGlobal -> []
-          _ -> [suggestFindGlobal]
+          Input.FindLocal _ -> [suggestFindAll]
+          Input.FindLocalAndDeps _ -> []
   where
-    suggestFindGlobal =
+    suggestFindAll =
       P.wrap $
-        IP.makeExample IP.findGlobal []
-          <> "can be used to search outside the current namespace."
+        IP.makeExample IP.find []
+          <> "doesn't search `lib`, where libraries like base are installed:"
+          <> IP.makeExample IP.findAll ["<name>"]
+          <> "does."
 
 listOfDefinitions' ::
   (Var v) =>

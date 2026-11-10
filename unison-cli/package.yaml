@@ -135,9 +135,11 @@ tests:
       - unison-cli
       - unison-core
       - unison-core1
+      - unison-merge
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer
+      - unison-runtime
       - unison-syntax
       - unison-util-recursion
       - unliftio
@@ -165,6 +167,7 @@ executables:
       - unison-cli
       - unison-parser-typechecker
       - unison-prelude
+      - unison-runtime
       - unliftio
 
 default-extensions:

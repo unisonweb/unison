@@ -1,0 +1,1 @@
+In the current Unison project, I need `Text.numbers : Text -> [Int]`, which returns every whole number that appears in a text, in order, with a minus sign included when one comes right before the digits. For example, `Text.numbers "a1 b-22, c333"` is `[+1, -22, +333]`. A text with no numbers gives `[]`. Add it to the codebase, with tests.

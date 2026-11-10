@@ -44,6 +44,38 @@ jobs:
             exit 1
           fi
 
+  verify-helper-ir:
+    # The JIT's embedded IR (unison-runtime/cbits/jit_helpers.ll, jit_exit.ll)
+    # runs natively in every JIT'd process. Its header names the SHA-256 of
+    # the C it was generated from; this checks that the C has not changed
+    # since without a regeneration. The regeneration itself (gen-helpers.sh
+    # --check, which needs clang and the GHC headers) runs in test.yaml's
+    # build job.
+    name: verify the JIT's embedded IR names its sources
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: compare each .ll header's source hash with the sources
+        run: |
+          cd unison-runtime/cbits
+          status=0
+          check() {
+            ll="$1"; shift
+            want=$(cat "$@" | shasum -a 256 | cut -d' ' -f1)
+            have=$(sed -n 's/^; source sha256: \([0-9a-f]*\).*/\1/p' "$ll" | head -n 1)
+            if [[ "$have" == "$want" ]]; then
+              echo "$ll names its sources ($want)"
+            else
+              echo "::error::$ll names source hash ${have:-none} but $* hash to $want: the C changed and the IR was not regenerated. Run unison-runtime/cbits/gen-helpers.sh and commit the .ll files."
+              status=1
+            fi
+          }
+          check jit_helpers.ll jit_helpers.c jit_internal.h jit_rt.h
+          check jit_exit.ll jit_exit.c jit_rt.h
+          exit $status
+
   verify-tests:
     name: verify tests proof
     runs-on: ubuntu-24.04

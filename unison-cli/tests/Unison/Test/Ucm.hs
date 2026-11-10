@@ -31,6 +31,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude (traceM)
 import Unison.PrettyTerminal qualified as PT
+import Unison.Runtime.JIT qualified as JIT
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
 
@@ -68,7 +69,9 @@ runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
   let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
+  jit <- JIT.newJIT =<< JIT.readConfig
   Transcript.withRunner
+    jit
     (Transcript.testConfig codebasePath)
     Verbosity.Silent
     "Unison.Test.Ucm.runTranscript Invalid Version String"

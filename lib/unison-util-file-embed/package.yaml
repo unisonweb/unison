@@ -12,6 +12,7 @@ dependencies:
   - base
   - file-embed
   - template-haskell
+  - text
 
 ghc-options:
   -Wall

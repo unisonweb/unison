@@ -71,6 +71,8 @@ $ stack --version # we'll want to know this version if you run into trouble
 $ stack build --fast --test && stack exec unison
 ```
 
+The runtime's JIT compiler is off by default; `unison --jit on` turns it on, which needs an LLVM shared library installed. See [usage.md](unison-runtime/src/Unison/Runtime/JIT/usage.md) for how to install LLVM and what to expect.
+
 To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running.
 
 See [`development.md`](development.md) for how to build, run, test and check the code.

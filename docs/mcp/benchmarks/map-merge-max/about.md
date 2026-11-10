@@ -1,0 +1,1 @@
+Held out: never tune a topic against this task. A `Map` reuse task whose answer is `Map.unionWith Nat.max`. The map topic lists `Map.unionWith` among the API, as it lists the other functions; the task measures whether the worker reads `docs Map` before writing a merge. Judges: `behavior`, `reuses-existing` (GREAT for `unionWith`), `tests`.

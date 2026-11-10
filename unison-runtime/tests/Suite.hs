@@ -9,28 +9,40 @@ import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.Runtime.ANF qualified as ANF
 import Unison.Test.Runtime.ANF.Serialization qualified as ANF.Serialization
+import Unison.Test.Runtime.BuiltinDecls qualified as BuiltinDecls
+import Unison.Test.Runtime.Bundle qualified as Bundle
 import Unison.Test.Runtime.Crypto.P256 qualified as P256
 import Unison.Test.Runtime.Crypto.Rsa qualified as Rsa
+import Unison.Test.Runtime.Foreign.Arrays qualified as Arrays
 import Unison.Test.Runtime.Foreign.Dynamic qualified as Dynamic
 import Unison.Test.Runtime.MCode qualified as MCode
 import Unison.Test.Runtime.MCode.Serialization qualified as MCode.Serialization
+import Unison.Test.Runtime.MCode.Wide qualified as MCode.Wide
 import Unison.Test.Runtime.Process qualified as Process
 import Unison.Test.Runtime.Signal qualified as Signal
+import Unison.Test.Runtime.TypeNumbers qualified as TypeNumbers
 import Unison.Test.UnisonSources qualified as UnisonSources
+import Unison.Test.Util.Text qualified as Util.Text
 
 test :: Test ()
 test =
   tests
     [ ANF.test,
       ANF.Serialization.test,
+      Bundle.test,
+      BuiltinDecls.test,
       MCode.test,
       MCode.Serialization.test,
+      MCode.Wide.test,
       P256.test,
       Rsa.test,
+      Arrays.test,
       Dynamic.test,
       Process.test,
       Signal.test,
-      UnisonSources.test
+      TypeNumbers.test,
+      UnisonSources.test,
+      Util.Text.test
     ]
 
 main :: IO ()
