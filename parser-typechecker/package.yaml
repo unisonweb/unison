@@ -28,6 +28,7 @@ library:
     - generic-lens
     - hashable
     - hashtables
+    - ki
     - lens
     - megaparsec
     - mmorph
