@@ -286,7 +286,8 @@ jobs:
 
   io-transcript:
     # The transcripts job runs every transcript, on Linux only. The IO builtins behave differently per platform, so
-    # io.md also runs on the others.
+    # io.md also runs on the others. Their binaries come from build-ucm, whose platforms are dll-ffi-os, so every
+    # platform here must be in dll-ffi-os too.
     name: io transcript (${{ matrix.os }})
     needs: [build-ucm]
     if: |
