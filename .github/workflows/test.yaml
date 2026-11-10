@@ -474,7 +474,7 @@ jobs:
     needs: build-ucm
     runs-on: ${{ matrix.os }}
     env:
-      runtime_tests_version: "@unison/runtime-tests/@fpringle/file-permissions"
+      runtime_tests_version: "@unison/runtime-tests/releases/0.0.6"
       runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
     strategy:
       matrix:
