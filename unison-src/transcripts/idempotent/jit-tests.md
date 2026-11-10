@@ -368,6 +368,1079 @@ churn k n =
            49999000000
 ```
 
+## Delayed data construction
+
+Small constructors travel between a return and a match in stack slots
+(`UNISON_OPTIMIZATIONS=wide`, Unison.Runtime.Wide): a constructor returned by an unknown
+callee and matched by the caller, a state tuple threaded through calls, and
+every way a value can escape, which boxes it.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.fromList : [a] -> Cons a
+Cons.fromList = cases
+  [] -> Cons.Nil
+  x +: xs -> Cons.Cons x (Cons.fromList xs)
+
+Cons.toList : Cons a -> [a]
+Cons.toList = cases
+  Cons.Nil -> []
+  Cons.Cons h t -> h +: Cons.toList t
+
+-- the motivating case: an unknown f returns an Optional, matched at once
+Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+Cons.filterMap f = cases
+  Cons.Nil -> Cons.Nil
+  Cons.Cons h t -> match f h with
+    None -> Cons.filterMap f t
+    Some b -> Cons.Cons b (Cons.filterMap f t)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+evens : Nat -> Optional Nat
+evens n = if Nat.mod n 2 == 0 then Some (n * 10) else None
+
+-- a state tuple returned by a non-tail call, matched later
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+sumTo : Nat -> Nat
+sumTo n =
+  go acc i =
+    if i > n then acc
+    else
+      p = step acc i
+      match p with (acc', i') -> go acc' i'
+  go 0 0
+
+structural type Res = Ok Nat | Err Text
+
+parse : Nat -> Res
+parse n = if n < 100 then Res.Ok (n * 2) else Res.Err "too big"
+
+results : [Nat] -> (Nat, Text)
+results = cases
+  [] -> (0, "")
+  n +: ns -> match results ns with
+    (oks, errs) -> match parse n with
+      Res.Ok v -> (oks + v, errs)
+      Res.Err e -> (oks, errs ++ e ++ ";")
+
+-- a bound constructor that is only returned, and one that is matched and
+-- then returned
+pair : Nat -> (Nat, Nat)
+pair n =
+  p = (n, n + 1)
+  p
+
+both : Nat -> (Nat, Nat)
+both n =
+  p = (n, n * 3)
+  match p with (a, b) -> if a < b then p else (b, a)
+
+-- escapes: into a list, a closure, a reference, a constructor, a record,
+-- a comparison, a hash, and twice on one path
+escapeList : Nat -> [(Nat, Nat)]
+escapeList n =
+  p = step n 1
+  [p, p]
+
+escapeClosure : Nat -> '(Nat, Nat)
+escapeClosure n =
+  p = step n 2
+  'p
+
+escapeRef : Nat -> (Nat, Nat)
+escapeRef n = Scope.run do
+  r = Scope.ref (0, 0)
+  p = step n 3
+  Ref.write r p
+  Ref.read r
+
+escapeNested : Nat -> Optional (Nat, Nat)
+escapeNested n =
+  p = step n 4
+  Some p
+
+escapeRecord : Nat -> { p: (Nat, Nat), q: Optional Nat }
+escapeRecord n = { p: step n 5, q: evens n }
+
+escapeCompare : Nat -> (Boolean, Boolean, Int)
+escapeCompare n =
+  p = step n 6
+  q = step n 6
+  (p Universal.== q, p Universal.< (n, 0), Universal.compare p (step n 7))
+
+escapeTwice : Nat -> (Nat, (Nat, Nat), (Nat, Nat))
+escapeTwice n =
+  p = step n 8
+  first = match p with (a, _) -> a
+  (first, p, p)
+
+-- nullary constructors in flight and escaping
+nullary : Nat -> (Optional Nat, [Optional Nat], Boolean)
+nullary n =
+  o = if n == 0 then None else Some n
+  flag = match o with
+    None -> false
+    Some _ -> true
+  (o, [o, None], flag)
+
+-- a let-bound function value applied to pending arguments
+same : a -> a
+same a = a
+
+adder : Nat -> (Nat -> Nat)
+adder x =
+  f = same (y -> x + y)
+  f
+
+applyAdder : Nat -> Nat -> Nat
+applyAdder x y = adder x y
+
+-- a continuation captured inside a frame that holds an unboxed pair, and
+-- resumed twice
+structural ability Ask where
+  ask : Nat
+
+twice : '{Ask} Nat -> Nat
+twice body =
+  h = cases
+    { Ask.ask -> k } -> (handle k 1 with h) + (handle k 2 with h)
+    { x } -> x
+  handle !body with h
+
+askPair : Nat -> Nat
+askPair n =
+  twice do
+    p = step n 9
+    a = Ask.ask
+    match p with (acc, i) -> acc + i + a
+
+> Cons.toList (Cons.filterMap evens (Cons.fromList [1, 2, 3, 4, 5, 6]))
+> Cons.head (Cons.fromList [7, 8])
+> Cons.head (Cons.fromList [])
+> sumTo 100
+> results [1, 200, 3, 400]
+> pair 5
+> both 5
+> both 0
+> escapeList 1
+> !(escapeClosure 1)
+> escapeRef 1
+> escapeNested 1
+> escapeRecord 2
+> escapeCompare 3
+> escapeTwice 4
+> nullary 0
+> nullary 5
+> applyAdder 3 4
+> askPair 10
+> Universal.murmurHashUntyped (step 1 2) == Universal.murmurHashUntyped (3, 3)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Cons a
+  + structural type Res
+
+  + adder          : Nat -> Nat -> Nat
+  + applyAdder     : Nat -> Nat -> Nat
+  + askPair        : Nat -> Nat
+  + both           : Nat -> (Nat, Nat)
+  + Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+  + Cons.fromList  : [a] -> Cons a
+  + Cons.head      : Cons a -> Optional a
+  + Cons.toList    : Cons a -> [a]
+  + escapeClosure  : Nat -> '(Nat, Nat)
+  + escapeCompare  : Nat -> (Boolean, Boolean, Int)
+  + escapeList     : Nat -> [(Nat, Nat)]
+  + escapeNested   : Nat -> Optional (Nat, Nat)
+  + escapeRecord   : Nat -> {p: (Nat, Nat), q: Optional Nat}
+  + escapeRef      : Nat -> (Nat, Nat)
+  + escapeTwice    : Nat -> (Nat, (Nat, Nat), (Nat, Nat))
+  + evens          : Nat -> Optional Nat
+  + nullary        : Nat
+                     -> (Optional Nat, [Optional Nat], Boolean)
+  + pair           : Nat -> (Nat, Nat)
+  + parse          : Nat -> Res
+  + results        : [Nat] -> (Nat, Text)
+  + same           : a -> a
+  + step           : Nat -> Nat -> (Nat, Nat)
+  + sumTo          : Nat -> Nat
+  + twice          : '{Ask} Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    148 | > Cons.toList (Cons.filterMap evens (Cons.fromList [1, 2, 3, 4, 5, 6]))
+            ⧩
+            [20, 40, 60]
+
+    149 | > Cons.head (Cons.fromList [7, 8])
+            ⧩
+            Some 7
+
+    150 | > Cons.head (Cons.fromList [])
+            ⧩
+            None
+
+    151 | > sumTo 100
+            ⧩
+            5050
+
+    152 | > results [1, 200, 3, 400]
+            ⧩
+            (8, "too big;too big;")
+
+    153 | > pair 5
+            ⧩
+            (5, 6)
+
+    154 | > both 5
+            ⧩
+            (5, 15)
+
+    155 | > both 0
+            ⧩
+            (0, 0)
+
+    156 | > escapeList 1
+            ⧩
+            [(2, 2), (2, 2)]
+
+    157 | > !(escapeClosure 1)
+            ⧩
+            (3, 3)
+
+    158 | > escapeRef 1
+            ⧩
+            (4, 4)
+
+    159 | > escapeNested 1
+            ⧩
+            Some (5, 5)
+
+    160 | > escapeRecord 2
+            ⧩
+            {p: (7, 6), q: Some 20}
+
+    161 | > escapeCompare 3
+            ⧩
+            (true, false, -1)
+
+    162 | > escapeTwice 4
+            ⧩
+            (12, (12, 9), (12, 9))
+
+    163 | > nullary 0
+            ⧩
+            (None, [None, None], false)
+
+    164 | > nullary 5
+            ⧩
+            (Some 5, [Some 5, None], true)
+
+    165 | > applyAdder 3 4
+            ⧩
+            7
+
+    166 | > askPair 10
+            ⧩
+            61
+
+    167 | > Universal.murmurHashUntyped (step 1 2) == Universal.murmurHashUntyped (3, 3)
+            ⧩
+            true
+```
+
+## Small constructors passed to calls
+
+A small constructor the caller holds unboxed (the result of a call, or a
+let) is boxed at the call that takes it, once, so two callees given the
+same value share one object; the callee matches on the object as usual.
+The same through a function value, a partial application, a local loop
+whose state is a tuple, and a request raised inside the callee. (The
+section was written for workers that took such an argument as its slots,
+built and reverted on 2026-10-28, `JIT/benchmarks/2026-10-28-wide-arguments.md`;
+the cases stand on their own.)
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.fromList : [a] -> Cons a
+Cons.fromList = cases
+  [] -> Cons.Nil
+  x +: xs -> Cons.Cons x (Cons.fromList xs)
+
+-- returns a small constructor, so the call delivers a wide value
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+-- matched only: wide
+isNone : Optional a -> Boolean
+isNone = cases
+  None -> true
+  Some _ -> false
+
+-- matched, then returned on one path: wide (a return is not an escape)
+orZero : Optional Nat -> Nat
+orZero = cases
+  None -> 0
+  Some n -> n
+
+-- escapes into a list on one path: boxed, the caller boxes
+keep : Optional Nat -> [Optional Nat]
+keep = cases
+  None -> []
+  o -> [o]
+
+-- a local loop whose state is a pair, matched each round
+countdown : Nat -> Nat
+countdown n =
+  go st = match st with
+    (acc, 0) -> acc
+    (acc, i) -> go (acc + i, i - 1)
+  go (0, n)
+
+-- two callees given the same wide value, one taking it boxed
+both : Nat -> (Boolean, [Optional Nat], Nat)
+both n =
+  o = Cons.head (Cons.fromList [n])
+  (isNone o, keep o, orZero o)
+
+-- an unknown call reaches the boxed entry
+applyTo : (Optional Nat ->{g} r) -> Optional Nat ->{g} r
+applyTo f o = f o
+
+-- a request inside a worker, with the wide argument live across it
+structural ability Ask where
+  ask : Nat
+
+askOr : Optional Nat ->{Ask} Nat
+askOr = cases
+  None -> Ask.ask
+  Some n -> n + Ask.ask
+
+withTwo : '{Ask} a -> a
+withTwo c = handle c() with cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k 2 with cases
+    { r } -> r
+    { Ask.ask -> k } -> withTwo '(k 2)
+
+wideArgs : (Boolean, Boolean, Nat, [Optional Nat], Nat, (Boolean, [Optional Nat], Nat), Boolean, Nat, [Boolean], Nat, Nat)
+wideArgs =
+  xs = Cons.fromList [5, 6]
+  (isNone (Cons.head xs),
+   isNone (Cons.head (Cons.fromList [])),
+   orZero (Cons.head xs),
+   keep (Cons.head xs),
+   countdown 10,
+   both 7,
+   applyTo isNone (Cons.head xs),
+   applyTo orZero None,
+   List.map isNone [Some 1, None],
+   withTwo '(askOr (Cons.head xs)),
+   withTwo '(askOr None))
+
+> wideArgs
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Cons a
+
+  + applyTo       : (Optional Nat ->{g} r)
+                    -> Optional Nat
+                    ->{g} r
+  + askOr         : Optional Nat ->{Ask} Nat
+  + both          : Nat -> (Boolean, [Optional Nat], Nat)
+  + Cons.fromList : [a] -> Cons a
+  + Cons.head     : Cons a -> Optional a
+  + countdown     : Nat -> Nat
+  + isNone        : Optional a -> Boolean
+  + keep          : Optional Nat -> [Optional Nat]
+  + orZero        : Optional Nat -> Nat
+  + wideArgs      : ( Boolean,
+                      Boolean,
+                      Nat,
+                      [Optional Nat],
+                      Nat,
+                      (Boolean, [Optional Nat], Nat),
+                      Boolean,
+                      Nat,
+                      [Boolean],
+                      Nat,
+                      Nat)
+  + withTwo       : '{Ask} a -> a
+
+  Run `update` to apply these changes to your codebase.
+
+    83 | > wideArgs
+           ⧩
+           ( false
+           , true
+           , 5
+           , [Some 5]
+           , 55
+           , (false, [Some 7], 7)
+           , false
+           , 0
+           , [false, true]
+           , 7
+           , 2
+           )
+```
+
+## Loop state exploded
+
+A function whose every call in its batch passes a constructor built for the
+call, and whose body only takes it apart, takes the fields as parameters
+(`Unison.Runtime.MCode.Explode`): a loop whose state is a tuple or a record
+allocates nothing per round. Callers the batch cannot see, a function value
+or a later definition, go through the entry, which unpacks and calls the
+worker.
+
+``` unison
+use Nat + - * == < 
+
+-- a tuple state, nested as tuples are
+sumTo : Nat -> Nat
+sumTo n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + i, i + 1)
+  go (0, 0)
+
+-- a record-like constructor with three fields
+structural type Pos = Pos Nat Nat Nat
+
+walk : Nat -> Pos
+walk n =
+  go st = match st with
+    Pos i line col ->
+      if i == n then st
+      else if Nat.mod i 10 == 0 then go (Pos (i + 1) (line + 1) 0)
+      else go (Pos (i + 1) line (col + 1))
+  go (Pos 0 0 0)
+
+-- the state escapes on one path (returned): the position stays plain
+-- and the loop is correct either way
+lastPair : Nat -> (Nat, Nat)
+lastPair n =
+  go st = match st with
+    (a, b) -> if a == n then st else go (a + 1, b * 2)
+  go (0, 1)
+
+-- two functions calling each other with a tuple
+ping : (Nat, Nat) -> Nat
+ping = cases (a, b) -> if a == 0 then b else pong (a - 1, b + 1)
+
+pong : (Nat, Nat) -> Nat
+pong = cases (a, b) -> if a == 0 then b + 100 else ping (a - 1, b + 2)
+
+-- a call that passes a variable rather than a constructor it built:
+-- the position is plain for every caller
+through : (Nat, Nat) -> Nat
+through p = ping p
+
+-- a function value reaches the entry
+applyTo : ((Nat, Nat) ->{g} r) -> (Nat, Nat) ->{g} r
+applyTo f p = f p
+
+-- the state is also used after the call: the constructor is still built
+keepState : Nat -> ((Nat, Nat), Nat)
+keepState n =
+  st = (n, n + 1)
+  (st, ping st)
+
+-- a request inside the worker, with the exploded state live across it
+structural ability Ask where
+  ask : Nat
+
+askLoop : Nat ->{Ask} Nat
+askLoop n =
+  go st = match st with
+    (acc, i) -> if i == n then acc else go (acc + Ask.ask, i + 1)
+  go (0, 0)
+
+withTwo : '{Ask} a -> a
+withTwo c = handle c() with cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k 2 with cases
+    { r } -> r
+    { Ask.ask -> k } -> withTwo '(k 2)
+
+-- a record state, stepped by updates and read by a getter and a pattern
+cursor : Nat -> Nat
+cursor n =
+  go : { i: Nat, line: Nat, col: Nat } -> Nat
+  go st = if st@i == n then st@line * 1000 + st@col
+          else if Nat.mod (st@i) 10 == 0 then go (((st@i.set (st@i + 1))@line.set (st@line + 1))@col.set 0)
+          else go ((st@i.set (st@i + 1))@col.set (st@col + 1))
+  go { i: 0, line: 0, col: 0 }
+
+-- a sum state: one worker per constructor, mutually recursive
+sumState : Nat -> Nat
+sumState n =
+  go st = match st with
+    Left acc -> if acc == n then acc else go (Right (acc + 1))
+    Right acc -> go (Left (acc + 1))
+  go (Left 0)
+
+-- the sum is built in the branches of a match and passed at once
+branchy : Nat -> Nat
+branchy n =
+  go st = match st with
+    None -> 0
+    Some i -> i + go (if i == n then None else Some (i + 1))
+  go (Some 0)
+
+-- a state machine with a nullary stop state and a two-field running state
+structural type Machine = Running Nat Nat | Stopped
+
+machine : Nat -> Nat
+machine n =
+  step st = match st with
+    Machine.Stopped -> 0
+    Machine.Running i acc -> if i == n then acc else step (if Nat.mod i 7 == 6 then Machine.Stopped else Machine.Running (i + 1) (acc + i))
+  step (Machine.Running 0 0)
+
+-- the record is returned on one path: plain
+cursorEnd : Nat -> { i: Nat, acc: Nat }
+cursorEnd n =
+  go : { i: Nat, acc: Nat } -> { i: Nat, acc: Nat }
+  go st = match st with { i: i, acc: acc } -> if i == n then st else go { i: i + 1, acc: acc + i }
+  go { i: 0, acc: 0 }
+
+exploded : (Nat, Pos, (Nat, Nat), Nat, Nat, Nat, Nat, ((Nat, Nat), Nat), Nat, Nat, { i: Nat, acc: Nat }, Nat, Nat, Nat, Nat)
+exploded =
+  (sumTo 100,
+   walk 25,
+   lastPair 5,
+   ping (7, 0),
+   pong (6, 0),
+   through (4, 1),
+   applyTo ping (3, 3),
+   keepState 9,
+   withTwo '(askLoop 5),
+   cursor 25,
+   cursorEnd 5,
+   sumState 10,
+   branchy 10,
+   machine 5,
+   machine 100)
+
+> exploded
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Machine
+  + structural type Pos
+
+  + applyTo   : ((Nat, Nat) ->{g} r) -> (Nat, Nat) ->{g} r
+  + askLoop   : Nat ->{Ask} Nat
+  + branchy   : Nat -> Nat
+  + cursor    : Nat -> Nat
+  + cursorEnd : Nat -> {acc: Nat, i: Nat}
+  + exploded  : ( Nat,
+                  Pos,
+                  (Nat, Nat),
+                  Nat,
+                  Nat,
+                  Nat,
+                  Nat,
+                  ((Nat, Nat), Nat),
+                  Nat,
+                  Nat,
+                  {acc: Nat, i: Nat},
+                  Nat,
+                  Nat,
+                  Nat,
+                  Nat)
+  + keepState : Nat -> ((Nat, Nat), Nat)
+  + lastPair  : Nat -> (Nat, Nat)
+  + machine   : Nat -> Nat
+  + ping      : (Nat, Nat) -> Nat
+  + pong      : (Nat, Nat) -> Nat
+  + sumState  : Nat -> Nat
+  + sumTo     : Nat -> Nat
+  + through   : (Nat, Nat) -> Nat
+  + walk      : Nat -> Pos
+  + withTwo   : '{Ask} a -> a
+
+  Run `update` to apply these changes to your codebase.
+
+    129 | > exploded
+            ⧩
+            ( 4950
+            , Pos 25 3 4
+            , (5, 32)
+            , 110
+            , 109
+            , 7
+            , 107
+            , ((9, 10), 123)
+            , 10
+            , 3004
+            , {acc: 10, i: 5}
+            , 10
+            , 55
+            , 10
+            , 0
+            )
+```
+
+## Results exploded
+
+A function whose every tail builds a product gets a worker that yields the
+product's leaves as several values (`Unison.Runtime.MCode.Explode`), and a
+caller of the batch that takes the result apart at once calls that worker
+instead of the entry: a loop and its step function exchange a tuple with
+nothing allocated in either direction. A result that escapes, a function
+value and a later definition get the product from the entry as before.
+
+``` unison
+use Nat + - * == < >
+
+-- a pair, nested as tuples are
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+stateLoop : Nat -> Nat
+stateLoop n =
+  go acc i =
+    if i > n then acc
+    else match step acc i with (acc', i') -> go acc' i'
+  go 0 0
+
+-- a record result, matched and read by field
+type Cursor = { line : Nat, col : Nat }
+
+advance : Cursor -> Nat -> Cursor
+advance c ch = if ch == 10 then Cursor (line c + 1) 0 else Cursor (line c) (col c + 1)
+
+lines : Nat -> Nat
+lines n =
+  go c i =
+    if i == n then line c
+    else match advance c (Nat.mod i 7 + 5) with Cursor l k -> go (Cursor l k) (i + 1)
+  go (Cursor 0 0) 0
+
+cols : Nat -> Nat
+cols n =
+  go c i = if i == n then col c else go (advance c (Nat.mod i 7 + 5)) (i + 1)
+  go (Cursor 0 0) 0
+
+-- a result that escapes keeps the entry
+escaping : Nat -> [(Nat, Nat)]
+escaping n = List.map (i -> step i i) [n, n + 1, n + 2]
+
+-- a result with only a field read, through a function the optimizer inlines
+fst1 : (Nat, Nat) -> Nat
+fst1 = cases (a, _) -> a
+
+firstOnly : Nat -> Nat
+firstOnly n = fst1 (step n n)
+
+-- a result passed straight to a loop whose state is exploded
+loopPair : (Nat, Nat) -> Nat
+loopPair = cases
+  (acc, i) -> if i == 0 then acc else loopPair (acc + i, i - 1)
+
+viaExploded : Nat -> Nat
+viaExploded n = loopPair (step 0 n)
+
+-- a tail call of another function returning the same product
+stepTwice : Nat -> Nat -> (Nat, Nat)
+stepTwice acc i = if i > 1000000 then (acc, i) else step (acc + 2) i
+
+twiceLoop : Nat -> Nat
+twiceLoop n =
+  go acc i = if i > n then acc else match stepTwice acc i with (a, j) -> go (a + 1) j
+  go 0 0
+
+-- a product with a nested product and a unit, taken apart to the leaves,
+-- and with the inner product used as a whole
+nested : Nat -> ((Nat, Nat), Nat)
+nested i = ((i, i + 1), i + 2)
+
+nestedLoop : Nat -> Nat
+nestedLoop n =
+  go acc i =
+    if i > n then acc
+    else match nested i with ((a, b), c) -> go (acc + a + b + c) (i + 1)
+  go 0 0
+
+nestedWhole : Nat -> Nat
+nestedWhole n =
+  go acc i =
+    if i > n then acc
+    else match nested i with (ab, c) -> go (acc + fst1 ab + c) (i + 1)
+  go 0 0
+
+-- a result matched twice, and once without an arm for its constructor shape
+twiceMatched : Nat -> Nat
+twiceMatched n =
+  p = step n n
+  a = match p with (x, _) -> x
+  b = match p with (_, y) -> y
+  a + b
+
+-- different products on different paths keep the entry
+either : Nat -> Either Nat Nat
+either n = if n == 0 then Left n else Right n
+
+eitherLoop : Nat -> Nat
+eitherLoop n =
+  go acc i = if i > n then acc else match either i with
+    Left x -> go (acc + x) (i + 1)
+    Right y -> go (acc + y * 2) (i + 1)
+  go 0 0
+
+-- a function value and a partial application get the product
+applied : Nat -> (Nat, Nat)
+applied = step 5
+
+results =
+  (stateLoop 100,
+   lines 100,
+   cols 100,
+   List.size (escaping 10),
+   firstOnly 7,
+   viaExploded 100,
+   twiceLoop 100,
+   nestedLoop 100,
+   nestedWhole 100,
+   twiceMatched 21,
+   eitherLoop 10,
+   applied 6,
+   List.map (f -> f 10) (List.map step [1, 2]))
+
+> results
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Cursor
+
+  + advance            : Cursor -> Nat -> Cursor
+  + applied            : Nat -> (Nat, Nat)
+  + cols               : Nat -> Nat
+  + Cursor.col         : Cursor -> Nat
+  + Cursor.col.modify  : (Nat ->{g} Nat) -> Cursor ->{g} Cursor
+  + Cursor.col.set     : Nat -> Cursor -> Cursor
+  + Cursor.line        : Cursor -> Nat
+  + Cursor.line.modify : (Nat ->{g} Nat) -> Cursor ->{g} Cursor
+  + Cursor.line.set    : Nat -> Cursor -> Cursor
+  + either             : Nat -> Either Nat Nat
+  + eitherLoop         : Nat -> Nat
+  + escaping           : Nat -> [(Nat, Nat)]
+  + firstOnly          : Nat -> Nat
+  + fst1               : (Nat, Nat) -> Nat
+  + lines              : Nat -> Nat
+  + loopPair           : (Nat, Nat) -> Nat
+  + nested             : Nat -> ((Nat, Nat), Nat)
+  + nestedLoop         : Nat -> Nat
+  + nestedWhole        : Nat -> Nat
+  + results            : ( Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           Nat,
+                           (Nat, Nat),
+                           [(Nat, Nat)])
+  + stateLoop          : Nat -> Nat
+  + step               : Nat -> Nat -> (Nat, Nat)
+  + stepTwice          : Nat -> Nat -> (Nat, Nat)
+  + twiceLoop          : Nat -> Nat
+  + twiceMatched       : Nat -> Nat
+  + viaExploded        : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    117 | > results
+            ⧩
+            ( 5050
+            , 14
+            , 3
+            , 3
+            , 14
+            , 5251
+            , 5353
+            , 15453
+            , 10302
+            , 64
+            , 110
+            , (11, 7)
+            , [(11, 11), (12, 11)]
+            )
+```
+
+## Known constructors and case of case
+
+A product or sum built and matched in the same body is matched where it is
+built (`Unison.Runtime.MCode.Explode`, design.md "Known constructors and
+case of case"): the let is dropped and the arm's variables are the fields,
+so a match on several arguments at once, which builds a tuple, allocates
+nothing and tests no tag. A match on the value of a match whose every tail
+builds a constructor is moved into those tails, each outer arm as a join
+point of the group that the tails call with the fields; an arm that is a
+single expression is copied instead. Every optimization setting computes
+the same results.
+
+``` unison
+use Nat + - * == < >
+
+-- a match on two arguments at once, with a guard and a default row
+classify : Nat -> Nat -> Text
+classify a b = match (a, b) with
+  (0, _) -> "zero first"
+  (_, 0) -> "zero second"
+  (x, y) | x == y -> "equal"
+  _ -> "other"
+
+countPairs : Nat -> Nat
+countPairs n =
+  go acc i =
+    if i == n then acc
+    else match (Nat.mod i 3, Nat.mod i 5) with
+      (0, 0) -> go (acc + 3) (i + 1)
+      (0, _) -> go (acc + 1) (i + 1)
+      (_, 0) -> go (acc + 2) (i + 1)
+      _ -> go acc (i + 1)
+  go 0 0
+
+-- a sum built and matched at once, and one whose constructor has no arm
+knownSum : Nat -> Nat
+knownSum i =
+  e = if i > 2 then Left i else Right (i + 1)
+  match e with
+    Left a -> a * 2
+    Right b -> b * 3
+
+defaultOnly : Nat -> Nat
+defaultOnly i =
+  p = Some i
+  match p with
+    None -> 0
+    _ -> i + 1
+
+-- the product still used after the match keeps its let
+keepPair : Nat -> (Nat, Nat)
+keepPair n =
+  p = (n, n + 1)
+  match p with (a, b) -> if a + b > 10 then p else (b, a)
+
+-- an Optional built in the branches of a match and matched at once: the
+-- outer arms become join points, called from the branch that builds each
+-- constructor
+optLoop : Nat -> Nat
+optLoop n =
+  go acc i =
+    if i == n then acc
+    else
+      p = if Nat.mod i 2 == 0 then Some i else None
+      match p with
+        Some k -> go (acc + k) (i + 1)
+        None -> go acc (i + 1)
+  go 0 0
+
+-- a tail that names a product built earlier
+viaVar : Nat -> Nat
+viaVar i =
+  some = Some (i + 2)
+  p = if i > 2 then some else None
+  match p with
+    Some k -> k * 2
+    None -> 1
+
+-- arms with lets of their own, a leaf arm that is copied, and a default
+-- arm shared by two constructors
+structural type Shape = Circle Nat | Rect Nat Nat | Tri Nat Nat Nat
+
+area : Nat -> Nat
+area i =
+  s = if Nat.mod i 3 == 0 then Circle i
+      else if Nat.mod i 3 == 1 then Rect i (i + 1)
+      else Tri i i i
+  match s with
+    Circle r ->
+      sq = r * r
+      sq * 3
+    Rect w h -> w * h
+    _ ->
+      t = i * 2
+      t + 1
+
+areaSum : Nat -> Nat
+areaSum n =
+  go acc i = if i == n then acc else go (acc + area i) (i + 1)
+  go 0 0
+
+-- a site inside an arm of another site
+nestedCase : Nat -> Nat
+nestedCase i =
+  p = if i > 5 then Some i else None
+  match p with
+    Some k ->
+      q = if k > 7 then Left k else Right (k + 1)
+      match q with
+        Left a -> a * 2
+        Right b ->
+          c = b + 3
+          c * 4
+    None -> 0
+
+-- a site inside a let's binding
+inBinding : Nat -> Nat
+inBinding i =
+  r =
+    p = if i > 3 then Some (i + 1) else None
+    match p with
+      Some k ->
+        m = k * 2
+        m + 1
+      None -> 7
+  r + i
+
+-- a site inside the copied arm of another: the outer pair is built by a
+-- binding with lets of its own and one tail, so its arm is copied with
+-- its variables renamed to the fields, and the inner site's join point
+-- reads two of them (a library shape; the join point named the arm's
+-- variable instead of the field until 2026-11-02)
+innerUsesOuter : Nat -> Nat
+innerUsesOuter i =
+  p =
+    a = i + 1
+    b = a * 2
+    (a, b)
+  match p with (x, y) ->
+    q = if y > 10 then Some x else if y > 4 then Some y else None
+    match q with
+      Some k ->
+        m = k + x
+        m * y
+      None -> x
+
+-- a record literal matched, and one updated and then matched
+type Point = { px : Nat, py : Nat }
+
+recMatch : Nat -> Nat
+recMatch i =
+  c = Point i (i + 1)
+  match c with Point x y -> x + y
+
+anonMatch : Nat -> Nat
+anonMatch i =
+  c = { x: i, y: i + 1 }
+  d = c@x.set (i * 10)
+  d@x + d@y
+
+results =
+  ( List.map (cases (a, b) -> classify a b) [(0, 5), (5, 0), (4, 4), (1, 2)],
+    countPairs 100,
+    List.map knownSum [1, 5],
+    defaultOnly 3,
+    keepPair 7,
+    keepPair 3,
+    optLoop 100,
+    List.map viaVar [1, 9],
+    areaSum 30,
+    List.map nestedCase [2, 6, 9],
+    List.map inBinding [2, 5],
+    List.map innerUsesOuter [1, 2, 6],
+    recMatch 4,
+    anonMatch 4 )
+
+> results
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Point
+  + structural type Shape
+
+  + anonMatch       : Nat -> Nat
+  + area            : Nat -> Nat
+  + areaSum         : Nat -> Nat
+  + classify        : Nat -> Nat -> Text
+  + countPairs      : Nat -> Nat
+  + defaultOnly     : Nat -> Nat
+  + inBinding       : Nat -> Nat
+  + innerUsesOuter  : Nat -> Nat
+  + keepPair        : Nat -> (Nat, Nat)
+  + knownSum        : Nat -> Nat
+  + nestedCase      : Nat -> Nat
+  + optLoop         : Nat -> Nat
+  + Point.px        : Point -> Nat
+  + Point.px.modify : (Nat ->{g} Nat) -> Point ->{g} Point
+  + Point.px.set    : Nat -> Point -> Point
+  + Point.py        : Point -> Nat
+  + Point.py.modify : (Nat ->{g} Nat) -> Point ->{g} Point
+  + Point.py.set    : Nat -> Point -> Point
+  + recMatch        : Nat -> Nat
+  + results         : ( [Text],
+                        Nat,
+                        [Nat],
+                        Nat,
+                        (Nat, Nat),
+                        (Nat, Nat),
+                        Nat,
+                        [Nat],
+                        Nat,
+                        [Nat],
+                        [Nat],
+                        [Nat],
+                        Nat,
+                        Nat)
+  + viaVar          : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    164 | > results
+            ⧩
+            ( ["zero first", "zero second", "equal", "other"]
+            , 74
+            , [6, 10]
+            , 4
+            , (7, 8)
+            , (4, 3)
+            , 2450
+            , [1, 22]
+            , 11005
+            , [0, 40, 18]
+            , [9, 18]
+            , [2, 54, 196]
+            , 9
+            , 45
+            )
+```
+
 ## Calls to function values
 
 ``` unison
@@ -854,6 +1927,264 @@ chooseAsk thunk =
     140 | > handleLoop 0 100
             ⧩
             200
+```
+
+A continuation serialized and loaded back in the same process, captured
+under a handler installed inside the computation with a request to the
+outer handler pending under it: the continuation holds the handled block,
+a closure with exactly its function's arguments, which the loader refused
+until 2026-11-01 ("a partial application of 1 arguments to a function of
+1"). Both a top-level and a local recursive inner handler; the resumed
+result must equal the one without serialization.
+
+``` unison
+use Nat + - * == < >
+
+structural ability Ask where
+  ask : Nat
+
+answer : Nat -> Request {Ask} Nat -> Nat
+answer x = cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k x with answer (x + 1)
+
+innerHandled : Nat ->{Ask} Nat
+innerHandled n =
+  go acc i =
+    if i > n then acc
+    else
+      inner = handle
+                x = Ask.ask
+                x + 1
+              with answer (i * 7)
+      outer = Ask.ask
+      go (acc + inner + outer) (i + 1)
+  go 0 0
+
+localHandled : Nat ->{Ask} Nat
+localHandled n =
+  go acc i =
+    if i > n then acc
+    else
+      h : Request {Ask} Nat -> Nat
+      h = cases
+        { r } -> r
+        { Ask.ask -> k } -> handle k (i * 7) with h
+      inner = handle
+                x = Ask.ask
+                x + 1
+              with h
+      outer = Ask.ask
+      go (acc + inner + outer) (i + 1)
+  go 0 0
+
+structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
+
+suspendAt : Nat -> '{Ask} Nat -> Outcome
+suspendAt m c =
+  h : Nat -> Request {Ask} Nat -> Outcome
+  h j = cases
+    { r } -> Done r
+    { Ask.ask -> k } -> if j == m then Suspended k else handle k (j + 1) with h (j + 1)
+  handle !c with h 0
+
+finish : Outcome -> Nat
+finish = cases
+  Done r -> r
+  Suspended k -> handle k 100 with answer 101
+
+roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+roundTrip m c =
+  direct = finish (suspendAt m c)
+  match suspendAt m c with
+    Done _ -> "no request to suspend at"
+    Suspended k ->
+      match ##Value.deserialize (##Value.serialize (##Value.value k)) with
+        Left err -> "deserialize: " ++ err
+        Right v -> match ##Value.load v with
+          Left _ -> "load: missing dependencies"
+          Right k' ->
+            r = finish (Suspended k')
+            (if r == direct then "same, " else "DIFFERENT, ") ++ Nat.toText r ++ " and " ++ Nat.toText direct
+
+serialTest : '{IO, Exception} [Text]
+serialTest = do
+  [ roundTrip 0 '(innerHandled 3),
+    roundTrip 1 '(innerHandled 3),
+    roundTrip 2 '(innerHandled 3),
+    roundTrip 0 '(localHandled 3),
+    roundTrip 1 '(localHandled 3),
+    roundTrip 2 '(localHandled 3) ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Outcome
+
+  + answer       : Nat -> Request {Ask} Nat -> Nat
+  + finish       : Outcome -> Nat
+  + innerHandled : Nat ->{Ask} Nat
+  + localHandled : Nat ->{Ask} Nat
+  + roundTrip    : Nat -> '{Ask} Nat ->{IO, Exception} Text
+  + serialTest   : '{IO, Exception} [Text]
+  + suspendAt    : Nat -> '{Ask} Nat -> Outcome
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run serialTest
+
+  [ "same, 452 and 452"
+  , "same, 350 and 350"
+  , "same, 250 and 250"
+  , "same, 452 and 452"
+  , "same, 350 and 350"
+  , "same, 250 and 250"
+  ]
+```
+
+A handler shaped like base's `Random.splitmix`: a local recursive handler
+whose every arm installs itself again around the continuation. The
+normalizer floats each such arm out and the optimizer inlines it back, so
+the arms' indirect lets come numbered alike (the `split` arm's 1 and 2, the
+`bytes` arm's 1 again), and until 2026-11-01 the emitter numbered sections
+by those numbers: a `Let` instruction holds its own section, so the
+interpreter ran, but the section table that a serialized continuation and
+the deoptimization tables look sections up in kept one of the two, and
+loading such a handler stopped on `deoptOf: no source for seed''`. Lets are
+numbered per lambda now. The handler is run under an outer handler that
+captures and serializes a continuation at each request; the third, made
+inside the function the `split` arm returns, has nine slots in its frame,
+which the loader miscounted until 2026-11-01 (every loaded continuation got
+1 minus its frame size as its pending-argument count, since a segment is a
+pair of arrays and `length` of a pair is 1), so resuming it ran off the
+stack.
+
+``` unison
+use Nat + * - ==
+
+structural ability Ask where
+  ask : Nat
+
+answer : Nat -> Request {Ask} Nat -> Nat
+answer x = cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k x with answer (x + 1)
+
+structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
+
+suspendAt : Nat -> '{Ask} Nat -> Outcome
+suspendAt m c =
+  h : Nat -> Request {Ask} Nat -> Outcome
+  h j = cases
+    { r } -> Done r
+    { Ask.ask -> k } -> if j == m then Suspended k else handle k (j + 1) with h (j + 1)
+  handle !c with h 0
+
+finish : Outcome -> Nat
+finish = cases
+  Done r -> r
+  Suspended k -> handle k 100 with answer 101
+
+roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+roundTrip m c =
+  direct = finish (suspendAt m c)
+  match suspendAt m c with
+    Done _ -> "no request to suspend at"
+    Suspended k ->
+      match ##Value.deserialize (##Value.serialize (##Value.value k)) with
+        Left err -> "deserialize: " ++ err
+        Right v -> match ##Value.load v with
+          Left _ -> "load: missing dependencies"
+          Right k' ->
+            r = finish (Suspended k')
+            (if r == direct then "same, " else "DIFFERENT, ") ++ Nat.toText r ++ " and " ++ Nat.toText direct
+
+structural ability Gen where
+  bytes : Nat ->{Gen} [Nat]
+  next : {Gen} Nat
+  split : {Gen} (∀ g a. '{g, Gen} a ->{g} a)
+
+natsFrom : '{g} Nat -> Nat ->{g} [Nat]
+natsFrom g n = if n == 0 then [] else !g +: natsFrom g (n - 1)
+
+total : [Nat] -> Nat
+total = cases
+  [] -> 0
+  x +: rest -> x + total rest
+
+mix : Nat -> Nat
+mix x = if Nat.mod x 2 == 0 then x * 31 + 7 else x * 17 + 3
+
+-- base's Random.splitmix handler: each arm installs the handler again
+-- around the continuation, which the normalizer floats and the optimizer
+-- inlines back, so the arms' lets come numbered alike
+gen : Nat -> Nat -> Request {Gen} a -> a
+gen seed gamma =
+  go : ∀ x. Nat -> Nat -> Request {Gen} x -> x
+  go seed gamma = cases
+    { r } -> r
+    { Gen.split -> k } ->
+      seed' = seed + gamma
+      seed'' = seed' + gamma
+      handle k (c -> (handle c() with go seed'' gamma))
+      with go (mix seed') (mix seed'')
+    { Gen.next -> k } ->
+      seed' = seed + gamma
+      handle k (mix seed') with go seed' gamma
+    { Gen.bytes n -> k } ->
+      handle k (natsFrom (do Gen.next) n) with go seed gamma
+  go seed gamma
+
+genUse : Nat ->{Ask} Nat
+genUse n =
+  handle
+    a = Gen.next
+    b = Gen.split '(Gen.next + Ask.ask)
+    xs = Gen.bytes n
+    x = Ask.ask
+    y = Gen.split '(Ask.ask)
+    a + b + x + y + total xs
+  with gen 1 2
+
+genTest : '{IO, Exception} [Text]
+genTest = do
+  [ roundTrip 0 '(genUse 3),
+    roundTrip 1 '(genUse 3),
+    roundTrip 2 '(genUse 3) ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural ability Gen
+  + structural type Outcome
+
+  + answer    : Nat -> Request {Ask} Nat -> Nat
+  + finish    : Outcome -> Nat
+  + gen       : Nat -> Nat -> Request {Gen} a -> a
+  + genTest   : '{IO, Exception} [Text]
+  + genUse    : Nat ->{Ask} Nat
+  + mix       : Nat -> Nat
+  + natsFrom  : '{g} Nat -> Nat ->{g} [Nat]
+  + roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+  + suspendAt : Nat -> '{Ask} Nat -> Outcome
+  + total     : [Nat] -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run genTest
+
+  [ "same, 31410 and 31410"
+  , "same, 31309 and 31309"
+  , "same, 31210 and 31210"
+  ]
 ```
 
 ## Preemption
@@ -1879,9 +3210,27 @@ five n =
     go (acc + applyAll f 2 0) (i + 1)
   go 0 0
 
+-- a captured value that arrived wide (a pair from a call) is boxed just
+-- before the partial application, so the binding is not the application
+-- alone; the library suite's Remote.Ref handler has this shape
+pairOf : Nat -> Nat -> (Nat, Nat)
+pairOf a b = (a + b, b + 1)
+
+sumPair : (Nat, Nat) -> Nat -> Nat -> Nat -> Nat
+sumPair p x y z = match p with (a, b) -> a + b + x + y + z
+
+captured : Nat -> Nat
+captured n =
+  go acc i = if i == n then acc else
+    p = pairOf i (i + 1)
+    f = sumPair p i
+    go (acc + f 1 2 + f 2 3) (i + 1)
+  go 0 0
+
 > fresh 20000
 > more 5000
 > five 3000
+> captured 3000
 ```
 
 ``` ucm :added-by-ucm
@@ -1889,23 +3238,30 @@ five n =
 
   + add3     : Nat -> Nat -> Nat -> Nat
   + applyAll : (Nat ->{g} Nat) -> Nat -> Nat ->{g} Nat
+  + captured : Nat -> Nat
   + five     : Nat -> Nat
   + fresh    : Nat -> Nat
   + more     : Nat -> Nat
+  + pairOf   : Nat -> Nat -> (Nat, Nat)
+  + sumPair  : (Nat, Nat) -> Nat -> Nat -> Nat -> Nat
 
   Run `update` to apply these changes to your codebase.
 
-    38 | > fresh 20000
+    55 | > fresh 20000
            ⧩
            1200200000
 
-    39 | > more 5000
+    56 | > more 5000
            ⧩
            562527500
 
-    40 | > five 3000
+    57 | > five 3000
            ⧩
            45045000
+
+    58 | > captured 3000
+           ⧩
+           36030000
 ```
 
 ### Every arity and argument count
@@ -4598,4 +5954,108 @@ A value with fewer fields than the arm binds, and one with more:
 
   Please report it at
   https://github.com/unisonweb/unison/issues/new/choose.
+```
+
+## Stack arguments and an early return
+
+`go` has four arguments (its two parameters and the two it captures), one pair more than arm64
+passes in registers, and returns before any call when `i == n`. A worker entered by a real call on
+that path, which the stress rows force (`callee`, which sends calls through the interpreter and in
+through the wrapper, and `poll`, whose re-entry function calls the worker through its register
+entry on the last iteration), returned without popping its stack argument under LLVM's shrink
+wrapping and crashed the caller's return (2026-11-05; `-enable-shrink-wrap=false` in `jit_llvm.c`).
+
+``` unison
+use Nat + ==
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.range : Nat -> Nat -> Cons Nat
+Cons.range lo hi =
+  go acc i = if i == lo then Cons.Cons i acc else go (Cons.Cons i acc) (Nat.drop i 1)
+  if Nat.lteq hi lo then Cons.Nil else go Cons.Nil (Nat.drop hi 1)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+headLoop : Nat -> Cons Nat -> Nat
+headLoop n c =
+  go acc i =
+    if i == n then acc
+    else match Cons.head c with
+      None -> go acc (i + 1)
+      Some h -> go (acc + h) (i + 1)
+  go 0 0
+
+> headLoop 10000 (Cons.range 5 10)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Cons a
+
+  + Cons.head  : Cons a -> Optional a
+  + Cons.range : Nat -> Nat -> Cons Nat
+  + headLoop   : Nat -> Cons Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    24 | > headLoop 10000 (Cons.range 5 10)
+           ⧩
+           50000
+```
+
+## A small constructor yielded to a callback
+
+A handler's pure case returns `Some a` or `Right a` wide (the witness in the value slot, the
+field below it), and the handled thunk is forced by `tryEval`, whose nested evaluation reads its
+result through a callback frame. The frame handed the slot to the hook as it was, so the hook saw
+the witness (unisonweb/unison\#6333 and \#6334, 2026-11-07: `Threads.run` returned a closure, and a
+`Failure` reached a match as a witness); it boxes the slot first now, as a handler frame does.
+The interpreter alone showed it, with the convention on.
+
+``` unison
+structural ability Ask where
+  ask : Nat
+
+handled : '{g, Ask} a ->{g} Optional a
+handled p = handle p() with cases
+  { Ask.ask -> k } -> handled do k 1
+  { a } -> Some a
+
+eitherHandled : '{g, Ask} a ->{g} Either Text a
+eitherHandled p = handle p() with cases
+  { Ask.ask -> k } -> eitherHandled do k 1
+  { a } -> Right a
+
+forcedTest : '{IO, Exception} [Nat]
+forcedTest = do
+  a = match ##IO.tryEval do handled do Ask.ask + 10 with
+    Some x -> x
+    None -> 0
+  b = match ##IO.tryEval do eitherHandled do Ask.ask + 20 with
+    Right x -> x
+    Left _ -> 0
+  [a, b]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+
+  + eitherHandled : '{g, Ask} a ->{g} Either Text a
+  + forcedTest    : '{IO, Exception} [Nat]
+  + handled       : '{g, Ask} a ->{g} Optional a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run forcedTest
+
+  [11, 21]
 ```

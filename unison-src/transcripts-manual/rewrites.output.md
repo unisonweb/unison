@@ -38,29 +38,21 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ``` ucm
-> rewrite rule1
-
-  ☝️
-
-  I found and replaced matches in these definitions: ex1
-
-  The rewritten file has been added to the top of scratch.u
-
-> rewrite eitherToOptional
+> rewrite :rule1,eitherToOptional scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions:
   Either.mapRight
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
 ```
 
-``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): ex1
-
-ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
   @rewrite
@@ -72,25 +64,20 @@ eitherToOptional e a =
 
 Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
 Either.mapRight f = cases
-  Left e  -> Left e
+  Left e -> Left e
   Right a -> Right (f a)
 
-rule1 f x =
-  use Nat +
-  @rewrite
-    term x + 1 ==> Nat.increment x
-    term a -> f a ==> f
+rule1 f x = @rewrite
+  term x + 1 ==> Nat.increment x
+  term (a -> f a) ==> f -- eta reduction
 
-type Optional2 a = None2 | Some2 a
+unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): Either.mapRight
-
-ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+ex1 = List.map (x -> x + 1) [1, 2, 3, 4, 5, 6, 7]
 
 eitherToOptional e a =
   @rewrite
@@ -106,7 +93,6 @@ Either.mapRight f = cases
   Some a -> Some (f a)
 
 rule1 f x =
-  use Nat +
   @rewrite
     term x + 1 ==> Nat.increment x
     term a -> f a ==> f
@@ -133,7 +119,9 @@ After adding to the codebase, here's the rewritten source:
     Some a -> Some (f a)
 
   ex1 : [Nat]
-  ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+  ex1 =
+    use Nat +
+    List.map (x -> x + 1) [1, 2, 3, 4, 5, 6, 7]
 
   rule1 :
     (i ->{g} o)
@@ -170,19 +158,37 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ``` ucm
-> rewrite woot1to2
+> rewrite :woot1to2 scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: wootEx
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+unique ability Woot1 where woot1 : () -> Nat
+unique ability Woot2 where woot2 : () -> Nat
+
+woot1to2 x = @rewrite
+  term Woot1.woot1 ==> Woot2.woot2
+  term blah ==> blah2
+  signature _ . Woot1 ==> Woot2
+
+wootEx : Nat ->{Woot1} Nat
+wootEx a =
+  _ = !woot1
+  blah
+
+blah = 123
+blah2 = 456
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): wootEx
-
 ability Woot1 where
   woot1 : '{Woot1} Nat
 
@@ -195,9 +201,9 @@ woot1to2 x =
     term blah ==> blah2
     signature _ . Woot1 ==> Woot2
 
-wootEx : Nat ->{Woot2} Nat
+wootEx : Nat ->{Woot1} Nat
 wootEx a =
-  _ = Woot2.woot2()
+  _ = Woot1.woot1()
   blah2
 
 blah = 123
@@ -216,9 +222,9 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 ``` ucm
 > view wootEx
 
-  wootEx : Nat ->{Woot2} Nat
+  wootEx : Nat ->{Woot1} Nat
   wootEx a =
-    _ = woot2()
+    _ = woot1()
     blah2
 ```
 
@@ -244,7 +250,7 @@ sameFileEx =
 ```
 
 ``` ucm :hide
-> rewrite rule
+> rewrite :rule scratch.u
 
 > load
 
@@ -295,19 +301,37 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: sameFileEx
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+bar1 =
+  b = "bar"
+  123
+
+bar2 =
+  a = 39494
+  233
+
+rule bar2 = @rewrite
+  case None ==> Left "oh no"
+  term bar1 ==> bar2
+
+sameFileEx =
+  _ = "ex"
+  bar1
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): sameFileEx
-
 bar1 =
   b = "bar"
   123
@@ -335,7 +359,7 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 
   I couldn't figure out what bar21 refers to here:
 
-     19 |   bar21
+     16 |   bar21
 
   its type could be anything.
 
@@ -359,19 +383,29 @@ rule a = @rewrite
 ```
 
 ``` ucm
-> rewrite rule
+> rewrite :rule scratch.u
 
   ☝️
 
   I found and replaced matches in these definitions: bar2
 
-  The rewritten file has been added to the top of scratch.u
+  I rewrote `scratch.u` in place; the version before is saved as
+  `rewrites/0000-00-00-00-00-scratch-00000000.u`. Review the
+  file, typecheck it with `load scratch.u` and run `update` when
+  you are done.
+```
+
+``` unison :added-by-ucm rewrites/0000-00-00-00-00-scratch-00000000.u
+bar2 =
+  a = 39494
+  233
+
+rule a = @rewrite
+  case None ==> Left "oh no"
+  term 233 ==> a
 ```
 
 ``` unison :added-by-ucm scratch.u
--- | Rewrote using: 
--- | Modified definition(s): bar2
-
 bar2 =
   a = 39494
   a1
@@ -391,7 +425,7 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 
   I couldn't figure out what a1 refers to here:
 
-      6 |   a1
+      3 |   a1
 
   its type could be anything.
 

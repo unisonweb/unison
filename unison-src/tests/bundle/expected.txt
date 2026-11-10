@@ -1,0 +1,198 @@
+### JIT off
+## hello-ucm a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## hello-cli a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## hello-rt a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## checks-ucm
+sumTo: 50005000
+collatz: 111
+intLoop: -770
+floatLoop: 249750.0
+parity: (false, true)
+bits: (1099511627776, 255, 6, 3486784401, 0)
+fib: 2584
+depth: 10000
+ackermann: 9
+cons: 999000
+tree: (Some 1, None)
+shapes: 1996503000
+counter: 4950
+abort: (Some 12, None)
+choose: [7, 3, 5, 1, 6, 2, 4, 0]
+list: (1000, Some 998001)
+text: (1090, "0 1 2 3 4 5 6 7 8 9 ")
+bytes: (1090, 0xs68c3a96c)
+[exit 0]
+## unisonrt hello.uc x
+hello
+args: [x]
+[exit 0]
+## unisonrt values.uc x
+trace: shapes
+[Circle 1, Rect 2 3]
+trace: mixed
+(Pt -3 1.5 "a \"q\"\n", ?x, 0xs01ff, Some (Some true), (), [None, Some 4])
+trace: function
+<function>
+Left (Rect 5 6)
+[exit 0]
+## unisonrt checks.uc x
+sumTo: 50005000
+collatz: 111
+intLoop: -770
+floatLoop: 249750.0
+parity: (false, true)
+bits: (1099511627776, 255, 6, 3486784401, 0)
+fib: 2584
+depth: 10000
+ackermann: 9
+cons: 999000
+tree: (Some 1, None)
+shapes: 1996503000
+counter: 4950
+abort: (Some 12, None)
+choose: [7, 3, 5, 1, 6, 2, 4, 0]
+list: (1000, Some 998001)
+text: (1090, "0 1 2 3 4 5 6 7 8 9 ")
+bytes: (1090, 0xs68c3a96c)
+[exit 0]
+## unisonrt crash.uc x
+about to fail
+unisonrt: bug: (Some (Rect 1 2), "oops")
+  at #02ocu6uo
+[exit 1]
+## unisonrt raises.uc x
+unisonrt: unhandled exception: Failure (typeLink #bd3iik8v) "my failure" (Any (Circle 3))
+  at ##raise
+[exit 1]
+## unisonrt divZero.uc x
+unisonrt: divide by zero
+[exit 1]
+### JIT on
+## hello-ucm a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## hello-cli a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## hello-rt a 'b c' +RTS -N2 -RTS --jit on
+hello
+args: [a][b c][+RTS][-N2][-RTS][--jit][on]
+[exit 0]
+## checks-ucm
+sumTo: 50005000
+collatz: 111
+intLoop: -770
+floatLoop: 249750.0
+parity: (false, true)
+bits: (1099511627776, 255, 6, 3486784401, 0)
+fib: 2584
+depth: 10000
+ackermann: 9
+cons: 999000
+tree: (Some 1, None)
+shapes: 1996503000
+counter: 4950
+abort: (Some 12, None)
+choose: [7, 3, 5, 1, 6, 2, 4, 0]
+list: (1000, Some 998001)
+text: (1090, "0 1 2 3 4 5 6 7 8 9 ")
+bytes: (1090, 0xs68c3a96c)
+[exit 0]
+## unisonrt hello.uc x
+hello
+args: [x]
+[exit 0]
+## unisonrt values.uc x
+trace: shapes
+[Circle 1, Rect 2 3]
+trace: mixed
+(Pt -3 1.5 "a \"q\"\n", ?x, 0xs01ff, Some (Some true), (), [None, Some 4])
+trace: function
+<function>
+Left (Rect 5 6)
+[exit 0]
+## unisonrt checks.uc x
+sumTo: 50005000
+collatz: 111
+intLoop: -770
+floatLoop: 249750.0
+parity: (false, true)
+bits: (1099511627776, 255, 6, 3486784401, 0)
+fib: 2584
+depth: 10000
+ackermann: 9
+cons: 999000
+tree: (Some 1, None)
+shapes: 1996503000
+counter: 4950
+abort: (Some 12, None)
+choose: [7, 3, 5, 1, 6, 2, 4, 0]
+list: (1000, Some 998001)
+text: (1090, "0 1 2 3 4 5 6 7 8 9 ")
+bytes: (1090, 0xs68c3a96c)
+[exit 0]
+## unisonrt crash.uc x
+about to fail
+unisonrt: bug: (Some (Rect 1 2), "oops")
+  at #02ocu6uo
+[exit 1]
+## unisonrt raises.uc x
+unisonrt: unhandled exception: Failure (typeLink #bd3iik8v) "my failure" (Any (Circle 3))
+  at ##raise
+[exit 1]
+## unisonrt divZero.uc x
+unisonrt: divide by zero
+[exit 1]
+### errors
+## unisonrt with no file
+unisonrt: no .uc file given
+
+usage: unisonrt [+RTS <GHC RTS flags> -RTS] [--jit MODE] [--jit-dump-ir DIR] FILE.uc [ARGS]
+
+Runs a program compiled by ucm's `compile` command. The flags come
+before the file; the arguments after it are the program's.
+
+  --jit MODE          JIT compilation: off, on or eager (UNISON_JIT)
+  --jit-dump-ir DIR   write the LLVM IR the JIT generates to DIR, or to
+                      stderr if DIR is '-' (UNISON_JIT_DUMP_IR)
+  --version           print the version of Unison this runs programs of
+
+       unisonrt bundle FILE.uc [-o OUTPUT]
+
+Writes a self-contained executable that runs FILE.uc (named FILE by
+default). All of its arguments are the program's; GHC RTS flags can be
+given in the GHCRTS environment variable.
+[exit 1]
+## unisonrt --bogus
+unisonrt: unknown flag --bogus
+
+usage: unisonrt [+RTS <GHC RTS flags> -RTS] [--jit MODE] [--jit-dump-ir DIR] FILE.uc [ARGS]
+
+Runs a program compiled by ucm's `compile` command. The flags come
+before the file; the arguments after it are the program's.
+
+  --jit MODE          JIT compilation: off, on or eager (UNISON_JIT)
+  --jit-dump-ir DIR   write the LLVM IR the JIT generates to DIR, or to
+                      stderr if DIR is '-' (UNISON_JIT_DUMP_IR)
+  --version           print the version of Unison this runs programs of
+
+       unisonrt bundle FILE.uc [-o OUTPUT]
+
+Writes a self-contained executable that runs FILE.uc (named FILE by
+default). All of its arguments are the program's; GHC RTS flags can be
+given in the GHCRTS environment variable.
+[exit 1]
+## unisonrt on a file that is not a program
+unisonrt: programs/programs.md is not a compiled program: insufficient bytes in getBytes
+[exit 1]

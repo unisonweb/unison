@@ -21,6 +21,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.UpdateUtils (hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds2)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -54,6 +55,7 @@ import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
+import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
@@ -196,7 +198,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
 
       -- A failed delete makes an "update" branch, since it behaves like an update branch in every way. We even name the
       -- branch update-* so it doesn't feel like a weird new thing.
-      (_updateBranchId, _updateBranchName) <-
+      (_updateBranchId, temporaryBranch) <-
         HandleInput.Branch.createBranch
           ("update " <> into @Text (ProjectAndBranch projectAndBranch.project.name projectAndBranch.branch.name))
           ( HandleInput.Branch.CreateFrom'Update
@@ -211,9 +213,6 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
                   & unsafeFrom @Text
               )
           )
-
-      scratchFilePath <- fst <$> Cli.expectLatestFile
-      #latestFile ?= (scratchFilePath, True)
 
       let prettyUnisonFile :: Pretty ColorText
           prettyUnisonFile =
@@ -242,9 +241,27 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
                   . sortAlphabeticallyOn fst
                   . Map.toList
 
-      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
+      scratchFilePath <-
+        ScratchFile.writeActionScratchFile
+          "delete"
+          [projectBranchNameToValidProjectBranchNameText projectAndBranch.branch.name & TextBuilder.toText]
+          ( into @Text (ProjectUtils.justTheNames projectAndBranch)
+              : into @Text (Branch.headHash currentNamespace)
+              : Set.toAscList (Set.map Name.toText (targetPlusConstructorsNames.terms <> targetPlusConstructorsNames.types))
+          )
+          (Pretty.toPlain 80 prettyUnisonFile)
 
-      Cli.returnEarly (Output.DeleteFailure scratchFilePath projectAndBranch.branch.name)
+      Cli.returnEarly
+        ( Output.DeleteFailure
+            Output.ScratchFileHandoff
+              { action = "delete",
+                scratchFile = scratchFilePath,
+                temporaryBranch,
+                baseBranch = projectAndBranch.branch.name,
+                project = projectAndBranch.project.name,
+                loadFirst = isNothing env.watchState
+              }
+        )
 
   -- Identify the delete actions to apply to the current branch. This is just the delete target, plus constructors.
   let deleteActions :: [(Path.Absolute, Branch0 m -> Branch0 m)]

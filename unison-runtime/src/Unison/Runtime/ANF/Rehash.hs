@@ -79,8 +79,8 @@ rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where
     ps = sortBy (comparing fst) $ flattenSCC scc
-    sample = case fst $ head ps of
-      Derived h _ -> h
+    sample = case ps of
+      (Derived h _, _) : _ -> h
       _ -> error "rehashSCC: impossible"
     bss = fmap (uncurry serializeGroupForRehash) ps
     digest =

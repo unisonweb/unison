@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.HandleInput (loop) where
 import Control.Arrow ((&&&))
 import Control.Error.Util qualified as ErrorUtil
 import Control.Lens
+import Control.Monad.Extra (findM)
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
@@ -26,6 +27,9 @@ import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.Sqlite.DbId qualified as Db
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
@@ -51,6 +55,7 @@ import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.Bundle (handleBundle)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
 import Unison.Codebase.Editor.HandleInput.Config (handleConfigGet, handleConfigSet)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
@@ -96,6 +101,7 @@ import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Rename (handleRename)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.Share (handleShareDocs, handleShareProjectSearch, handleShareReleaseDetail, handleShareReleases, handleShareRender, handleShareSearch, handleShareSource)
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
 import Unison.Codebase.Editor.HandleInput.Signature (handleSignature)
 import Unison.Codebase.Editor.HandleInput.SyncV2 qualified as SyncV2
@@ -157,12 +163,15 @@ import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -187,6 +196,32 @@ import UnliftIO.Directory qualified as Directory
 import Prelude hiding (unzip)
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Undo and redo
+
+-- | Move the current project branch to the newest state in its reflog, back to the last @reset@, that the given test
+-- accepts (it gets the current state and an entry's), or else respond with the given output. Returns the branch before
+-- and after the move. The move gets a reflog entry of its own, with the given reason, like any other change: repeating
+-- an undo or a redo depends on that.
+moveAlongReflog ::
+  (Db.CausalHashId -> Db.CausalHashId -> Sqlite.Transaction Bool) ->
+  Output ->
+  Text ->
+  Cli (Branch0 IO, Branch0 IO)
+moveAlongReflog isTarget nothingToDo description = do
+  env <- ask
+  pb <- getCurrentProjectBranch
+  targetHash <-
+    Cli.runTransaction do
+      headId <- Queries.expectProjectBranchHead pb.projectId pb.branchId
+      entries <- Queries.reflogSinceReset pb.branchId
+      findM (isTarget headId) (filter (/= headId) entries) >>= traverse Queries.expectCausalHash
+  targetHash <- targetHash & onNothing (Cli.returnEarly nothingToDo)
+  current <- Cli.getCurrentProjectRoot
+  target <- liftIO (Codebase.expectBranchForHash env.codebase targetHash)
+  Cli.updateProjectBranchRoot_ pb description (const target)
+  pure (Branch.head current, Branch.head target)
+
+------------------------------------------------------------------------------------------------------------------------
 -- Main loop
 
 loop :: Either Event Input -> Cli ()
@@ -194,9 +229,11 @@ loop e = do
   env <- ask
   case e of
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
-      -- We skip this update if it was programmatically generated and we aren't running a transcript
+      -- We skip this update if it was programmatically generated (UCM wrote the file itself, and the file watcher is about to
+      -- report that write as a change). Without a file watcher, as in a transcript, there is no such report, so the next
+      -- file change is always the user's own, and it must not be skipped.
       Cli.getLatestFile >>= \case
-        Just (_, True) | not env.isTranscriptTest -> (#latestFile . _Just . _2) .= False
+        Just (_, True) | isJust env.watchState -> (#latestFile . _Just . _2) .= False
         _ -> loadUnisonFile sourceName text
     Right input ->
       Cli.time "InputPattern" case input of
@@ -505,8 +542,8 @@ loop e = do
               Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) env.codebase env.runtime (Identity docRef)
               pure . Md.toText $ Md.toMarkdown doc
           Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
-        EditDependentsI name -> handleEditDependents name
-        EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
+        EditDependentsI outputLoc name -> handleEditDependents outputLoc name
+        EditNamespaceI outputLoc paths -> handleEditNamespace outputLoc paths
         ExecuteI prof main args -> handleRun prof main args
         FindShallowI pathArg -> handleLs pathArg
         FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
@@ -537,6 +574,7 @@ loop e = do
         ListDependentsI hq -> handleDependents hq
         LoadI maybePath -> handleLoad maybePath
         MakeStandaloneI output main -> doCompile False output main
+        BundleI output main -> handleBundle (doCompile False) output main
         MergeBuiltinsI opath -> do
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be
@@ -613,6 +651,13 @@ loop e = do
         ProjectRenameI name -> handleProjectRename name
         ProjectSwitchI name -> projectSwitch name
         ProjectsI -> handleProjects
+        ShareProjectSearchI query -> handleShareProjectSearch query
+        ShareSearchI query filter_ -> handleShareSearch query filter_
+        ShareSourceI ref -> handleShareSource ref
+        ShareRenderI ref -> handleShareRender ref
+        ShareDocsI ref -> handleShareDocs ref
+        ShareReleasesI handle slug -> handleShareReleases handle slug
+        ShareReleaseDetailI ref -> handleShareReleaseDetail ref
         PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
         PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
         QuitI -> Cli.haltRepl
@@ -667,8 +712,8 @@ loop e = do
                   -- No expectation, either because this is the most recent entry or
                   -- because we're recovering from a discontinuity
                   Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
-        StructuredFindI _fscope ws -> handleStructuredFindI ws
-        StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
+        StructuredFindI spec -> handleStructuredFindI spec
+        StructuredFindReplaceI spec target -> handleStructuredFindReplaceI spec target
         SwitchBranchI path' -> do
           path <- Cli.resolvePath' path'
           branchExists <- Cli.branchExistsAtPath' path'
@@ -686,22 +731,21 @@ loop e = do
         TodoI -> handleTodo
         UiI path' -> openUI path'
         UndoI -> do
-          rootBranch <- Cli.getCurrentProjectRoot
-          (_, prev) <-
-            liftIO (Branch.uncons rootBranch) & onNothingM do
-              Cli.returnEarly . CantUndo $
-                if Branch.isOne rootBranch
-                  then CantUndoPastStart
-                  else CantUndoPastMerge
           description <- inputDescription input
-          pb <- getCurrentProjectBranch
-          Cli.updateProjectBranchRoot_ pb description (const prev)
-          (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
+          (current, target) <- moveAlongReflog (\headId entry -> Queries.before entry headId) NothingToUndo description
+          (ppe, diff) <- diffHelper target current
           Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
+        RedoI -> do
+          description <- inputDescription input
+          (current, target) <- moveAlongReflog Queries.before NothingToRedo description
+          (ppe, diff) <- diffHelper current target
+          Cli.respondNumbered (Output.ShowDiffAfterRedo ppe diff)
         UpI -> do
           path0 <- Cli.getCurrentPath
           whenJust (Path.ascend path0) Cli.cd
-        Update2I -> handleUpdate2
+        Update2I maybePath -> do
+          for_ maybePath (handleLoad . Just)
+          handleUpdate2
         DiffUpdateI -> DiffUpdate.handleDiffUpdate
         UpdateBuiltinsI -> Cli.respond NotImplemented
         UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
@@ -790,12 +834,13 @@ inputDescription input =
         Just tgt -> do
           let tgtText = into @Text tgt
           pure (" " <> tgtText)
-      pure ("reset " <> hashTxt <> tgt)
+      pure (ProjectReflog.resetReasonPrefix <> hashTxt <> tgt)
     SyncFromCodebaseI fp srcBranch destBranch -> do
       pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text srcBranch <> " " <> into @Text destBranch
     SyncFromFileI fp pab ->
       pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text pab
     UndoI {} -> pure "undo"
+    RedoI {} -> pure "redo"
     -- wat land
     AliasTypeI {} -> wat
     ApiI -> wat
@@ -841,6 +886,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     LoadI {} -> wat
     MakeStandaloneI {} -> wat
+    BundleI {} -> wat
     MergeCommitI {} -> wat
     MergeI {} -> wat
     NamesI {} -> wat
@@ -850,6 +896,13 @@ inputDescription input =
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat
+    ShareProjectSearchI {} -> wat
+    ShareSearchI {} -> wat
+    ShareSourceI {} -> wat
+    ShareRenderI {} -> wat
+    ShareDocsI {} -> wat
+    ShareReleasesI {} -> wat
+    ShareReleaseDetailI {} -> wat
     PullI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
@@ -870,7 +923,7 @@ inputDescription input =
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
-    Update2I -> wat
+    Update2I {} -> wat
     DiffUpdateI -> wat
     UpdateBuiltinsI -> wat
     UpgradeCommitI {} -> wat
@@ -1198,7 +1251,8 @@ displayI outputLoc hq = do
 
 docsI :: Name -> Cli ()
 docsI src = do
-  findInScratchfileByName
+  isDefined <- printWhatIsDocumented src
+  findInScratchfileByName isDefined
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
@@ -1207,15 +1261,72 @@ docsI src = do
     dotDoc :: HQ.HashQualified Name
     dotDoc = HQ.NameOnly . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
 
-    findInScratchfileByName :: Cli ()
-    findInScratchfileByName = do
+    findInScratchfileByName :: Bool -> Cli ()
+    findInScratchfileByName isDefined = do
+      env <- ask
+      names <- Cli.currentNames
       namesInFile <- Cli.getNamesFromLatestFile
       case Names.lookupHQTerm Names.IncludeSuffixes dotDoc namesInFile of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
           displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
+        s
+          -- A program can't know ahead of time what's documented, so this isn't an error for it, unlike a name that
+          -- doesn't exist.
+          | env.unattended,
+            isDefined,
+            Set.null s,
+            Set.null (Names.lookupHQTerm Names.IncludeSuffixes dotDoc names) ->
+              Cli.respond (NoDocumentation src)
         _ -> displayI ConsoleLocation dotDoc
+
+-- | Print what `docs foo` is about before its documentation: the heading of the type named `foo` if there is one, and
+-- otherwise the type signature of each term named `foo`. This looks in the latest typechecked file as well as the
+-- codebase, so it works for definitions that are only in the scratch file. Returns whether there was anything to print.
+printWhatIsDocumented :: Name -> Cli Bool
+printWhatIsDocumented src = do
+  Cli.Env {codebase} <- ask
+  names <- Cli.currentNames
+  namesInFile <- Cli.getNamesFromLatestFile
+  typecheckedFile <- Cli.getLatestTypecheckedFile
+  let allNames = namesInFile <> names
+  let hq = HQ.NameOnly src
+  let ppe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 allNames) (PPE.suffixifyByHash allNames))
+  let typesInFile =
+        case typecheckedFile of
+          Nothing -> Map.empty
+          Just tf -> Map.fromList [(ref, typ) | (_, ref, _, _, typ) <- Map.elems (UF.hashTerms tf)]
+  let declsInFile =
+        case typecheckedFile of
+          Nothing -> Map.empty
+          Just tf ->
+            Map.fromList $
+              [(ref, Right decl) | (ref, decl) <- Map.elems (UF.dataDeclarations' tf)]
+                ++ [(ref, Left decl) | (ref, decl) <- Map.elems (UF.effectDeclarations' tf)]
+  termSignatures <-
+    for (Set.toList (Names.lookupHQTerm Names.IncludeSuffixes hq allNames)) \ref -> do
+      mtyp <- case ref of
+        Referent.Ref r | Just typ <- Map.lookup r typesInFile -> pure (Just typ)
+        _ -> Cli.runTransaction (Codebase.getTypeOfReferent codebase ref)
+      pure case mtyp of
+        Just typ -> TypePrinter.prettySignaturesCT ppe [(ref, hq, typ)]
+        Nothing -> []
+  typeHeadings <-
+    for (Set.toList (Names.lookupHQType Names.IncludeSuffixes hq allNames)) \case
+      ref
+        | Just decl <- Map.lookup ref declsInFile ->
+            pure [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
+      Reference.DerivedId refId ->
+        Cli.runTransaction (Codebase.getTypeDeclaration codebase refId) <&> \case
+          Just decl -> [P.syntaxToColor (DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hq decl)]
+          Nothing -> []
+      Reference.Builtin _ -> pure []
+  -- A type's constructors have its name too (`Thing.Thing`), so when there is a type, just show the type.
+  case (concat typeHeadings, concat termSignatures) of
+    ([], []) -> pure False
+    ([], signatures) -> True <$ Cli.respond (DisplayDefinitions (P.lines signatures))
+    (headings, _) -> True <$ Cli.respond (DisplayDefinitions (P.lines headings))
 
 lexedSource :: Text -> Text -> Cli (Text, [L.Token L.Lexeme])
 lexedSource name src = do

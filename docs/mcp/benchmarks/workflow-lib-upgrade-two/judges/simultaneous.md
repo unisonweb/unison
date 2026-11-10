@@ -1,0 +1,8 @@
+You are judging how a dependency upgrade was done in the Unison codebase you are connected to. A previous agent was asked to upgrade the dependencies `textkit` and `tally` to 2.0.0 in project `scratch`. The two libraries depend on each other: `tally` 2.0.0 is built on `textkit` 2.0.0, so the project function `heading` (it passes a `Label` that `tally` returns to `textkit`'s `shout`) cannot be right while one library is at 2.0.0 and the other at 1.0.0. The intended way is one upgrade of both libraries together, so that the project goes from both 1.0.0 releases to both 2.0.0 releases in one step. You may use any tool except `learn`. Don't change the project's definitions. This check needs no network.
+
+Run `reflog` (project `scratch`, branch `main`). Its entries are listed newest first. The setup's last entry is the one whose description is `fork tally/v2: scratch/main:lib.tally_2_0_0`; the entries above it are what the agent did to `main`.
+
+- It passes (PASS) when there is exactly one entry above that line (for example `merge scratch/upgrade` when the upgrade needed fixing in a temporary branch, or `upgrade textkit_1_0_0 textkit_2_0_0 tally_1_0_0 tally_2_0_0` when it finished by itself), and `list lib` shows `tally_2_0_0` and `textkit_2_0_0` and neither 1.0.0 folder.
+- It fails (FAIL) when there are two or more entries above that line (for example `merge scratch/upgrade-tally_1_0_0-to-tally_2_0_0` followed by `upgrade textkit_1_0_0 textkit_2_0_0`: one library at a time, with an intermediate state where `main` mixes the two generations), when there are no entries above it, or when `list lib` still shows a 1.0.0 folder.
+
+Reply with a short paragraph of reasons, naming the entries you saw, then a final line that is exactly PASS or FAIL.

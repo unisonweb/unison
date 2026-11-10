@@ -57,6 +57,7 @@ module Unison.Runtime.Stack
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
     unboxedTypeTagFromInt,
+    witnessTag,
     IxClosure,
     Callback (..),
     Augment (..),
@@ -245,21 +246,19 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.StableName (makeStableName)
 import System.Process (ProcessHandle)
 import Test.Inspection qualified as TI
-import Unison.Builtin.Decls as Ty hiding
-  ( tlsPrivateKeyRef,
-    tlsSignedCertRef,
-  )
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
 import Unison.Runtime.Array as PA
+import Unison.Runtime.Builtin.Decls as Ty
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Signal qualified as Signal
+import Unison.Runtime.TypeNumbers qualified as TN
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
@@ -437,6 +436,10 @@ data UnboxedTypeTag
   | FloatTag
   | IntTag
   | NatTag
+  | -- | The value slot of a wide variable holding an unboxed constructor of
+    -- this many fields (Unison.Runtime.Wide): the slot's word is the
+    -- constructor's packed tag and the fields are in the slots below.
+    WitnessTag !Int
   deriving stock (Show, Eq, Ord)
 
 unboxedTypeTagToInt :: UnboxedTypeTag -> Int
@@ -445,9 +448,11 @@ unboxedTypeTagToInt = \case
   FloatTag -> 1
   IntTag -> 2
   NatTag -> 3
+  WitnessTag n -> 4 + n
 
 unboxedTypeTagFromInt :: (HasCallStack) => Int -> UnboxedTypeTag
 unboxedTypeTagFromInt = \case
+  n | n >= 4 -> WitnessTag (n - 4)
   0 -> CharTag
   1 -> FloatTag
   2 -> IntTag
@@ -495,15 +500,15 @@ type MRef = RRef Val
 data GClosure comb
   = GList !(Deque Val)
   | GText !U.Text
-  | GEnum !PackedTag !Reference
-  | GData1 !PackedTag !Val !Reference
-  | GData2 !PackedTag !Val !Val !Reference
-  | GData5 !PackedTag !Val !Val !Val !Val !Val !Reference
-  | GData3 !PackedTag !Val !Val !Val !Reference
-  | GData4 !PackedTag !Val !Val !Val !Val !Reference
-  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val !Reference
+  | GEnum !PackedTag
+  | GData1 !PackedTag !Val
+  | GData2 !PackedTag !Val !Val
+  | GData5 !PackedTag !Val !Val !Val !Val !Val
+  | GData3 !PackedTag !Val !Val !Val
+  | GData4 !PackedTag !Val !Val !Val !Val
+  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val
   | -- | seven or more fields
-    GDataG !PackedTag !USeg !BSeg !Reference
+    GDataG !PackedTag !USeg !BSeg
   | GBytes !Bytes
   | GPAp
       !CombIx
@@ -569,36 +574,40 @@ matchPAp (Closure (GPAp cix comb u b)) = Just (cix, comb, (u, b))
 matchPAp _ = Nothing
 {-# INLINE matchPAp #-}
 
-pattern Enum :: Reference -> PackedTag -> Closure
-pattern Enum r t = Closure (GEnum t r)
+-- The data constructors carry their packed tag alone: the type's
+-- reference is the registry's (Unison.Runtime.TypeNumbers, by the tag's
+-- type number), read only at the process boundary and to order values of
+-- different types.
+pattern Enum :: PackedTag -> Closure
+pattern Enum t = Closure (GEnum t)
 
-pattern Data1 :: Reference -> PackedTag -> Val -> Closure
-pattern Data1 r t i = Closure (GData1 t i r)
+pattern Data1 :: PackedTag -> Val -> Closure
+pattern Data1 t i = Closure (GData1 t i)
 
-pattern Data2 :: Reference -> PackedTag -> Val -> Val -> Closure
-pattern Data2 r t i j = Closure (GData2 t i j r)
+pattern Data2 :: PackedTag -> Val -> Val -> Closure
+pattern Data2 t i j = Closure (GData2 t i j)
 
-pattern Data3 :: Reference -> PackedTag -> Val -> Val -> Val -> Closure
-pattern Data3 r t a b c = Closure (GData3 t a b c r)
+pattern Data3 :: PackedTag -> Val -> Val -> Val -> Closure
+pattern Data3 t a b c = Closure (GData3 t a b c)
 
-pattern Data4 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Closure
-pattern Data4 r t a b c d = Closure (GData4 t a b c d r)
+pattern Data4 :: PackedTag -> Val -> Val -> Val -> Val -> Closure
+pattern Data4 t a b c d = Closure (GData4 t a b c d)
 
-pattern Data5 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Val -> Closure
-pattern Data5 r t a b c d e = Closure (GData5 t a b c d e r)
+pattern Data5 :: PackedTag -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data5 t a b c d e = Closure (GData5 t a b c d e)
 
-pattern Data6 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Val -> Val -> Closure
-pattern Data6 r t a b c d e f = Closure (GData6 t a b c d e f r)
+pattern Data6 :: PackedTag -> Val -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data6 t a b c d e f = Closure (GData6 t a b c d e f)
 
 -- | A constructor with seven or more fields (fewer go to the fixed-arity
 -- constructors; 'formData' and 'formDataSeg' choose).
-pattern DataG :: Reference -> PackedTag -> Seg -> Closure
-pattern DataG r t seg <- (matchDataG -> Just (r, t, seg))
+pattern DataG :: PackedTag -> Seg -> Closure
+pattern DataG t seg <- (matchDataG -> Just (t, seg))
   where
-    DataG r t (u, b) = Closure (GDataG t u b r)
+    DataG t (u, b) = Closure (GDataG t u b)
 
-matchDataG :: Closure -> Maybe (Reference, PackedTag, Seg)
-matchDataG (Closure (GDataG t u b r)) = Just (r, t, (u, b))
+matchDataG :: Closure -> Maybe (PackedTag, Seg)
+matchDataG (Closure (GDataG t u b)) = Just (t, (u, b))
 matchDataG _ = Nothing
 {-# INLINE matchDataG #-}
 
@@ -642,6 +651,7 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       FloatTag -> floatTypeTag
       IntTag -> intTypeTag
       NatTag -> natTypeTag
+      WitnessTag n -> witnessTag n
 
 {-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, BytesC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
@@ -654,6 +664,24 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
 natTypeTag = (Closure (GUnboxedTypeTag NatTag))
+
+-- | The witness closures of unboxed constructors ('WitnessTag'), one per
+-- field count, so that writing one allocates nothing.
+witnessTag :: Int -> Closure
+witnessTag = \case
+  0 -> witnessTag0
+  1 -> witnessTag1
+  2 -> witnessTag2
+  n -> Closure (GUnboxedTypeTag (WitnessTag n))
+
+witnessTag0, witnessTag1, witnessTag2 :: Closure
+witnessTag0 = Closure (GUnboxedTypeTag (WitnessTag 0))
+{-# NOINLINE witnessTag0 #-}
+witnessTag1 = Closure (GUnboxedTypeTag (WitnessTag 1))
+{-# NOINLINE witnessTag1 #-}
+witnessTag2 = Closure (GUnboxedTypeTag (WitnessTag 2))
+{-# NOINLINE witnessTag2 #-}
+
 {-# NOINLINE natTypeTag #-}
 
 intTypeTag :: Closure
@@ -677,32 +705,46 @@ traceK begin = dedup (begin, 1)
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: Closure -> Maybe (Reference, PackedTag, SegList)
+splitData :: Closure -> Maybe (PackedTag, SegList)
 splitData = \case
-  (Enum r t) -> Just (r, t, [])
-  (Data1 r t a) -> Just (r, t, [a])
-  (Data2 r t a b) -> Just (r, t, [a, b])
-  (Data3 r t a b c) -> Just (r, t, [a, b, c])
-  (Data4 r t a b c d) -> Just (r, t, [a, b, c, d])
-  (Data5 r t a b c d e) -> Just (r, t, [a, b, c, d, e])
-  (Data6 r t a b c d e f) -> Just (r, t, [a, b, c, d, e, f])
-  (DataG r t seg) -> Just (r, t, segToList seg)
+  (Enum t) -> Just (t, [])
+  (Data1 t a) -> Just (t, [a])
+  (Data2 t a b) -> Just (t, [a, b])
+  (Data3 t a b c) -> Just (t, [a, b, c])
+  (Data4 t a b c d) -> Just (t, [a, b, c, d])
+  (Data5 t a b c d e) -> Just (t, [a, b, c, d, e])
+  (Data6 t a b c d e f) -> Just (t, [a, b, c, d, e, f])
+  (DataG t seg) -> Just (t, segToList seg)
   _ -> Nothing
 
 -- | The packed tag of a data constructor closure, or Nothing for any other
 -- closure.
 dataTag :: Closure -> Maybe PackedTag
 dataTag (Closure c) = case c of
-  GEnum t _ -> Just t
-  GData1 t _ _ -> Just t
-  GData2 t _ _ _ -> Just t
-  GData3 t _ _ _ _ -> Just t
-  GData4 t _ _ _ _ _ -> Just t
-  GData5 t _ _ _ _ _ _ -> Just t
-  GData6 t _ _ _ _ _ _ _ -> Just t
-  GDataG t _ _ _ -> Just t
+  GEnum t -> Just t
+  GData1 t _ -> Just t
+  GData2 t _ _ -> Just t
+  GData3 t _ _ _ -> Just t
+  GData4 t _ _ _ _ -> Just t
+  GData5 t _ _ _ _ _ -> Just t
+  GData6 t _ _ _ _ _ _ -> Just t
+  GDataG t _ _ -> Just t
   _ -> Nothing
 {-# INLINE dataTag #-}
+
+-- | The number of fields of a data constructor closure.
+dataArity :: Closure -> Int
+dataArity (Closure c) = case c of
+  GEnum {} -> 0
+  GData1 {} -> 1
+  GData2 {} -> 2
+  GData3 {} -> 3
+  GData4 {} -> 4
+  GData5 {} -> 5
+  GData6 {} -> 6
+  GDataG _ _ b -> sizeofArray b
+  _ -> 0
+{-# INLINE dataArity #-}
 
 closureTag :: Closure -> PackedTag
 closureTag c = case dataTag c of
@@ -727,29 +769,29 @@ bsegToList = reverse . L.toList
 bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
-formData :: Reference -> PackedTag -> SegList -> Closure
-formData r t = \case
-  [] -> Enum r t
-  [a] -> Data1 r t a
-  [a, b] -> Data2 r t a b
-  [a, b, c] -> Data3 r t a b c
-  [a, b, c, d] -> Data4 r t a b c d
-  [a, b, c, d, e] -> Data5 r t a b c d e
-  [a, b, c, d, e, f] -> Data6 r t a b c d e f
-  segList -> DataG r t (segFromList segList)
+formData :: PackedTag -> SegList -> Closure
+formData t = \case
+  [] -> Enum t
+  [a] -> Data1 t a
+  [a, b] -> Data2 t a b
+  [a, b, c] -> Data3 t a b c
+  [a, b, c, d] -> Data4 t a b c d
+  [a, b, c, d, e] -> Data5 t a b c d e
+  [a, b, c, d, e, f] -> Data6 t a b c d e f
+  segList -> DataG t (segFromList segList)
 
 -- | A constructor from a segment, which holds the fields backwards (field 0
 -- last).
-formDataSeg :: Reference -> PackedTag -> Seg -> Closure
-formDataSeg r t (usg, bsg) = case sizeofArray bsg of
-  0 -> Enum r t
-  1 -> Data1 r t (at 0)
-  2 -> Data2 r t (at 1) (at 0)
-  3 -> Data3 r t (at 2) (at 1) (at 0)
-  4 -> Data4 r t (at 3) (at 2) (at 1) (at 0)
-  5 -> Data5 r t (at 4) (at 3) (at 2) (at 1) (at 0)
-  6 -> Data6 r t (at 5) (at 4) (at 3) (at 2) (at 1) (at 0)
-  _ -> DataG r t (usg, bsg)
+formDataSeg :: PackedTag -> Seg -> Closure
+formDataSeg t (usg, bsg) = case sizeofArray bsg of
+  0 -> Enum t
+  1 -> Data1 t (at 0)
+  2 -> Data2 t (at 1) (at 0)
+  3 -> Data3 t (at 2) (at 1) (at 0)
+  4 -> Data4 t (at 3) (at 2) (at 1) (at 0)
+  5 -> Data5 t (at 4) (at 3) (at 2) (at 1) (at 0)
+  6 -> Data6 t (at 5) (at 4) (at 3) (at 2) (at 1) (at 0)
+  _ -> DataG t (usg, bsg)
   where
     at i = Val (indexByteArray usg i) (indexArray bsg i)
 {-# INLINE formDataSeg #-}
@@ -769,9 +811,9 @@ mapReplaced = JIT.replacementActive mapFamily
 {-# NOINLINE mapReplaced #-}
 
 -- Build a data type, but apply replacements
-formDataReplaced :: Reference -> PackedTag -> Seg -> Closure
-formDataReplaced r t sg@(usg, bsg)
-  | not mapReplaced = formDataSeg r t sg
+formDataReplaced :: PackedTag -> Seg -> Closure
+formDataReplaced t sg@(usg, bsg)
+  | not mapReplaced = formDataSeg t sg
   | t == TT.mapTipTag = case sizeofArray bsg of
       0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"
@@ -788,7 +830,7 @@ formDataReplaced r t sg@(usg, bsg)
             Foreign . WrapMap $
               Bin sz (Val uk bk) (Val uv bv) ul ur
       _ -> error "formDataReplaced: bad `Map`"
-  | otherwise = formDataSeg r t sg
+  | otherwise = formDataSeg t sg
 
 tipClosure :: Closure
 tipClosure = Foreign $ WrapMap Tip
@@ -808,11 +850,11 @@ frameDataSize = go 0
     go _ (AMark {}) =
       error "frameDataSize: captured AMark frame"
 
-pattern DataC :: Reference -> PackedTag -> SegList -> Closure
-pattern DataC rf ct segs <-
-  (splitData -> Just (rf, ct, segs))
+pattern DataC :: PackedTag -> SegList -> Closure
+pattern DataC ct segs <-
+  (splitData -> Just (ct, segs))
   where
-    DataC rf ct segs = formData rf ct segs
+    DataC ct segs = formData ct segs
 
 pattern RecordC :: RecordShape -> RecordVals -> Closure
 pattern RecordC sh v <- (RecordG sh v)
@@ -861,7 +903,7 @@ pattern IntVal i <- (matchIntVal -> Just i)
 
 matchBoolVal :: Val -> Maybe Bool
 matchBoolVal = \case
-  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.trueTag)
+  (BoxedVal (Enum t)) | TT.isBooleanTag t -> Just (t == TT.trueTag)
   _ -> Nothing
 
 pattern BoolVal :: Bool -> Val
@@ -871,11 +913,11 @@ pattern BoolVal b <- (matchBoolVal -> Just b)
 
 -- Define singletons we can use for the bools to prevent allocation where possible.
 falseVal :: Val
-falseVal = BoxedVal (Enum Ty.booleanRef TT.falseTag)
+falseVal = BoxedVal (Enum TT.falseTag)
 {-# NOINLINE falseVal #-}
 
 trueVal :: Val
-trueVal = BoxedVal (Enum Ty.booleanRef TT.trueTag)
+trueVal = BoxedVal (Enum TT.trueTag)
 {-# NOINLINE trueVal #-}
 
 doubleToInt :: Double -> Int
@@ -1723,7 +1765,7 @@ peekBool :: Stack -> IO Bool
 peekBool stk = do
   b <- bpeek stk
   pure $ case b of
-    Enum _ t -> t /= TT.falseTag
+    Enum t -> t /= TT.falseTag
     _ -> error "peekBool: not a boolean"
 {-# INLINE peekBool #-}
 
@@ -1731,7 +1773,7 @@ peekOffBool :: Stack -> Int -> IO Bool
 peekOffBool stk i = do
   b <- bpeekOff stk i
   pure $ case b of
-    Enum _ t -> t /= TT.falseTag
+    Enum t -> t /= TT.falseTag
     _ -> error "peekOffBool: not a boolean"
 {-# INLINE peekOffBool #-}
 
@@ -1800,7 +1842,7 @@ closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f = \case
   PAp (CIx r _ _) _ (_useg, bseg) ->
     f r <> foldMap (closureTermRefs f) bseg
-  (DataC _ _ vs) ->
+  (DataC _ vs) ->
     vs & foldMap \case
       BoxedVal c -> closureTermRefs f c
       UnboxedVal {} -> mempty
@@ -1825,7 +1867,7 @@ hasNoAllocations :: TH.Name -> TI.Obligation
 hasNoAllocations n = TI.mkObligation n TI.NoAllocation
 
 unitClosure :: Closure
-unitClosure = Enum Ty.unitRef TT.unitTag
+unitClosure = Enum TT.unitTag
 {-# NOINLINE unitClosure #-}
 
 -- Universal comparison functions
@@ -1852,11 +1894,27 @@ instance Eq Val where
   BoxedVal x == BoxedVal y = x == y
   _ == _ = False
 
+-- | Constructors compare field by field in place: no list of the fields
+-- is built (this runs for every key of a replaced @Map@).
 instance Eq Closure where
-  DataC _ ct1 [w1] == DataC _ ct2 [w2] =
-    matchTags ct1 ct2 && w1 == w2
-  DataC _ ct1 vs1 == DataC _ ct2 vs2 =
-    ct1 == ct2 && eqValList vs1 vs2
+  Enum t1 == Enum t2 = t1 == t2
+  Data1 t1 a1 == Data1 t2 a2 =
+    matchTags t1 t2 && a1 == a2
+  Data2 t1 a1 b1 == Data2 t2 a2 b2 =
+    t1 == t2 && a1 == a2 && b1 == b2
+  Data3 t1 a1 b1 c1 == Data3 t2 a2 b2 c2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2
+  Data4 t1 a1 b1 c1 d1 == Data4 t2 a2 b2 c2 d2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+  Data5 t1 a1 b1 c1 d1 e1 == Data5 t2 a2 b2 c2 d2 e2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
+  Data6 t1 a1 b1 c1 d1 e1 f1 == Data6 t2 a2 b2 c2 d2 e2 f2 =
+    t1 == t2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2 && f1 == f2
+  Closure (GDataG t1 u1 b1) == Closure (GDataG t2 u2 b2) =
+    t1 == t2 && eqSegs u1 b1 u2 b2
+  -- constructors of different shapes have different arities, so
+  -- different tags
+  (dataTag -> Just _) == (dataTag -> Just _) = False
   -- Shape equality is by field name, so this doesn't depend on intern order.
   RecordC sh1 vs1 == RecordC sh2 vs2 =
     sh1 == sh2 && eqValList (V.toList vs1) (V.toList vs2)
@@ -1902,6 +1960,17 @@ instance Eq K where
 eqValList :: [Val] -> [Val] -> Bool
 eqValList l r = length l == length r && l == r
 
+-- | Two segments, element by element from field 0 (the last slot).
+eqSegs :: USeg -> BSeg -> USeg -> BSeg -> Bool
+eqSegs u1 b1 u2 b2 = n == sizeofArray b2 && go (n - 1)
+  where
+    n = sizeofArray b1
+    go i
+      | i < 0 = True
+      | otherwise =
+          Val (indexByteArray u1 i) (indexArray b1 i) == Val (indexByteArray u2 i) (indexArray b2 i)
+            && go (i - 1)
+
 -- IEEE floating point layout is such that comparison as integers
 -- somewhat works. Positive floating values map to positive integers
 -- and negatives map to negatives. The corner cases are:
@@ -1943,14 +2012,34 @@ compareVal tyEq = \cases
   (UnboxedVal v1 t1) (UnboxedVal v2 t2) ->
     compareUnboxed tyEq (t1, v1) (t2, v2)
 
+-- | Constructors compare by tag, then field by field in place: no list
+-- of the fields is built (this is the key order of a replaced @Map@).
 compareClosure :: Bool -> Closure -> Closure -> Ordering
 compareClosure tyEq = \cases
-  (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
-    (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
-      <> compare (maskTags ct1) (maskTags ct2)
-      -- when comparing corresponding `Any` values, which have
-      -- existentials inside check that type references match
-      <> compareValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
+  (Enum t1) (Enum t2) -> compareTags tyEq t1 t2
+  (Data1 t1 a1) (Data1 t2 a2) ->
+    compareTags tyEq t1 t2 <> compareVal (fieldTyEq tyEq t1) a1 a2
+  (Data2 t1 a1 b1) (Data2 t2 a2 b2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2
+  (Data3 t1 a1 b1 c1) (Data3 t2 a2 b2 c2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2
+  (Data4 t1 a1 b1 c1 d1) (Data4 t2 a2 b2 c2 d2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2
+  (Data5 t1 a1 b1 c1 d1 e1) (Data5 t2 a2 b2 c2 d2 e2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2 <> compareVal e e1 e2
+  (Data6 t1 a1 b1 c1 d1 e1 f1) (Data6 t2 a2 b2 c2 d2 e2 f2) ->
+    compareTags tyEq t1 t2 <> case fieldTyEq tyEq t1 of
+      e -> compareVal e a1 a2 <> compareVal e b1 b2 <> compareVal e c1 c2 <> compareVal e d1 d2 <> compareVal e e1 e2 <> compareVal e f1 f2
+  (Closure (GDataG t1 u1 b1)) (Closure (GDataG t2 u2 b2)) ->
+    compareTags tyEq t1 t2 <> compareSegs (fieldTyEq tyEq t1) u1 b1 u2 b2
+  -- constructors of different shapes: of different types (compared
+  -- universally), whose tags may still agree, then by arity
+  c1@(dataTag -> Just t1) c2@(dataTag -> Just t2) ->
+    compareTags tyEq t1 t2 <> compare (dataArity c1) (dataArity c2)
   -- Two records of different shapes can reach this once wrapped in `Any`,
   -- which erases their types. Order those by field name -- via the `Ord
   -- RecordShape` instance -- rather than by interned shape id, so the result
@@ -2011,6 +2100,38 @@ compareUnboxed tyEq = \cases
 compareValList :: Bool -> [Val] -> [Val] -> Ordering
 compareValList tyEq l r =
   compare (length l) (length r) <> fold (zipWith (compareVal tyEq) l r)
+
+-- | Two constructors' tags: values of different types order by their
+-- type references, which are the same in every process where the
+-- numbers need not be (the order is a replaced Map's, serialized as it
+-- is); the registry is consulted only then. Without @tyEq@ the types are
+-- known equal and the constructor tags decide.
+compareTags :: Bool -> PackedTag -> PackedTag -> Ordering
+compareTags tyEq t1 t2
+  | t1 == t2 = EQ
+  | tyEq,
+    TT.typeTag t1 /= TT.typeTag t2 =
+      compare (TN.typeReference (TT.typeTag t1)) (TN.typeReference (TT.typeTag t2))
+  | otherwise = compare (maskTags t1) (maskTags t2)
+{-# INLINE compareTags #-}
+
+-- | Whether the fields of a constructor compare their types: the fields
+-- of an @Any@ have existential types, which the static types of the
+-- values compared say nothing about.
+fieldTyEq :: Bool -> PackedTag -> Bool
+fieldTyEq tyEq t = tyEq || TT.isAnyTag t
+{-# INLINE fieldTyEq #-}
+
+-- | Two segments, element by element from field 0 (the last slot).
+compareSegs :: Bool -> USeg -> BSeg -> USeg -> BSeg -> Ordering
+compareSegs tyEq u1 b1 u2 b2 = compare n (sizeofArray b2) <> go (n - 1)
+  where
+    n = sizeofArray b1
+    go i
+      | i < 0 = EQ
+      | otherwise =
+          compareVal tyEq (Val (indexByteArray u1 i) (indexArray b1 i)) (Val (indexByteArray u2 i) (indexArray b2 i))
+            <> go (i - 1)
 
 compareK :: Bool -> K -> K -> Ordering
 compareK tyEq = \cases
@@ -2087,19 +2208,16 @@ matchUnboxedTypes ct1 ct2 =
 -- Turn the pseudo data version of maps back into the closure that
 -- it represents as a unison type.
 inflateMap :: Map Val Val -> Closure
-inflateMap Tip = Enum mapRef TT.mapTipTag
+inflateMap Tip = Enum TT.mapTipTag
 inflateMap (Bin sz k v l r) =
-  DataC
-    mapRef
-    TT.mapBinTag
-    [NatVal $ fromIntegral sz, k, v, BoxedVal $ inflateMap l, BoxedVal $ inflateMap r]
+  Data5 TT.mapBinTag (NatVal $ fromIntegral sz) k v (BoxedVal $ inflateMap l) (BoxedVal $ inflateMap r)
 
 -- Reverses the above conversion, turning a unison data
 -- representation of a map back into a Haskell map.
 deflateMap :: Closure -> Maybe (Map Val Val)
-deflateMap (Enum _ t)
+deflateMap (Enum t)
   | t == TT.mapTipTag = Just Tip
-deflateMap (DataC _ t [NatVal sz, k, v, BoxedVal l, BoxedVal r])
+deflateMap (Data5 t (NatVal sz) k v (BoxedVal l) (BoxedVal r))
   | t == TT.mapBinTag =
       Bin (fromIntegral sz) k v <$> deflateMap l <*> deflateMap r
 deflateMap _ = Nothing

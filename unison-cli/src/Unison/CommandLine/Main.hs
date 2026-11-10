@@ -319,6 +319,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 serverBaseUrl,
                 ucmVersion,
                 isTranscriptTest = False,
+                getTerminalWidth = getAvailableWidth,
+                unattended = False,
                 watchState = watchState
               }
 

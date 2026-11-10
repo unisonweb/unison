@@ -145,7 +145,6 @@ typedef struct {
 
 typedef struct {
   WrapInfo marray, array, mbarray, barray, ioref, ticket, ptr;
-  StgClosure *empty_val; // what Scope.array fills a new array with
   int ok;
 } ArrayFacts;
 UNISON_JIT_TABLE ArrayFacts unison_jit_AK;
@@ -163,11 +162,10 @@ static inline void *wrapped_of(void *x, const WrapInfo *w) { return (void *)wrap
 // --- Universal.murmurHashUntyped ---
 
 // The data constructors ("Layouts" in design.md): DataN for 0 to 6
-// fields is one closure whose pointers are the fields' boxed halves then
-// the type reference, and whose words are the packed tag then the fields'
-// unboxed halves; DataG (seven or more) has pointers the ByteArray#, the
-// Array# and the reference, and one word, the tag. The arrays hold the
-// fields in reverse (field 0 last).
+// fields is one closure whose pointers are the fields' boxed halves and
+// whose words are the packed tag then the fields' unboxed halves; DataG
+// (seven or more) has pointers the ByteArray# and the Array#, and one
+// word, the tag. The arrays hold the fields in reverse (field 0 last).
 #define DATA_MAX 6
 typedef struct {
   StgWord utag_info; // the closure that marks an unboxed value's type
@@ -190,8 +188,8 @@ static inline int data_arity(StgWord info) {
 }
 // field j of a DataN closure with n fields
 #define DATA_B(c, n, j) LP(c, j)
-#define DATA_TAG(c, n) LW(c, (n) + 1)
-#define DATA_U(c, n, j) LW(c, (n) + 2 + (j))
+#define DATA_TAG(c, n) LW(c, n)
+#define DATA_U(c, n, j) LW(c, (n) + 1 + (j))
 
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
 void unison_jit_murmur_fail(const char *what, StgClosure *c);

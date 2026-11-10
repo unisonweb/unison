@@ -66,7 +66,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (683 terms, 98 types)
   2. new.     (1 term)
 
 proj/main> view thingy
@@ -125,15 +125,28 @@ proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, upgrade-old-to-new, and the
+  definitions to fix are in upgrade-old-to-new-24120b37.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      proj/upgrade-old-to-new> load upgrade-old-to-new-24120b37.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      proj/upgrade-old-to-new> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-old-to-new-24120b37.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -179,7 +192,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (683 terms, 98 types)
   2. new.     (1 term)
 
 proj/main> branches
@@ -236,15 +249,28 @@ proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, upgrade-old-to-new, and the
+  definitions to fix are in upgrade-old-to-new-24120b37.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      proj/upgrade-old-to-new> load upgrade-old-to-new-24120b37.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      proj/upgrade-old-to-new> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-old-to-new-24120b37.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -283,12 +309,12 @@ proj/upgrade-old-to-new> update
 
 proj/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (683 terms, 98 types)
   2. new.     (1 term)
 
 proj/main> ls .
 
-  1. lib.   (779 terms, 120 types)
+  1. lib.   (684 terms, 98 types)
   2. thingy (Int)
 
 proj/main> branches
@@ -414,15 +440,28 @@ myproject/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, upgrade-old-to-new, and the
+  definitions to fix are in upgrade-old-to-new-ac890861.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      myproject/upgrade-old-to-new> load upgrade-old-to-new-ac890861.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      myproject/upgrade-old-to-new> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-old-to-new-ac890861.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -556,7 +595,7 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (683 terms, 98 types)
   2. dep.     (1 term)
 ```
 
@@ -612,7 +651,7 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin. (778 terms, 120 types)
+  1. builtin. (683 terms, 98 types)
   2. dep.     (1 term)
   3. dep__2.  (1 term)
 ```
@@ -688,7 +727,7 @@ scratch/main> view thing
 scratch/main> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (778 terms, 120 types)
+  2. builtin. (683 terms, 98 types)
   3. foo_2.   (1 term)
 ```
 
@@ -754,15 +793,29 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   I couldn't automatically upgrade foo_1 to foo_2 and
   bar_1 to bar_2.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  You're now on a temporary branch, upgrade, and the definitions
+  to fix are in
+  upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  Edit the file, then run:
+
+      scratch/upgrade> load upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u
+
+  If `load` reports errors, fix them and run it again. When the
+  file loads with no errors, run:
+
+      scratch/upgrade> update
+
+  `update` saves the file's definitions into main, removes any
+  definitions you deleted from the file, and deletes the
+  temporary branch. To abandon the upgrade instead, run
+  `cancel`.
+
+  Note: Definitions listed in the file don't exist in the branch
+  until a successful `update`.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-foo_1-to-foo_2-bar_1-to-bar_2-b0f3390b.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -777,7 +830,7 @@ thing =
 scratch/upgrade> ls lib
 
   1. bar_2.   (1 term)
-  2. builtin. (778 terms, 120 types)
+  2. builtin. (683 terms, 98 types)
   3. foo_2.   (1 term)
 ```
 

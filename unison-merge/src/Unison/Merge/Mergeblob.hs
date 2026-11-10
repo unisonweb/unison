@@ -73,7 +73,9 @@ data Mergeblob libdep = Mergeblob
     uniqueTypeGuids :: TwoWay (Map Name Text),
     -- `unparsedFile` (no mergetool) xor `unparsedSoloFiles` (yes mergetool) are ultimately given to the user
     unparsedFile :: Pretty ColorText,
-    unparsedSoloFiles :: ThreeWay (Pretty ColorText)
+    unparsedSoloFiles :: ThreeWay (Pretty ColorText),
+    -- Each conflicted definition on its own, as text, in Alice's, Bob's and the LCA's version
+    conflictTexts :: ThreeWay (Map Name Text)
   }
 
 data MergeblobError
@@ -176,7 +178,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
 
     libdepsNames <- loadLibdepsNames
 
-    let (unparsedFile, unparsedSoloFiles) =
+    let (unparsedFile, unparsedSoloFiles, conflictTexts) =
           renderUnisonFiles
             authors
             blob.declNameLookups
@@ -257,7 +259,8 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
             Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
               <$> ThreeWay.forgetLca hydratedDefnsByName,
           unparsedFile,
-          unparsedSoloFiles
+          unparsedSoloFiles,
+          conflictTexts
         }
 
 identifyCoreDependencies ::

@@ -1,0 +1,1 @@
+In the current Unison project, I need a record type `Person` with a `name : Text` and an `age : Nat`. Also `Person.birthday`, which makes a person one year older, and `Person.oldest`, the oldest person in a list (`None` for an empty list). Add them to the codebase, with tests.
