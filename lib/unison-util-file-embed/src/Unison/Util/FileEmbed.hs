@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Util.FileEmbed (embedProjectStringFile, embedProjectTextFile) where
+module Unison.Util.FileEmbed (embedProjectStringFile, embedProjectTextFile, embedProjectTextDir) where
 
-import Data.FileEmbed (embedFile, embedStringFile, makeRelativeToProject)
+import Data.FileEmbed (embedDir, embedFile, embedStringFile, makeRelativeToProject)
 import Data.Text.Encoding (decodeUtf8)
 import Language.Haskell.TH.Syntax (Exp, Q)
 
@@ -16,3 +16,11 @@ embedProjectTextFile :: FilePath -> Q Exp
 embedProjectTextFile fp = do
   path <- makeRelativeToProject fp
   [|decodeUtf8 $(embedFile path)|]
+
+-- | The files in a directory (and its subdirectories), as pairs of their paths (relative to the directory) and their
+-- contents as 'Data.Text.Text'. A file that is changed makes the module recompile, but a file that is added doesn't, until
+-- something else does.
+embedProjectTextDir :: FilePath -> Q Exp
+embedProjectTextDir fp = do
+  path <- makeRelativeToProject fp
+  [|[(name, decodeUtf8 bytes) | (name, bytes) <- $(embedDir path)]|]

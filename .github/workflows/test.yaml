@@ -118,15 +118,25 @@ jobs:
             --local-bin-path ${{env.ucm_local_bin}} \
             --copy-bins
 
+      - name: an unstripped unisonrt
+        # minify needs unisonrt's symbol table, which Stack strips when it
+        # copies an executable on Linux: the bundle check (jit job) takes the
+        # one in the build directory instead
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: cp "unison-runtime/$(cd unison-runtime && stack path --dist-dir)/build/unisonrt/unisonrt" "${{env.ucm_local_bin}}/unisonrt"
+
       - name: the JIT's embedded IR is in step with its C
         # clang and the GHC headers are both here on macOS and Linux; the
         # check compares the headers' source hashes and, where the runner's
         # clang is the one that generated the files (the IR's text differs
         # between clang versions), regenerates cbits/jit_helpers.ll and
-        # jit_exit.ll and diffs them. Always, cache hit or not: the
-        # committed IR is what runs natively in every JIT'd process, so
-        # nothing but this regeneration vouches for it.
-        if: runner.os != 'Windows'
+        # jit_exit.ll and diffs them. The committed IR is what runs natively
+        # in every JIT'd process, so nothing but this regeneration vouches
+        # for it. Skipped on a cache hit: the cache key hashes every source
+        # and .ll file and is saved only by a job that passed this check, so
+        # a hit is the same sources that already passed; and a hit installs
+        # no stack, which the check needs to find GHC's headers.
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: unison-runtime/cbits/gen-helpers.sh --check
 
       - name: set git user info
@@ -146,6 +156,12 @@ jobs:
       - name: unison-parser-typechecker tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-parser-typechecker
+
+      - name: unison-runtime tests
+        # among them the bundle format and the generated builtin
+        # declarations (development.md, "Generated code")
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-runtime
 
       - name: unison-sqlite tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -355,6 +371,26 @@ jobs:
           fi
           grep -q ': compiling ' "$RUNNER_TEMP/jit.log" || { echo "::error::nothing was compiled"; exit 1; }
           diff --strip-trailing-cr "$RUNNER_TEMP/jit-tests.md" "$RUNNER_TEMP/jit-tests.output.md"
+
+      - name: bundles and unisonrt, with the JIT off and on
+        # scripts/bundle-check.sh: compiles and bundles the programs of
+        # unison-src/tests/bundle/programs.md on a copy of the codebase the
+        # JIT's transcript just made, runs them and compares what they print
+        # with expected.txt. unisonrt is minified first, as a release minifies
+        # it, except where a release ships it whole:
+        # Windows, which minify doesn't read, and Linux x86-64, which minify
+        # isn't ready for.
+        run: |
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt.exe"
+          elif [[ ${{runner.os}} = "Linux" && ${{runner.arch}} = "X64" ]]; then
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt"
+          else
+            scripts/bundle-check.sh --codebase "$RUNNER_TEMP/jit-codebase" \
+              "${{env.ucm}}" "${{env.ucm_local_bin}}/unisonrt" "${{env.ucm_local_bin}}/minify"
+          fi
 
       - name: a few rows of the test matrix
         run: |

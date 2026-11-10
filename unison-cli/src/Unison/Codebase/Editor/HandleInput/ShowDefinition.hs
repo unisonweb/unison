@@ -16,6 +16,8 @@ import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import System.Directory qualified as Directory
+import System.FilePath (takeExtension)
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -38,6 +40,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -149,12 +152,24 @@ showDefinitions ::
 showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
+  -- Don't clobber a file that isn't Unison code, if a command is given one by mistake.
+  case outputLoc of
+    FileLocation path _ -> do
+      exists <- liftIO (Directory.doesFileExist path)
+      when (exists && takeExtension path /= ".u") do
+        Cli.returnEarly (EditDestinationNotUnisonFile path)
+    _ -> pure ()
   case outputPath of
     _ | null terms && null types -> pure ()
     Nothing -> renderToConsole nameInOriginalQuery pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
+      -- The definitions to leave out are the ones the file already has. For a file named on the command line
+      -- (`edit.to`), that is the file itself, whether or not it was the last one loaded.
+      alreadyInFile <- case outputLoc of
+        FileLocation path _ -> maybe mayTF (Just . Left) <$> parseExistingFile path
+        _ -> pure mayTF
+      numRendered <- renderToFile codebase nameInOriginalQuery writeSource alreadyInFile fp relToFold pped terms types
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -165,6 +180,18 @@ showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
 
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   where
+    -- The file at the path, parsed, if it exists and parses (a file in mid-edit may not: then nothing is known about it).
+    parseExistingFile :: FilePath -> Cli (Maybe (UnisonFile.UnisonFile Symbol Ann))
+    parseExistingFile path = do
+      Cli.Env {loadSource} <- ask
+      liftIO (loadSource (Text.pack path)) >>= \case
+        Cli.LoadSuccess text -> do
+          currentBranch <- Cli.getCurrentBranch0
+          pp <- Cli.getCurrentProjectPath
+          parsingEnv <- Cli.makeParsingEnv pp (Branch.toNames currentBranch)
+          either (const Nothing) Just <$> Cli.runTransaction (Parsers.parseFile path (Text.unpack text) parsingEnv)
+        _ -> pure Nothing
+
     -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
     getOutputPath :: Cli (Maybe (FilePath, RelativeToFold))
     getOutputPath =

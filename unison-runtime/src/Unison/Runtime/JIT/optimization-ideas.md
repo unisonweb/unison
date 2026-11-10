@@ -12,7 +12,107 @@ change would be and roughly what it would buy; when one is done it leaves this f
 Right now, an `Enum` / nullary constructor is three words that never change; like GHC's
 own nullary constructors, one per (type, constructor) could be shared instead of allocated
 at every `Pack`. The constant pool already holds one per `Pack … ZArgs` site for native code; the
-interpreter's `buildData` would read a per-cache table of them.
+interpreter's `buildData` would read a per-cache table of them. How much it is worth: a
+census of the interpreter on 2026-10-27 counted nullary constructors as 13.0M of the 20.1M
+`Pack`s of `jitSuite` and 17.8M of the 28.5M of the library `suite` (the wide calling
+convention, design.md "The wide calling convention", keeps the ones that are returned or
+bound and never escape, about a quarter, out of the heap; the rest escape into structures
+and still allocate). Native code already shares them: a `Pack` with no fields is a load of
+the pool's enum for that constructor, so the gain would be the interpreter's.
+Measured on 2026-10-28 with a per-cache table by type and constructor number,
+filled as constructors were first built, consulted by every `Pack` with no
+fields: no row of the benchmark suite moved by more than 2% under the
+interpreter, a few were slightly slower. A three-word allocation in the
+nursery costs about what the two array reads and the tag test cost, and the
+garbage it leaves is free to a copying collector. Not kept; the entry stays
+for the record. A `Box` of a witness with no fields still allocates its enum
+natively, where the pool's entry for that constructor would do; rare, since a
+nullary value that escapes is usually built boxed in the first place.
+
+### The product-return worker: what is left
+
+Built as design.md "Results exploded". Not done, in the order they are
+likely to matter:
+
+- A tail that never returns (`bug`, `Exception.raise`, an `abort`) makes
+  the whole function keep its entry, since the analysis takes every tail
+  to return something. An error path is common in real code; a tail that
+  is a request or a call of a function that never returns could be
+  allowed as a neutral tail.
+- Sums: a function returning `Optional` or `Either` on every path could
+  yield a tag word before the leaves, one width for all constructors;
+  the wide convention covers the one-field ones today.
+- A function that both takes a call pattern (a specialisation) and
+  returns a product gets the return worker only for its entry's body: a
+  specialisation's body still packs its result. A specialisation could
+  get the yielding tails too (`yieldLeaves` on its body), as a worker
+  per (pattern, result).
+- A tail that calls a function returning the product through a *partial*
+  shape (a wider product at the callee) is dropped rather than met down
+  to what both build.
+- A function gets its worker whether or not any caller takes the result
+  apart (`Tree.insert`'s is never used); the worker could be emitted only
+  when some site of the batch uses it, closed under the tail calls of the
+  workers kept, which is also the rule an in-advance version needs.
+- The workers are combinators at indices of their own (`specIndex`,
+  `retIndex`), produced by `emitCombs` beside the group; they could be
+  bindings of the group instead, so that the emitter saw one ordinary
+  group, but the index scheme (the JIT's `isEntry`, the cells keyed by
+  index) would have to be redone for it. Not worth it until something
+  else needs the workers in the group.
+- Load time: `specialise` prepares its body twice (before the argument
+  rewrite, so that it maps variables by name, and after, for the products
+  the rewrite builds), `explosions` prepares every spec it discovers once
+  more for its sites, and `emitCombs` emits every lambda of a group twice,
+  unoptimized for the frames of its sections and then rewritten. Each pass
+  is linear in the body (an analysis enters only the subterms that mention
+  the variable it asks about, `foldMentions`), and all of it together costs
+  about 4% of the load of the suite's closure
+  ([2026-11-02 known constructor](benchmarks/2026-11-02-known-constructor.md),
+  "Load time over library code"); the unoptimized emission could be
+  skipped for a group no rewrite touched if that ever matters.
+
+### A private convention for specialised workers
+
+A specialisation of a loop (`Unison.Runtime.MCode.Explode`) is called only
+from sites the batch knows: its own body, its siblings, and the callers in
+the batch. Inside one LLVM module those calls already go straight to the
+`tailcc` workers with the arguments in registers; what stays uniform is
+the wrapper that takes the arguments from the Unison stack, the entry poll,
+the C-stack check and the exit write-back of a frame sized for the whole
+function, all there for callers in other modules and for the interpreter.
+With every caller known, the wrapper could be generated only when some
+caller is in another module or interpreted, and a worker whose callers are
+all in its module could skip reserving Unison-stack slots for its
+arguments. The loops that matter compile into one
+module, so the gain is in the entry and exit paths, to be measured.
+
+### One witness closure
+
+Native code tells a witness from an ordinary value by comparing the slot's
+pointer against the pool's witness closures, one per field count
+(`poolIndexWitness`; `wideK + 1` of them, so two with K = 1), since a
+witness's info pointer is the one the type tags of unboxed numbers have.
+So a `Box` of a value that may be a witness (the result of an unknown
+call, say `f h` in a list map) is a chain of those compares, and a data
+match on such a value has the same chain in front of its arms. With a
+single witness closure, and the field count stored in the tag word in the
+bits above the sixteen of the constructor number and the type number, both
+become one compare; the interpreter would read the count from the word as
+well (`WitnessTag` becomes a constant). Worth about the difference on the
+`Cons.map` and `filterMap` rows (0.7x and 0.77x on 2026-10-28), where the
+test is most of what the convention adds.
+
+### A let over a call of a zero-arity definition
+
+The benchmark row "Apply a function argument 10000 times" exits once per
+iteration in both modes (13.8M exits in a run, 2026-10-28): its loop binds the
+result of `App (Env f) ZArgs` where `f` is a zero-arity definition that is not
+a cached constant, and `genLet` has no case for that binding, so the function
+resumes in the interpreter at the Let every time. A call of a zero-arity
+combinator is an ordinary call with no arguments; the generator should treat
+it as one (worker call or uniform call), as it does `Call`. The row measures
+the exit, not the application.
 
 ### One allocation for several `Pack`s
 
@@ -36,39 +136,6 @@ guarantee it), and everything that walks the stack across frames (`Capture`, `sa
 copies, continuations, the GC marking in `unison_jit_enter`, the C helpers reading argument
 slots) would follow chunk links. A sizeable interpreter change.
 
-### Wide stack slots
-
-Idea is to store arity <= K data constructors unboxed on the stack. K=1 or 2. 
-So if you write a function that returns an `Optional Nat`, there's no allocation
-that happens, even without inlining.
-
-If K=1, then each stack slot becomes 2 words wide. First word is the constructor tag,
-second word is the constructor argument, similar to now. This second word will
-go unused very often, but that might be fine.
-
-If K=2, then each stack slot becomes 3 words wide, etc.
-
-### Escape analysis + scalar replacement
-
-This needs some research. Just doing escape analysis alone seems like less of a win
-than you'd think. Like if you just convert heap allocation to stack allocation, that
-doesn't matter and can even be slower, since allocation is bumping a pointer and 
-GC doesn't traverse garbage in the youngest generation.
-
-But if combined with other optimizations, you can start doing interesting stuff. 
-
-The thing I don't like about it is it's sensitive to inlining, which makes it
-somewhat fragile (compared to the wide stack slots idea, which is robust and
-easy to think about).
-
-### Dropping the reference pointer from data closures
-
-The packed tag carries the type number, so the reference field is redundant: one word and
-one traced pointer per value. It stays because `compareClosure`'s different-types path
-(inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
-the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
-parameterized by a comparison would free it (`data-layout-plan.local.md`).
-
 ### Caching compiled code across runs
 
 Definitions are content-addressed, so a hash of a module's definitions is a cache key, and
@@ -77,6 +144,26 @@ zero. The obstacle is that generated code bakes in run-specific values: exit and
 indices, constant pool indices, and the addresses of native cells. Those would have to become
 indirections or relocations before an object could be reused. The one change that would make
 compile time stop mattering rather than smaller.
+
+### Inlining small definitions before the rewrites
+
+A loop that calls an accessor on its state each round keeps the accessor's match: with
+`Slice.sum s = go i acc = if i < Slice.size s then go (i + 1) (acc + Slice.at i s) else acc`
+over `structural type Slice a = Slice [a] Nat Nat`, the MCode of `go` is a call of
+`Slice.size`, a call of `Slice.at` and the recursive call, and each callee matches on
+the slice (`UNISON_JIT_DUMP_MCODE=1` on the example, 2026-11-05). The known-constructor
+rewrite works within one body and the explosion gives a worker only to a function whose
+body takes the argument apart, and `go` only passes `s` on, so neither fires, rightly:
+exploding `s` would mean repacking it for the two calls. The runtime has no inliner
+across definitions (the ANF only inlines variable aliases, `inlineAlias`), which is the
+step GHC takes first. An ANF-level inliner for small non-recursive definitions, run
+before `Unison.Runtime.MCode.Explode`, would make this case fall out: once `Slice.size`
+and `Slice.at` are in `go`'s body the matches are on `s`, `go` gets a worker over the
+three fields, the matches resolve against the known constructor and go, and a round is
+the bounds test, the index and the match on the element; the `{Exception}` on `Slice.at`
+is a request on the error path only. The threshold is a size in ANF nodes, the way the
+JIT's own `judge` estimates; a definition inlined into a group changes that group's
+continuations, so the deoptimization tables have to cover it like any other rewrite.
 
 ### Specialization on function arguments
 
@@ -141,6 +228,61 @@ But parsing IR is very fast, about 1% of a module's compile time ([2026-10-09 O0
   unwinds turn out to be frequent.
 - A leaner entry for leaf functions, for the ones the "too small to enter" verdict keeps
   interpreted today.
+
+### `ghccc` for every JIT-compiled function
+
+Compile every Unison function under GHC's own calling convention (`ghccc`,
+which LLVM has for GHC's LLVM backend: the STG registers, including the
+heap and stack pointers and the allocation limit, are pinned to machine
+registers and arguments travel in the rest) instead of the C convention as
+the lingua franca between Haskell, the uniform entries and the workers. One
+`prim` foreign function, written in Cmm and perhaps one per arity, takes the
+pointer of the JIT-compiled function to call and its arguments (or just how
+many elements to take from the Unison stack) and jumps to it; native code
+then has the GC registers directly, so a call-out need not spill and reload
+them through `Ctx`, allocation is the heap-pointer bump GHC's own code does,
+and cross-module calls can return their values in registers instead of
+through the Unison stack and the uniform entry's store and reload (Collatz
+0.82x and the hot caller 0.80x under the wide convention,
+`benchmarks/2026-10-28-wide-jit.md`, are that cost). What to establish
+first: that `ghccc` and `musttail` agree on each target (an `llc` check of
+a small module per target, as was done for the wide return), how a Cmm
+`prim` enters a function pointer with the arguments where
+`ghccc` wants them, and what the exits and the write-back become when native
+code holds the STG registers rather than a `Ctx`.
+
+Where the gains would come from, and in what order to go after them
+(2026-10-31):
+
+- The cross-module cost is not the C convention's. Workers in one module
+  already call each other under `tailcc` in registers; a call through a
+  cell took the uniform entry because the target may be interpreted or a
+  worker of another width. Done on 2026-10-31 as a subset of this idea: a
+  per-arity register signature agreed across modules, in a second word of
+  the cell, with the stack form kept for interpreted targets and for
+  functions without a worker (design.md, "The register entry"). What is
+  left of this bullet: calls to function values still go through the
+  closure's cell and the uniform entry, and could take the same second
+  word.
+- Pinned Hp and HpLim save the loads of the context's copy of the free
+  pointer on each allocation: L1 hits, small.
+- The structural gain is native code becoming Haskell code to the RTS:
+  entered by a jump, exiting by a jump instead of unwinding to the
+  trampoline, calling Haskell instead of calling out. The price is that a
+  call which may collect sees the live boxed values: either STG frames with
+  info tables the collector walks, generated by the JIT, or the discipline
+  exits follow today, store the live values to their Unison stack slots (a
+  root) before the call and reload them after, since the collector moves
+  objects. The second needs no new frame format and costs stores and
+  reloads at calls into Haskell, the write-back without the unwinding;
+  whether that beats an exit depends on how many live values a typical
+  call site holds, which the exit counters (`UNISON_JIT_STATS`) can
+  attribute. There is no way to hold the collector off for a running
+  thread; the unsafe foreign call native code runs in today is the nearest
+  thing, and is why it never calls Haskell.
+- Every C helper called from `ghccc` code must save and restore the pinned
+  registers, as GHC's foreign calls do; the IR helpers could be `ghccc`
+  themselves, the C ones (boxing, naming, text and bytes) cannot.
 
 ### Ensure no thunks on the boxed stack
 
@@ -291,7 +433,7 @@ frames of a small function; deeper recursion bounces through the interpreter eve
 frames. Switching to a large malloc'd stack in `unison_jit_enter` would make that many times
 rarer. Cheap to try; needs care with signal handlers and anything that inspects the stack.
 
-### Linear re-entry code for all cases (low priority)
+### Linear re-entry code for all cases
 
 A re-entry function is the whole suffix of its function from its point on, generated
 inline, so a function whose n re-entry points in sequence all get generated holds about
@@ -300,10 +442,16 @@ n²/2 of its instructions. In `on` mode that doesn't happen: certain call-outs a
 re-entry functions (`UNISON_JIT_REENTRY_ADHOC`, 2026-10-20) bounds what the poll and stack
 growth can ask for.
 
-What remains is `eager` mode (intended only for testing), which generates every Let body by design,
-and two cases that don't occur in practice: Let bodies whose callees always exit (the
-estimate leaves such functions interpreted) and the deferred copies after slow-path
-call-outs (needs many sites of one function to keep taking their slow paths).
+`eager` mode generated every Let body by design until 2026-11-06, when the wide convention's
+larger suffixes made the test transcript's largest definition 95 MB of IR and the merge queue's
+jit jobs three to five times longer; it now splits a group as `on` does and generates a body at
+its first miss ([benchmarks/2026-11-06-eager-reentry.md](benchmarks/2026-11-06-eager-reentry.md)).
+What remains is a suffix per Let whose callee calls out, each the function's whole rest: in
+the test transcript the runner's own term for a stanza's watch expressions
+(`Runtime.evaluateWatches`, a let rec whose body is a tuple of every watch; the Records
+section's 43 watches get a suffix of 2.5 MB for each of the 5 that call out, since the
+interpreter enters a body as soon as eager has served it), a shape rare in user code and the deferred copies after
+slow-path call-outs (needs many sites of one function to keep taking their slow paths).
 
 If one of those ever matters, the fix is to generate a re-entry function as its own binding
 followed by a call through the *next* Let's (or deferred site's) cell instead of inlining the
@@ -406,3 +554,14 @@ leaves (pushes 7% slower, pops 20 to 45%, `sum` and `toList` 60 to 70%),
 [2026-10-02](benchmarks/2026-10-02-deque-vs-data-sequence.md). The structure the Deque
 replaced (worst-case O(1) pushes and pops, twice the code, slower on every operation) was
 deleted; it is in the branch's history (commits of 2026-10-02).
+
+## The "Mutate a local Remote.Ref 10k times" row ran at 0.58x of trunk (done 2026-11-05)
+
+Resolved: the handler applied a four-argument function to three after a `Box` of a wide
+variable, and `genApp` had no under-application case, so the binding left native code 10,000
+times per run (the Let case only covered a binding that was the application alone, and trunk
+has no boxes). Built in place from `genApp` now; the row is 1.13x of trunk
+([benchmarks/2026-11-05-ref-row-partial-application.md](benchmarks/2026-11-05-ref-row-partial-application.md)).
+What is left of the row is the handler's requests themselves (`SetAff`, the frame records at
+each request), measured nowhere yet.
+

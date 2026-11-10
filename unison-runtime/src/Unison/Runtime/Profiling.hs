@@ -4,8 +4,8 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Data.Map.Strict qualified as M
 import Data.Word
-import Unison.Codebase.Runtime.Profile
 import Unison.Runtime.MCode
+import Unison.Runtime.Profile
 import Unison.Runtime.Stack
 
 addSample :: Bool -> CombIx -> K -> Profile Word64 -> Profile Word64

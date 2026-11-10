@@ -5,20 +5,14 @@
 -- | Wrapper to provide safer interface in constructing an MCP server.
 module Unison.MCP.Wrapper
   ( Tool (..),
-    Prompt (..),
     HasInputSchema (..),
     mkServer,
     CallToolResult (..),
-    PromptArgument (..),
-    StaticResources,
     Server,
     MCP.ServerCapabilities (..),
     MCP.ToolAnnotations (..),
     MCP.Implementation (..),
-    MCP.ResourcesCapability (..),
     MCP.ToolsCapability (..),
-    MCP.PromptsCapability (..),
-    MCP.PromptContentType (..),
     errorToolResult,
     textToolResult,
     jsonToolResult,
@@ -37,8 +31,6 @@ import Network.MCP.Types qualified as MCP
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Environment (lookupEnv)
-
-type StaticResources = Map Text (MCP.Resource, MCP.ResourceContent)
 
 class HasInputSchema arg where
   toInputSchema :: Proxy arg -> Aeson.Value
@@ -62,53 +54,25 @@ data Tool m
     toolHandler :: arg -> m MCP.CallToolResult
   }
 
-data Prompt m = Prompt
-  { promptName :: Text,
-    promptDescription :: Text,
-    promptArgs :: Map Text PromptArgument,
-    promptHandler :: Map Text Text -> m MCP.GetPromptResult
-  }
-
-data PromptArgument = PromptArgument
-  { promptArgumentDescription :: Text,
-    -- | Whether the argument is required
-    promptArgumentRequired :: Bool
-  }
-
-mkServer :: (MonadUnliftIO m) => MCP.ServerInfo -> Text -> StaticResources -> [Tool m] -> [Prompt m] -> m Server
-mkServer serverInfo serverDescription staticResources tools prompts = do
+mkServer :: (MonadUnliftIO m) => MCP.ServerInfo -> Text -> [Tool m] -> m Server
+mkServer serverInfo serverDescription tools = do
   let serverCapabilities =
         MCP.ServerCapabilities
-          { resourcesCapability = Just $ MCP.ResourcesCapability (not $ Map.null staticResources),
+          { resourcesCapability = Nothing,
             toolsCapability = Just $ MCP.ToolsCapability (not $ null tools),
-            promptsCapability = Just $ MCP.PromptsCapability (not $ null prompts)
+            promptsCapability = Nothing
           }
   server <- liftIO $ createServer serverInfo serverCapabilities serverDescription
-
-  doResources server staticResources
   doTools server tools
-  doPrompts server prompts
-
   pure server
-
-doResources :: (MonadUnliftIO m) => Server -> StaticResources -> m ()
-doResources server staticResources = do
-  liftIO $ registerResources server (fst <$> Map.elems staticResources)
-
-  -- Register resource read handler
-  liftIO $ registerResourceReadHandler server $ \(MCP.ReadResourceRequest {resourceReadUri}) -> do
-    case Map.lookup resourceReadUri staticResources of
-      Just (_, content) ->
-        pure . MCP.ReadResourceResult $ [content]
-      _ -> pure $ MCP.ReadResourceResult []
 
 -- | Default timeout for MCP tool calls in seconds
 defaultMcpTimeoutSeconds :: Int
-defaultMcpTimeoutSeconds = 60
+defaultMcpTimeoutSeconds = 300
 
 -- | Get the MCP tool timeout in microseconds from UNISON_MCP_TIMEOUT env var.
 -- The env var is specified in seconds for user convenience.
--- Defaults to 60 seconds if not set or invalid.
+-- Defaults to 300 seconds if not set or invalid.
 getMcpTimeoutMicroseconds :: (MonadIO m) => m Int
 getMcpTimeoutMicroseconds = liftIO $ do
   lookupEnv "UNISON_MCP_TIMEOUT" <&> \case
@@ -147,32 +111,6 @@ errorToolResult errMsg =
     { MCP.callToolContent = [MCP.ToolContent MCP.TextualContent $ Just errMsg],
       MCP.callToolIsError = True
     }
-
-doPrompts :: (MonadUnliftIO m) => Server -> [Prompt m] -> m ()
-doPrompts server prompts = do
-  let mcpPrompts =
-        prompts <&> \(Prompt {promptName, promptDescription, promptArgs}) ->
-          MCP.Prompt
-            { MCP.promptName,
-              MCP.promptDescription = Just promptDescription,
-              MCP.promptArguments =
-                promptArgs
-                  & Map.toList
-                  <&> \(argName, PromptArgument {promptArgumentDescription, promptArgumentRequired}) ->
-                    MCP.PromptArgument
-                      { MCP.promptArgumentName = argName,
-                        MCP.promptArgumentDescription = Just promptArgumentDescription,
-                        MCP.promptArgumentRequired = promptArgumentRequired
-                      }
-            }
-  let promptsMap = Map.fromList $ prompts <&> (\p -> (promptName p, p))
-  liftIO $ registerPrompts server mcpPrompts
-  runInIO <- askRunInIO
-  liftIO $ registerPromptHandler server $ \(MCP.GetPromptRequest {getPromptName, getPromptArguments}) -> runInIO do
-    case Map.lookup getPromptName promptsMap of
-      Nothing -> error $ "Prompt '" <> Text.unpack getPromptName <> "' not found."
-      Just (Prompt {promptHandler}) -> do
-        promptHandler getPromptArguments
 
 textToolResult :: Text -> MCP.CallToolResult
 textToolResult msg =

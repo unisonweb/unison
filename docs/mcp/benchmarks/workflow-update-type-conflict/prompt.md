@@ -1,0 +1,1 @@
+In the current Unison project, add a `currency : Text` field, as the last field, to `Account`. Every existing account is in `"USD"`: `Account.open` keeps its two arguments and makes a `"USD"` account, and `Account.deposit` keeps the currency of the account it is given. `Account.describe` should now mention the currency, like `bob: 10 USD`. Update the tests to match.

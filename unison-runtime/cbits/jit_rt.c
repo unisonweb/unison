@@ -27,6 +27,7 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#undef _WIN32_WINNT  // mingw's headers set 0x601 first
 #define _WIN32_WINNT 0x0602  // GetCurrentThreadStackLimits is Windows 8
 #include <windows.h>
 #else
@@ -38,6 +39,10 @@
 #include <ctype.h>
 #include <limits.h>
 #include <math.h>
+#if !defined(_WIN32)
+#include <execinfo.h>  // the C backtrace of an aborting thread, under UNISON_JIT_DEBUG
+#endif
+#include <signal.h>
 #include <stdint.h>
 
 
@@ -59,14 +64,15 @@ int64_t unison_jit_ctx_layout(int64_t *out, int64_t n) {
       offsetof(UnisonJitCtx, pool),        offsetof(UnisonJitCtx, stack_size),
       offsetof(UnisonJitCtx, hplim),       offsetof(UnisonJitCtx, ap),
       offsetof(UnisonJitCtx, fp),          offsetof(UnisonJitCtx, sp),
-      offsetof(UnisonJitCtx, max_sp),      offsetof(UnisonJitCtx, stress_poll),
+      offsetof(UnisonJitCtx, max_sp),      offsetof(UnisonJitCtx, min_sp),
+      offsetof(UnisonJitCtx, stress_poll),
       offsetof(UnisonJitCtx, stress_poll_left), offsetof(UnisonJitCtx, stress_callee),
       offsetof(UnisonJitCtx, stress_callee_left), offsetof(UnisonJitCtx, frames),
       offsetof(UnisonJitCtx, n_frames),    offsetof(UnisonJitCtx, max_frames),
       offsetof(UnisonJitCtx, cstack_limit), offsetof(UnisonJitCtx, cap),
       offsetof(UnisonJitCtx, budget_end),  offsetof(UnisonJitCtx, hp),
       offsetof(UnisonJitCtx, hp_lim),      offsetof(UnisonJitCtx, henv),
-      offsetof(UnisonJitCtx, n_locals),
+      offsetof(UnisonJitCtx, n_locals),    offsetof(UnisonJitCtx, nm_barrier),
   };
   int64_t count = sizeof offs / sizeof offs[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = offs[i];
@@ -121,6 +127,18 @@ void **unison_jit_hplim_address(void) { return hplim_of(rts_unsafeGetMyCapabilit
 static int64_t stress_poll = 0;
 static int64_t stress_callee = 0;
 static int64_t jit_trace = 0;
+
+#if !defined(_WIN32)
+static void abort_backtrace(int sig) {
+  void *bt[64];
+  int n = backtrace(bt, 64);
+  fprintf(stderr, "[jit] backtrace of the aborting thread (signal %d):\n", sig);
+  backtrace_symbols_fd(bt, n, 2);
+  signal(sig, SIG_DFL);
+  raise(sig);
+}
+#endif
+
 // How much C stack native code may use for non-tail calls, at most. The
 // stress mode cstack=N makes this small.
 static int64_t cstack_budget = 1 << 20;
@@ -132,7 +150,14 @@ static int64_t alloc_budget = 256 * 1024;
 static int64_t bump_alloc = 1;
 // C stack kept free for the runtime's own C code (the GC in particular),
 // below which native code never goes whatever the budget says.
-#define CSTACK_RESERVE (256 * 1024)
+// What the C stack must keep below native code: the runtime's own calls on
+// this thread (the collector, the allocator, the helpers), none of them
+// deep. GHC's worker threads have 512 KB stacks, so the reserve decides
+// how much native recursion fits before the budget check sends the
+// recursion through the trampoline: 128 KB leaves 384 KB, where 256 KB
+// left a thousand frames of a list map under the wide convention (272
+// bytes each, 160 without it) just outside (2026-10-28).
+#define CSTACK_RESERVE (128 * 1024)
 // Every native non-tail call in progress uses at least 16 bytes of C stack,
 // and a frame writes one record per inline Let it is inside of plus its
 // own, so the budget bounds the number of frame records. Frames are far
@@ -169,6 +194,7 @@ static const JitHelper unison_jit_helpers[] = {
     HELPER(unison_jit_local_env),
     HELPER(unison_jit_alloc_words),
     HELPER(unison_jit_write_mutvar),
+    HELPER(unison_jit_push_old),
     HELPER(unison_jit_list_size),
     HELPER(unison_jit_list_view),
     HELPER(unison_jit_list_push),
@@ -251,8 +277,13 @@ int64_t unison_jit_helper_addresses(const char **names, void **addrs, int64_t n)
   return count;
 }
 
+// UNISON_JIT_DISABLE=nmbarrier: the non-moving collector's write barrier left
+// out, in the C helpers as well as in generated code (the control for the
+// stress test, jit-nonmoving.md)
+static int64_t nm_barrier_disabled = 0;
+
 void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t cstack, int64_t alloc,
-                          int64_t trace_on) {
+                          int64_t trace_on, int64_t nm_barrier_off) {
   for (size_t i = 0; i < sizeof unison_jit_helpers / sizeof unison_jit_helpers[0]; i++)
     if (unison_jit_helpers[i].addr == NULL) abort();
   stress_poll = poll_every;
@@ -260,8 +291,15 @@ void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t csta
   if (cstack > 0) cstack_budget = cstack;
   if (alloc > 0) alloc_budget = alloc;
   jit_trace = trace_on;
+  nm_barrier_disabled = nm_barrier_off;
   const char *bump = debug_getenv("UNISON_JIT_BUMP");
   bump_alloc = !(bump != NULL && strcmp(bump, "0") == 0);
+  // Under UNISON_JIT_DEBUG, an abort (the RTS's barf, an assertion of the
+  // debug RTS) prints the aborting thread's C backtrace first, which says
+  // where the collector was when it found a bad object
+#if !defined(_WIN32)
+  if (jit_debug()) signal(SIGABRT, abort_backtrace);
+#endif
 }
 
 // memmem, which Windows' C library lacks: the first occurrence of needle
@@ -315,6 +353,39 @@ static const unsigned char *mem_find(const unsigned char *hay, StgInt hlen, cons
 
 
 
+// an info pointer points into the executable's text (the tables are next
+// to the code), which is mapped around 0x1_0000_0000; anything else is
+// not dereferenced
+static int plausible_info(StgWord w) {
+  return w >= 0x100000000ULL && w < 0x300000000ULL && (w & 3) == 0 && LOOKS_LIKE_INFO_PTR(w);
+}
+// For the stress mode gc=N (Native.hs): the closure pointers the C runtime
+// keeps in statics, the settled samples the helpers learned at startup. A
+// static constructor is safe; a heap object would move (design.md, "The
+// constant pool"). Prints each once, verifies all at every call, and
+// returns how many are no longer objects.
+static int statics_printed = 0;
+int64_t unison_jit_check_statics(void) {
+  struct { const char *name; void *p; } ps[] = {
+      {"EK.empty_denv", EK.empty_denv}, {"LF.snil", LF.snil}, {"LF.mnil", LF.mnil},
+      {"LF.nil", LF.nil}, {"TK.empty", TK.empty}, {"BK.empty", BK.empty},
+  };
+  int64_t bad = 0;
+  for (size_t i = 0; i < sizeof ps / sizeof ps[0]; i++) {
+    StgWord w = (StgWord)ps[i].p;
+    if (w == 0) { if (!statics_printed) fprintf(stderr, "[jit] static %s: null\n", ps[i].name); continue; }
+    int heap = w >= 0x4000000000ULL && w <= 0x800000000000ULL;
+    StgWord hdr = *(StgWord *)(w & ~(StgWord)7);
+    int ok = plausible_info(hdr);
+    if (!statics_printed || !ok)
+      fprintf(stderr, "[jit] static %s = %p: %s, header %p %s\n", ps[i].name, (void *)w, heap ? "HEAP object" : "static", (void *)hdr,
+              ok ? "ok" : "DEAD");
+    if (!ok) bad++;
+  }
+  statics_printed = 1;
+  return bad;
+}
+
 // The slow path: the object doesn't fit in the block, or the budget is used
 // up, or there is no block. Generated code calls this by name.
 void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n) {
@@ -366,7 +437,28 @@ void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
   // only a clean variable needs the barrier, as compiled code tests before
   // the call (the barrier tests again; this keeps the cold call off a dirty var)
   if (GET_INFO((StgClosure *)mv) == &stg_MUT_VAR_CLEAN_info) dirty_MUT_VAR(reg, mv, old);
+  // under the non-moving collector the old value goes to the marker at
+  // every write, a dirty variable's too; generated code does that before
+  // the call (pushOld, only generated under +RTS -xn), so nothing is
+  // tested here
 }
+
+// The non-moving collector's write barrier (+RTS -xn; design.md, "The
+// write barrier"): the pointer a store into an old object overwrites goes
+// to the capability's update remembered set, so that the concurrent
+// marker, which works from a snapshot, still reaches what was reachable
+// through it. Generated code, the exit routine and the helpers call this
+// before such a store, only while a mark is in progress (ctx->nm_barrier).
+// It runs only during a mark, so the call from generated code costs what
+// GHC's own barrier costs (updateRemembSetPushClosure_ is out of line
+// there too); the C callers in this file use the inline copy.
+static inline void push_old(UnisonJitCtx *ctx, void *old) {
+  if (old == NULL) return;
+  StgRegTable *reg = (StgRegTable *)((char *)ctx->cap + sizeof(StgFunTable));
+  updateRemembSetPushClosure_(reg, UNTAG_CLOSURE((StgClosure *)old));
+}
+
+void unison_jit_push_old(UnisonJitCtx *ctx, void *old) { push_old(ctx, old); }
 
 // Addresses and sizes from the runtime that generated code needs: the
 // info pointers for the two kinds of array in a Seg, and their layouts.
@@ -384,6 +476,7 @@ int64_t unison_jit_rts_facts(int64_t *out, int64_t n) {
       offsetof(StgMutVar, var) / sizeof(W_),        // 9: word index of a MutVar#'s content
       (int64_t)&unison_jit_write_mutvar,            // 10: the MutVar# write barrier
       (int64_t)&stg_MUT_ARR_PTRS_DIRTY_info,        // 11: mutable Array# info after a write
+      RtsFlags.GcFlags.useNonmoving,                // 12: the non-moving collector is on (+RTS -xn)
   };
   int64_t count = sizeof facts / sizeof facts[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = facts[i];
@@ -568,8 +661,10 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   ctx->stack_size = stack_size;
   ctx->hplim = hplim_of(cap);
   ctx->max_sp = sp;
+  ctx->min_sp = fp + 1;
   ctx->n_frames = 0;
   ctx->cap = cap;
+  ctx->nm_barrier = !nm_barrier_disabled && nonmoving_write_barrier_enabled != 0;
   ctx->bump = bump_alloc;
   ctx->slow_words = 0;
   if (bump_alloc) {
@@ -589,6 +684,10 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
             (long long)ap, (long long)fp, (long long)sp, *ctx->hplim, (long long)ctx->stress_poll,
             (long long)ctx->stress_poll_left, (long long)stress_poll);
   int64_t status = fn(ctx, ap, fp, sp);
+  if (__builtin_expect(jit_trace, 0))
+    fprintf(stderr, "[jit] native status %lld, ap/fp/sp %lld/%lld/%lld, %lld frame records, sp range %lld..%lld\n", (long long)status,
+            (long long)ctx->ap, (long long)ctx->fp, (long long)ctx->sp, (long long)ctx->n_frames, (long long)ctx->min_sp,
+            (long long)ctx->max_sp);
   if (ctx->bump) {
     // the block's free pointer catches up, and the thread's allocation
     // counter is charged for the words allocated inline
@@ -603,15 +702,17 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   // run again and again and getting nowhere (a poll that always fires, say).
   // Say what the context looks like, once. (Without the stack condition this
   // would fire for any function a benchmark loop calls a million times.)
+  // With the trace on, a thousand times is enough and the stack condition is
+  // dropped: an exit that moves the stack can loop too.
   if (__builtin_expect(stress_poll > 0 || stress_callee > 0 || jit_trace, 0)) {
     static _Thread_local UnisonNativeFn last_fn;
     static _Thread_local int64_t last_status, repeats;
-    if (fn == last_fn && status == last_status && status > 0 && ctx->sp == sp) {
-      if (++repeats == 1000000)
+    if (fn == last_fn && status == last_status && status > 0 && (ctx->sp == sp || jit_trace)) {
+      if (++repeats == 1000000 || (jit_trace && repeats == 1000))
         fprintf(stderr,
-                "[jit] %p left with exit %lld a million times in a row: hplim %p, budget left %lld, stress poll %lld/%lld, "
+                "[jit] %p left with exit %lld %lld times in a row: hplim %p, budget left %lld, stress poll %lld/%lld, "
                 "C stack here %p, limit %p, floor %p, sp %lld, frames %lld\n",
-                (void *)fn, (long long)status, *ctx->hplim, (long long)budget_left(ctx), (long long)ctx->stress_poll_left,
+                (void *)fn, (long long)status, (long long)repeats, *ctx->hplim, (long long)budget_left(ctx), (long long)ctx->stress_poll_left,
                 (long long)ctx->stress_poll, (void *)&ctx, (void *)ctx->cstack_limit, (void *)ctx->stack_floor,
                 (long long)sp, (long long)ctx->n_frames);
     } else {
@@ -655,12 +756,18 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
     if (jit_trace) fprintf(stderr, "[jit] %lld frame records\n", (long long)n);
   }
   // Native code stores into bstk without a write barrier. Tell the GC which
-  // parts changed, once, now that it is about to be allowed to run again.
+  // parts changed, once, now that it is about to be allowed to run again:
+  // from the lowest slot a function entered here may have written (below
+  // the entered frame for a re-entry inside an inline binding, see min_sp)
+  // to the highest.
   int64_t hi = ctx->max_sp < stack_size - 1 ? ctx->max_sp : stack_size - 1;
-  if (hi >= fp + 1) unison_jit_mark_bstk(bstk, fp + 1 < 0 ? 0 : fp + 1, hi);
+  int64_t lo = ctx->min_sp < fp + 1 ? ctx->min_sp : fp + 1;
+  if (lo < 0) lo = 0;
+  if (hi >= lo) unison_jit_mark_bstk(bstk, lo, hi);
   // The environment native code was running with (switched, after an exit
   // from inside a handler case), and the ones its Local records refer to.
   if (ctx->henv != henv_in || ctx->n_local_ptrs > 0) {
+    if (ctx->nm_barrier) push_old(ctx, bstk[stack_size]);
     bstk[stack_size] = ctx->henv;
     unison_jit_mark_bstk(bstk, stack_size, stack_size + ctx->n_local_ptrs);
   }

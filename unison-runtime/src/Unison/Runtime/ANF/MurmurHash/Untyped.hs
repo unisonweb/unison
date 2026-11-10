@@ -321,6 +321,13 @@ hash64AddFunc rf ctx = \case
   FRecSet field ->
     hash64AddInt 8
       `combine` hash64AddText field
+  -- the explosion's forms (Unison.Runtime.MCode.Explode): never in stored
+  -- code, hashed all the same so that the hash is total
+  FWorker r i ->
+    hash64AddInt 9
+      `combine` hash64AddTermRef rf r
+      `combine` hash64Add i
+  FYield -> hash64AddInt 10
 
 hash64AddLit :: HRefs r -> Lit r -> Hash64 -> Hash64
 hash64AddLit rs = \case

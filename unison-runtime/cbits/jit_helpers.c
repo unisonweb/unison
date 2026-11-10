@@ -168,7 +168,7 @@ __attribute__((noinline)) static void mh_data_wide(MH *s, StgClosure *c, int ari
     return;
   }
   // DataG: the arrays hold the fields in reverse
-  mh_word(s, LW(c, 3) & 0xFFFF);
+  mh_word(s, LW(c, 2) & 0xFFFF);
   StgArrBytes *us = (StgArrBytes *)LP(c, 0);
   StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(c, 1);
   StgWord n = bs->ptrs;
@@ -440,8 +440,8 @@ static int uc_fields(UC *s, StgClosure *c, Fields *f) {
     return 1;
   }
   if (arity <= DATA_MAX) return uc_fields_wide(c, arity, f);
-  // DataG tag useg bseg ref
-  f->tag = LW(c, 3);
+  // DataG tag useg bseg
+  f->tag = LW(c, 2);
   return uc_segs(s, LP(c, 0), LP(c, 1), f);
 }
 

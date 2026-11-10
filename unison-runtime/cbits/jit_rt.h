@@ -22,6 +22,13 @@ typedef struct UnisonJitCtx {
   // Highest slot native code may have written, kept up to date at every
   // function entry (sp + frame size). Used to mark the boxed stack on return.
   int64_t max_sp;
+  // Lowest slot native code may have written: fp + 1 of the entered frame,
+  // lowered at entry by a function that re-enters inside an inline binding,
+  // whose own frame starts below the frame it was entered with (the frame
+  // base, design.md). Without it the cards below the entered frame went
+  // unmarked, and a young object stored there was collected from under the
+  // stack (found 2026-11-04, on the debug RTS: "invalid closure, info=0xaa..").
+  int64_t min_sp;
 
   // Stress modes (UNISON_JIT_STRESS). Zero means off.
   int64_t stress_poll;        // fire the entry poll every this many entries
@@ -67,6 +74,13 @@ typedef struct UnisonJitCtx {
   // when it has reached UNISON_JIT_LOCALS, so that an exit never needs
   // more out-area pointers than there are.
   int64_t n_locals;
+  // Whether the non-moving collector's write barrier is on for this entry
+  // (the RTS's nonmoving_write_barrier_enabled, copied at entry; a mark
+  // can neither start nor end while native code runs, so it holds for the
+  // run). Read before every pointer store into the boxed stack or a
+  // mutable array: the pointer overwritten goes to the collector through
+  // unison_jit_push_old. Zero unless the process runs with +RTS -xn.
+  int64_t nm_barrier;
 
   // Not read by generated code (and so not in the layout the Haskell side
   // checks): the lowest address of this thread's C stack, plus the reserve.
@@ -93,6 +107,10 @@ typedef struct UnisonJitCtx {
 // once, see n_locals).
 #define UNISON_JIT_LOCALS 32
 #define UNISON_JIT_OUT_PTRS (1 + UNISON_JIT_LOCALS)
+
+// jit_rt.c: the non-moving collector's write barrier, for the pointer a
+// store into the boxed stack or an array overwrites (see nm_barrier).
+void unison_jit_push_old(UnisonJitCtx *ctx, void *old);
 
 // Status values returned by native code. Positive values are exit indices.
 #define UNISON_JIT_OK 0

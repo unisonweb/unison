@@ -10,12 +10,16 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     doMerge,
     doMergeLocalBranch,
 
+    -- * Exported for tests
+    lineMergedNames,
+    lineMergedNote,
+
     -- * API exported for @todo@
     hasDefnsInLib,
   )
 where
 
-import Control.Lens (mapped, (?=), _1)
+import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
@@ -45,6 +49,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UpdateUtils (hydrateRefs)
 import Unison.Codebase qualified as Codebase
@@ -137,7 +142,9 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
       }
 
 data MergeInfo = MergeInfo
-  { alice :: !AliceMergeInfo,
+  { -- | What the user ran, @merge@ or @pull@. It names the scratch file, if the merge needs one.
+    action :: !Text,
+    alice :: !AliceMergeInfo,
     bob :: !BobMergeInfo,
     lca :: !LcaMergeInfo,
     -- | How should we describe this merge in the reflog?
@@ -348,7 +355,7 @@ doMerge info = do
         typecheckedFile <-
           mergeblob.typecheckedFile & onNothing do
             env <- ask
-            _ <-
+            (_, temporaryBranch) <-
               HandleInput.Branch.createBranch
                 info.description
                 ( let sourceStuff =
@@ -380,23 +387,56 @@ doMerge info = do
             --                Yes                    Yes                                              Run that cool tool
 
             maybeMergetool <-
-              if not env.isTranscriptTest && not (defnsAreEmpty mergeblob.conflicts.alice)
+              if not env.isTranscriptTest && not env.unattended && not (defnsAreEmpty mergeblob.conflicts.alice)
                 then liftIO (lookupEnv "UCM_MERGETOOL")
                 else pure Nothing
 
+            -- Nobody is there to run a merge tool, so give them what one would start from: the three-way merge, with
+            -- conflict markers where the branches disagree.
+            let conflictMarkers = env.unattended && not (defnsAreEmpty mergeblob.conflicts.alice)
+
             case maybeMergetool of
               Nothing -> do
+                let scratchFileContents =
+                      if conflictMarkers
+                        then
+                          lineMergedNote (lineMergedNames mergeblob.conflictTexts)
+                            <> makeMergedFileContents mergeSourceAndTarget (Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles)
+                        else
+                          (if env.unattended then noConflictsNote else "") <> Pretty.toPlain 80 mergeblob.unparsedFile
                 scratchFilePath <-
-                  Cli.getLatestFile <&> \case
-                    Nothing -> "scratch.u"
-                    Just (file, _) -> file
-                #latestFile ?= (scratchFilePath, True)
-                liftIO $
-                  env.writeSource
-                    (Text.pack scratchFilePath)
-                    (Pretty.toPlain 80 mergeblob.unparsedFile)
-                    True
-                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
+                  ScratchFile.writeActionScratchFile
+                    info.action
+                    [ TextBuilder.toText (mangleMergeSource info.bob.source),
+                      "into",
+                      TextBuilder.toText (projectBranchNameToValidProjectBranchNameText aliceBranchNames.branch)
+                    ]
+                    [ into @Text aliceBranchNames,
+                      info.description,
+                      into @Text info.alice.causalHash,
+                      into @Text info.bob.causalHash,
+                      maybe "" (into @Text) info.lca.causalHash
+                    ]
+                    scratchFileContents
+                done
+                  ( Output.MergeFailure
+                      Output.ScratchFileHandoff
+                        { action = info.action,
+                          scratchFile = scratchFilePath,
+                          temporaryBranch,
+                          baseBranch = aliceBranchNames.branch,
+                          project = aliceBranchNames.project,
+                          loadFirst = isNothing env.watchState
+                        }
+                      mergeSourceAndTarget
+                      ( guard env.unattended
+                          $> let fileLines = Text.lines scratchFileContents
+                              in Output.MergeFileSize
+                                   { lineCount = length fileLines,
+                                     conflictCount = length (filter ("<<<<<<<" `Text.isPrefixOf`) fileLines)
+                                   }
+                      )
+                  )
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
@@ -468,7 +508,8 @@ doMergeLocalBranch branches = do
   -- Do the merge!
   doMerge
     MergeInfo
-      { alice =
+      { action = "merge",
+        alice =
           AliceMergeInfo
             { causalHash = aliceCausalHash,
               projectAndBranch = branches.alice
@@ -559,6 +600,39 @@ typecheckedUnisonFileToBranchAdds tuf = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Making file with conflict markers
 
+-- | The conflicted definitions that both branches changed, and whose changes git-style line merging combined without a
+-- conflict: they appear in the merged file with no conflict markers, and may not do what either branch meant.
+lineMergedNames :: Merge.ThreeWay (Map Name Text) -> [Name]
+lineMergedNames texts =
+  [ name
+  | (name, aliceText) <- Map.toList texts.alice,
+    Just bobText <- [Map.lookup name texts.bob],
+    let lcaText = Map.findWithDefault "" name texts.lca,
+    aliceText /= lcaText,
+    bobText /= lcaText,
+    aliceText /= bobText,
+    all (not . isConflict) (Diff3.diff3 (Text.lines lcaText) (Text.lines aliceText) (Text.lines bobText))
+  ]
+  where
+    isConflict = \case
+      Diff3.Conflict {} -> True
+      Diff3.Hunk {} -> False
+
+-- | A note for the top of a file of definitions that depend on what was merged and no longer typecheck (the merge had no
+-- conflicts).
+noConflictsNote :: Text
+noConflictsNote =
+  "-- ** There are no conflicts. The definitions below depend on what was merged, and don't typecheck with it.\n\n"
+
+-- | A note for the top of the merged file that names the definitions that were merged line by line (see 'lineMergedNames').
+lineMergedNote :: [Name] -> Text
+lineMergedNote = \case
+  [] -> ""
+  names ->
+    "-- ** The following definitions below were successfully merged at the line-level: "
+      <> Text.intercalate ", " (Name.toText <$> names)
+      <> "\n-- You may want to manually review them for correctness.\n\n"
+
 makeMergedFileContents :: MergeSourceAndTarget -> Merge.ThreeWay Text -> Text
 makeMergedFileContents sourceAndTarget fileContents =
   Diff3.diff3 (Text.lines fileContents.lca) (Text.lines fileContents.alice) (Text.lines fileContents.bob)
@@ -567,7 +641,7 @@ makeMergedFileContents sourceAndTarget fileContents =
       Diff3.Conflict lca alice bob ->
         aliceSlug
           <> foldMap line alice
-          <> middleSlug
+          <> baseSlug
           <> foldMap line lca
           <> middleSlug
           <> foldMap line bob
@@ -577,6 +651,11 @@ makeMergedFileContents sourceAndTarget fileContents =
     aliceSlug :: TextBuilder
     aliceSlug =
       "<<<<<<< " <> TextBuilder.text (into @Text sourceAndTarget.alice.branch) <> newline
+
+    -- The conflict markers are git's, in its @diff3@ style (@merge.conflictStyle=diff3@): alice's lines, then the common
+    -- ancestor's after @|||||||@, then bob's after @=======@.
+    baseSlug :: TextBuilder
+    baseSlug = "||||||| base\n"
 
     middleSlug :: TextBuilder
     middleSlug = "=======\n"

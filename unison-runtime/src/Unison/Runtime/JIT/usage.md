@@ -12,11 +12,13 @@ unison --jit on
 
 or, equivalently, `UNISON_JIT=on unison`. The flag overrides the variable. The setting applies to everything that `unison` process evaluates: `run`, transcripts, evaluation from the editor, and compiled programs (`run.compiled`, since 2026-10-18; the program is compiled by the process that runs it, not by `compile`, so the setting is the running process's).
 
+`unisonrt`, which runs a compiled program without a codebase, takes the same flag before the file: `unisonrt --jit on prog.uc` ([unisonrt/README.md](../../../../unisonrt/README.md)).
+
 | Mode | What it does |
 | --- | --- |
 | `off` | The default. Nothing is compiled and LLVM is not loaded. |
 | `on` | Compile what gets hot, on a background thread. A definition runs interpreted until it has been called 100 times, is then compiled together with the definitions it calls and is called by, and runs natively from the moment its code is installed. This is the mode meant for use. |
-| `eager` | Compile every definition as it is loaded, synchronously, before it runs. Deterministic, and it compiles code that never gets hot in a short run, so it is the mode for testing; loading is slower. |
+| `eager` | Compile every definition as it is loaded, synchronously, before it runs, and the continuation after a `let` the first time native code exits through it. Deterministic, and it compiles code that never gets hot in a short run, so it is the mode for testing; loading is slower. |
 
 At startup, with `on` or `eager`, ucm loads LLVM and runs its checks, then prints one line, in the margin the rest of its output has:
 
@@ -45,6 +47,8 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 
 The lookup order, in full: `UNISON_LLVM_LIB` if set (and only that; a path there that isn't a usable LLVM is an error, not a fallback), then the dynamic loader's own search path (`DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH`, the system defaults), then the directories in the table. When several versions are installed the newest is taken; set `UNISON_LLVM_LIB` to choose. `UNISON_JIT_LOG=1` prints the version and path that was loaded.
 
+**Any of GHC's collectors.** The JIT generates the non-moving collector's write barrier when the process runs with `+RTS -xn`; compaction (`-c`) doesn't need it.
+
 ## Settings
 
 Every setting is an environment variable, read once when `unison` starts ([`Config.hs`](Config.hs#:~:text=data%20Config) documents them all). Two also have command-line flags. The ones a user might want:
@@ -56,7 +60,7 @@ Every setting is an environment variable, read once when `unison` starts ([`Conf
 | `UNISON_JIT_LOG=1` | Log to stderr: the LLVM loaded, the startup checks, and one line per compiled module (which definitions, how long, how much IR), plus what was left to the interpreter and why. The way to confirm the JIT is doing something. |
 | `UNISON_JIT_STATS=1` | After each evaluation, print how often native code handed control back to the interpreter, per site, and the compile totals. `=each` prints the counts whenever the program writes output, which gives per-phase counts for a program that prints a line per phase. Costs up to 7% on exit-heavy code. |
 | `UNISON_JIT_THRESHOLD=N` | How many interpreted calls make a definition hot (100). Lower it to compile sooner in a short run; `1` compiles everything on first use. |
-| `UNISON_REPLACEMENTS=on\|off` | See [the `Map` caveat](#what-to-expect). |
+| `UNISON_OPTIMIZATIONS=...` | The optimizations the process runs with, as a comma-separated list of names, each on its own to switch it on or after `-` to switch it off, and the words `all` and `none`; later entries override earlier ones, and a name not mentioned keeps its default. The names ([`Optimizations.hs`](../Optimizations.hs#:~:text=data%20Optimization)): `explode_args` (loop state passed as fields to a specialised worker), `explode_returns` (a product result returned as its leaves) and `known_constructor` (the known-constructor and case-of-case rewrites: a constructor built and matched in the same body is matched where it is built, and a match on the value of a match moves into that match's branches), all three on by default; `wide` (small constructors in stack slots between a return and a match) and `replacements` (the Haskell replacements of base definitions), which by default follow the mode. For measuring one optimization against its absence, and for the `Map` caveat below. A misspelled name is an error. |
 | `--jit-dump-ir DIR` / `UNISON_JIT_DUMP_IR=DIR` | Write the LLVM IR of every compiled module into `DIR`, one `.ll` file per module before and after optimization, with each function's MCode as a comment; `-` prints to stderr. |
 
 `UNISON_LLVM_LIB` names a library `unison` loads and runs code from, like `LD_LIBRARY_PATH` does; set it only to a library you trust.
@@ -76,7 +80,7 @@ The rest are tuning and debugging knobs. They are documented in [`Config.hs`](Co
 
 **Speedups.** Loops and straight-line code over numbers, data and the builtins above run several times to tens of times faster than interpreted; code dominated by the interpreted features above runs about as before. The first 100 calls of anything run interpreted in `on` mode, and compilation happens in the background, so a program that runs for well under a second gains little. Compile time is roughly tens of milliseconds per module, and startup with the JIT on costs about a tenth of a second for loading LLVM and running the checks.
 
-**The `Map` caveat.** The interpreter replaces base's `Map`, `Set` and `Multimap` with Haskell implementations. Under the JIT those replacements are switched off, because native Unison code beats the call-out at the sizes programs commonly use, but the Haskell maps win again above a few thousand keys. A program that was fast only because of a huge map can set `UNISON_REPLACEMENTS=on` to get the replacements back under the JIT. (`off` removes all of them, which is for measuring.) Serialized values and hashes are the same either way.
+**The `Map` caveat.** The interpreter replaces base's `Map`, `Set` and `Multimap` with Haskell implementations. Under the JIT those replacements are switched off, because native Unison code beats the call-out at the sizes programs commonly use, but the Haskell maps win again above a few thousand keys. A program that was fast only because of a huge map can set `UNISON_OPTIMIZATIONS=replacements` to get the replacements back under the JIT. (`-replacements` removes all of them, which is for measuring.) Serialized values and hashes are the same either way.
 
 **Memory.** Native code allocates on the Haskell heap and is subject to GC like everything else; there is no separate heap to size. Compiled code lives for the life of the process.
 

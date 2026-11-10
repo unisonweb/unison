@@ -562,30 +562,16 @@ int64_t unison_jit_list_size(void *list) {
   return LTAG(dq) == 2 ? TSIZE(LW(dq, 3)) : 0;
 }
 
-// A SeqView closure: Data2 tag a b ref, whose pointers are a's, b's, ref and
-// whose words are tag, a's, b's. Here for element x (a Val: a pointer, then a
-// word) and the rest of the list (a Foreign), in seven words at p.
-static inline void *view_at(StgWord *p, void *empty, int64_t elem_tag, int64_t left, StgClosure *x, void *rest) {
-  p[0] = LF.data2_info;
-  p[3] = (StgWord)LP(empty, 0);
-  p[4] = elem_tag;
-  if (left) {
-    p[1] = (StgWord)LP(x, 0);
-    p[2] = (StgWord)rest;
-    p[5] = (StgWord)LP(x, 1);
-    p[6] = (StgWord)-1;
-  } else {
-    p[1] = (StgWord)rest;
-    p[2] = (StgWord)LP(x, 0);
-    p[5] = (StgWord)-1;
-    p[6] = (StgWord)LP(x, 1);
-  }
-  return (void *)((StgWord)p | LF.data2_tag);
+// A SeqView closure (a Data2, DATA2_WORDS at p) for element x (a Val: a
+// pointer, then a word) and the rest of the list (a Foreign).
+static inline void *view_at(StgWord *p, int64_t elem_tag, int64_t left, StgClosure *x, void *rest) {
+  return left ? data2_at(p, elem_tag, LP(x, 0), (StgInt)LP(x, 1), rest, -1)
+              : data2_at(p, elem_tag, rest, -1, LP(x, 0), (StgInt)LP(x, 1));
 }
 
 // The view of a list from the left (x, rest) or the right (rest, x): the
 // SeqView closure the interpreter's VWLS and VWRS build. `empty` is the
-// SeqViewEmpty closure (its first field is the type's Reference).
+// SeqViewEmpty closure.
 void *unison_jit_list_view(UnisonJitCtx *ctx, void *list, void *empty, int64_t elem_tag, int64_t left) {
   StgClosure *dq = deque_of(list);
   if (dq == NULL) return NULL;
@@ -593,16 +579,16 @@ void *unison_jit_list_view(UnisonJitCtx *ctx, void *list, void *empty, int64_t e
   StgClosure *nearend = LP(dq, left ? 0 : 2);
   if (IS_CONS(nearend) && IS_CONS(TAIL(nearend))) {
     // the end's digit keeps an item: one allocation for everything
-    StgWord *p = list_alloc(ctx, DEEP_WORDS + 2 + 7);
+    StgWord *p = list_alloc(ctx, DEEP_WORDS + 2 + DATA2_WORDS);
     StgInt t = LW(dq, 3) - (left ? 0x101 : 0x110);
     StgClosure *rest = TAIL(nearend);
     StgClosure *nd = left ? deep_at(p, t, rest, LP(dq, 1), LP(dq, 2)) : deep_at(p, t, LP(dq, 0), LP(dq, 1), rest);
-    return view_at(p + DEEP_WORDS + 2, empty, elem_tag, left, HEAD(nearend), wrap_at(p + DEEP_WORDS, nd));
+    return view_at(p + DEEP_WORDS + 2, elem_tag, left, HEAD(nearend), wrap_at(p + DEEP_WORDS, nd));
   }
   StgClosure *x;
   StgClosure *nd = left ? lv_uncons(ctx, 1, dq, &x) : lv_unsnoc(ctx, 1, dq, &x);
-  StgWord *p = list_alloc(ctx, 2 + 7);
-  return view_at(p + 2, empty, elem_tag, left, x, wrap_at(p, nd));
+  StgWord *p = list_alloc(ctx, 2 + DATA2_WORDS);
+  return view_at(p + 2, elem_tag, left, x, wrap_at(p, nd));
 }
 
 // cons (front) or snoc of the value (u, b).
@@ -649,7 +635,7 @@ void *unison_jit_list_wrap(UnisonJitCtx *ctx, void *acc) {
 }
 
 // List.at: Some x or None, as the interpreter's IDXS builds them. `none` is
-// the None closure (its first field is the type's Reference).
+// the None closure.
 void *unison_jit_list_index(UnisonJitCtx *ctx, void *list, int64_t i, void *none, int64_t some_tag) {
   StgClosure *dq = deque_of(list);
   if (dq == NULL) return NULL;
@@ -667,14 +653,7 @@ void *unison_jit_list_index(UnisonJitCtx *ctx, void *list, int64_t i, void *none
     StgClosure *nd = mid_look(LP(dq, 1), 0, i - pc, &off);
     x = node_kids(nd)[off];
   }
-  // Data1 tag v ref: pointers v's, ref; words tag, v's
-  StgWord *p = list_alloc(ctx, 5);
-  p[0] = LF.data1_info;
-  p[1] = (StgWord)LP(x, 0);
-  p[2] = (StgWord)LP(none, 0);
-  p[3] = some_tag;
-  p[4] = (StgWord)LP(x, 1);
-  return (void *)((StgWord)p | LF.data1_tag);
+  return mk_some(ctx, some_tag, LP(x, 0), (StgInt)LP(x, 1));
 }
 
 // The Val closure at index i of a deque, for the comparison walkers.
@@ -710,15 +689,7 @@ void *unison_jit_list_split(UnisonJitCtx *ctx, void *list, int64_t n, void *empt
   StgInt i = left ? n : sz - n;
   StgClosure *a = dq_take(ctx, i, dq), *b = dq_drop(ctx, i, dq);
   void *fa = a == dq ? list : wrap_list(ctx, a), *fb = b == dq ? list : wrap_list(ctx, b);
-  StgWord *p = list_alloc(ctx, 7);
-  p[0] = LF.data2_info;
-  p[1] = (StgWord)fa;
-  p[2] = (StgWord)fb;
-  p[3] = (StgWord)LP(empty, 0);
-  p[4] = elem_tag;
-  p[5] = (StgWord)-1;
-  p[6] = (StgWord)-1;
-  return (void *)((StgWord)p | LF.data2_tag);
+  return mk_data2(ctx, elem_tag, fa, -1, fb, -1);
 }
 
 // List.++

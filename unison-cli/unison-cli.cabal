@@ -36,9 +36,12 @@ library
       Unison.Cli.NamesUtils
       Unison.Cli.Pretty
       Unison.Cli.ProjectUtils
+      Unison.Cli.ScratchFile
       Unison.Cli.ServantClientUtils
+      Unison.Cli.Share.Definitions
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
+      Unison.Cli.Share.Ref
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
       Unison.Cli.UpdateUtils
@@ -51,6 +54,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
+      Unison.Codebase.Editor.HandleInput.Bundle
       Unison.Codebase.Editor.HandleInput.Cancel
       Unison.Codebase.Editor.HandleInput.Config
       Unison.Codebase.Editor.HandleInput.DebugDefinition
@@ -96,6 +100,7 @@ library
       Unison.Codebase.Editor.HandleInput.Rename
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
+      Unison.Codebase.Editor.HandleInput.Share
       Unison.Codebase.Editor.HandleInput.ShowDefinition
       Unison.Codebase.Editor.HandleInput.Signature
       Unison.Codebase.Editor.HandleInput.SyncV2
@@ -165,13 +170,11 @@ library
       Unison.LSP.VFS.CompletionPrefix
       Unison.Main
       Unison.MCP
-      Unison.MCP.Cli
-      Unison.MCP.Prompts
-      Unison.MCP.Server
-      Unison.MCP.Share.API
-      Unison.MCP.StaticResources
-      Unison.MCP.Tools
-      Unison.MCP.Types
+      Unison.MCP.Allowlist
+      Unison.MCP.Echo
+      Unison.MCP.Learn
+      Unison.MCP.LineNumbers
+      Unison.MCP.Output
       Unison.MCP.Wrapper
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
@@ -390,6 +393,9 @@ test-suite cli-tests
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
       Unison.Test.LSP
+      Unison.Test.MCP
+      Unison.Test.MCP.Learn
+      Unison.Test.MCP.Runner
       Unison.Test.TestProgress
       Unison.Test.Ucm
       Unison.Test.UriParser
@@ -453,6 +459,7 @@ test-suite cli-tests
     , unison-cli
     , unison-core
     , unison-core1
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

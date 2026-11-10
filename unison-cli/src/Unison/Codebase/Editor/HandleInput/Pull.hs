@@ -101,7 +101,8 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
           doMerge
             MergeInfo
-              { alice =
+              { action = "pull",
+                alice =
                   AliceMergeInfo
                     { causalHash = aliceCausalHash,
                       projectAndBranch = target
