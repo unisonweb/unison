@@ -22,7 +22,6 @@ in
 
       ## stacklock2nix doesn’t yet support `allow-newer-deps`, so that’s duplicated here. See
       ## cdepillabout/stacklock2nix#54.
-      avro = pkgs.haskell.lib.doJailbreak hprev.avro;
       base32 = pkgs.haskell.lib.doJailbreak hprev.base32;
       data-clist = pkgs.haskell.lib.doJailbreak hprev.data-clist;
       fuzzyfind = pkgs.haskell.lib.doJailbreak hprev.fuzzyfind;

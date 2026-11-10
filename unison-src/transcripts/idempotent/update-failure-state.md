@@ -72,11 +72,11 @@ unique type Foo = Bar Nat Nat
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-a35c6a2f.u.
+  definitions to fix are in update-main-63c7b389.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-a35c6a2f.u
+      scratch/update-main> load update-main-63c7b389.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -91,7 +91,7 @@ unique type Foo = Bar Nat Nat
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-a35c6a2f.u
+``` unison :added-by-ucm update-main-63c7b389.u
 type Foo = Bar Nat Nat
 
 -- The definitions below no longer typecheck with the changes above.
@@ -244,11 +244,11 @@ deleteproj/main> delete a
   still in use.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in delete-main-d757a75c.u.
+  definitions to fix are in delete-main-a62f15c2.u.
 
   Edit the file, then run:
 
-      deleteproj/update-main> load delete-main-d757a75c.u
+      deleteproj/update-main> load delete-main-a62f15c2.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -263,7 +263,7 @@ deleteproj/main> delete a
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm delete-main-d757a75c.u
+``` unison :added-by-ucm delete-main-a62f15c2.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -339,11 +339,11 @@ upgradeproj/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-6f7a5ed7.u.
+  definitions to fix are in upgrade-old-to-new-cab29fd2.u.
 
   Edit the file, then run:
 
-      upgradeproj/upgrade-old-to-new> load upgrade-old-to-new-6f7a5ed7.u
+      upgradeproj/upgrade-old-to-new> load upgrade-old-to-new-cab29fd2.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -359,7 +359,7 @@ upgradeproj/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-6f7a5ed7.u
+``` unison :added-by-ucm upgrade-old-to-new-cab29fd2.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -501,11 +501,11 @@ mergeproj/alice> merge /bob
   mergeproj/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-f0db7c53.u.
+  the definitions to fix are in merge-bob-into-alice-3efc4b80.u.
 
   Edit the file, then run:
 
-      mergeproj/merge-bob-into-alice> load merge-bob-into-alice-f0db7c53.u
+      mergeproj/merge-bob-into-alice> load merge-bob-into-alice-3efc4b80.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -520,7 +520,7 @@ mergeproj/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-f0db7c53.u
+``` unison :added-by-ucm merge-bob-into-alice-3efc4b80.u
 -- mergeproj/alice
 foo : Nat
 foo = 2

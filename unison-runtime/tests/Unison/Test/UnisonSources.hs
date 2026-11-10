@@ -54,7 +54,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  using (JIT.readConfig >>= JIT.newJIT >>= \jit -> RTI.startRuntime jit False RTI.OneOff "") RTI.terminate \rt -> do
+  using (JIT.readConfig >>= JIT.newJIT >>= \jit -> RTI.startRuntime jit False RTI.OneOff) RTI.terminate \rt -> do
     scope "unison-src"
       . tests
       $ [ go rt shouldPassNow good,

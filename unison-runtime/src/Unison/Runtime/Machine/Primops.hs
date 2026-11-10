@@ -9,7 +9,6 @@ import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Word
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
@@ -773,14 +772,14 @@ decodeSeqView ::
   (ForeignConvention b) =>
   Closure ->
   IO (SeqView a b)
-decodeSeqView (Enum _ t)
+decodeSeqView (Enum t)
   | t == Ty.seqViewEmptyTag = pure SeqViewEmpty
-decodeSeqView (Data2 _ t x y)
+decodeSeqView (Data2 t x y)
   | t == Ty.seqViewElemTag = SeqViewElem <$> decodeVal x <*> decodeVal y
 decodeSeqView v = foreignConventionError "Either" (BoxedVal v)
 
 seqViewE :: Closure
-seqViewE = Enum Ty.seqViewRef Ty.seqViewEmptyTag
+seqViewE = Enum Ty.seqViewEmptyTag
 
 encodeSeqView ::
   (ForeignConvention a) =>
@@ -789,7 +788,7 @@ encodeSeqView ::
   Closure
 encodeSeqView SeqViewEmpty = seqViewE
 encodeSeqView (SeqViewElem x y) =
-  Data2 Ty.seqViewRef Ty.seqViewElemTag (encodeVal x) (encodeVal y)
+  Data2 Ty.seqViewElemTag (encodeVal x) (encodeVal y)
 {-# INLINE encodeSeqView #-}
 
 instance

@@ -254,25 +254,25 @@ scratch/main> reflog
        history.
 
         Branch         Hash          Description
-  1.    scratch/main   #hqd02rho7l   redo
-  2.    scratch/main   #nh9dvgtl3j   undo
-  3.    scratch/main   #hqd02rho7l   alias.term other scratch/main:other4
-  4.    scratch/main   #nh9dvgtl3j   undo
-  5.    scratch/main   #apfturkgj4   redo
-  6.    scratch/main   #nh9dvgtl3j   redo
-  7.    scratch/main   #upfgaihnpj   undo
-  8.    scratch/main   #nh9dvgtl3j   redo
-  9.    scratch/main   #upfgaihnpj   redo
-  10.   scratch/main   #5f4qmi85sl   undo
-  11.   scratch/main   #upfgaihnpj   undo
-  12.   scratch/main   #nh9dvgtl3j   undo
-  13.   scratch/main   #apfturkgj4   alias.term other scratch/main:other3
-  14.   scratch/main   #nh9dvgtl3j   alias.term other scratch/main:other2
-  15.   scratch/main   #upfgaihnpj   redo
-  16.   scratch/main   #5f4qmi85sl   undo
-  17.   scratch/main   #upfgaihnpj   move scratch/main:foo scratch/main:bar
-  18.   scratch/main   #5f4qmi85sl   update
-  19.   scratch/main   #8v22j44e44   builtins.merge scratch/main:lib.builtins
+  1.    scratch/main   #g7ctnsc6pf   redo
+  2.    scratch/main   #s2dqacimbp   undo
+  3.    scratch/main   #g7ctnsc6pf   alias.term other scratch/main:other4
+  4.    scratch/main   #s2dqacimbp   undo
+  5.    scratch/main   #lpv8l0146l   redo
+  6.    scratch/main   #s2dqacimbp   redo
+  7.    scratch/main   #p0f828fju9   undo
+  8.    scratch/main   #s2dqacimbp   redo
+  9.    scratch/main   #p0f828fju9   redo
+  10.   scratch/main   #33gojf0ph5   undo
+  11.   scratch/main   #p0f828fju9   undo
+  12.   scratch/main   #s2dqacimbp   undo
+  13.   scratch/main   #lpv8l0146l   alias.term other scratch/main:other3
+  14.   scratch/main   #s2dqacimbp   alias.term other scratch/main:other2
+  15.   scratch/main   #p0f828fju9   redo
+  16.   scratch/main   #33gojf0ph5   undo
+  17.   scratch/main   #p0f828fju9   move scratch/main:foo scratch/main:bar
+  18.   scratch/main   #33gojf0ph5   update
+  19.   scratch/main   #ufmmjhnk01   builtins.merge scratch/main:lib.builtins
   20.   scratch/main   #sg60bvjo91   Project Created
 ```
 

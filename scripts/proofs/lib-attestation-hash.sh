@@ -24,7 +24,10 @@
 #   With HASH_NORMALIZE=true set before sourcing, Haskell and C sources are
 #   hashed with their comments removed (pragmas kept) and all whitespace
 #   collapsed, so that a comment edit or a reformatting does not invalidate an
-#   attestation. The proofs that only depend on what the code does opt in;
+#   attestation. YAML files are hashed with their comments, trailing
+#   whitespace and blank lines removed; their indentation stays, since it is
+#   part of what they say. A # inside a block scalar counts as a comment too,
+#   which the hashed YAML files (stack.yaml, package.yaml) don't have. The proofs that only depend on what the code does opt in;
 #   the formatting proof hashes the raw text.
 #
 # =============================================================================
@@ -52,6 +55,22 @@ _commit_files() {
     GIT_INDEX_FILE="$tmpdir/index" git read-tree "$_COMMIT"
     GIT_INDEX_FILE="$tmpdir/index" git ls-files -- "${PATTERNS[@]}"
     rm -rf "$tmpdir"
+}
+
+# Untracked files that match PATTERNS go into the working tree's hash but not
+# into the hash CI computes from the commit, so an attestation made with them
+# present is one CI never finds. Refuse rather than record it (twice on
+# 2026-11-06 a transcript run's leftover .output.md did this). Set
+# PROOFS_ALLOW_UNTRACKED=1 to hash them anyway.
+_refuse_untracked() {
+    local untracked
+    untracked=$(git ls-files --others --exclude-standard -- "${PATTERNS[@]}")
+    if [[ -n "$untracked" && -z "${PROOFS_ALLOW_UNTRACKED:-}" ]]; then
+        echo "error: untracked files would go into this hash, and CI's hash of the commit will not include them:" >&2
+        echo "$untracked" | sed 's/^/  /' >&2
+        echo "Commit or delete them (or set PROOFS_ALLOW_UNTRACKED=1 to hash them anyway)." >&2
+        exit 3
+    fi
 }
 
 _list_files() {
@@ -84,6 +103,13 @@ _hash_files() {
             } elsif ($ARGV =~ /\.[ch]$/) {
                 s{("(?:[^"\\\n]|\\.)*")|\/\*.*?\*\/|\/\/[^\n]*}{defined $1 ? $1 : ""}gse;
                 s/\s+/ /g;
+            } elsif ($ARGV =~ /\.ya?ml$/) {
+                # drop comments: a # at the start of a line or after a space or
+                # tab, outside a quoted string on that line. Indentation is
+                # meaningful, so only trailing whitespace and blank lines go.
+                s{("(?:[^"\\\n]|\\.)*"|\x27(?:[^\x27\n]|\x27\x27)*\x27)|(?:^|(?<=[ \t]))#[^\n]*}{defined $1 ? $1 : ""}gme;
+                s/[ \t]+$//mg;
+                s/^\n//mg;
             }
         }
         print;
@@ -102,6 +128,7 @@ compute_hash() {
         git archive "$_COMMIT" | tar -xf - -C "$tmpdir"
         (cd "$tmpdir" && _hash_files < "$list")
     else
+        _refuse_untracked
         _list_files_0 | _hash_files
     fi
 }

@@ -63,6 +63,7 @@ static const char *debug_getenv(const char *name) { return jit_debug() ? getenv(
 // ---- Declarations copied from llvm-c (Types.h, Error.h, Orc.h, TargetMachine.h)
 
 typedef int LLVMBool;
+typedef enum { LLVMAbortProcessAction, LLVMPrintMessageAction, LLVMReturnStatusAction } LLVMVerifierFailureAction;
 typedef struct LLVMOpaqueContext *LLVMContextRef;
 typedef struct LLVMOpaqueModule *LLVMModuleRef;
 typedef struct LLVMOpaqueMemoryBuffer *LLVMMemoryBufferRef;
@@ -128,6 +129,7 @@ enum { LLVMCodeModelJITDefault = 1 };
   X(LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMMemoryBufferRef,                            \
     (const char *, size_t, const char *))                                                      \
   X(LLVMParseIRInContext, LLVMBool, (LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef *, char **)) \
+  X(LLVMVerifyModule, LLVMBool, (LLVMModuleRef, LLVMVerifierFailureAction, char **))           \
   X(LLVMGetDefaultTargetTriple, char *, (void))                                                \
   X(LLVMGetHostCPUName, char *, (void))                                                        \
   X(LLVMGetHostCPUFeatures, char *, (void))                                                    \
@@ -376,38 +378,15 @@ static int fail(const char *where, LLVMErrorRef e) {
 
 const char *unison_jit_triple(void) { return jit ? LLVMOrcLLJITGetTripleString(jit) : "none"; }
 
-// Process exit while the compile thread is inside LLVM. The RTS's hs_exit
-// doesn't wait for a thread in a safe foreign call, and exit() then runs
-// LLVM's static destructors under the compile in progress, which crashed in
-// the code generator (2026-10-04, seen at the end of transcript runs: the
-// re-entry batches flush after a quiet period, which is just when a program
-// finishes). So: an atexit handler, registered after LLVM is loaded so that
-// it runs before LLVM's own destructors, waits for a compile in flight to
-// finish, and a compile that finishes (or starts) once we are exiting parks
-// its thread instead of returning into a runtime that is gone. The process's
-// exit then takes the parked thread with it.
-static int compiling = 0;  // compiles in flight
-static int exiting = 0;
-
-static void park_forever(void) {
-#if defined(_WIN32)
-  for (;;) Sleep(INFINITE);
-#else
-  for (;;) pause();
-#endif
-}
-
-static void at_exit(void) {
-  __atomic_store_n(&exiting, 1, __ATOMIC_SEQ_CST);
-  struct timespec ms = {0, 1000 * 1000};
-  for (int i = 0; i < 10000 && __atomic_load_n(&compiling, __ATOMIC_SEQ_CST) > 0; i++) nanosleep(&ms, NULL);
-}
+// Process exit while the compile thread is inside LLVM would run LLVM's
+// static destructors under the compile; the Haskell side stops the compile
+// thread and waits for a compile in flight before the process exits
+// (Unison.Runtime.JIT, jitShutdown), so nothing is needed here.
 
 // Loads LLVM if needed and starts the JIT. Returns 0 on success.
 int unison_jit_init(void) {
   if (jit) return 0;
   if (unison_jit_load() != 0) return -1;
-  atexit(at_exit);
   TARGET_FN(TargetInfo)();
   TARGET_FN(Target)();
   TARGET_FN(TargetMC)();
@@ -424,18 +403,40 @@ int unison_jit_init(void) {
   // UNISON_JIT_INLINE_THRESHOLD=N sets the inliner's threshold (LLVM's
   // default is 225), for measurement.
   {
-    const char *argv[4] = {"unison"};
+    const char *argv[5] = {"unison"};
     int argc = 1;
     if (!debug_getenv("UNISON_JIT_SCHED")) {
       argv[argc++] = "-enable-misched=false";
       argv[argc++] = "-enable-post-misched=false";
     }
+    // Shrink wrapping is off (2026-11-05). On arm64 a tailcc function with
+    // more arguments than fit in registers pops its incoming stack
+    // arguments itself, in the epilogue (callee cleanup: the 16 of
+    // `add sp, sp, #256` in a worker of four argument pairs). LLVM 23's
+    // shrink wrapping lets a return path that needs no frame skip the
+    // epilogue, and with it that pop: a worker entered with its first
+    // test already true (a loop's `go acc i` called with i == n, which
+    // happens when an exit lands on the last iteration and the re-entry
+    // function calls the worker through its register entry) returned
+    // with the caller's stack pointer sixteen bytes low, the caller
+    // restored fp and lr from the spill pair below them, and `ret` went
+    // into the Haskell heap. Once in sixteen benchmark runs; every 90 s
+    // under UNISON_JIT_STRESS=poll=3. x86-64 is not affected (its `ret`
+    // carries the pop), and nor is a worker whose arguments all fit in
+    // registers. See benchmarks/2026-11-05-shrink-wrap.md for the cost.
+    argv[argc++] = "-enable-shrink-wrap=false";
+    // The inliner's threshold: 600 where LLVM's default is 225. Generated
+    // functions carry more instructions than their work (the exit paths,
+    // the slot stores, and under the wide convention a seven-word return),
+    // so the default refused to inline small callees into hot loops: the
+    // Collatz row ran 1.8x slower under the convention with the step
+    // function called, 1.2x with it inlined, and the rows that call across
+    // definitions gain either way (benchmarks/2026-10-28-wide-jit.md).
+    // UNISON_JIT_INLINE_THRESHOLD overrides it under UNISON_JIT_DEBUG.
     static char inl[64];
     const char *t = debug_getenv("UNISON_JIT_INLINE_THRESHOLD");
-    if (t && *t) {
-      snprintf(inl, sizeof inl, "-inline-threshold=%d", atoi(t));
-      argv[argc++] = inl;
-    }
+    snprintf(inl, sizeof inl, "-inline-threshold=%d", (t && *t) ? atoi(t) : 600);
+    argv[argc++] = inl;
     if (argc > 1) LLVMParseCommandLineOptions(argc, argv, NULL);
     // UNISON_JIT_LLVM_OPTS: further LLVM command line options, space
     // separated (-time-passes, -debug-pass-manager, ...), for measurement.
@@ -493,12 +494,7 @@ int unison_jit_init(void) {
 static int add_module(const char *ir, size_t len, const char *passes, char **out_opt);
 
 int unison_jit_add_module(const char *ir, size_t len, const char *passes, char **out_opt) {
-  if (__atomic_load_n(&exiting, __ATOMIC_SEQ_CST)) park_forever();
-  __atomic_add_fetch(&compiling, 1, __ATOMIC_SEQ_CST);
-  int r = add_module(ir, len, passes, out_opt);
-  __atomic_sub_fetch(&compiling, 1, __ATOMIC_SEQ_CST);
-  if (__atomic_load_n(&exiting, __ATOMIC_SEQ_CST)) park_forever();
-  return r;
+  return add_module(ir, len, passes, out_opt);
 }
 
 static int add_module(const char *ir, size_t len, const char *passes, char **out_opt) {
@@ -519,6 +515,17 @@ static int add_module(const char *ir, size_t len, const char *passes, char **out
   if (LLVMParseIRInContext(ctx, buf, &mod, &msg)) {
     snprintf(last_error, sizeof last_error, "parse: %s", msg);
     LLVMDisposeMessage(msg);
+    LLVMOrcDisposeThreadSafeContext(tsctx);
+    return -1;
+  }
+  // The parser accepts some ill-formed modules that the passes then
+  // mishandle (phis not grouped at a block's top, 2026-10-28), so under
+  // UNISON_JIT_DEBUG the verifier runs on every module and a module that
+  // fails it is refused, with the reason.
+  if (jit_debug() && LLVMVerifyModule(mod, LLVMReturnStatusAction, &msg)) {
+    snprintf(last_error, sizeof last_error, "verify: %s", msg);
+    LLVMDisposeMessage(msg);
+    LLVMDisposeModule(mod);
     LLVMOrcDisposeThreadSafeContext(tsctx);
     return -1;
   }

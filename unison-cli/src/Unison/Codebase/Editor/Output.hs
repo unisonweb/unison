@@ -324,6 +324,10 @@ data Output
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
+  | -- | `bundle` wrote a self-contained executable
+    BundleWritten FilePath
+  | -- | `bundle` could not: why
+    BundleFailed Text
   | EvaluationFailure
       -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
       (P.Pretty P.ColorText -> P.Pretty P.ColorText)
@@ -728,6 +732,8 @@ isFailure o = case o of
   TypeErrors {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
+  BundleWritten {} -> False
+  BundleFailed {} -> True
   EvaluationFailure {} -> True
   Evaluated {} -> False
   LoadingFile {} -> False

@@ -71,6 +71,7 @@ putCCs ccs = putLength n <> foldMap putCC ccs
     n = length ccs
     putCC UN = BU.word8 0
     putCC BX = BU.word8 1
+    putCC WD = exn [] "putCCs: a wide binder is never serialized"
 
 getCCs :: (PrimBase m) => Get m [Mem]
 getCCs =
@@ -192,6 +193,9 @@ putNormal ::
   Builder
 putNormal fops ctx tm = case tm of
   TVar v -> putTag VarT <> putVar ctx v
+  -- placed by Unison.Runtime.MCode.Wide in a batch's loaded code; nothing
+  -- stored has it
+  TBox _ -> exn [] "putNormal: a box is never serialized"
   TFrc v -> putTag ForceT <> putVar ctx v
   TApp f as -> putTag AppT <> putFunc ctx f <> putArgs ctx as
   THnd rs nh _ah e ->
@@ -306,6 +310,10 @@ putFunc ctx f = case f of
   FPrim (Right f) -> putTag FForeignT <> putFOp f
   FRec recSchema -> putTag FRecT <> putRecordSchema recSchema
   FRecSet field -> putTag FRecSetT <> putText field
+  -- the two forms the explosion (Unison.Runtime.MCode.Explode) writes
+  -- into a batch's code after it is loaded; nothing stored has them
+  FWorker {} -> exn [] "putFunc: a worker call is never serialized"
+  FYield -> exn [] "putFunc: a yield of several values is never serialized"
 
 getFunc :: (PrimBase m, Var v) => [v] -> Get m (Func RefNum v)
 getFunc ctx =

@@ -58,6 +58,7 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Bundle qualified as Bundle
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Execute (execute)
@@ -82,6 +83,8 @@ import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -89,6 +92,7 @@ import Unison.Project (defaultBranchName)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.JIT.Config qualified as JITConfig
+import Unison.Runtime.Version (runtimeVersion)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -153,7 +157,10 @@ main version = do
   -- https://hackage.haskell.org/package/base-4.21.0.0/docs/GHC-IO-Handle.html#v:hPutStr
   UnliftIO.hSetBuffering UnliftIO.stderr UnliftIO.LineBuffering
 
-  withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
+  -- the JIT's compile thread is stopped, and a compile in flight waited
+  -- for, before the process exits (JIT.jitShutdown)
+  jitRef <- UnliftIO.newIORef Nothing
+  flip UnliftIO.finally (UnliftIO.readIORef jitRef >>= maybe (pure ()) JIT.jitShutdown) $ withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
     interruptHandler <- defaultInterruptHandler
     withInterruptHandler interruptHandler $ do
       void $ Ki.fork scope (initHTTPClient version)
@@ -166,6 +173,7 @@ main version = do
       -- the dump is one of the settings behind UNISON_JIT_DEBUG (JIT.Config)
       for_ jitDumpIROption (\dir -> setEnv "UNISON_JIT_DEBUG" "1" >> setEnv "UNISON_JIT_DUMP_IR" dir)
       jit <- JIT.newJIT =<< JIT.readConfig
+      UnliftIO.writeIORef jitRef (Just jit)
       announceJIT jit
       currentDir <- getCurrentDirectory
       case command of
@@ -190,7 +198,7 @@ main version = do
             )
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
-            RTI.withRuntime jit False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
+            RTI.withRuntime jit False RTI.OneOff \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -252,6 +260,15 @@ main version = do
                     initRes
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
+        Bundle mainPath mOutput -> do
+          -- named after the definition, unless told otherwise
+          let output = fromMaybe "main" $ mOutput <|> (Text.unpack . NameSegment.toUnescapedText . Name.lastSegment <$> Path.toName (PP.path mainPath))
+          getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) ->
+            RTI.withRuntime jit False RTI.OneOff \runtime ->
+              Bundle.bundleFromCodebase theCodebase runtime mainPath output >>= \case
+                Left (Bundle.BundleProblem why) -> exitError (P.text why)
+                Left (Bundle.BundleCompileError err) -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
+                Right written -> putStrLn ("Wrote " ++ written)
         Run (RunCompiled file) args ->
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case
@@ -272,14 +289,14 @@ main version = do
                     "",
                     P.indentN 2 . P.wrap $ P.string err
                   ]
-              Right (Right (v, rf, combIx, sto))
+              Right (Right (RTI.Compiled v rf combIx sto _))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
                     withArgs args (RTI.runStandalone jit False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
-                  vmatch = v == Version.gitDescribeWithDate version
+                  vmatch = v == runtimeVersion
                   ws s = P.wrap (P.text s)
                   ifile
                     | 'c' : 'u' : '.' : rest <- reverse file = reverse rest
@@ -295,7 +312,7 @@ main version = do
                         P.indentN 4 $ P.text v,
                         "",
                         "Your version",
-                        P.indentN 4 $ P.text $ Version.gitDescribeWithDate version,
+                        P.indentN 4 $ P.text runtimeVersion,
                         "",
                         P.wrap $
                           "The program was compiled from hash "
@@ -417,8 +434,8 @@ main version = do
     -- (runtime, sandboxed runtime)
     withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
     withRuntimes jit mode action =
-      RTI.withRuntime jit False mode (Version.gitDescribeWithDate version) \runtime -> do
-        RTI.withRuntime jit True mode (Version.gitDescribeWithDate version) \sbRuntime ->
+      RTI.withRuntime jit False mode \runtime -> do
+        RTI.withRuntime jit True mode \sbRuntime ->
           action (runtime, sbRuntime)
     initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do

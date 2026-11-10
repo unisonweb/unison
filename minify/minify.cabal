@@ -1,0 +1,81 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.39.6.
+--
+-- see: https://github.com/sol/hpack
+
+name:           minify
+version:        0.1.0
+synopsis:       Removes unreachable definitions from a linked GHC executable
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2026 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      Minify.Analysis
+      Minify.Arm64
+      Minify.Bytes
+      Minify.Elf
+      Minify.ElfWrite
+      Minify.Format
+      Minify.Hooks
+      Minify.Layout
+      Minify.MachO
+      Minify.MachOWrite
+      Minify.Ref
+      Minify.Relocate
+      Minify.Rewrite
+      Minify.Verify
+      Minify.X86
+      Minify.ZEncoding
+  other-modules:
+      Paths_minify
+  hs-source-dirs:
+      src
+  default-extensions:
+      BangPatterns
+      LambdaCase
+      MultiWayIf
+      OverloadedStrings
+      RecordWildCards
+      ScopedTypeVariables
+      TupleSections
+  ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , vector
+    , vector-algorithms
+  default-language: Haskell2010
+
+executable minify
+  main-is: Main.hs
+  other-modules:
+      Paths_minify
+  hs-source-dirs:
+      app
+  default-extensions:
+      BangPatterns
+      LambdaCase
+      MultiWayIf
+      OverloadedStrings
+      RecordWildCards
+      ScopedTypeVariables
+      TupleSections
+  ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path -rtsopts "-with-rtsopts=-A64m"
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , minify
+    , optparse-applicative
+    , process
+    , vector
+  default-language: Haskell2010

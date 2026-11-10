@@ -11,20 +11,12 @@
 module Unison.Runtime.Interface
   ( startRuntime,
     withRuntime,
-    standalone,
     runStandalone,
-    StoredCache
-      ( -- Exported for tests
-        SCache
-      ),
     decodeStandalone,
+    Compiled (..),
     RuntimeHost (..),
     Runtime,
     terminate,
-
-    -- * Exported for tests
-    getStoredCache,
-    putStoredCache,
 
     -- * error serialization (these should live in unison-cli, but they still have some call sites here)
     prettyError,
@@ -39,8 +31,6 @@ import Control.Exception (fromException, tryJust)
 import Control.Monad
 import Control.Monad.State.Strict
 import Data.Bitraversable (bitraverse)
-import Data.ByteString qualified as B
-import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.Foldable
 import Data.IORef
@@ -50,8 +40,6 @@ import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
-import Data.Void (absurd)
-import Foreign.Ptr (nullPtr)
 import System.FilePath
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
@@ -61,6 +49,7 @@ import Unison.Codebase.Runtime (CompileOpts (..), Response (..))
 import Unison.Codebase.Runtime.Profile (Profile (..), ProfileSpec (..), foldedProfile, fullProfile, miniProfile)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
@@ -70,75 +59,44 @@ import Unison.PrettyPrintEnv
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
-import Unison.Referent qualified as RF (pattern Ref)
+import Unison.Referent qualified as RF (pattern Con, pattern Ref)
 import Unison.Runtime
 import Unison.Runtime.ANF as ANF
-import Unison.Runtime.ANF.Optimize as ANF
+import Unison.Runtime.ANF.Convert as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
-import Unison.Runtime.ANF.Serialize as ANF (getGroupCurrent, getOptInfos, putGroup, putOptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
 import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
-import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.MCode
-  ( Args (..),
-    CombIx (..),
-    FieldRef (..),
-    GCombs,
-    GInstr (..),
-    GSection (..),
-    RCombs,
-    RecordFieldMappings (..),
-    RefNums (..),
-    absurdCombs,
-    attachNativeCells,
-    combTypes,
-    emitComb,
-    emptyRNs,
-    newNativeCellPool,
-    prettyComb,
-    resolveCombs,
-    sanitizeCombsOfForeignFuncs,
-    takeNativeCells,
-  )
-import Unison.Runtime.MCode.Serialize
+import Unison.Runtime.JIT (JIT, jitCompileGroup, printJITStats, startJIT)
+import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    Combs,
     Tracer (..),
     apply0,
     baseCCache,
+    boxSlot,
     cacheAdd,
     cacheAdd0,
-    eval0,
     expandSandbox,
-    initialNativeCells,
-    preEvalTopLevelConstants,
-    refLookup,
     refNumTm,
     refNumsTm,
     refNumsTy,
-    resolveSection,
   )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Profiling
-import Unison.Runtime.Serialize as SER
-import Unison.Runtime.Serialize.Get
 import Unison.Runtime.Stack
-import Unison.Runtime.TypeTags qualified as TT
+import Unison.Runtime.Standalone
+import Unison.Runtime.Version (runtimeVersion)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
-import Unison.Util.BiMap qualified as BM
-import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -599,25 +557,7 @@ interpEval actThr cleanThr ctxVar cl ppe spec tm = do
   printJITStats (jit (ccache ctx))
   pure r
 
--- Slightly inefficient method of encoding text. Matches the old way of
--- encoding e.g. the compiled version below. Compiled code is not
--- cross compatible with other versions, but keeping this format
--- allows older versions to fail more gracefully, rather than
--- encountering serialization errors.
-putTextBig :: Text -> Builder
-putTextBig text =
-  BU.word32BE (fromIntegral $ B.length bs) <> BU.byteString bs
-  where
-    bs = encodeUtf8 text
-
-getTextBig :: (PrimBase m) => Get m Text
-getTextBig = do
-  len <- getWord32be
-  bs <- B.copy <$> getByteString (fromIntegral len)
-  pure $ decodeUtf8 bs
-
 interpCompile ::
-  Text ->
   IORef EvalCtx ->
   CompileOpts ->
   CodeLookup Symbol IO () ->
@@ -625,7 +565,7 @@ interpCompile ::
   Reference ->
   FilePath ->
   IO (Maybe Error)
-interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
+interpCompile ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl rf
   (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
@@ -633,12 +573,28 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
-  sto <- standalone cc w
-  BU.writeFile path $
-    putTextBig version
-      <> putTextBig (RF.showShort 8 rf)
-      <> putCombIx combIx
-      <> putStoredCache sto
+  sto@(SCache _ _ _ _ _ trs _ _ _ _ _ _ _ _ _) <- standalone cc w
+  BU.writeFile path . putCompiled $
+    Compiled
+      { compiledVersion = runtimeVersion,
+        compiledMain = RF.showShort 8 rf,
+        compiledEntry = combIx,
+        compiledCode = sto,
+        compiledConstructorNames = constructorNames ppe (dspec ctx) (toList trs)
+      }
+
+-- | The names the codebase gives the constructors of these types, for a
+-- compiled program to print its values with (unisonrt).
+constructorNames :: PrettyPrintEnv -> DataSpec -> [Reference] -> Map Reference [Text]
+constructorNames ppe spec rs =
+  Map.fromList
+    [ (r, [name ct r i | i <- [0 .. length cons - 1]])
+    | r <- rs,
+      Just e <- [Map.lookup r spec],
+      let (ct, cons) = either (CT.Effect,) (CT.Data,) e
+    ]
+  where
+    name ct r i = HQ.toText . termName ppe $ RF.Con (ConstructorReference r (fromIntegral i)) ct
 
 backrefLifted ::
   Reference ->
@@ -777,7 +733,7 @@ prepareEvaluation ppe tm ctx = do
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
 watchHook :: IORef Val -> XStack -> IO ()
-watchHook r xstk = peek (packXStack xstk) >>= writeIORef r
+watchHook r xstk = boxSlot (packXStack xstk) 0 >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
@@ -853,8 +809,7 @@ executeMainComb ::
   CCache () ->
   IO (Either Error ())
 executeMainComb init cc = do
-  rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
-  result <- UnliftIO.try $ eval0 cc Nothing rSection
+  result <- runMainComb init cc
   bitraverse contextualizeErr pure result
   where
     contextualizeErr re = do
@@ -869,18 +824,6 @@ catchErrors :: IO (Either Error a) -> IO (Either Error a)
 catchErrors sub =
   sub `UnliftIO.catch` (pure . Left . CompileExn) `UnliftIO.catch` (pure . Left . RuntimeExn Nothing)
 
-decodeStandalone ::
-  B.ByteString ->
-  IO (Either String (Text, Text, CombIx, StoredCache))
-decodeStandalone b = runGetCatchIO g b
-  where
-    g =
-      (,,,)
-        <$> getTextBig
-        <*> getTextBig
-        <*> getCombIx
-        <*> getStoredCache
-
 -- | Whether the runtime is hosted within a persistent session or as a one-off process.
 -- This affects the amount of clean-up and book-keeping the runtime does.
 data RuntimeHost
@@ -888,10 +831,9 @@ data RuntimeHost
   | Persistent
 
 -- The JIT is ucm's, one for every runtime it starts (see JIT.hs).
-startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
-startRuntime jit sandboxed runtimeHost version = do
+startRuntime :: JIT -> Bool -> RuntimeHost -> IO (Runtime Symbol)
+startRuntime jit sandboxed runtimeHost = do
   startJIT jit
-  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
   ctx <- baseContext jit sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
   -- everything else is when it is loaded
@@ -915,14 +857,14 @@ startRuntime jit sandboxed runtimeHost version = do
     Runtime
       { terminate = pure (),
         evaluate = interpEval activeThreads cleanupThreads ctxVar,
-        compileTo = interpCompile version ctxVar,
+        compileTo = interpCompile ctxVar,
         mainType = builtinMain External,
         ioTestTypes = builtinIOTestTypes External
       }
 
-withRuntime :: (MonadUnliftIO m) => JIT -> Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
-withRuntime jit sandboxed runtimeHost version action =
-  UnliftIO.bracket (liftIO $ startRuntime jit sandboxed runtimeHost version) (liftIO . terminate) action
+withRuntime :: (MonadUnliftIO m) => JIT -> Bool -> RuntimeHost -> (Runtime Symbol -> m a) -> m a
+withRuntime jit sandboxed runtimeHost action =
+  UnliftIO.bracket (liftIO $ startRuntime jit sandboxed runtimeHost) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM =
@@ -931,162 +873,11 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl) init = do
-  -- The file's replacement mode, before anything decodes a value or
-  -- consults the foreign function table
-  JIT.setReplacements repl
-  -- What startRuntime and the loader (cacheAdd) do for the JIT on the
-  -- codebase path, for a compiled program
-  startJIT jit
-  cc <- restoreCache jit sandboxed sc
-  readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
-  combRefs' <- readTVarIO (combRefs cc)
-  combs' <- readTVarIO (combs cc)
-  when (JIT.dumpMCode (jitConfig jit)) $
-    for_ (EC.mapToList combs') \(w, cmbs) ->
-      for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
-  for_ (EC.mapToList combs') \(w, cmbs) ->
-    for_ (EC.lookup w combRefs') \r -> jitCompileGroup jit sandboxed r w cmbs
+runStandalone jit sandboxed sc@(SCache _ crs _ _ _ _ _ _ _ _ _ _ _ _ _) init = do
+  cc <- loadStandalone debugText jit sandboxed sc
   r <- executeMainComb init cc
   printJITStats jit
   pure r
-
--- | A version of the Code Cache designed to be serialized to disk as
--- standalone bytecode.
-data StoredCache
-  = SCache
-      (EnumMap Word64 Combs)
-      (EnumMap Word64 Reference)
-      (EnumSet Word64)
-      (OptInfos Reference Symbol)
-      (EnumMap Word64 Reference)
-      Word64
-      Word64
-      Word64
-      (Map Reference (SuperGroup Reference Symbol))
-      (Map Reference Word64)
-      (Map Reference Word64)
-      (BM.BiMap ANF.RecordSchema ANF.RecordRef)
-      (Map Reference (Set Reference))
-      RecordFieldMappings
-      -- which of base's Haskell replacements the code was compiled with
-      -- (JIT.Config): its MCode has them baked in, so the process that runs
-      -- it has to decode values the same way, whatever its own environment
-      -- says
-      JIT.Replacements
-  deriving (Show, Eq)
-
-putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl) =
-  putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
-    <> putEnumMap putNat putReference crs
-    <> putEnumSet putNat cacheableCombs
-    <> putOptInfos oinfo
-    <> putEnumMap putNat putReference trs
-    <> putNat ftm
-    <> putNat fty
-    <> putNat frs
-    <> putMap putReference (putGroup mempty False) int
-    <> putMap putReference putNat rtm
-    <> putMap putReference putNat rty
-    <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
-    <> putMap putReference (putFoldable putReference) sbs
-    <> putRecordFieldMappings rfm
-    <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
-
-putRecordFieldMappings :: RecordFieldMappings -> Builder
-putRecordFieldMappings (RecordFieldMappings next rfm) =
-  putFieldRef next <> putMap putText putFieldRef (BiMap.toMapL rfm)
-
-getRecordFieldMappings :: (PrimBase m) => Get m RecordFieldMappings
-getRecordFieldMappings = RecordFieldMappings <$> getFieldRef <*> (BiMap.fromMap <$> getMap getText getFieldRef)
-
-putFieldRef :: FieldRef -> Builder
-putFieldRef (FieldRef w) = putVarInt w
-
-getFieldRef :: (PrimBase m) => Get m FieldRef
-getFieldRef = FieldRef <$> getVarInt
-
-getStoredCache :: (PrimBase m) => Get m StoredCache
-getStoredCache =
-  SCache
-    <$> getEnumMap getNat (getEnumMap getNat getComb)
-    <*> getEnumMap getNat getReference
-    <*> getEnumSet getNat
-    <*> getOptInfos
-    <*> getEnumMap getNat getReference
-    <*> getNat
-    <*> getNat
-    <*> getNat
-    <*> getMap getReference getGroupCurrent
-    <*> getMap getReference getNat
-    <*> getMap getReference getNat
-    <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
-    <*> getMap getReference (fromList <$> getList getReference)
-    <*> getRecordFieldMappings
-    <*> getReplacements
-  where
-    getReplacements =
-      getWord8 >>= \case
-        0 -> pure JIT.AllReplacements
-        1 -> pure JIT.TaggedReplacements
-        2 -> pure JIT.NoReplacements
-        n -> fail ("getStoredCache: unknown replacement mode " ++ show n)
-
-debugTextFormat :: Bool -> Pretty ColorText -> String
-debugTextFormat fancy =
-  Text.unpack . render 50
-  where
-    render = if fancy then toANSI else toPlain
-
-restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
-  -- Every combinator gets a native code cell, as it would loading from a
-  -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
-  -- never compiles it. The cells come from the cache's pool, which keeps
-  -- enough spare for code the program loads later (Code.load).
-  let uncelled =
-        srcCombs
-          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-      (cellCount, _) = attachNativeCells nullPtr uncelled
-  pool0 <- newNativeCellPool (initialNativeCount jit) (cellCount + initialNativeCells)
-  (cells, pool) <- case takeNativeCells cellCount pool0 of
-    Just taken -> pure taken
-    Nothing -> die [] "restoreCache: the native cell pool is too small"
-  let unresolvedCombs :: EnumMap Word64 (GCombs Val CombIx)
-      unresolvedCombs = absurdCombs (snd (attachNativeCells cells uncelled))
-      combs :: EnumMap Word64 (RCombs Val)
-      combs = resolveCombs Nothing unresolvedCombs
-  cc <-
-    CCache sandboxed debugText ()
-      <$> newTVarIO srcCombs
-      <*> newTVarIO combs
-      <*> newTVarIO (crs <> builtinTermBackref)
-      <*> newTVarIO cacheableCombs
-      <*> newTVarIO (opt <> builtinOptInfo)
-      <*> newTVarIO (trs <> builtinTypeBackref)
-      <*> newTVarIO ftm
-      <*> newTVarIO fty
-      <*> newTVarIO frs
-      <*> newTVarIO int
-      <*> newTVarIO (rtm <> builtinTermNumbering)
-      <*> newTVarIO (rty <> builtinTypeNumbering)
-      <*> newTVarIO recSchemas
-      <*> newTVarIO (sbs <> baseSandboxInfo)
-      <*> newTVarIO newRFM
-      <*> newTVarIO pool
-      <*> pure jit
-  let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
-        unresolvedCombs
-          & EC.mapToList
-          & foldMap
-            ( \(k, v) ->
-                if k `member` cacheableCombs
-                  then (EC.mapSingleton k v, mempty)
-                  else (mempty, EC.mapSingleton k v)
-            )
-  preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
-  pure cc
   where
     decom =
       decompile
@@ -1101,124 +892,12 @@ restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int
               (debugTextFormat fancy $ tabulateErrors errs)
               (show c)
               (debugTextFormat fancy $ pretty PPE.empty dv)
-    rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
-    rf k = builtinTermBackref ! k
-    builtinCombs :: EnumMap Word64 Combs
-    newRFM :: RecordFieldMappings
-    (builtinCombs, newRFM) =
-      flip
-        runState
-        rfm
-        ( numberedTermLookup
-            & traverseWithKey
-              ( \k v -> do
-                  emitComb @Symbol rns (rf k) k mempty (0, v)
-              )
-        )
-    srcCombs :: EnumMap Word64 Combs
-    srcCombs = builtinCombs <> cs
 
-traceNeeded ::
-  Reference ->
-  Map Reference (SuperGroup Reference Symbol) ->
-  IO (Map Reference (SuperGroup Reference Symbol))
-traceNeeded init src = go mempty init
+debugTextFormat :: Bool -> Pretty ColorText -> String
+debugTextFormat fancy =
+  Text.unpack . render 50
   where
-    go acc nx
-      | RF.isBuiltin nx = pure acc
-      | Map.member nx acc = pure acc
-      | Just co <- Map.lookup nx src =
-          foldlM go (Map.insert nx co acc) (groupTermLinks co)
-      | otherwise =
-          die [] $ "traceNeeded: unknown combinator: " ++ show nx
-
-buildSCache ::
-  EnumMap Word64 Reference ->
-  EnumMap Word64 Combs ->
-  EnumSet Word64 ->
-  OptInfos Reference Symbol ->
-  EnumMap Word64 Reference ->
-  Word64 ->
-  Word64 ->
-  Word64 ->
-  Map Reference (SuperGroup Reference Symbol) ->
-  Map Reference Word64 ->
-  Map Reference Word64 ->
-  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
-  Map Reference (Set Reference) ->
-  RecordFieldMappings ->
-  JIT.Replacements ->
-  StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl =
-  SCache
-    cs
-    crs
-    cacheableCombs
-    opt
-    trs
-    ftm
-    fty
-    frs
-    int
-    rtm
-    (restrictTyR rtysrc)
-    rsLookup
-    (restrictTmR sndbx)
-    rfm
-    repl
-  where
-    termRefs = Map.keysSet int
-
-    -- Retain just the Reference->Word mappings for needed code
-    rtm :: Map Reference Word64
-    rtm = restrictTmR rtmsrc
-
-    -- Retain numbers that correspond to the above termRefs
-    combKeys :: EnumSet Word64
-    combKeys = foldMap setSingleton rtm
-
-    crs = restrictTmW crsrc
-
-    cs :: EnumMap Word64 Combs
-    cs = restrictTmW cssrc
-
-    opt = bimap restrictTmR restrictTmR optsrc
-
-    typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
-    trs = restrictTyW trsrc
-    typeRefs = foldMap Set.singleton trs
-
-    restrictTmW :: EnumMap Word64 a -> EnumMap Word64 a
-    restrictTmW m = restrictKeys m combKeys
-    restrictTmR :: Map Reference a -> Map Reference a
-    restrictTmR m = Map.restrictKeys m termRefs
-
-    restrictTyW m = restrictKeys m typeKeys
-    restrictTyR :: Map Reference a -> Map Reference a
-    restrictTyR m = Map.restrictKeys m typeRefs
-
-standalone :: CCache () -> Word64 -> IO StoredCache
-standalone cc init =
-  readTVarIO (combRefs cc) >>= \crs ->
-    case EC.lookup init crs of
-      Just rinit ->
-        buildSCache crs
-          <$> readTVarIO (srcCombs cc)
-          <*> readTVarIO (cacheableCombs cc)
-          <*> readTVarIO (optInfos cc)
-          <*> readTVarIO (tagRefs cc)
-          <*> readTVarIO (freshTm cc)
-          <*> readTVarIO (freshTy cc)
-          <*> readTVarIO (freshRecSchema cc)
-          <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
-          <*> readTVarIO (refTm cc)
-          <*> readTVarIO (refTy cc)
-          <*> readTVarIO (recordRefs cc)
-          <*> readTVarIO (sandbox cc)
-          <*> readTVarIO (recordFieldMappings cc)
-          <*> pure JIT.replacements
-      Nothing ->
-        die [] $ "standalone: unknown combinator: " ++ show init
+    render = if fancy then toANSI else toPlain
 
 renderDecompError :: DecompError -> Pretty P.ColorText
 renderDecompError = \case
@@ -1303,7 +982,7 @@ prettyRuntimeExn' ppe backmap decom issueFn = \case
       P.fatalCallout . P.lines $
         [ P.wrap "Sorry – I’ve encountered a Unison runtime error.",
           "",
-          P.indentN 2 err,
+          P.indentN 2 (P.text err),
           "",
           issueMessage
         ]

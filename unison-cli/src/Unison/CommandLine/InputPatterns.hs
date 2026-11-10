@@ -82,6 +82,7 @@ module Unison.CommandLine.InputPatterns
     libInstallLocalInputPattern,
     load,
     makeStandalone,
+    bundle,
     mergeBuiltins,
     mergeCommitInputPattern,
     mergeIOBuiltins,
@@ -3638,6 +3639,31 @@ makeStandalone =
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
 
+bundle :: InputPattern
+bundle =
+  InputPattern
+    "bundle"
+    []
+    I.Visible
+    ( Parameters [("definition to bundle", exactDefinitionTermQueryArg), ("output file", filePathArg)] $
+        Optional [] Nothing
+    )
+    ( P.wrapColumn2
+        [ ( "`bundle main file`",
+            "Writes a self-contained executable, `file`, that runs `!main`."
+              <> "It is the program `compile` writes, with a copy of unisonrt,"
+              <> "the runtime that runs compiled programs without a codebase,"
+              <> "and needs nothing else to run. The arguments it is given are the program's."
+          )
+        ]
+    )
+    \case
+      [main, file] ->
+        Input.BundleI
+          <$> unsupportedStructuredArgument bundle "a file name" file
+          <*> handleHashQualifiedNameArg main
+      args -> wrongArgsLength "exactly two arguments" args
+
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -4386,6 +4412,7 @@ validInputs =
       libInstallLocalInputPattern,
       load,
       makeStandalone,
+      bundle,
       mergeBuiltins,
       mergeIOBuiltins,
       mergeInputPattern,

@@ -55,11 +55,11 @@ scratch/main> update
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-3de04cb4.u.
+  definitions to fix are in update-main-47ef5a94.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-3de04cb4.u
+      scratch/update-main> load update-main-47ef5a94.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -74,7 +74,7 @@ scratch/main> update
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-3de04cb4.u
+``` unison :added-by-ucm update-main-47ef5a94.u
 foo = +17
 
 -- The definitions below no longer typecheck with the changes above.
@@ -145,11 +145,11 @@ scratch/main> upgrade old new
   I couldn't automatically upgrade old to new.
 
   You're now on a temporary branch, upgrade-old-to-new, and the
-  definitions to fix are in upgrade-old-to-new-717d7ff1.u.
+  definitions to fix are in upgrade-old-to-new-b08e0315.u.
 
   Edit the file, then run:
 
-      scratch/upgrade-old-to-new> load upgrade-old-to-new-717d7ff1.u
+      scratch/upgrade-old-to-new> load upgrade-old-to-new-b08e0315.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -165,7 +165,7 @@ scratch/main> upgrade old new
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm upgrade-old-to-new-717d7ff1.u
+``` unison :added-by-ucm upgrade-old-to-new-b08e0315.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -271,11 +271,11 @@ scratch/alice> merge /bob
   I couldn't automatically merge scratch/bob into scratch/alice.
 
   You're now on a temporary branch, merge-bob-into-alice, and
-  the definitions to fix are in merge-bob-into-alice-6317c6a7.u.
+  the definitions to fix are in merge-bob-into-alice-2d527469.u.
 
   Edit the file, then run:
 
-      scratch/merge-bob-into-alice> load merge-bob-into-alice-6317c6a7.u
+      scratch/merge-bob-into-alice> load merge-bob-into-alice-2d527469.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -290,7 +290,7 @@ scratch/alice> merge /bob
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm merge-bob-into-alice-6317c6a7.u
+``` unison :added-by-ucm merge-bob-into-alice-2d527469.u
 -- scratch/alice
 foo : Nat
 foo = 17

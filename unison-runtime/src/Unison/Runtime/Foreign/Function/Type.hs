@@ -320,7 +320,6 @@ data ForeignFunc
   | Json_toText
   | Json_unconsText
   | Json_tryUnconsText
-  | Avro_decodeBinary
   | Integer_fromText
   | Integer_unsafeFromText
   | Integer_toText
@@ -798,7 +797,6 @@ foreignFuncBuiltinName = \case
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
-  Avro_decodeBinary -> "avro.Value.tryDecodeBytes"
   Integer_toText -> "Integer.toText"
   Integer_fromText -> "Integer.fromText"
   Integer_unsafeFromText -> "Integer.unsafeFromText"

@@ -16,12 +16,12 @@ import Hedgehog.Range qualified as Range
 import Unison.Prelude
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
-import Unison.Runtime.Interface
 import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.MCode (Args (..), Arm (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode (Args (..), Arm (..), BaseFrame (..), Branch, Comb, CombIx (..), Deopt (..), FieldRef (..), FrameLayout (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, Slot (..), mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.Standalone (StoredCache (..), getStoredCache, putStoredCache)
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
 import Unison.Util.BiMap (BiMap)
@@ -128,7 +128,7 @@ genInstr =
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
-      Pack <$> genReference <*> genPackedTag <*> genArgs,
+      Pack <$> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
       Reset
@@ -187,10 +187,29 @@ genCombInfo =
 genComb :: Gen Comb
 genComb =
   Gen.choice
-    [ Comb <$> genCombInfo
+    [ Comb <$> genCombInfo <*> genFrameLayout
     -- We omit cached closures from roundtrip tests since we don't currently serialize cached closure results
     -- CachedClosure
     ]
+
+-- | A slot and a width per wide variable of an indirect let's frame, and
+-- sometimes the frames the unoptimized code has there.
+genFrameLayout :: Gen FrameLayout
+genFrameLayout =
+  FrameLayout
+    <$> Gen.list (Range.linear 0 4) ((,) <$> Gen.int (Range.linear 0 10) <*> Gen.int (Range.linear 1 2))
+    <*> Gen.maybe (Deopt <$> Gen.list (Range.linear 1 3) genBaseFrame)
+    <*> Gen.int (Range.linear 0 20)
+    <*> Gen.int (Range.linear 0 3)
+  where
+    genBaseFrame = BaseFrame <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genSlot
+    genSlot =
+      Gen.recursive
+        Gen.choice
+        [Copy <$> Gen.int (Range.linear 0 3) <*> Gen.int (Range.linear 0 10), pure Dead]
+        [ PackSlot <$> genPackedTag <*> Gen.list (Range.linear 0 3) genSlot,
+          RecSlot <$> genRecordShape <*> Gen.list (Range.linear 0 3) genSlot
+        ]
 
 genFieldRef :: Gen FieldRef
 genFieldRef = FieldRef <$> genSmallWord64
@@ -219,22 +238,22 @@ genStoredCache =
   SCache
     <$> (genEnumMap genSmallWord64 genCombs)
     <*> (genEnumMap genSmallWord64 genReference)
+    <*> (genEnumMap genSmallWord64 genSmallWord64)
     <*> (genEnumSet genSmallWord64)
     -- don't generate inlining info for reasons below
     <*> pure (mempty, mempty)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64
-    <*> genSmallWord64
     <*>
     -- We don't yet generate supergroups because generating valid ones is difficult.
     mempty
-    <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> genBiMap genRecordSchema genRecordRef
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
     <*> genRecordFieldMappings
     <*> Gen.element [JIT.AllReplacements, JIT.TaggedReplacements, JIT.NoReplacements]
+    <*> Gen.bool
 
 sCacheRoundtrip :: Property
 sCacheRoundtrip =

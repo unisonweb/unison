@@ -49,11 +49,11 @@ foo n = "hello, world!"
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-657e4897.u.
+  definitions to fix are in update-main-3d747150.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-657e4897.u
+      scratch/update-main> load update-main-3d747150.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -68,7 +68,7 @@ foo n = "hello, world!"
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-657e4897.u
+``` unison :added-by-ucm update-main-3d747150.u
 foo n = "hello, world!"
 
 -- The definitions below no longer typecheck with the changes above.
