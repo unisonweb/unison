@@ -9,6 +9,10 @@ on:
         description: JSON array of OSes for transcripts
         type: string
         default: '["ubuntu-24.04"]'
+      io-transcript-os:
+        description: JSON array of OSes that run io.md alone, besides the transcripts run
+        type: string
+        default: '["macos-15","windows-2025"]'
       dll-ffi-os:
         description: JSON array of OSes for dll-ffi tests
         type: string
@@ -30,6 +34,10 @@ on:
         description: JSON array of OSes for transcripts
         type: string
         default: '["ubuntu-24.04"]'
+      io-transcript-os:
+        description: JSON array of OSes that run io.md alone, besides the transcripts run
+        type: string
+        default: '["macos-15","windows-2025"]'
       dll-ffi-os:
         description: JSON array of OSes for dll-ffi tests
         type: string
@@ -275,6 +283,49 @@ jobs:
         run: |
           ${{env.ucm}} transcript unison-src/tests/fix5507.md
           ${{env.ucm}} run.compiled fix5507.uc
+
+  io-transcript:
+    # The transcripts job runs every transcript, on Linux only. The IO builtins behave differently per platform, so
+    # io.md also runs on the others.
+    name: io transcript (${{ matrix.os }})
+    needs: [build-ucm]
+    if: |
+      !cancelled()
+        && needs.build-ucm.result == 'success'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.io-transcript-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{ matrix.os }}
+
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: io.md
+        run: |
+          ${{env.transcripts}} io.md
+          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts/idempotent/io.md
 
   migration:
     name: migration (${{ matrix.os }})
