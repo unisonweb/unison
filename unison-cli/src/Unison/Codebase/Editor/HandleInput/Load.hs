@@ -395,7 +395,7 @@ pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text uf =
       let (text', firstLine, lastLine) = insertAboveFold text (pulledInHeader redefinedNames <> source)
       uf' <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text') parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text' [err])
+          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors sourceName text' [err])
       -- When the source is a real file, the definitions go into it, so that errors point at lines the user can see and
       -- the user edits them like the rest. A `unison` block of a transcript has no file to write.
       env <- ask
@@ -581,7 +581,7 @@ parseAndTypecheckUnisonFile names sourceName text0 = do
           }
   unisonFile0 <-
     Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors sourceName text [err])
   (text, unisonFile, pulledIn) <- pullInDependentsOfRedefinitions codebase names parsingEnv sourceName text unisonFile0
   -- set that the file at least parsed (but didn't typecheck)
   State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
@@ -621,7 +621,7 @@ parseAndTypecheckUnisonFile names sourceName text0 = do
   when (not $ null tws) do
     currentPath <- Cli.getCurrentPath
     Cli.respond $
-      Output.TypeWarns currentPath text suffixifiedPPE tws
+      Output.TypeWarns sourceName currentPath text suffixifiedPPE tws
 
   maybeTypecheckedUnisonFile & onNothing do
     let tes = [err | Result.TypeError err <- toList notes]
@@ -633,7 +633,7 @@ parseAndTypecheckUnisonFile names sourceName text0 = do
 
     when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
-      Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+      Cli.respond (Output.TypeErrors sourceName currentPath text suffixifiedPPE tes)
       -- An error in a definition that was pulled in is in code the user didn't write: say which definition it is in.
       for_ pulledIn \pulled -> when (not pulled.written) do
         let inPulledIn = Set.toList (Set.fromList (mapMaybe (typeErrorLine >=> pulledInDefinitionAt pulled) tes))
