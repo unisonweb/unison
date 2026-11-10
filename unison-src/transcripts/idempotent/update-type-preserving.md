@@ -1222,3 +1222,337 @@ scratch/main> update
 
   Done.
 ```
+
+A test the file updates is an updated term like any other, so changing a helper and its test in one file still leaves
+the other dependents alone.
+
+``` unison
+h7 : Nat -> Nat
+h7 n = n + 70
+
+uses7 : Nat
+uses7 = h7 1
+
+test> h7.tests.one = [Ok "seventy"]
+
+counts7 : Nat
+counts7 = List.size h7.tests.one
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + counts7      : Nat
+  + h7           : Nat -> Nat
+  + h7.tests.one : [Result]
+  + uses7        : Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    7 | test> h7.tests.one = [Ok "seventy"]
+    
+    ✅ Passed seventy
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+h7 : Nat -> Nat
+h7 n = n + 71
+
+test> h7.tests.one = [Ok "seventy-one"]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ h7           : Nat -> Nat
+  ~ h7.tests.one : [Result]
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | test> h7.tests.one = [Ok "seventy-one"]
+    
+    ✅ Passed seventy-one
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Nothing that code uses changed its type, so I'm
+  saving the results without typechecking it again...
+
+  Done.
+
+scratch/main> view uses7 counts7
+
+  counts7 : Nat
+  counts7 = List.size h7.tests.one
+
+  uses7 : Nat
+  uses7 = h7 1
+```
+
+``` unison
+uses7 : Nat
+uses7 = h7 1
+
+counts7 : Nat
+counts7 = List.size h7.tests.one
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
+
+A type the file adds keeps its GUID each time the file is printed and parsed again, which happens here because `Purse`
+depends on the updated `Coin`. So `strike` still refers to the `Mint` that is saved.
+
+``` unison
+type Coin = Heads | Tails
+
+type Purse = Purse [Coin]
+
+purseSize : Purse -> Nat
+purseSize = cases Purse coins -> List.size coins
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Coin
+  + type Purse
+
+  + purseSize : Purse -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Coin = Heads | Tails | Edge
+
+type Mint = Mint Nat
+
+strike : Nat -> Mint
+strike n = Mint n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Mint
+  ~ type Coin
+
+  + strike : Nat -> Mint
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Some of that code uses a type that changed, so
+  I'm typechecking those parts again...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view strike purseSize
+
+  purseSize : Purse -> Nat
+  purseSize = cases Purse coins -> List.size coins
+
+  strike : Nat -> Mint
+  strike n = Mint n
+```
+
+``` unison
+strike : Nat -> Mint
+strike n = Mint n
+
+purseSize : Purse -> Nat
+purseSize = cases Purse coins -> List.size coins
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+```
+
+`load` adds to a file the dependents it uses, so the file's own terms refer to nothing that the update replaces. A name
+that is resolved by its type gets past that: here `Wrap` could be either constructor, and the one that fits belongs to
+`Roll`, which depends on `Coin`. `emptyRoll` was typechecked with the old `Roll`, so the update takes the slow path,
+which prints it and parses it again.
+
+``` unison
+type left.Roll = Wrap [Coin] Nat
+
+type right.Stack = Wrap Text Text Text
+
+rollSize : left.Roll -> Nat
+rollSize = cases left.Roll.Wrap _ n -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type left.Roll
+  + type right.Stack
+
+  + rollSize : Roll -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+type Coin = Heads | Tails | Edge | Rim
+
+emptyRoll : Nat -> Nat
+emptyRoll n = match Wrap [] n with
+  _ -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ type Coin
+
+  + emptyRoll : Nat -> Nat
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view emptyRoll
+
+  emptyRoll : Nat -> Nat
+  emptyRoll n =
+    _ = Roll.Wrap [] n
+    n
+```
+
+The same goes for a term in the file that uses an alias of an updated term: only the printer says which of the two it
+refers to afterwards.
+
+``` unison
+h8 : Nat -> Nat
+h8 n = n + 80
+
+uses8 : Nat
+uses8 = h8 1
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + h8    : Nat -> Nat
+  + uses8 : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> alias.term h8 h8b
+
+  Done.
+```
+
+``` unison
+h8 : Nat -> Nat
+h8 n = n + 81
+
+viaAlias : Nat
+viaAlias = h8b 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + viaAlias : Nat
+  ~ h8 : Nat -> Nat
+      (was also named h8b)
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> view viaAlias uses8
+
+  uses8 : Nat
+  uses8 = h8 1
+
+  viaAlias : Nat
+  viaAlias = h8 2
+```

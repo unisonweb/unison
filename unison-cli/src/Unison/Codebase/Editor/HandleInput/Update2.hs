@@ -210,11 +210,24 @@ handleUpdate2 = do
         -- How the file and its dependents are printed for typechecking, by the frontier and the slow path alike
         let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
 
+        -- The GUID of each unique type the file defines. A new one would get another GUID each time the file is printed
+        -- and parsed, and the file's terms refer to the type they were loaded with.
+        let fileTypeGuids :: Map Name Text
+            fileTypeGuids =
+              Map.mapKeys Name.unsafeParseVar $
+                Map.mapMaybe (Decl.uniqueTypeGuid . Right . snd) (UF.dataDeclarationsId' tuf)
+                  <> Map.mapMaybe (Decl.uniqueTypeGuid . Left . snd) (UF.effectDeclarationsId' tuf)
+
         -- Typechecks the file with every dependent type and the named dependent terms printed into it. The other
         -- dependents are referred to by their old references, with the types in @retyped@ where they are given.
         let typecheckDependents :: Map TermReference (Type Symbol Ann) -> Set Name -> Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
             typecheckDependents retyped names = do
-              parsingEnv <- Cli.makeParsingEnv pp namesIncludingLibdeps
+              parsingEnv0 <- Cli.makeParsingEnv pp namesIncludingLibdeps
+              let parsingEnv =
+                    parsingEnv0
+                      { Parser.uniqueTypeGuid = \name ->
+                          maybe (parsingEnv0.uniqueTypeGuid name) (pure . Just) (Map.lookup name fileTypeGuids)
+                      }
               let prettyUnisonFile =
                     makePrettyUnisonFile
                       (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
@@ -250,15 +263,13 @@ handleUpdate2 = do
               case declFile of
                 Nothing -> pure Propagated'Failed
                 Just declFile -> do
-                  let declRefs :: Map Name TypeReferenceId
-                      declRefs =
-                        Map.fromList $
-                          [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.dataDeclarationsId' declFile)]
-                            ++ [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.effectDeclarationsId' declFile)]
+                  -- The file's terms refer to its types as they were loaded, so those have to come back the same
+                  guard (fileDeclRefs tuf `Map.isSubmapOf` fileDeclRefs declFile)
+
                   let (typeUpdates, divergedTypes) =
                         typeUpdatesOf
                           unconflictedView.defns.types
-                          declRefs
+                          (fileDeclRefs declFile)
                           (Map.elems propagation.updatedTypes ++ map fst (Map.elems hydratedDependents.types))
                   let retype = retypeWith typeUpdates
 
@@ -543,8 +554,14 @@ data Propagation = Propagation
 -- local variable named like something it refers to gets that name resolved by the printer, where a substitution would
 -- capture it. An aliased dependent that isn't recursive needs none of this: both names print the same term.
 --
--- Returns 'Nothing' when the slow path is needed: an updated type has parameters, or changes between data and ability
--- (either could change its kind, which a substitution can't check).
+-- Returns 'Nothing' when the slow path is needed:
+--
+--   * An updated type has parameters, or changes between data and ability. Either could change its kind, which a
+--     substitution can't check.
+--   * A term in the file refers to something the update replaces: a dependent, or the old version of an updated
+--     definition. It was typechecked with that reference, and only printing it and parsing it again says what it
+--     refers to now. `load` adds the dependents a file uses to the file, so it takes a name that was resolved by its
+--     type, or an alias of an updated definition, to get here.
 --
 -- @updates@ holds the names the file updates (not the ones it adds).
 planPropagation ::
@@ -563,7 +580,8 @@ planPropagation codebase namespace file updates dependents = runMaybeT do
       fileTerms =
         Map.fromList
           [ (Name.unsafeParseVar var, (var, typ))
-          | (var, (_, _, Nothing, _, typ)) <- Map.toList (UF.hashTermsId file)
+          | (var, (_, _, kind, _, typ)) <- Map.toList (UF.hashTermsId file),
+            WK.watchKindShouldBeStoredInDatabase kind
           ]
 
   let fileDecls :: Map Name (Decl Symbol Ann)
@@ -600,6 +618,27 @@ planPropagation codebase namespace file updates dependents = runMaybeT do
           pure (Just (oldRef, var, typ, oldType))
         _ -> hoistMaybe Nothing
 
+  -- The file's terms keep the references they were typechecked with, so they can't refer to anything the update
+  -- replaces
+  let replaced :: DefnsF Set TermReference TypeReference
+      replaced =
+        Defns
+          { terms =
+              Set.fromList . map Reference.fromId $
+                [oldRef | (oldRef, _, _, _) <- updatedTerms] ++ map fst (Map.elems dependents.terms),
+            types =
+              Set.fromList . map Reference.fromId $
+                map snd updatedTypes ++ map fst (Map.elems dependents.types)
+          }
+  guard $
+    all
+      ( \(_, _, _, term, typ) ->
+          let used = Term.dependencies term
+           in Set.disjoint used.terms replaced.terms
+                && Set.disjoint (used.types <> Type.dependencies typ) replaced.types
+      )
+      (UF.hashTermsId file)
+
   let updated :: Map TermReferenceId Symbol
       updated = Map.fromList [(oldRef, var) | (oldRef, var, _, _) <- updatedTerms, not (aliased oldRef)]
 
@@ -634,6 +673,13 @@ planPropagation codebase namespace file updates dependents = runMaybeT do
         updatedTypes = Map.fromList updatedTypes,
         printed = Map.keysSet (Map.filter (\(ref, (term, _)) -> mustPrint ref term) dependents.terms)
       }
+
+-- | The reference of each type in a file, by name.
+fileDeclRefs :: TypecheckedUnisonFile Symbol Ann -> Map Name TypeReferenceId
+fileDeclRefs file =
+  Map.fromList $
+    [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.dataDeclarationsId' file)]
+      ++ [(Name.unsafeParseVar var, ref) | (var, (ref, _)) <- Map.toList (UF.effectDeclarationsId' file)]
 
 -- | What each term reference becomes in the file: an updated term or a dependent, as a variable.
 substitutions ::
@@ -785,8 +831,9 @@ parseAndTypecheckRetyped retyped prettyUnisonFile parsingEnv
 -- an updated type is typechecked again instead). A type link takes the type's new reference, as the parser resolves it
 -- to the type printed into the file.
 --
--- Returns 'Nothing' when a substitution would still be captured by a local variable, which only a term in the file
--- itself can do: 'planPropagation' has the dependents where that could happen printed.
+-- Returns 'Nothing' when a substitution would still be captured by a local variable. That is a safety check:
+-- 'planPropagation' has the dependents where it could happen printed, and the file's own terms refer to nothing that is
+-- substituted.
 substituteDependents ::
   TypecheckedUnisonFile Symbol Ann ->
   TypecheckedUnisonFile Symbol Ann ->
