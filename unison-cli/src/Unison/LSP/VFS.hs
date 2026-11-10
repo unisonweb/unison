@@ -82,12 +82,19 @@ identifierSplitAtPosition :: (Lspish m) => Uri -> Position -> MaybeT m (Text, Te
 identifierSplitAtPosition uri pos = do
   vf <- getVirtualFile uri
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
-  let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
-  pure
-    ( Text.takeWhileEnd isIdentifierChar before,
-      -- names can end with '!', and it's not a force, so we include it in the identifier if it's at the end.
-      Text.takeWhile (\c -> isIdentifierChar c || c == '!') after
-    )
+  pure (splitIdentifierAtChar (cursorPos ^. character . to fromIntegral) fullLine)
+
+-- | Split a single line into the identifier prefix ending at the given (0-based) character
+-- offset and the identifier suffix beginning there. A dotted name like @List.map@ is treated
+-- as one identifier, so a trailing '.' is kept in the prefix (e.g. @"List."@) — this is what a
+-- completion request after a '.' keys off of.
+splitIdentifierAtChar :: Int -> Text -> (Text, Text)
+splitIdentifierAtChar char fullLine =
+  let (before, after) = Text.splitAt char fullLine
+   in ( Text.takeWhileEnd isIdentifierChar before,
+        -- names can end with '!', and it's not a force, so we include it in the identifier if it's at the end.
+        Text.takeWhile (\c -> isIdentifierChar c || c == '!') after
+      )
   where
     isIdentifierChar c =
       -- Manually exclude '!' and apostrophe, since those are usually just forces and
