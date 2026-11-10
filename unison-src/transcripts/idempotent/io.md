@@ -609,6 +609,7 @@ testDirContents _ =
 ### File permissions
 
 The four booleans are the owner's readable, writable, executable and searchable permissions.
+This transcript also runs on Windows, where only the writable permission can be set.
 
 ``` unison :hide
 testFilePermissions : '{io2.IO} [Result]
@@ -625,7 +626,13 @@ testFilePermissions _ =
     setPermissions fooFile (true, false, false, false)
     expectU "a file made read-only is read-only" (true, false, false, false) (getPermissions fooFile)
     setPermissions fooFile (true, true, true, false)
-    expectU "a file made executable is executable" (true, true, true, false) (getPermissions fooFile)
+    (readable', writable', executable', searchable') = getPermissions fooFile
+    expectU "a file made writable again is writable" (true, true, false) (readable', writable', searchable')
+    -- Windows has no executable permission: a file is executable when its extension says so.
+    onWindows = match getEnv.impl "OS" with
+      Right os -> os == "Windows_NT"
+      Left _ -> false
+    check "a file made executable is executable, except on Windows" (executable' || onWindows)
     (_, _, _, dirSearchable) = getPermissions tempDir
     check "a directory is searchable" dirSearchable
     check "getting the permissions of a missing file fails" let
@@ -650,11 +657,12 @@ testFilePermissions _ =
     1. testFilePermissions   ◉ a new file is readable and writable
                              ◉ a file is not searchable
                              ◉ a file made read-only is read-only
-                             ◉ a file made executable is executable
+                             ◉ a file made writable again is writable
+                             ◉ a file made executable is executable, except on Windows
                              ◉ a directory is searchable
                              ◉ getting the permissions of a missing file fails
 
-  ✅ 6 test(s) passing
+  ✅ 7 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```
