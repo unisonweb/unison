@@ -423,7 +423,7 @@ analyze opts im0 = do
       let hk0 = mkHooks env d
           hk = hk0 {hkLabel = \a tbl -> modifyIORef' (eSweepLabels env) ((a, tbl) :)}
       case imArch im of
-        Arm64 -> Arm64.sweepFixed hk (dStart d) (dEnd d)
+        Arm64 -> Arm64.sweepFixed (Arm64.isErratumVeneer (dName d)) hk (dStart d) (dEnd d)
         X86_64 -> X86.sweepFixed hk (dStart d) (dEnd d)
   -- Pointer slots are references wherever they are: a pointer in C data is
   -- an absolute address that can be rewritten like any other. A slot in

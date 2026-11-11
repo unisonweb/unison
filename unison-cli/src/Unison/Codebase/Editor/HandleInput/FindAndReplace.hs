@@ -114,7 +114,7 @@ handleStructuredFindReplaceI spec target = do
           parsingEnv <- Cli.makeParsingEnv pp branchNames
           uf0 <-
             Cli.runTransaction (Parsers.parseFile "rewrites" (Text.unpack text) parsingEnv)
-              & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
+              & onLeftM \err -> Cli.returnEarly (ParseErrors "rewrites" text [err])
           dest <- newRewritesPath "rewrites" Nothing
           applyRewrites True ruleTerms ruleNames branchNames (NewFile dest) uf0
 
@@ -247,7 +247,7 @@ loadAndParse path = do
   parsingEnv <- Cli.makeParsingEnv pp (Branch.toNames currentBranch)
   uf <-
     Cli.runTransaction (Parsers.parseFile path (Text.unpack text) parsingEnv)
-      & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
+      & onLeftM \err -> Cli.returnEarly (ParseErrors (Text.pack path) text [err])
   pure (text, uf)
 
 -- | Parse and typecheck a file, leaving the latest file and the latest typechecked file as they were.
