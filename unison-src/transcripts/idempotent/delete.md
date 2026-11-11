@@ -62,7 +62,7 @@ scratch/main> delete Foo
 
 scratch/main> ls
 
-  1. lib. (856 terms, 116 types)
+  1. lib. (858 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -173,7 +173,7 @@ scratch/main> delete.force Foo.Foo
 scratch/main> ls
 
   1. Foo  (type)
-  2. lib. (856 terms, 116 types)
+  2. lib. (858 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -391,7 +391,7 @@ scratch/main> delete foo
 
 scratch/main> ls
 
-  1. lib. (856 terms, 116 types)
+  1. lib. (858 terms, 116 types)
 ```
 
 ``` ucm :hide
@@ -537,11 +537,11 @@ scratch/main> delete a b c
   still in use.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in delete-main-0c8e56de.u.
+  definitions to fix are in delete-main-e89a1506.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load delete-main-0c8e56de.u
+      scratch/update-main> load delete-main-e89a1506.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -556,7 +556,7 @@ scratch/main> delete a b c
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm delete-main-0c8e56de.u
+``` unison :added-by-ucm delete-main-e89a1506.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -751,11 +751,11 @@ scratch/main> delete ping
   still in use.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in delete-main-0b295472.u.
+  definitions to fix are in delete-main-e37044d4.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load delete-main-0b295472.u
+      scratch/update-main> load delete-main-e37044d4.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -770,7 +770,7 @@ scratch/main> delete ping
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm delete-main-0b295472.u
+``` unison :added-by-ucm delete-main-e37044d4.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 

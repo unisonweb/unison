@@ -606,6 +606,67 @@ testDirContents _ =
   Tip: Use view 1 to view the source of a test.
 ```
 
+### File permissions
+
+The four booleans are the owner's readable, writable, executable and searchable permissions.
+This transcript also runs on Windows, where only the writable permission can be set.
+
+``` unison :hide
+testFilePermissions : '{io2.IO} [Result]
+testFilePermissions _ =
+  test = 'let
+    tempDir = newTempDir "permissions"
+    fooFile = tempDir ++ "/foo"
+    writeFile fooFile 0xs01
+    getPermissions path = reraise (getFilePermissions.impl path)
+    setPermissions path permissions = reraise (setFilePermissions.impl path permissions)
+    (readable, writable, _, searchable) = getPermissions fooFile
+    check "a new file is readable and writable" (readable && writable)
+    check "a file is not searchable" (not searchable)
+    setPermissions fooFile (true, false, false, false)
+    expectU "a file made read-only is read-only" (true, false, false, false) (getPermissions fooFile)
+    setPermissions fooFile (true, true, true, false)
+    (readable', writable', executable', searchable') = getPermissions fooFile
+    expectU "a file made writable again is writable" (true, true, false) (readable', writable', searchable')
+    -- Windows has no executable permission: a file is executable when its extension says so.
+    onWindows = match getEnv.impl "OS" with
+      Right os -> os == "Windows_NT"
+      Left _ -> false
+    check "a file made executable is executable, except on Windows" (executable' || onWindows)
+    (_, _, _, dirSearchable) = getPermissions tempDir
+    check "a directory is searchable" dirSearchable
+    check "getting the permissions of a missing file fails" let
+      match getFilePermissions.impl (tempDir ++ "/missing") with
+        Left _ -> true
+        Right _ -> false
+  runTest test
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test testFilePermissions
+
+    New test results:
+
+    1. testFilePermissions   ◉ a new file is readable and writable
+                             ◉ a file is not searchable
+                             ◉ a file made read-only is read-only
+                             ◉ a file made writable again is writable
+                             ◉ a file made executable is executable, except on Windows
+                             ◉ a directory is searchable
+                             ◉ getting the permissions of a missing file fails
+
+  ✅ 7 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
 ### Read environment variables
 
 ``` unison :hide
