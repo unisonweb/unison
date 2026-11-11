@@ -121,6 +121,9 @@ data Env = Env
     envStressCallee :: !Bool,
     -- | exits write the frame back through a call (see 'joinCall')
     envExitCall :: !Bool,
+    -- | the stores of those calls' arguments are shared between a
+    -- function's sites (see 'joinChain')
+    envExitChain :: !Bool,
     -- | the group being compiled, for the arity of Let body combinators
     envCombs :: !MCombs,
     -- | pool index of every constant this group uses
@@ -488,7 +491,12 @@ data GS = GS
     -- | the exit descriptors of the function being generated (see
     -- 'joinCall'): the global's name by its contents, and the globals
     gsDescs :: !(Map.Map Text Text),
-    gsDescText :: !(Deque Text)
+    gsDescText :: !(Deque Text),
+    -- | the blocks of the function being generated that store a slot into
+    -- the exit routine's argument block (see 'joinChain'): the number of
+    -- the block for a slot and the block it branches to (0 is the block
+    -- that makes the call); generated at the end
+    gsChain :: !(Map.Map (Pair Int Int) Int)
   }
 
 -- | What a write-back block does, which is all that exits and unwinds
@@ -548,7 +556,8 @@ initialState maxK cells known worker =
       gsWorker = worker,
       gsShared = Map.empty,
       gsDescs = Map.empty,
-      gsDescText = D.empty
+      gsDescText = D.empty,
+      gsChain = Map.empty
     }
 
 -- | Gives up on the function (or on what 'attempt' is trying).
@@ -1158,7 +1167,9 @@ liveSlots d live = maybe [1 .. d] (filter (<= d) . IS.toAscList) live
 -- calls in a row with the caller's live values across the first, and
 -- under the C convention those would need callee-saved registers, which
 -- the function then saves at every entry (Collatz 4% slower). The
--- default since 2026-10-09 (@UNISON_JIT_EXITS@).
+-- default since 2026-10-09 (@UNISON_JIT_EXITS@). A site with many live
+-- slots shares the stores into the block with the function's other sites
+-- ('joinChain').
 joinCall :: FnEnv -> Int -> Maybe IS.IntSet -> Bool -> Maybe (Pair Int Int) -> Text -> Gen ()
 joinCall fe d live isExit ownFrame status = do
   let slots = liveSlots d live
@@ -1179,7 +1190,8 @@ joinCall fe d live isExit ownFrame status = do
         Nothing -> own ++ enclosing
         Just lo -> let inner = length es - loDepth lo in own ++ take inner enclosing ++ [[-1, 0]] ++ drop inner enclosing
       recs = zipWith (\r pending -> r ++ [pending]) ordered (replicate (length ordered - 1) 0 ++ [-1 :: Int])
-      flags = (if isExit then 1 else 0) + (if null es && isNothing (feLocal fe) then 2 else 0) :: Int
+      chain = envExitChain (feEnv fe) && length slots > chainMinSlots
+      flags = (if isExit then 1 else 0) + (if null es && isNothing (feLocal fe) then 2 else 0) + (if chain then 4 else 0) :: Int
       header = [flags, currentBase fe, base, d, length slots, length recs]
       -- a record's first word is a frame index (a placeholder until the
       -- module's tables are registered), or -1 for an environment switch
@@ -1188,7 +1200,7 @@ joinCall fe d live isExit ownFrame status = do
         [] -> []
       contents = intercalateT ", " (D.fromList (map ("i64 " <>) (map tshow (header ++ slots) ++ concatMap recText recs)))
   when isExit (useK d)
-  vals <- forM slots $ \k -> useK k >> (Pair <$> loadU k <*> loadB k)
+  vals <- if chain then pure [] else forM slots $ \k -> useK k >> (Pair <$> loadU k <*> loadB k)
   descs <- gets gsDescs
   name <- case Map.lookup contents descs of
     Just n -> pure n
@@ -1201,6 +1213,12 @@ joinCall fe d live isExit ownFrame status = do
             gsDescText = gsDescText s |> (n <> " = private unnamed_addr constant [" <> n' <> " x i64] [" <> contents <> "]")
           }
       pure n
+  if chain then joinChain fe slots name status else joinArgs fe vals name status
+
+-- | The end of a 'joinCall' site that stores its own arguments: the live
+-- values into the argument block, then the call.
+joinArgs :: FnEnv -> [Pair Text Text] -> Text -> Text -> Gen ()
+joinArgs fe vals name status = do
   -- the live values into the argument block: a word and a pointer per
   -- slot, then the Local environment when there is one
   let words = concatMap (\(Pair u b) -> [("i64", u), ("ptr", b)]) vals ++ maybe [] (\lo -> [("ptr", loHenv0 lo)]) (feLocal fe)
@@ -1218,6 +1236,103 @@ joinCall fe d live isExit ownFrame status = do
   -- range of statuses (a caller folds its checks of them with it)
   emit ("call preserve_mostcc void @unison_jit_exit_frame(ptr %ctx, ptr " <> name <> ", i64 %fp, i64 %ap, ptr %xargs)")
   retStatus fe status
+
+-- | The end of a 'joinCall' site under @UNISON_JIT_EXITS=chain@ (the
+-- default; @call@ makes every site store its own arguments): the
+-- stores into the argument block are shared with the function's other
+-- sites. A site's own stores are a load, an address and a store on each
+-- half of every live slot, and in straight-line code the live slots grow
+-- with the function's length (a tuple of n calls keeps every earlier
+-- result live at each later call), so the sites together were quadratic
+-- in it: 88% of the lines of the test transcript's largest modules.
+--
+-- Slot @k@ has a fixed place in the block here (words @2k-1@ and @2k@;
+-- word 0 is the Local environment's), so the store of a slot is the same
+-- code at every site, and there is one block for each slot on top of each
+-- distinct set of lower live slots: it stores the slot and branches to
+-- the block for the next lower one, and the last makes the call. The
+-- site records its descriptor and status and branches to the block of
+-- its highest live slot. Two sites share the blocks of the slots below
+-- the lowest one they differ in, so a site whose live slots are an
+-- earlier site's plus higher ones adds blocks for the new ones only, and
+-- the blocks are never more than the stores of the sites were.
+--
+-- Finding a site's blocks is a lookup per live slot ('gsChain'), whether
+-- or not the block exists, so the generator's own work is still the sum
+-- of the live slots over the sites.
+--
+-- A slot holding a boolean as an i1 register has no value in its
+-- allocas, and the shared blocks can't know which paths those are, so the
+-- closure is built and stored here before the branch (as 'joinBlock').
+--
+-- Only a site with more than 'chainMinSlots' live slots does this; one
+-- with fewer stores its own arguments ('joinArgs'), which bounds what the
+-- sites that don't share can add up to, and leaves the code of a small
+-- function as it was: with every site sharing, the hot paths of small
+-- recursive functions were slower (fib 14%, Collatz 13%), the shared
+-- blocks' phis and the larger argument block being the difference in
+-- their code.
+joinChain :: FnEnv -> [Int] -> Text -> Text -> Gen ()
+joinChain fe slots name status = do
+  kinds <- gets gsKinds
+  forM_ slots $ \k -> do
+    useK k
+    when (IM.member k kinds) $ do
+      b <- loadB k
+      emit ("store i64 -1, ptr " <> uSlot k)
+      emit ("store ptr " <> b <> ", ptr " <> bSlot k)
+  forM_ (feLocal fe) $ \lo -> emit ("store ptr " <> loHenv0 lo <> ", ptr %xargs")
+  emit ("store ptr " <> name <> ", ptr %xdesc")
+  emit ("store i64 " <> status <> ", ptr %xstatus")
+  -- lowest slot first: the blocks of the low slots are the shared ones
+  n <- foldM chainBlock 0 slots
+  modify' (\s -> s {gsMaxExitArgs = max (gsMaxExitArgs s) (2 * maximum (0 : slots) + 1)})
+  emit ("br label %" <> chainLabel n)
+  where
+    chainBlock below k = do
+      known <- gets gsChain
+      case Map.lookup (Pair k below) known of
+        Just n -> pure n
+        Nothing -> do
+          let n = Map.size known + 1
+          modify' (\s -> s {gsChain = Map.insert (Pair k below) n known})
+          pure n
+
+-- | The most live slots a site stores itself; with more, the stores
+-- are shared (see 'joinChain').
+chainMinSlots :: Int
+chainMinSlots = 4
+
+chainLabel :: Int -> Text
+chainLabel 0 = "wbcall"
+chainLabel n = "wbslot." <> tshow n
+
+-- | Generates the function's shared argument-store blocks (see
+-- 'joinChain'), and the block that calls the exit routine with the
+-- descriptor and returns the status the site recorded.
+flushChain :: FnEnv -> Gen ()
+flushChain fe = do
+  chain <- gets gsChain
+  unless (Map.null chain) $ do
+    modify' (\s -> s {gsKinds = IM.empty})
+    forM_ (Map.toList chain) $ \(Pair k below, n) ->
+      sideBlockNamed (chainLabel n) $ do
+        u <- loadU k
+        b <- loadB k
+        ua <- fresh "xa"
+        emit (ua <> " = getelementptr inbounds i64, ptr %xargs, i64 " <> tshow (2 * k - 1))
+        emit ("store i64 " <> u <> ", ptr " <> ua)
+        ba <- fresh "xa"
+        emit (ba <> " = getelementptr inbounds i64, ptr %xargs, i64 " <> tshow (2 * k))
+        emit ("store ptr " <> b <> ", ptr " <> ba)
+        emit ("br label %" <> chainLabel below)
+    sideBlockNamed (chainLabel 0) $ do
+      d <- fresh "xd"
+      emit (d <> " = load ptr, ptr %xdesc")
+      st <- fresh "xst"
+      emit (st <> " = load i64, ptr %xstatus")
+      emit ("call preserve_mostcc void @unison_jit_exit_frame(ptr %ctx, ptr " <> d <> ", i64 %fp, i64 %ap, ptr %xargs)")
+      retStatus fe st
 
 -- | 'joinShared' with generated write-back blocks (@UNISON_JIT_EXITS=blocks@).
 joinBlock :: FnEnv -> Int -> Maybe IS.IntSet -> Bool -> Maybe (Pair Int Int) -> Text -> Gen ()
@@ -1642,6 +1757,7 @@ genFunctionText fe body = do
     Just _ -> genSection fe arity body
   startBlock "unreachable"
   flushShared
+  flushChain fe
   gs <- get
   let block (Pair l is)
         | l == "unreachable" = D.empty
@@ -1649,7 +1765,7 @@ genFunctionText fe body = do
       -- the wrapper (or the uniform return) stores the result slots above
       -- the frame base after the body ran, so they are ensured here too
       maxK = maximum [gsMaxK gs, arity + feFrameSize fe, feBase fe + max resultWidth (feWidth fe)]
-      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs) (gsUsesWitness gs)
+      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs) (not (Map.null (gsChain gs))) (gsUsesWitness gs)
       -- the grow exit, the first this function added, asks for what the
       -- entry check demanded
       fixGrow e
@@ -1678,7 +1794,7 @@ genFunctionText fe body = do
 genFastEntry :: FnEnv -> MSection -> Gen Text
 genFastEntry fe body = do
   s <- get
-  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty, gsChain = Map.empty}
       !(text, gs) = runState (genFunctionText fe body) gs0
   put
     s
@@ -1973,7 +2089,7 @@ genAuxFunction later fe loaded base body = do
           known = Pair name cell
           -- (an environment switch in force at the exit this re-enters after has become a Local frame in K)
           fe' = fe {feName = name, feArity = loaded, feCell = cell, feHead = Nothing, feBase = base, feEnclosing = D.empty, feWorker = False, feFast = Nothing, feSym = name, feInternal = False, feLocal = Nothing}
-          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty, gsChain = Map.empty}
           !(text, gs) = runState (genFunctionText fe' body) gs0
       case gsFailed gs of
         Just why -> put s {gsNotes = gsNotes gs |> (name <> ": " <> why)} >> pure Nothing
@@ -2026,8 +2142,8 @@ callOutWorthwhile i rest = case (pushCount i, rest) of
 -- stack check, then a branch to the loop head. @maxK@ is the highest
 -- frame offset the function touches, which is at least the frame size and
 -- covers the arguments of every call it makes.
-entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Int -> Bool -> Deque Text
-entryBlock env worker checks arity base maxK maxPool maxExitArgs witnesses =
+entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Int -> Bool -> Bool -> Deque Text
+entryBlock env worker checks arity base maxK maxPool maxExitArgs chained witnesses =
   fmap ("  " <>) $
     -- %fp is the combinator's frame pointer, %fpb the interpreter's (the
     -- one passed in); they differ by the frame base
@@ -2046,6 +2162,8 @@ entryBlock env worker checks arity base maxK maxPool maxExitArgs witnesses =
       -- the site that passes the most; absent only when there is no such
       -- call (every call claims at least one word)
       <> (if maxExitArgs > 0 then lines ["%xargs = alloca [" <> tshow maxExitArgs <> " x i64]"] else D.empty)
+      -- what a site of 'joinChain' asks of the block that makes the call
+      <> (if chained then lines ["%xdesc = alloca ptr", "%xstatus = alloca i64"] else D.empty)
       <> each [0 .. maxK] (\k -> lines ["%fpk" <> tshow k <> " = add i64 %fp, " <> tshow k])
       <> lines
         [ (if worker then ctxAddr else ctxLoad "ptr") "%ustk" oUstk,
