@@ -53,7 +53,6 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
-import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
@@ -74,14 +73,11 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
-import UnliftIO.Environment (setEnv)
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 data Config = Config
   { terminalWidth :: Pretty.Width,
-    -- | `Nothing` uses the default, a value overrides @$FZF_PATH@. It may be set to `"NONE"` to disable the use of FZF.
-    fzfPath :: Maybe FilePath,
     credentialsFile :: Maybe FilePath,
     -- | Control additional test-related values.
     --
@@ -111,13 +107,11 @@ type CarriedFiles = IORef (Maybe (FilePath, Bool), Maybe (Either (UF.UnisonFile 
 -- | A reasonable set of defaults to use.
 --
 -- - render transcript errors at a width of 65 chars
--- - use @$FZF_PATH@
 -- - use the default credentials path
 defaultConfig :: Config
 defaultConfig =
   Config
     { terminalWidth = 65,
-      fzfPath = Nothing,
       credentialsFile = Nothing,
       isTest = False,
       unattended = False,
@@ -136,8 +130,6 @@ mcpConfig =
     { unattended = True,
       -- An agent has no terminal, so output is laid out for a virtual one of this width.
       terminalWidth = 100,
-      -- No person is there to answer an interactive search, so a command with no arguments fails instead of opening fzf.
-      fzfPath = pure "NONE",
       outputIsFailure = Output.isFailureForMcp,
       outputIsNumberedFailure = Output.isNumberedFailureForMcp,
       createMissingContexts = False,
@@ -150,8 +142,7 @@ mcpConfig =
 testConfig :: FilePath -> Config
 testConfig tempDir =
   defaultConfig
-    { fzfPath = pure "NONE",
-      credentialsFile = pure $ tempDir </> "credentials.json",
+    { credentialsFile = pure $ tempDir </> "credentials.json",
       isTest = True
     }
 
@@ -179,10 +170,6 @@ withRunner jit config verbosity ucmVersion action = do
   carried <- liftIO (newIORef (Nothing, Nothing))
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
-  -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
-  -- so that errors are consistent.
-  -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
-  maybe (pure ()) (liftIO . setEnv Fuzzy.fzfPathEnvVar) $ fzfPath config
   withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc codebase ->
       case Transcript.parse transcriptName transcriptSrc of
@@ -476,7 +463,7 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                     PP.ProjectAndBranch projId branchId <-
                       PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
                     let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
-                    liftIO (parseInput codebase curPath getProjectRoot numberedArgs patternMap args)
+                    liftIO (parseInput NoFZF codebase curPath getProjectRoot numberedArgs patternMap args)
                       >>= either
                         -- invalid command is treated as a failure
                         ( \failure -> do
