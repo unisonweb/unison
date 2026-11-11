@@ -6,6 +6,7 @@ module Unison.CommandLine
   ( ParseFailure (..),
     ExpansionFailure (..),
     FZFResolveFailure (..),
+    FZFMode (..),
     allow,
     parseInput,
     prompt,
@@ -190,7 +191,17 @@ reportParseFailure = \case
                 <> IP.makeExampleEOS pat []
           ]
 
+-- | Whether 'parseInput' may open fzf to fill in arguments the user left out.
+data FZFMode
+  = -- | A person is at the terminal, so a command with missing arguments opens fzf, if it's installed.
+    UseFZF
+  | -- | A program is driving UCM (a transcript, or the MCP server), so nobody is there to answer fzf: missing arguments
+    -- are a parse error.
+    NoFZF
+  deriving stock (Eq, Show)
+
 parseInput ::
+  FZFMode ->
   Codebase IO Symbol Ann ->
   -- | Current location
   PP.ProjectPath ->
@@ -204,7 +215,7 @@ parseInput ::
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
   IO (Either ParseFailure (Maybe (InputPattern.Arguments, Input)))
-parseInput codebase projPath currentProjectRoot numberedArgs patterns cliArgs = runExceptT do
+parseInput fzfMode codebase projPath currentProjectRoot numberedArgs patterns cliArgs = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
         projRoot <- currentProjectRoot
@@ -222,7 +233,7 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns cliArgs = 
   (expandedArgs, remainingParams) <-
     except . first (ExpansionFailure cmd pat) $ expandArguments numberedArgs params args
 
-  if Fuzzy.isFZFInstalled
+  if fzfMode == UseFZF && Fuzzy.isFZFInstalled
     then do
       argResult <- lift (fzfResolve codebase projPath getCurrentBranch0 remainingParams)
       case argResult of
@@ -237,7 +248,7 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns cliArgs = 
           -- otherwise, parse the args we resolved
           Just resolvedArgs -> Just <$> mkResult (expandedArgs <> resolvedArgs)
     else do
-      -- fzf isn't installed, just try to parse the args we have and probably get an error from the parser
+      -- fzf is off or isn't installed, just try to parse the args we have and probably get an error from the parser
       Just <$> mkResult expandedArgs
 
 -- Expand a numeric argument like `1` or a range like `3-9`
