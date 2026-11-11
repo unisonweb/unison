@@ -96,6 +96,23 @@ the code that loads it to what it holds, not a root, and one that fixed
 code names is a root. A table of closures in a constant section, indexed at
 run time, is a root as before.
 
+The bfd linker works around Cortex-A53 erratum 843419 on arm64. Where an
+`adrp` lands at page offset `0xff8` or `0xffc` ahead of certain loads and
+stores, it moves one of those instructions into a veneer (a local symbol
+`e843419@...`) and puts a `b` to the veneer in its place. The veneer runs
+the moved instruction and branches back to the next one. The veneer is
+fixed code, and the target of its branch back is a label even though no
+info table precedes it (see `sweepFixed` in
+[`Arm64.hs`](src/Minify/Arm64.hs)). Decoding stops at the `b` into the
+veneer, so without that label the rest of the block, and every label only
+it reaches, would never be decoded. The veneer's branch pins the block's
+page, so the block would stay put with references never rewritten, while
+the definitions they point at moved or were removed. Labelling a target
+without a table is safe here because a veneer's shape is known; elsewhere
+the sweep labels only targets with tables. Which blocks get veneers depends
+on exact addresses, so any change to the program can move one into code a
+given run uses.
+
 ### Pointer slots without a relocation list
 
 A Linux executable GHC links by default is not position independent and

@@ -10,6 +10,7 @@ module Minify.Arm64
     decode,
     decodeFrom,
     sweepFixed,
+    isErratumVeneer,
     patchInsn,
     maskInsn,
     stubCode,
@@ -39,6 +40,7 @@ where
 
 import Control.Monad
 import Data.Bits
+import qualified Data.ByteString as B
 import Data.Int
 import Data.Word
 import Minify.Hooks
@@ -290,8 +292,16 @@ decodeFrom hk = go
 -- local closures follow whatever symbol precedes them, the C @main@ of the
 -- program's own module for one), and the info table before such a label
 -- holds an SRT offset that must follow its closure.
-sweepFixed :: Hooks -> Word64 -> Word64 -> IO ()
-sweepFixed hk start end = go start
+--
+-- In a linker's erratum veneer (@veneer@), the target of a @b@ is a label
+-- even without a table. The linker moved one instruction of a block into
+-- the veneer, put a @b@ to the veneer in its place, and the veneer's @b@
+-- returns to the rest of the block. Decoding stops at the first @b@, so
+-- without this label the rest of the block, and whatever only it reaches,
+-- would never be decoded: its references would not be rewritten, and what
+-- they point at could move or be removed while it stays put.
+sweepFixed :: Bool -> Hooks -> Word64 -> Word64 -> IO ()
+sweepFixed veneer hk start end = go start
   where
     go pc
       | pc + 4 > end = pure ()
@@ -305,11 +315,18 @@ sweepFixed hk start end = go start
                   when (hkHasTable hk (page + off)) (hkLabel hk (page + off) True)
                 Nothing -> hkPinPage hk page
             Adr t -> hkPin hk "adr" t
-            B t -> hkPin hk "branch" t
+            B t -> do
+              hkPin hk "branch" t
+              when veneer (hkLabel hk t False)
             Bl t -> hkPin hk "branch" t
             LdrLit t -> hkPin hk "literal" t
             _ -> pure ()
           go (pc + 4)
+
+-- | Whether a symbol names a linker's veneer for Cortex-A53 erratum 843419:
+-- bfd's @e843419\@...@ and lld's @__CortexA53843419_...@.
+isErratumVeneer :: B.ByteString -> Bool
+isErratumVeneer n = "e843419@" `B.isPrefixOf` n || "__CortexA53843419_" `B.isPrefixOf` n
 
 -- * Rewriting
 
