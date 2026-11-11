@@ -433,6 +433,26 @@ frames of a small function; deeper recursion bounces through the interpreter eve
 frames. Switching to a large malloc'd stack in `unison_jit_enter` would make that many times
 rarer. Cheap to try; needs care with signal handlers and anything that inspects the stack.
 
+### Exit descriptors and the generator's walk, linear in the function
+
+Sites with many live slots share their stores into the exit routine's argument block
+([design](design.md#write-back),
+[2026-11-11](benchmarks/2026-11-11-shared-write-back.md)), which made the code of a
+straight-line function linear in its length. Two things still grow with the sum of the live
+slots over the sites:
+
+- Each site's descriptor lists its slots. It is data, a word per slot (62 KB of a 415 KB
+  module). A descriptor could point at a linked list of slots in constant data that mirrors
+  the shared blocks.
+- The generator computes each site's live set from scratch (`Live.liveAt`) and looks up one
+  block per live slot. Both could be computed from the previous site's, applying only the
+  slots that became live or died.
+
+Sharing at every site, not only those with more than four live slots, cost small recursive
+functions about 10% (`fib`, Collatz). The shared blocks' phis and the larger argument block
+were the differences in the code, and which one costs the time is not known. If it is the
+block, numbering only the slots that some site writes would let the threshold go.
+
 ### Linear re-entry code for all cases
 
 A re-entry function is the whole suffix of its function from its point on, generated
