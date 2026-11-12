@@ -31,6 +31,8 @@ library:
   when:
     - condition: false
       other-modules: Paths_unison_credentials
+    - condition: "!os(windows)"
+      dependencies: unix
 
 default-extensions:
   - ApplicativeDo
