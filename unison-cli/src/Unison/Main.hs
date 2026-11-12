@@ -164,7 +164,7 @@ main version = do
     interruptHandler <- defaultInterruptHandler
     withInterruptHandler interruptHandler $ do
       void $ Ki.fork scope (initHTTPClient version)
-      progName <- getProgName
+      progName <- getUserFacingProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption} = globalOptions
@@ -457,6 +457,16 @@ initHTTPClient version = do
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 
+-- | The name to show users for this program, in help text and messages.
+--
+-- The release bundle and the Nix package start the @unison@ executable from a @ucm@ launcher, so 'getProgName' gives
+-- @unison@, a command users don't have.
+getUserFacingProgName :: IO String
+getUserFacingProgName =
+  getProgName <&> \case
+    "unison" -> "ucm"
+    name -> name
+
 -- | Prep the codebase for transcripts, then pass the directory to the action.
 -- After the action the codebase will be deleted/copied/saved as indicated.
 withTranscriptDir :: Verbosity.Verbosity -> String -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO (Maybe r)
@@ -642,7 +652,7 @@ runTranscripts jit version verbosity renderUsageInfo codebaseSetup mCodePathOpti
       putStrLn (renderUsageInfo $ Just "transcript")
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
-  progName <- getProgName
+  progName <- getUserFacingProgName
   completed <-
     fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
       runTranscripts' jit version progName transcriptDir markdownFiles
@@ -714,7 +724,7 @@ getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
     Left (dir, err) ->
       let message = do
             pDir <- prettyDir dir
-            executableName <- P.text . Text.pack <$> getProgName
+            executableName <- P.text . Text.pack <$> getUserFacingProgName
 
             case err of
               InitErrorOpen err ->
