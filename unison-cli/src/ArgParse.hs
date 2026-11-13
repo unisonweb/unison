@@ -52,7 +52,7 @@ import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcap
 import Options.Applicative.Help (bold, (<+>))
 import Options.Applicative.Help.Pretty qualified as P
 import Stats
-import System.Environment (lookupEnv)
+import System.Environment (lookupEnv, withProgName)
 import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -164,7 +164,8 @@ parseCLIArgs progName version = do
   let parserInfo = rootParserInfo progName version envOpts
   let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols <> subparserInline
   let usage = renderUsage progName parserInfo preferences
-  (globalOptions, command) <- customExecParser preferences parserInfo
+  -- optparse-applicative looks the program name up itself, for the usage lines it prints
+  (globalOptions, command) <- withProgName progName $ customExecParser preferences parserInfo
   pure $ (usage, globalOptions, command)
 
 -- | Load default options from environment variables.

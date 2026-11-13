@@ -104,3 +104,4 @@ The format for this list: name, GitHub handle
 * Olivier Mélois (@Baccata)
 * Frederick Pringle (@fpringle)
 * Giovanni d'Amelio (@giodamelio)
+* Shu Chen (@shu-chen-dot-ca)
