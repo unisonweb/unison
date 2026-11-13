@@ -45,7 +45,7 @@ import System.Environment (getProgName, lookupEnv, setEnv, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
-import System.FilePath (replaceExtension, takeExtension, (</>))
+import System.FilePath (dropExtension, replaceExtension, takeExtension, (</>))
 import System.IO (hFlush, hIsTerminalDevice, stderr, stdout)
 import System.IO.CodePage (withCP65001)
 import System.IO.Temp qualified as Temp
@@ -164,7 +164,7 @@ main version = do
     interruptHandler <- defaultInterruptHandler
     withInterruptHandler interruptHandler $ do
       void $ Ki.fork scope (initHTTPClient version)
-      progName <- getProgName
+      progName <- getUserFacingProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption} = globalOptions
@@ -642,7 +642,7 @@ runTranscripts jit version verbosity renderUsageInfo codebaseSetup mCodePathOpti
       putStrLn (renderUsageInfo $ Just "transcript")
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
-  progName <- getProgName
+  progName <- getUserFacingProgName
   completed <-
     fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
       runTranscripts' jit version progName transcriptDir markdownFiles
@@ -714,7 +714,7 @@ getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
     Left (dir, err) ->
       let message = do
             pDir <- prettyDir dir
-            executableName <- P.text . Text.pack <$> getProgName
+            executableName <- P.text . Text.pack <$> getUserFacingProgName
 
             case err of
               InitErrorOpen err ->
@@ -801,3 +801,17 @@ announceJIT jit = case JITConfig.mode (JIT.jitConfig jit) of
       Nothing -> pure ()
       Just (Right _) -> putStrLn "  JIT compilation activated \x26a1\x1f680" >> hFlush stdout
       Just (Left msgs) -> mapM_ (putStrLn . ("  " ++)) msgs >> hFlush stdout
+
+-- | The name to show users when we suggest a command for them to run (in @--help@ output, version output, and
+-- messages like "run `ucm --codebase ...`").
+--
+-- Distributions (e.g. the release bundles and nixpkgs) install a @ucm@ launcher that execs the actual binary,
+-- which is named @unison@. In that case 'getProgName' returns @unison@, which isn't a command the user can run, so we
+-- show @ucm@ instead. Any other name (e.g. a binary the user renamed or symlinked) is shown as-is.
+getUserFacingProgName :: IO String
+getUserFacingProgName = do
+  progName <- getProgName
+  pure
+    if dropExtension progName == "unison"
+      then "ucm"
+      else progName

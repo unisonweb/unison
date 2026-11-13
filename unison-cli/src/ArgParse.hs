@@ -22,7 +22,9 @@ import Options.Applicative
     auto,
     columns,
     command,
-    customExecParser,
+    ParserResult (..),
+    execCompletion,
+    execParserPure,
     flag,
     footerDoc,
     fullDesc,
@@ -52,7 +54,9 @@ import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcap
 import Options.Applicative.Help (bold, (<+>))
 import Options.Applicative.Help.Pretty qualified as P
 import Stats
-import System.Environment (lookupEnv)
+import System.Environment (getArgs, lookupEnv)
+import System.Exit (ExitCode (..), exitSuccess, exitWith)
+import System.IO (hPutStrLn, stderr)
 import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -164,8 +168,26 @@ parseCLIArgs progName version = do
   let parserInfo = rootParserInfo progName version envOpts
   let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols <> subparserInline
   let usage = renderUsage progName parserInfo preferences
-  (globalOptions, command) <- customExecParser preferences parserInfo
+  (globalOptions, command) <- execParserWithProgName progName preferences parserInfo
   pure $ (usage, globalOptions, command)
+
+-- | Like optparse-applicative's 'customExecParser', but uses the given program name in help and error output instead
+-- of looking it up with 'System.Environment.getProgName' (which returns @unison@ when we're run via a @ucm@ launcher).
+execParserWithProgName :: String -> ParserPrefs -> ParserInfo a -> IO a
+execParserWithProgName progName preferences parserInfo = do
+  args <- getArgs
+  case execParserPure preferences parserInfo args of
+    Success a -> pure a
+    Failure failure -> do
+      let (msg, exitCode) = renderFailure failure progName
+      case exitCode of
+        ExitSuccess -> putStrLn msg
+        ExitFailure _ -> hPutStrLn stderr msg
+      exitWith exitCode
+    CompletionInvoked completion -> do
+      msg <- execCompletion completion progName
+      putStr msg
+      exitSuccess
 
 -- | Load default options from environment variables.
 codebaseServerOptsFromEnv :: IO CodebaseServerOpts
