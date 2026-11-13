@@ -1,0 +1,1073 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html"><span class="hs-identifier">Unison.Util.EnumContainers</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier">EnumMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier">EnumSet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier">EnumKey</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromList"><span class="hs-identifier">mapFromList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setFromList"><span class="hs-identifier">setFromList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setToList"><span class="hs-identifier">setToList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapSingleton"><span class="hs-identifier">mapSingleton</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setSingleton"><span class="hs-identifier">setSingleton</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapInsert"><span class="hs-identifier">mapInsert</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromSet"><span class="hs-identifier">mapFromSet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#unionWith"><span class="hs-identifier">unionWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#intersectionWith"><span class="hs-identifier">intersectionWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#hasKey"><span class="hs-identifier">hasKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keys"><span class="hs-identifier">keys</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keysSet"><span class="hs-identifier">keysSet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#restrictKeys"><span class="hs-identifier">restrictKeys</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#withoutKeys"><span class="hs-identifier">withoutKeys</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapDifference"><span class="hs-identifier">mapDifference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#member"><span class="hs-identifier">member</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#lookup"><span class="hs-identifier">lookup</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#lookupWithDefault"><span class="hs-identifier">lookupWithDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapWithKey"><span class="hs-identifier">mapWithKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldMapWithKey"><span class="hs-identifier">foldMapWithKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldlWithKey"><span class="hs-identifier">foldlWithKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-identifier">mapToList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#%21"><span class="hs-operator">(!)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#findMin"><span class="hs-identifier">findMin</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#interverse"><span class="hs-identifier">interverse</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseSet_"><span class="hs-identifier">traverseSet_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseWithKey"><span class="hs-identifier">traverseWithKey</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setSize"><span class="hs-identifier">setSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldrSet"><span class="hs-identifier">foldrSet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Eq1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ord1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word16</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">class</span><span> </span><span id="EnumKey"><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-var">EnumKey</span></a></span></span><span> </span><span id="local-6989586621681943390"><span class="annot"><a href="#local-6989586621681943390"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="keyToInt"><span class="annot"><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-type">keyToInt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621681943390"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-46"></span><span>  </span><span id="intToKey"><span class="annot"><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-type">intToKey</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943390"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-pragma hs-type">keyToInt</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621681943727"><span class="annot"><span class="annottext">keyToInt :: Word64 -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var hs-var hs-var">keyToInt</span></a></span></span><span> </span><span id="local-6989586621681943728"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681943728"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681943728"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-pragma hs-type">intToKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621681943733"><span class="annot"><span class="annottext">intToKey :: Int -&gt; Word64
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var hs-var hs-var">intToKey</span></a></span></span><span> </span><span id="local-6989586621681943734"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681943734"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681943734"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-pragma hs-type">keyToInt</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621681943741"><span class="annot"><span class="annottext">keyToInt :: Word16 -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var hs-var hs-var">keyToInt</span></a></span></span><span> </span><span id="local-6989586621681943742"><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621681943742"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621681943742"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-pragma hs-type">intToKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621681943746"><span class="annot"><span class="annottext">intToKey :: Int -&gt; Word16
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var hs-var hs-var">intToKey</span></a></span></span><span> </span><span id="local-6989586621681943747"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681943747"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word16
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681943747"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">newtype</span><span> </span><span id="EnumMap"><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-var">EnumMap</span></a></span></span><span> </span><span id="local-6989586621681943517"><span class="annot"><a href="#local-6989586621681943517"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621681943516"><span class="annot"><a href="#local-6989586621681943516"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EM"><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621681943516"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621681943750"><span id="local-6989586621681943754"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b)
+-&gt; (forall a b. a -&gt; EnumMap k b -&gt; EnumMap k a)
+-&gt; Functor (EnumMap k)
+forall a b. a -&gt; EnumMap k b -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b
+forall k a b. a -&gt; EnumMap k b -&gt; EnumMap k a
+forall k a b. (a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall k a b. (a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b
+fmap :: forall a b. (a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b
+$c&lt;$ :: forall k a b. a -&gt; EnumMap k b -&gt; EnumMap k a
+&lt;$ :: forall a b. a -&gt; EnumMap k b -&gt; EnumMap k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>      </span><span id="local-6989586621681943760"><span id="local-6989586621681943766"><span id="local-6989586621681943772"><span id="local-6989586621681943777"><span id="local-6989586621681943780"><span id="local-6989586621681943783"><span id="local-6989586621681943786"><span id="local-6989586621681943789"><span id="local-6989586621681943792"><span id="local-6989586621681943795"><span id="local-6989586621681943798"><span id="local-6989586621681943801"><span id="local-6989586621681943804"><span id="local-6989586621681943809"><span id="local-6989586621681943814"><span id="local-6989586621681943819"><span id="local-6989586621681943824"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; EnumMap k m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a)
+-&gt; (forall a. EnumMap k a -&gt; [a])
+-&gt; (forall a. EnumMap k a -&gt; Bool)
+-&gt; (forall a. EnumMap k a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; EnumMap k a -&gt; a)
+-&gt; (forall a. Ord a =&gt; EnumMap k a -&gt; a)
+-&gt; (forall a. Num a =&gt; EnumMap k a -&gt; a)
+-&gt; (forall a. Num a =&gt; EnumMap k a -&gt; a)
+-&gt; Foldable (EnumMap k)
+forall a. Eq a =&gt; a -&gt; EnumMap k a -&gt; Bool
+forall a. Num a =&gt; EnumMap k a -&gt; a
+forall a. Ord a =&gt; EnumMap k a -&gt; a
+forall m. Monoid m =&gt; EnumMap k m -&gt; m
+forall a. EnumMap k a -&gt; Bool
+forall a. EnumMap k a -&gt; Int
+forall a. EnumMap k a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+forall k a. Eq a =&gt; a -&gt; EnumMap k a -&gt; Bool
+forall k a. Num a =&gt; EnumMap k a -&gt; a
+forall k a. Ord a =&gt; EnumMap k a -&gt; a
+forall k m. Monoid m =&gt; EnumMap k m -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+forall k a. EnumMap k a -&gt; Bool
+forall k a. EnumMap k a -&gt; Int
+forall k a. EnumMap k a -&gt; [a]
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+forall k a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+forall k m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+forall k b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+forall k a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall k m. Monoid m =&gt; EnumMap k m -&gt; m
+fold :: forall m. Monoid m =&gt; EnumMap k m -&gt; m
+$cfoldMap :: forall k m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+$cfoldMap' :: forall k m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; EnumMap k a -&gt; m
+$cfoldr :: forall k a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+$cfoldr' :: forall k a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+$cfoldl :: forall k b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+$cfoldl' :: forall k b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; EnumMap k a -&gt; b
+$cfoldr1 :: forall k a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+$cfoldl1 :: forall k a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; a
+$ctoList :: forall k a. EnumMap k a -&gt; [a]
+toList :: forall a. EnumMap k a -&gt; [a]
+$cnull :: forall k a. EnumMap k a -&gt; Bool
+null :: forall a. EnumMap k a -&gt; Bool
+$clength :: forall k a. EnumMap k a -&gt; Int
+length :: forall a. EnumMap k a -&gt; Int
+$celem :: forall k a. Eq a =&gt; a -&gt; EnumMap k a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; EnumMap k a -&gt; Bool
+$cmaximum :: forall k a. Ord a =&gt; EnumMap k a -&gt; a
+maximum :: forall a. Ord a =&gt; EnumMap k a -&gt; a
+$cminimum :: forall k a. Ord a =&gt; EnumMap k a -&gt; a
+minimum :: forall a. Ord a =&gt; EnumMap k a -&gt; a
+$csum :: forall k a. Num a =&gt; EnumMap k a -&gt; a
+sum :: forall a. Num a =&gt; EnumMap k a -&gt; a
+$cproduct :: forall k a. Num a =&gt; EnumMap k a -&gt; a
+product :: forall a. Num a =&gt; EnumMap k a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>      </span><span id="local-6989586621681943837"><span id="local-6989586621681943845"><span id="local-6989586621681943851"><span id="local-6989586621681943856"><span class="annot"><span class="annottext">Functor (EnumMap k)
+Foldable (EnumMap k)
+(Functor (EnumMap k), Foldable (EnumMap k)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    EnumMap k (f a) -&gt; f (EnumMap k a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; EnumMap k a -&gt; m (EnumMap k b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    EnumMap k (m a) -&gt; m (EnumMap k a))
+-&gt; Traversable (EnumMap k)
+forall k. Functor (EnumMap k)
+forall k. Foldable (EnumMap k)
+forall k (m :: * -&gt; *) a.
+Monad m =&gt;
+EnumMap k (m a) -&gt; m (EnumMap k a)
+forall k (f :: * -&gt; *) a.
+Applicative f =&gt;
+EnumMap k (f a) -&gt; f (EnumMap k a)
+forall k (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; EnumMap k a -&gt; m (EnumMap k b)
+forall k (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+EnumMap k (m a) -&gt; m (EnumMap k a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+EnumMap k (f a) -&gt; f (EnumMap k a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; EnumMap k a -&gt; m (EnumMap k b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b)
+$ctraverse :: forall k (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b)
+$csequenceA :: forall k (f :: * -&gt; *) a.
+Applicative f =&gt;
+EnumMap k (f a) -&gt; f (EnumMap k a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+EnumMap k (f a) -&gt; f (EnumMap k a)
+$cmapM :: forall k (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; EnumMap k a -&gt; m (EnumMap k b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; EnumMap k a -&gt; m (EnumMap k b)
+$csequence :: forall k (m :: * -&gt; *) a.
+Monad m =&gt;
+EnumMap k (m a) -&gt; m (EnumMap k a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+EnumMap k (m a) -&gt; m (EnumMap k a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>      </span><span id="local-6989586621681943865"><span id="local-6989586621681943871"><span id="local-6989586621681943875"><span class="annot"><span class="annottext">Int -&gt; EnumMap k a -&gt; ShowS
+[EnumMap k a] -&gt; ShowS
+EnumMap k a -&gt; String
+(Int -&gt; EnumMap k a -&gt; ShowS)
+-&gt; (EnumMap k a -&gt; String)
+-&gt; ([EnumMap k a] -&gt; ShowS)
+-&gt; Show (EnumMap k a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k a. Show a =&gt; Int -&gt; EnumMap k a -&gt; ShowS
+forall k a. Show a =&gt; [EnumMap k a] -&gt; ShowS
+forall k a. Show a =&gt; EnumMap k a -&gt; String
+$cshowsPrec :: forall k a. Show a =&gt; Int -&gt; EnumMap k a -&gt; ShowS
+showsPrec :: Int -&gt; EnumMap k a -&gt; ShowS
+$cshow :: forall k a. Show a =&gt; EnumMap k a -&gt; String
+show :: EnumMap k a -&gt; String
+$cshowList :: forall k a. Show a =&gt; [EnumMap k a] -&gt; ShowS
+showList :: [EnumMap k a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>      </span><span id="local-6989586621681943881"><span id="local-6989586621681943885"><span class="annot"><span class="annottext">EnumMap k a -&gt; EnumMap k a -&gt; Bool
+(EnumMap k a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; Bool) -&gt; Eq (EnumMap k a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k a. Eq a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$c== :: forall k a. Eq a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+== :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$c/= :: forall k a. Eq a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+/= :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>      </span><span id="local-6989586621681943894"><span id="local-6989586621681943898"><span id="local-6989586621681943901"><span id="local-6989586621681943905"><span id="local-6989586621681943908"><span id="local-6989586621681943911"><span id="local-6989586621681943914"><span class="annot"><span class="annottext">Eq (EnumMap k a)
+Eq (EnumMap k a) =&gt;
+(EnumMap k a -&gt; EnumMap k a -&gt; Ordering)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; Bool)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a)
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a)
+-&gt; Ord (EnumMap k a)
+EnumMap k a -&gt; EnumMap k a -&gt; Bool
+EnumMap k a -&gt; EnumMap k a -&gt; Ordering
+EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall k a. Ord a =&gt; Eq (EnumMap k a)
+forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Ordering
+forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+$ccompare :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Ordering
+compare :: EnumMap k a -&gt; EnumMap k a -&gt; Ordering
+$c&lt; :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+&lt; :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$c&lt;= :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+&lt;= :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$c&gt; :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+&gt; :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$c&gt;= :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; Bool
+&gt;= :: EnumMap k a -&gt; EnumMap k a -&gt; Bool
+$cmax :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+max :: EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+$cmin :: forall k a. Ord a =&gt; EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+min :: EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621681943926"><span id="local-6989586621681943931"><span id="local-6989586621681943935"><span class="annot"><span class="annottext">Semigroup (EnumMap k a)
+EnumMap k a
+Semigroup (EnumMap k a) =&gt;
+EnumMap k a
+-&gt; (EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a)
+-&gt; ([EnumMap k a] -&gt; EnumMap k a)
+-&gt; Monoid (EnumMap k a)
+[EnumMap k a] -&gt; EnumMap k a
+EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall k a. Semigroup (EnumMap k a)
+forall k a. EnumMap k a
+forall k a. [EnumMap k a] -&gt; EnumMap k a
+forall k a. EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+$cmempty :: forall k a. EnumMap k a
+mempty :: EnumMap k a
+$cmappend :: forall k a. EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+mappend :: EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+$cmconcat :: forall k a. [EnumMap k a] -&gt; EnumMap k a
+mconcat :: [EnumMap k a] -&gt; EnumMap k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>      </span><span id="local-6989586621681943941"><span id="local-6989586621681943946"><span id="local-6989586621681943952"><span class="annot"><span class="annottext">NonEmpty (EnumMap k a) -&gt; EnumMap k a
+EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+(EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a)
+-&gt; (NonEmpty (EnumMap k a) -&gt; EnumMap k a)
+-&gt; (forall b. Integral b =&gt; b -&gt; EnumMap k a -&gt; EnumMap k a)
+-&gt; Semigroup (EnumMap k a)
+forall b. Integral b =&gt; b -&gt; EnumMap k a -&gt; EnumMap k a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall k a. NonEmpty (EnumMap k a) -&gt; EnumMap k a
+forall k a. EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+forall k a b. Integral b =&gt; b -&gt; EnumMap k a -&gt; EnumMap k a
+$c&lt;&gt; :: forall k a. EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+&lt;&gt; :: EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+$csconcat :: forall k a. NonEmpty (EnumMap k a) -&gt; EnumMap k a
+sconcat :: NonEmpty (EnumMap k a) -&gt; EnumMap k a
+$cstimes :: forall k a b. Integral b =&gt; b -&gt; EnumMap k a -&gt; EnumMap k a
+stimes :: forall b. Integral b =&gt; b -&gt; EnumMap k a -&gt; EnumMap k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>      </span><span id="local-6989586621681943963"><span class="annot"><span class="annottext">(forall a. Eq a =&gt; Eq (EnumMap k a)) =&gt;
+(forall a b.
+ (a -&gt; b -&gt; Bool) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Bool)
+-&gt; Eq1 (EnumMap k)
+forall a. Eq a =&gt; Eq (EnumMap k a)
+forall k a. Eq a =&gt; Eq (EnumMap k a)
+forall a b. (a -&gt; b -&gt; Bool) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Bool
+forall k a b.
+(a -&gt; b -&gt; Bool) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Bool
+forall (f :: * -&gt; *).
+(forall a. Eq a =&gt; Eq (f a)) =&gt;
+(forall a b. (a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool) -&gt; Eq1 f
+$cliftEq :: forall k a b.
+(a -&gt; b -&gt; Bool) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Bool
+liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">Eq1</span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>      </span><span id="local-6989586621681943975"><span class="annot"><span class="annottext">Eq1 (EnumMap k)
+(Eq1 (EnumMap k), forall a. Ord a =&gt; Ord (EnumMap k a)) =&gt;
+(forall a b.
+ (a -&gt; b -&gt; Ordering) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Ordering)
+-&gt; Ord1 (EnumMap k)
+forall k. Eq1 (EnumMap k)
+forall a. Ord a =&gt; Ord (EnumMap k a)
+forall k a. Ord a =&gt; Ord (EnumMap k a)
+forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Ordering
+forall k a b.
+(a -&gt; b -&gt; Ordering) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Ordering
+forall (f :: * -&gt; *).
+(Eq1 f, forall a. Ord a =&gt; Ord (f a)) =&gt;
+(forall a b. (a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering)
+-&gt; Ord1 f
+$cliftCompare :: forall k a b.
+(a -&gt; b -&gt; Ordering) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Ordering
+liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Ord1</span></span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">newtype</span><span> </span><span id="EnumSet"><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span></span><span> </span><span id="local-6989586621681943528"><span class="annot"><a href="#local-6989586621681943528"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ES"><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-var">ES</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621681943984"><span id="local-6989586621681943989"><span id="local-6989586621681943993"><span class="annot"><span class="annottext">Int -&gt; EnumSet k -&gt; ShowS
+[EnumSet k] -&gt; ShowS
+EnumSet k -&gt; String
+(Int -&gt; EnumSet k -&gt; ShowS)
+-&gt; (EnumSet k -&gt; String)
+-&gt; ([EnumSet k] -&gt; ShowS)
+-&gt; Show (EnumSet k)
+forall k. Int -&gt; EnumSet k -&gt; ShowS
+forall k. [EnumSet k] -&gt; ShowS
+forall k. EnumSet k -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall k. Int -&gt; EnumSet k -&gt; ShowS
+showsPrec :: Int -&gt; EnumSet k -&gt; ShowS
+$cshow :: forall k. EnumSet k -&gt; String
+show :: EnumSet k -&gt; String
+$cshowList :: forall k. [EnumSet k] -&gt; ShowS
+showList :: [EnumSet k] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>      </span><span id="local-6989586621681943996"><span id="local-6989586621681944000"><span class="annot"><span class="annottext">EnumSet k -&gt; EnumSet k -&gt; Bool
+(EnumSet k -&gt; EnumSet k -&gt; Bool)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; Bool) -&gt; Eq (EnumSet k)
+forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+== :: EnumSet k -&gt; EnumSet k -&gt; Bool
+$c/= :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+/= :: EnumSet k -&gt; EnumSet k -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>      </span><span id="local-6989586621681944006"><span id="local-6989586621681944010"><span id="local-6989586621681944013"><span id="local-6989586621681944017"><span id="local-6989586621681944020"><span id="local-6989586621681944023"><span id="local-6989586621681944026"><span class="annot"><span class="annottext">Eq (EnumSet k)
+Eq (EnumSet k) =&gt;
+(EnumSet k -&gt; EnumSet k -&gt; Ordering)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; Bool)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; Bool)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; Bool)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; Bool)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; EnumSet k)
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; EnumSet k)
+-&gt; Ord (EnumSet k)
+EnumSet k -&gt; EnumSet k -&gt; Bool
+EnumSet k -&gt; EnumSet k -&gt; Ordering
+EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+forall k. Eq (EnumSet k)
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+forall k. EnumSet k -&gt; EnumSet k -&gt; Ordering
+forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+$ccompare :: forall k. EnumSet k -&gt; EnumSet k -&gt; Ordering
+compare :: EnumSet k -&gt; EnumSet k -&gt; Ordering
+$c&lt; :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+&lt; :: EnumSet k -&gt; EnumSet k -&gt; Bool
+$c&lt;= :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+&lt;= :: EnumSet k -&gt; EnumSet k -&gt; Bool
+$c&gt; :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+&gt; :: EnumSet k -&gt; EnumSet k -&gt; Bool
+$c&gt;= :: forall k. EnumSet k -&gt; EnumSet k -&gt; Bool
+&gt;= :: EnumSet k -&gt; EnumSet k -&gt; Bool
+$cmax :: forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+max :: EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+$cmin :: forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+min :: EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">(</span><span> </span><span id="local-6989586621681944032"><span id="local-6989586621681944037"><span id="local-6989586621681944041"><span class="annot"><span class="annottext">Semigroup (EnumSet k)
+EnumSet k
+Semigroup (EnumSet k) =&gt;
+EnumSet k
+-&gt; (EnumSet k -&gt; EnumSet k -&gt; EnumSet k)
+-&gt; ([EnumSet k] -&gt; EnumSet k)
+-&gt; Monoid (EnumSet k)
+[EnumSet k] -&gt; EnumSet k
+EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+forall k. Semigroup (EnumSet k)
+forall k. EnumSet k
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall k. [EnumSet k] -&gt; EnumSet k
+forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+$cmempty :: forall k. EnumSet k
+mempty :: EnumSet k
+$cmappend :: forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+mappend :: EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+$cmconcat :: forall k. [EnumSet k] -&gt; EnumSet k
+mconcat :: [EnumSet k] -&gt; EnumSet k
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>      </span><span id="local-6989586621681944046"><span id="local-6989586621681944051"><span id="local-6989586621681944057"><span class="annot"><span class="annottext">NonEmpty (EnumSet k) -&gt; EnumSet k
+EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+(EnumSet k -&gt; EnumSet k -&gt; EnumSet k)
+-&gt; (NonEmpty (EnumSet k) -&gt; EnumSet k)
+-&gt; (forall b. Integral b =&gt; b -&gt; EnumSet k -&gt; EnumSet k)
+-&gt; Semigroup (EnumSet k)
+forall b. Integral b =&gt; b -&gt; EnumSet k -&gt; EnumSet k
+forall k. NonEmpty (EnumSet k) -&gt; EnumSet k
+forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall k b. Integral b =&gt; b -&gt; EnumSet k -&gt; EnumSet k
+$c&lt;&gt; :: forall k. EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+&lt;&gt; :: EnumSet k -&gt; EnumSet k -&gt; EnumSet k
+$csconcat :: forall k. NonEmpty (EnumSet k) -&gt; EnumSet k
+sconcat :: NonEmpty (EnumSet k) -&gt; EnumSet k
+$cstimes :: forall k b. Integral b =&gt; b -&gt; EnumSet k -&gt; EnumSet k
+stimes :: forall b. Integral b =&gt; b -&gt; EnumSet k -&gt; EnumSet k
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromList"><span class="hs-pragma hs-type">mapFromList</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-88"></span><span id="local-6989586621681943511"><span id="local-6989586621681943512"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromList"><span class="hs-identifier hs-type">mapFromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943511"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943511"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681943512"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943511"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943512"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-89"></span><span id="mapFromList"><span class="annot"><span class="annottext">mapFromList :: forall k a. EnumKey k =&gt; [(k, a)] -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#mapFromList"><span class="hs-identifier hs-var hs-var">mapFromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a)
+-&gt; ([(k, a)] -&gt; IntMap a) -&gt; [(k, a)] -&gt; EnumMap k a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[(Int, a)] -&gt; IntMap a
+forall a. [(Int, a)] -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Int, a)] -&gt; IntMap a)
+-&gt; ([(k, a)] -&gt; [(Int, a)]) -&gt; [(k, a)] -&gt; IntMap a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((k, a) -&gt; (Int, a)) -&gt; [(k, a)] -&gt; [(Int, a)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(k -&gt; Int) -&gt; (k, a) -&gt; (Int, a)
+forall a b c. (a -&gt; b) -&gt; (a, c) -&gt; (b, c)
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setFromList"><span class="hs-pragma hs-type">setFromList</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-92"></span><span id="local-6989586621681943526"><span class="annot"><a href="Unison.Util.EnumContainers.html#setFromList"><span class="hs-identifier hs-type">setFromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943526"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621681943526"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943526"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-93"></span><span id="setFromList"><span class="annot"><span class="annottext">setFromList :: forall k. EnumKey k =&gt; [k] -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#setFromList"><span class="hs-identifier hs-var hs-var">setFromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet k
+forall k. IntSet -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-var">ES</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; EnumSet k) -&gt; ([k] -&gt; IntSet) -&gt; [k] -&gt; EnumSet k
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; IntSet) -&gt; ([k] -&gt; [Int]) -&gt; [k] -&gt; IntSet
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(k -&gt; Int) -&gt; [k] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setToList"><span class="hs-pragma hs-type">setToList</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-96"></span><span id="local-6989586621681943529"><span class="annot"><a href="Unison.Util.EnumContainers.html#setToList"><span class="hs-identifier hs-type">setToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943529"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943529"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621681943529"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-97"></span><span id="setToList"><span class="annot"><span class="annottext">setToList :: forall k. EnumKey k =&gt; EnumSet k -&gt; [k]
+</span><a href="Unison.Util.EnumContainers.html#setToList"><span class="hs-identifier hs-var hs-var">setToList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944078"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944078"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; k) -&gt; [Int] -&gt; [k]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IS.toList</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944078"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapSingleton"><span class="hs-pragma hs-type">mapSingleton</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-100"></span><span id="local-6989586621681943534"><span id="local-6989586621681943535"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapSingleton"><span class="hs-identifier hs-type">mapSingleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943534"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943534"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943535"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943534"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943535"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-101"></span><span id="mapSingleton"><span class="annot"><span class="annottext">mapSingleton :: forall k a. EnumKey k =&gt; k -&gt; a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#mapSingleton"><span class="hs-identifier hs-var hs-var">mapSingleton</span></a></span></span><span> </span><span id="local-6989586621681944083"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944083"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621681944084"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944084"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; IntMap a
+forall a. Int -&gt; a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944083"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944084"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setSingleton"><span class="hs-pragma hs-type">setSingleton</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span id="local-6989586621681943543"><span class="annot"><a href="Unison.Util.EnumContainers.html#setSingleton"><span class="hs-identifier hs-type">setSingleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943543"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943543"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943543"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-105"></span><span id="setSingleton"><span class="annot"><span class="annottext">setSingleton :: forall k. EnumKey k =&gt; k -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#setSingleton"><span class="hs-identifier hs-var hs-var">setSingleton</span></a></span></span><span> </span><span id="local-6989586621681944088"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944088"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet k
+forall k. IntSet -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-var">ES</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; EnumSet k) -&gt; (Int -&gt; IntSet) -&gt; Int -&gt; EnumSet k
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.singleton</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; EnumSet k) -&gt; Int -&gt; EnumSet k
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944088"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapInsert"><span class="hs-pragma hs-type">mapInsert</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-108"></span><span id="local-6989586621681943545"><span id="local-6989586621681943546"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapInsert"><span class="hs-identifier hs-type">mapInsert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943545"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943545"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943546"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943545"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943546"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943545"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943546"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-109"></span><span id="mapInsert"><span class="annot"><span class="annottext">mapInsert :: forall k a. EnumKey k =&gt; k -&gt; a -&gt; EnumMap k a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#mapInsert"><span class="hs-identifier hs-var hs-var">mapInsert</span></a></span></span><span> </span><span id="local-6989586621681944092"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944092"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621681944093"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944093"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944094"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944094"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944092"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944093"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944094"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromSet"><span class="hs-pragma hs-type">mapFromSet</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-112"></span><span id="local-6989586621681943550"><span id="local-6989586621681943551"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapFromSet"><span class="hs-identifier hs-type">mapFromSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943550"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943550"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943551"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943550"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943551"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-113"></span><span id="mapFromSet"><span class="annot"><span class="annottext">mapFromSet :: forall k a. EnumKey k =&gt; EnumSet k -&gt; a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#mapFromSet"><span class="hs-identifier hs-var hs-var">mapFromSet</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944097"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944097"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681944098"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944098"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; IntSet -&gt; IntMap a
+forall a. (Int -&gt; a) -&gt; IntSet -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.fromSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944098"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944097"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#unionWith"><span class="hs-pragma hs-type">unionWith</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-116"></span><span id="local-6989586621681943557"><span id="local-6989586621681943558"><span class="annot"><a href="Unison.Util.EnumContainers.html#unionWith"><span class="hs-identifier hs-type">unionWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943557"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943557"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943557"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943557"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943558"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-122"></span><span id="unionWith"><span class="annot"><span class="annottext">unionWith :: forall k a.
+EnumKey k =&gt;
+(a -&gt; a -&gt; a) -&gt; EnumMap k a -&gt; EnumMap k a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#unionWith"><span class="hs-identifier hs-var hs-var">unionWith</span></a></span></span><span> </span><span id="local-6989586621681944102"><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621681944102"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944103"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944103"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944104"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944104"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; IntMap a -&gt; IntMap a -&gt; IntMap a
+forall a. (a -&gt; a -&gt; a) -&gt; IntMap a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.unionWith</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621681944102"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944103"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944104"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#intersectionWith"><span class="hs-pragma hs-type">intersectionWith</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-125"></span><span id="local-6989586621681943562"><span id="local-6989586621681943563"><span id="local-6989586621681943564"><span id="local-6989586621681943565"><span class="annot"><a href="Unison.Util.EnumContainers.html#intersectionWith"><span class="hs-identifier hs-type">intersectionWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943562"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943563"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943564"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943565"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943562"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943565"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943563"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943565"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943564"><span class="hs-identifier hs-type">c</span></a></span></span></span></span></span><span>
+</span><span id="line-130"></span><span id="intersectionWith"><span class="annot"><span class="annottext">intersectionWith :: forall a b c k.
+(a -&gt; b -&gt; c) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; EnumMap k c
+</span><a href="Unison.Util.EnumContainers.html#intersectionWith"><span class="hs-identifier hs-var hs-var">intersectionWith</span></a></span></span><span> </span><span id="local-6989586621681944106"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621681944106"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944107"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944107"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944108"><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944108"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap c -&gt; EnumMap k c
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap c -&gt; EnumMap k c) -&gt; IntMap c -&gt; EnumMap k c
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; IntMap a -&gt; IntMap b -&gt; IntMap c
+forall a b c. (a -&gt; b -&gt; c) -&gt; IntMap a -&gt; IntMap b -&gt; IntMap c
+</span><span class="hs-identifier hs-var">IM.intersectionWith</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621681944106"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944107"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944108"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keys"><span class="hs-pragma hs-type">keys</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-133"></span><span id="local-6989586621681943573"><span id="local-6989586621681943574"><span class="annot"><a href="Unison.Util.EnumContainers.html#keys"><span class="hs-identifier hs-type">keys</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943573"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943573"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943574"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621681943573"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-134"></span><span id="keys"><span class="annot"><span class="annottext">keys :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; [k]
+</span><a href="Unison.Util.EnumContainers.html#keys"><span class="hs-identifier hs-var hs-var">keys</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944113"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944113"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; k) -&gt; [Int] -&gt; [k]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [k]) -&gt; (IntMap a -&gt; [Int]) -&gt; IntMap a -&gt; [k]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; [Int]
+forall a. IntMap a -&gt; [Int]
+</span><span class="hs-identifier hs-var">IM.keys</span></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; [k]) -&gt; IntMap a -&gt; [k]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944113"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#keysSet"><span class="hs-pragma hs-type">keysSet</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-137"></span><span id="local-6989586621681943578"><span id="local-6989586621681943579"><span class="annot"><a href="Unison.Util.EnumContainers.html#keysSet"><span class="hs-identifier hs-type">keysSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943578"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943578"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943579"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943578"><span class="hs-identifier hs-type">k</span></a></span></span></span><span>
+</span><span id="line-138"></span><span id="keysSet"><span class="annot"><span class="annottext">keysSet :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#keysSet"><span class="hs-identifier hs-var hs-var">keysSet</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944116"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944116"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet k
+forall k. IntSet -&gt; EnumSet k
+</span><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-var">ES</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap a -&gt; IntSet
+forall a. IntMap a -&gt; IntSet
+</span><span class="hs-identifier hs-var">IM.keysSet</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944116"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#restrictKeys"><span class="hs-pragma hs-type">restrictKeys</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-141"></span><span id="local-6989586621681943583"><span id="local-6989586621681943584"><span class="annot"><a href="Unison.Util.EnumContainers.html#restrictKeys"><span class="hs-identifier hs-type">restrictKeys</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943583"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943583"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943584"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943583"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943583"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943584"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-142"></span><span id="restrictKeys"><span class="annot"><span class="annottext">restrictKeys :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; EnumSet k -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#restrictKeys"><span class="hs-identifier hs-var hs-var">restrictKeys</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944119"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944119"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944120"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944120"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; IntSet -&gt; IntMap a
+forall a. IntMap a -&gt; IntSet -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.restrictKeys</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944119"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944120"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#withoutKeys"><span class="hs-pragma hs-type">withoutKeys</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-145"></span><span id="local-6989586621681944122"><span id="local-6989586621681944123"><span class="annot"><a href="Unison.Util.EnumContainers.html#withoutKeys"><span class="hs-identifier hs-type">withoutKeys</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944122"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944122"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944123"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944122"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944122"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681944123"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-146"></span><span id="withoutKeys"><span class="annot"><span class="annottext">withoutKeys :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; EnumSet k -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#withoutKeys"><span class="hs-identifier hs-var hs-var">withoutKeys</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944125"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944125"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944126"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944126"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; IntSet -&gt; IntMap a
+forall a. IntMap a -&gt; IntSet -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.withoutKeys</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944125"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944126"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapDifference"><span class="hs-pragma hs-type">mapDifference</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-149"></span><span id="local-6989586621681943590"><span id="local-6989586621681943591"><span id="local-6989586621681943592"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapDifference"><span class="hs-identifier hs-type">mapDifference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943590"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943590"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943591"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943590"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943592"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943590"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943591"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-150"></span><span id="mapDifference"><span class="annot"><span class="annottext">mapDifference :: forall k a b.
+EnumKey k =&gt;
+EnumMap k a -&gt; EnumMap k b -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#mapDifference"><span class="hs-identifier hs-var hs-var">mapDifference</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944129"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944129"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944130"><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944130"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; EnumMap k a
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap a -&gt; EnumMap k a) -&gt; IntMap a -&gt; EnumMap k a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; IntMap b -&gt; IntMap a
+forall a b. IntMap a -&gt; IntMap b -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.difference</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944129"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944130"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#member"><span class="hs-pragma hs-type">member</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-153"></span><span id="local-6989586621681943598"><span class="annot"><a href="Unison.Util.EnumContainers.html#member"><span class="hs-identifier hs-type">member</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943598"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943598"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943598"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-154"></span><span id="member"><span class="annot"><span class="annottext">member :: forall k. EnumKey k =&gt; k -&gt; EnumSet k -&gt; Bool
+</span><a href="Unison.Util.EnumContainers.html#member"><span class="hs-identifier hs-var hs-var">member</span></a></span></span><span> </span><span id="local-6989586621681944134"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944134"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944135"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944135"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IS.member</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944134"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944135"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#hasKey"><span class="hs-pragma hs-type">hasKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-157"></span><span id="local-6989586621681943600"><span id="local-6989586621681943601"><span class="annot"><a href="Unison.Util.EnumContainers.html#hasKey"><span class="hs-identifier hs-type">hasKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943600"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943600"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943600"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943601"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-158"></span><span id="hasKey"><span class="annot"><span class="annottext">hasKey :: forall k a. EnumKey k =&gt; k -&gt; EnumMap k a -&gt; Bool
+</span><a href="Unison.Util.EnumContainers.html#hasKey"><span class="hs-identifier hs-var hs-var">hasKey</span></a></span></span><span> </span><span id="local-6989586621681944139"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944139"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944140"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944140"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap a -&gt; Bool
+forall a. Int -&gt; IntMap a -&gt; Bool
+</span><span class="hs-identifier hs-var">IM.member</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944139"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944140"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#lookup"><span class="hs-pragma hs-type">lookup</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-161"></span><span id="local-6989586621681943605"><span id="local-6989586621681943606"><span class="annot"><a href="Unison.Util.EnumContainers.html#lookup"><span class="hs-identifier hs-type">lookup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943605"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943605"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943605"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943606"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621681943606"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-162"></span><span id="lookup"><span class="annot"><span class="annottext">lookup :: forall k a. EnumKey k =&gt; k -&gt; EnumMap k a -&gt; Maybe a
+</span><a href="Unison.Util.EnumContainers.html#lookup"><span class="hs-identifier hs-var hs-var">lookup</span></a></span></span><span> </span><span id="local-6989586621681944144"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944144"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944145"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944145"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap a -&gt; Maybe a
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IM.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944144"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944145"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#lookupWithDefault"><span class="hs-pragma hs-type">lookupWithDefault</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-165"></span><span id="local-6989586621681943610"><span id="local-6989586621681943611"><span class="annot"><a href="Unison.Util.EnumContainers.html#lookupWithDefault"><span class="hs-identifier hs-type">lookupWithDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943610"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943611"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943610"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943610"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943611"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943611"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-166"></span><span id="lookupWithDefault"><span class="annot"><span class="annottext">lookupWithDefault :: forall k a. EnumKey k =&gt; a -&gt; k -&gt; EnumMap k a -&gt; a
+</span><a href="Unison.Util.EnumContainers.html#lookupWithDefault"><span class="hs-identifier hs-var hs-var">lookupWithDefault</span></a></span></span><span> </span><span id="local-6989586621681944149"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944149"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681944150"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944150"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944151"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944151"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; IntMap a -&gt; a
+forall a. a -&gt; Int -&gt; IntMap a -&gt; a
+</span><span class="hs-identifier hs-var">IM.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944149"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944150"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944151"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapWithKey"><span class="hs-pragma hs-type">mapWithKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-169"></span><span id="local-6989586621681943615"><span id="local-6989586621681943616"><span id="local-6989586621681943617"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapWithKey"><span class="hs-identifier hs-type">mapWithKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943615"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943615"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943616"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943617"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943615"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943616"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943615"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943617"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-170"></span><span id="mapWithKey"><span class="annot"><span class="annottext">mapWithKey :: forall k a b.
+EnumKey k =&gt;
+(k -&gt; a -&gt; b) -&gt; EnumMap k a -&gt; EnumMap k b
+</span><a href="Unison.Util.EnumContainers.html#mapWithKey"><span class="hs-identifier hs-var hs-var">mapWithKey</span></a></span></span><span> </span><span id="local-6989586621681944155"><span class="annot"><span class="annottext">k -&gt; a -&gt; b
+</span><a href="#local-6989586621681944155"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944156"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944156"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap b -&gt; EnumMap k b
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap b -&gt; EnumMap k b) -&gt; IntMap b -&gt; EnumMap k b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; b) -&gt; IntMap a -&gt; IntMap b
+forall a b. (Int -&gt; a -&gt; b) -&gt; IntMap a -&gt; IntMap b
+</span><span class="hs-identifier hs-var">IM.mapWithKey</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; a -&gt; b
+</span><a href="#local-6989586621681944155"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(k -&gt; a -&gt; b) -&gt; (Int -&gt; k) -&gt; Int -&gt; a -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944156"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldMapWithKey"><span class="hs-pragma hs-type">foldMapWithKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-173"></span><span id="local-6989586621681943623"><span id="local-6989586621681943624"><span id="local-6989586621681943625"><span class="annot"><a href="Unison.Util.EnumContainers.html#foldMapWithKey"><span class="hs-identifier hs-type">foldMapWithKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943623"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621681943624"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943623"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943625"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943624"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943623"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943625"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943624"><span class="hs-identifier hs-type">m</span></a></span></span></span></span><span>
+</span><span id="line-174"></span><span id="foldMapWithKey"><span class="annot"><span class="annottext">foldMapWithKey :: forall k m a.
+(EnumKey k, Monoid m) =&gt;
+(k -&gt; a -&gt; m) -&gt; EnumMap k a -&gt; m
+</span><a href="Unison.Util.EnumContainers.html#foldMapWithKey"><span class="hs-identifier hs-var hs-var">foldMapWithKey</span></a></span></span><span> </span><span id="local-6989586621681944162"><span class="annot"><span class="annottext">k -&gt; a -&gt; m
+</span><a href="#local-6989586621681944162"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944163"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944163"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; m) -&gt; IntMap a -&gt; m
+forall m a. Monoid m =&gt; (Int -&gt; a -&gt; m) -&gt; IntMap a -&gt; m
+</span><span class="hs-identifier hs-var">IM.foldMapWithKey</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; a -&gt; m
+</span><a href="#local-6989586621681944162"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(k -&gt; a -&gt; m) -&gt; (Int -&gt; k) -&gt; Int -&gt; a -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944163"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldlWithKey"><span class="hs-pragma hs-type">foldlWithKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-177"></span><span id="local-6989586621681943631"><span id="local-6989586621681943632"><span id="local-6989586621681943633"><span class="annot"><a href="Unison.Util.EnumContainers.html#foldlWithKey"><span class="hs-identifier hs-type">foldlWithKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943631"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943632"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943631"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943633"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943632"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943632"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943631"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943633"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943632"><span class="hs-identifier hs-type">r</span></a></span></span></span></span><span>
+</span><span id="line-178"></span><span id="foldlWithKey"><span class="annot"><span class="annottext">foldlWithKey :: forall k r a.
+EnumKey k =&gt;
+(r -&gt; k -&gt; a -&gt; r) -&gt; r -&gt; EnumMap k a -&gt; r
+</span><a href="Unison.Util.EnumContainers.html#foldlWithKey"><span class="hs-identifier hs-var hs-var">foldlWithKey</span></a></span></span><span> </span><span id="local-6989586621681944167"><span class="annot"><span class="annottext">r -&gt; k -&gt; a -&gt; r
+</span><a href="#local-6989586621681944167"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681944168"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944168"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944169"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944169"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>  </span><span class="annot"><span class="annottext">(r -&gt; Int -&gt; a -&gt; r) -&gt; r -&gt; IntMap a -&gt; r
+forall a b. (a -&gt; Int -&gt; b -&gt; a) -&gt; a -&gt; IntMap b -&gt; a
+</span><span class="hs-identifier hs-var">IM.foldlWithKey'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681944171"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944171"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681944172"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681944172"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621681944173"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944173"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">r -&gt; k -&gt; a -&gt; r
+</span><a href="#local-6989586621681944167"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944171"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681944172"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681944173"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944168"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944169"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-pragma hs-type">mapToList</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-182"></span><span id="local-6989586621681943639"><span id="local-6989586621681943640"><span class="annot"><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-identifier hs-type">mapToList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943639"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943639"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943640"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943639"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621681943640"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-183"></span><span id="mapToList"><span class="annot"><span class="annottext">mapToList :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; [(k, a)]
+</span><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-identifier hs-var hs-var">mapToList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944178"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944178"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; k) -&gt; (Int, a) -&gt; (k, a)
+forall a b c. (a -&gt; b) -&gt; (a, c) -&gt; (b, c)
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, a) -&gt; (k, a)) -&gt; [(Int, a)] -&gt; [(k, a)]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; [(Int, a)]
+forall a. IntMap a -&gt; [(Int, a)]
+</span><span class="hs-identifier hs-var">IM.toList</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944178"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">!</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-186"></span><span id="local-6989586621681943644"><span id="local-6989586621681943645"><span class="annot"><a href="Unison.Util.EnumContainers.html#%21"><span class="hs-operator hs-type">(!)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943644"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943644"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943645"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943644"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943645"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-187"></span><span id="%21"><span class="annot"><span class="annottext">! :: forall k a. EnumKey k =&gt; EnumMap k a -&gt; k -&gt; a
+</span><a href="Unison.Util.EnumContainers.html#%21"><span class="hs-operator hs-var hs-var">(!)</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944182"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944182"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681944183"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944183"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944182"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; Int -&gt; a
+forall a. IntMap a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">IM.!</span></span><span> </span><span class="annot"><span class="annottext">k -&gt; Int
+forall k. EnumKey k =&gt; k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#keyToInt"><span class="hs-identifier hs-var">keyToInt</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621681944183"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#findMin"><span class="hs-pragma hs-type">findMin</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-190"></span><span id="local-6989586621681943649"><span class="annot"><a href="Unison.Util.EnumContainers.html#findMin"><span class="hs-identifier hs-type">findMin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943649"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943649"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943649"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-191"></span><span id="findMin"><span class="annot"><span class="annottext">findMin :: forall k. EnumKey k =&gt; EnumSet k -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#findMin"><span class="hs-identifier hs-var hs-var">findMin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944187"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944187"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; k) -&gt; Int -&gt; k
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int
+</span><span class="hs-identifier hs-var">IS.findMin</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944187"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-192"></span><span>
+</span><span id="line-193"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseSet_"><span class="hs-pragma hs-type">traverseSet_</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-194"></span><span id="local-6989586621681943651"><span id="local-6989586621681943652"><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseSet_"><span class="hs-identifier hs-type">traverseSet_</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621681943651"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943652"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943652"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943651"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943652"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943651"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-196"></span><span id="traverseSet_"><span class="annot"><span class="annottext">traverseSet_ :: forall (f :: * -&gt; *) k.
+(Applicative f, EnumKey k) =&gt;
+(k -&gt; f ()) -&gt; EnumSet k -&gt; f ()
+</span><a href="Unison.Util.EnumContainers.html#traverseSet_"><span class="hs-identifier hs-var hs-var">traverseSet_</span></a></span></span><span> </span><span id="local-6989586621681944194"><span class="annot"><span class="annottext">k -&gt; f ()
+</span><a href="#local-6989586621681944194"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944195"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944195"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><span class="annottext">(Int -&gt; f () -&gt; f ()) -&gt; f () -&gt; IntSet -&gt; f ()
+forall b. (Int -&gt; b -&gt; b) -&gt; b -&gt; IntSet -&gt; b
+</span><span class="hs-identifier hs-var">IS.foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681944197"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681944197"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681944198"><span class="annot"><span class="annottext">f ()
+</span><a href="#local-6989586621681944198"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">k -&gt; f ()
+</span><a href="#local-6989586621681944194"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681944197"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f () -&gt; f () -&gt; f ()
+forall a b. f a -&gt; f b -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">f ()
+</span><a href="#local-6989586621681944198"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; f ()
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944195"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#interverse"><span class="hs-pragma hs-type">interverse</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-200"></span><span id="local-6989586621681943659"><span id="local-6989586621681943660"><span id="local-6989586621681943661"><span id="local-6989586621681943662"><span id="local-6989586621681943663"><span class="annot"><a href="Unison.Util.EnumContainers.html#interverse"><span class="hs-identifier hs-type">interverse</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621681943659"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943660"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943661"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943662"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-203"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943663"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943660"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-204"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943663"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943661"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-205"></span><span>  </span><span class="annot"><a href="#local-6989586621681943659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943663"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943662"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-206"></span><span id="interverse"><span class="annot"><span class="annottext">interverse :: forall (f :: * -&gt; *) a b c k.
+Applicative f =&gt;
+(a -&gt; b -&gt; f c) -&gt; EnumMap k a -&gt; EnumMap k b -&gt; f (EnumMap k c)
+</span><a href="Unison.Util.EnumContainers.html#interverse"><span class="hs-identifier hs-var hs-var">interverse</span></a></span></span><span> </span><span id="local-6989586621681944204"><span class="annot"><span class="annottext">a -&gt; b -&gt; f c
+</span><a href="#local-6989586621681944204"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944205"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944205"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944206"><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944206"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="annottext">(IntMap c -&gt; EnumMap k c) -&gt; f (IntMap c) -&gt; f (EnumMap k c)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">IntMap c -&gt; EnumMap k c
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(f (IntMap c) -&gt; f (EnumMap k c))
+-&gt; (IntMap (f c) -&gt; f (IntMap c))
+-&gt; IntMap (f c)
+-&gt; f (EnumMap k c)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(f c -&gt; f c) -&gt; IntMap (f c) -&gt; f (IntMap c)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; IntMap a -&gt; f (IntMap b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">f c -&gt; f c
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(IntMap (f c) -&gt; f (EnumMap k c))
+-&gt; IntMap (f c) -&gt; f (EnumMap k c)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; f c) -&gt; IntMap a -&gt; IntMap b -&gt; IntMap (f c)
+forall a b c. (a -&gt; b -&gt; c) -&gt; IntMap a -&gt; IntMap b -&gt; IntMap c
+</span><span class="hs-identifier hs-var">IM.intersectionWith</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; f c
+</span><a href="#local-6989586621681944204"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944205"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap b
+</span><a href="#local-6989586621681944206"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseWithKey"><span class="hs-pragma hs-type">traverseWithKey</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-210"></span><span id="local-6989586621681943670"><span id="local-6989586621681943671"><span id="local-6989586621681943672"><span id="local-6989586621681943673"><span class="annot"><a href="Unison.Util.EnumContainers.html#traverseWithKey"><span class="hs-identifier hs-type">traverseWithKey</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621681943670"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943671"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943671"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943672"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943670"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943673"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943671"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943672"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><a href="#local-6989586621681943670"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumMap"><span class="hs-identifier hs-type">EnumMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943671"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943673"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-216"></span><span id="traverseWithKey"><span class="annot"><span class="annottext">traverseWithKey :: forall (f :: * -&gt; *) k a b.
+(Applicative f, EnumKey k) =&gt;
+(k -&gt; a -&gt; f b) -&gt; EnumMap k a -&gt; f (EnumMap k b)
+</span><a href="Unison.Util.EnumContainers.html#traverseWithKey"><span class="hs-identifier hs-var hs-var">traverseWithKey</span></a></span></span><span> </span><span id="local-6989586621681944214"><span class="annot"><span class="annottext">k -&gt; a -&gt; f b
+</span><a href="#local-6989586621681944214"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-type">EM</span></a></span><span> </span><span id="local-6989586621681944215"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944215"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap b -&gt; EnumMap k b
+forall k a. IntMap a -&gt; EnumMap k a
+</span><a href="Unison.Util.EnumContainers.html#EM"><span class="hs-identifier hs-var">EM</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap b -&gt; EnumMap k b) -&gt; f (IntMap b) -&gt; f (EnumMap k b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; f b) -&gt; IntMap a -&gt; f (IntMap b)
+forall (t :: * -&gt; *) a b.
+Applicative t =&gt;
+(Int -&gt; a -&gt; t b) -&gt; IntMap a -&gt; t (IntMap b)
+</span><span class="hs-identifier hs-var">IM.traverseWithKey</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; a -&gt; f b
+</span><a href="#local-6989586621681944214"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(k -&gt; a -&gt; f b) -&gt; (Int -&gt; k) -&gt; Int -&gt; a -&gt; f b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621681944215"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#setSize"><span class="hs-pragma hs-type">setSize</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-219"></span><span id="local-6989586621681943681"><span class="annot"><a href="Unison.Util.EnumContainers.html#setSize"><span class="hs-identifier hs-type">setSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943681"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-220"></span><span id="setSize"><span class="annot"><span class="annottext">setSize :: forall k. EnumSet k -&gt; Int
+</span><a href="Unison.Util.EnumContainers.html#setSize"><span class="hs-identifier hs-var hs-var">setSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944217"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944217"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int
+</span><span class="hs-identifier hs-var">IS.size</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944217"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#foldrSet"><span class="hs-pragma hs-type">foldrSet</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-223"></span><span id="local-6989586621681943683"><span id="local-6989586621681943684"><span class="annot"><a href="Unison.Util.EnumContainers.html#foldrSet"><span class="hs-identifier hs-type">foldrSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumKey"><span class="hs-identifier hs-type">EnumKey</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943683"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681943683"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943684"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943684"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943684"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681943683"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681943684"><span class="hs-identifier hs-type">r</span></a></span></span></span><span>
+</span><span id="line-224"></span><span id="foldrSet"><span class="annot"><span class="annottext">foldrSet :: forall k r. EnumKey k =&gt; (k -&gt; r -&gt; r) -&gt; r -&gt; EnumSet k -&gt; r
+</span><a href="Unison.Util.EnumContainers.html#foldrSet"><span class="hs-identifier hs-var hs-var">foldrSet</span></a></span></span><span> </span><span id="local-6989586621681944221"><span class="annot"><span class="annottext">k -&gt; r -&gt; r
+</span><a href="#local-6989586621681944221"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621681944222"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944222"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.EnumContainers.html#ES"><span class="hs-identifier hs-type">ES</span></a></span><span> </span><span id="local-6989586621681944223"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944223"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; r -&gt; r) -&gt; r -&gt; IntSet -&gt; r
+forall b. (Int -&gt; b -&gt; b) -&gt; b -&gt; IntSet -&gt; b
+</span><span class="hs-identifier hs-var">IS.foldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">k -&gt; r -&gt; r
+</span><a href="#local-6989586621681944221"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(k -&gt; r -&gt; r) -&gt; (Int -&gt; k) -&gt; Int -&gt; r -&gt; r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; k
+forall k. EnumKey k =&gt; Int -&gt; k
+</span><a href="Unison.Util.EnumContainers.html#intToKey"><span class="hs-identifier hs-var">intToKey</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621681944222"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681944223"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-225"></span></pre></body></html>

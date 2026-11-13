@@ -1,0 +1,21 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>vector-binary-instances-0.2.5.2: Instances of Data.Binary for vector</title><link href="linuwial.css" rel="stylesheet" type="text/css" title="Linuwial" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400i,700" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { processClass: "mathjax", ignoreClass: ".*" } });</script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><span class="caption">vector-binary-instances-0.2.5.2: Instances of Data.Binary for vector</span><ul class="links" id="page-menu"><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul></div><div id="content"><div id="description"><h1>vector-binary-instances-0.2.5.2: Instances of Data.Binary for vector</h1><div class="doc"><p>Instances for Binary for the types defined in the vector package,
+making it easy to serialize vectors to and from disk. We use the
+generic interface to vectors, so all vector types are supported.
+Specific instances are provided for unboxed, boxed and storable
+vectors.
+.
+To serialize a vector:
+.
+&gt; *Data.Vector.Binary&gt; let v = Data.Vector.fromList [1..10]
+&gt; *Data.Vector.Binary&gt; v
+&gt; fromList [1,2,3,4,5,6,7,8,9,10] :: Data.Vector.Vector
+&gt; *Data.Vector.Binary&gt; encode v
+&gt; Chunk &quot;NULNULNULNULNUL...NULNULNULtNULNULNULNULn&quot; Empty
+.
+Which you can in turn compress before writing to disk:
+.
+&gt; compress . encode $ v
+&gt; Chunk &quot;US139bNULNULN...229240,254:NULNULNUL&quot; Empty
+.
+Try the cereal-vector package if you are looking for Data.Serialize
+instances.</p></div></div><div id="module-list"><p class="caption">Modules</p><div id="module-list"><p class="caption">vector-binary-instances-0.2.5.2</p><ul><li><span class="module details-toggle-control details-toggle" data-details-id="n.1">Data</span><details id="n.1" open="open"><summary class="hide-when-js-enabled">Submodules</summary><ul><li><span class="module details-toggle-control details-toggle" data-details-id="n.1.1">Vector</span><details id="n.1.1" open="open"><summary class="hide-when-js-enabled">Submodules</summary><ul><li><span class="module"><span class="noexpander">&nbsp;</span><a href="Data-Vector-Binary.html">Data.Vector.Binary</a></span></li></ul></details></li></ul></details></li></ul></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.31.1</p></div></body></html>

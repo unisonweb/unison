@@ -1,0 +1,90 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Control.Monad</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The 'Functor', 'Monad' and 'MonadPlus' classes,</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- with some useful operations on monads.</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Functor and monad classes</span></span><span>
+</span><span id="line-18"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Functor"><span class="hs-identifier">Functor</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#Monad"><span class="hs-identifier">Monad</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator">(&gt;&gt;=)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3E%3E"><span class="hs-operator">(&gt;&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#return"><span class="hs-identifier">return</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.Fail.html#MonadFail"><span class="hs-identifier">MonadFail</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.Fail.html#fail"><span class="hs-identifier">fail</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#MonadPlus"><span class="hs-identifier">MonadPlus</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#mzero"><span class="hs-identifier">mzero</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#mplus"><span class="hs-identifier">mplus</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Functions</span></span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Naming conventions</span></span><span>
+</span><span id="line-24"></span><span>     </span><span class="hs-comment">-- $naming</span><span>
+</span><span id="line-25"></span><span>     </span><span class="hs-comment">-- **  Basic @Monad@ functions</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier">mapM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#mapM_"><span class="hs-identifier">mapM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Traversable.html#forM"><span class="hs-identifier">forM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#forM_"><span class="hs-identifier">forM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Traversable.html#sequence"><span class="hs-identifier">sequence</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#sequence_"><span class="hs-identifier">sequence_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#%3D%3C%3C"><span class="hs-operator">(=&lt;&lt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#%3E%3D%3E"><span class="hs-operator">(&gt;=&gt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#%3C%3D%3C"><span class="hs-operator">(&lt;=&lt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#forever"><span class="hs-identifier">forever</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Functor.html#void"><span class="hs-identifier">void</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Generalisations of list functions</span></span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#join"><span class="hs-identifier">join</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#msum"><span class="hs-identifier">msum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#mfilter"><span class="hs-identifier">mfilter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#filterM"><span class="hs-identifier">filterM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#mapAndUnzipM"><span class="hs-identifier">mapAndUnzipM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#zipWithM"><span class="hs-identifier">zipWithM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#zipWithM_"><span class="hs-identifier">zipWithM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#foldM"><span class="hs-identifier">foldM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#foldM_"><span class="hs-identifier">foldM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#replicateM"><span class="hs-identifier">replicateM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#replicateM_"><span class="hs-identifier">replicateM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Conditional execution of monadic expressions</span></span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#guard"><span class="hs-identifier">guard</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#when"><span class="hs-identifier">when</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#unless"><span class="hs-identifier">unless</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Monadic lifting operators</span></span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM"><span class="hs-identifier">liftM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM2"><span class="hs-identifier">liftM2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM3"><span class="hs-identifier">liftM3</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM4"><span class="hs-identifier">liftM4</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#liftM5"><span class="hs-identifier">liftM5</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Base.html#ap"><span class="hs-identifier">ap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Strict monadic functions</span></span><span>
+</span><span id="line-61"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html#%3C%24%21%3E"><span class="hs-operator">(&lt;$!&gt;)</span></a></span><span>
+</span><span id="line-62"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Control.Monad.html"><span class="hs-identifier">GHC.Internal.Control.Monad</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">{- $naming
+
+The functions in this module use the following naming conventions:
+
+* A postfix \'@M@\' always stands for a function in the Kleisli category:
+  The monad type constructor @m@ is added to function results
+  (modulo currying) and nowhere else.  So, for example,
+
+&gt; filter  ::              (a -&gt;   Bool) -&gt; [a] -&gt;   [a]
+&gt; filterM :: (Monad m) =&gt; (a -&gt; m Bool) -&gt; [a] -&gt; m [a]
+
+* A postfix \'@_@\' changes the result type from @(m a)@ to @(m ())@.
+  Thus, for example:
+
+&gt; sequence  :: Monad m =&gt; [m a] -&gt; m [a]
+&gt; sequence_ :: Monad m =&gt; [m a] -&gt; m ()
+
+* A prefix \'@m@\' generalizes an existing function to a monadic form.
+  Thus, for example:
+
+&gt; filter  ::                (a -&gt; Bool) -&gt; [a] -&gt; [a]
+&gt; mfilter :: MonadPlus m =&gt; (a -&gt; Bool) -&gt; m a -&gt; m a
+
+-}</span></span><span>
+</span><span id="line-90"></span></pre></body></html>

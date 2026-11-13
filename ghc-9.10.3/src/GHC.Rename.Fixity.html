@@ -1,0 +1,392 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+This module contains code which maintains and manipulates the
+fixity environment during renaming.
+-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html"><span class="hs-identifier">GHC.Rename.Fixity</span></a></span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#MiniFixityEnv"><span class="hs-identifier">MiniFixityEnv</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#addLocalFixities"><span class="hs-identifier">addLocalFixities</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupMiniFixityEnv"><span class="hs-identifier">lookupMiniFixityEnv</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#emptyMiniFixityEnv"><span class="hs-identifier">emptyMiniFixityEnv</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFixityRn"><span class="hs-identifier">lookupFixityRn</span></a></span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFixityRn_help"><span class="hs-identifier">lookupFixityRn_help</span></a></span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFieldFixityRn"><span class="hs-identifier">lookupFieldFixityRn</span></a></span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupTyFixityRn"><span class="hs-identifier">lookupTyFixityRn</span></a></span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Iface.Load.html"><span class="hs-identifier">GHC.Iface.Load</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.html"><span class="hs-identifier">GHC.Hs</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.Monad.html"><span class="hs-identifier">GHC.Tc.Utils.Monad</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html"><span class="hs-identifier">GHC.Unit.Module</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.ModIface.html"><span class="hs-identifier">GHC.Unit.Module.ModIface</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.Env.html"><span class="hs-identifier">GHC.Types.Fixity.Env</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html"><span class="hs-identifier">GHC.Types.Name.Env</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html"><span class="hs-identifier">GHC.Types.Fixity</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SourceText.html"><span class="hs-identifier">GHC.Types.SourceText</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Maybe.html"><span class="hs-identifier">GHC.Data.Maybe</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Rename.Unbound.html"><span class="hs-identifier">GHC.Rename.Unbound</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">{-
+*********************************************************
+*                                                      *
+                Fixities
+*                                                      *
+*********************************************************
+
+Note [Fixity signature lookup]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A fixity declaration like
+
+    infixr 2 ?
+
+can refer to a value-level operator, e.g.:
+
+    (?) :: String -&gt; String -&gt; String
+
+or a type-level operator, like:
+
+    data (?) a b = A a | B b
+
+so we extend the lookup of the reader name '?' to the TcClsName namespace, as
+well as the original namespace.
+
+The extended lookup is also used in other places, like resolution of
+deprecation declarations, and lookup of names in GHCi.
+-}</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">--------------------------------</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Mini fixity env for the names we're about</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- to bind, in a single binding group</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- It is keyed by the *FastString*, not the *OccName*, because</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- the single fixity decl       @infix 3 T@</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- affects both the data constructor T and the type constructor T</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- We keep the location so that if we find</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- a duplicate, we can report it sensibly</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- Fixity declarations may influence names in a single namespace by using</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- a type or data specifier, e.g. in:</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;  data a :*: b = a :*: b</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- &gt;  infix 3 type :*:</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- To handle that correctly, MiniFixityEnv contains separate</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- fields for type-level and data-level names.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- If no namespace specifier is provided, the declaration will</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- populate both the type-level and data-level fields.</span><span>
+</span><span id="line-89"></span><span class="hs-keyword">data</span><span> </span><span id="MiniFixityEnv"><span class="annot"><a href="GHC.Rename.Fixity.html#MiniFixityEnv"><span class="hs-identifier hs-var">MiniFixityEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MFE"><span class="annot"><a href="GHC.Rename.Fixity.html#MFE"><span class="hs-identifier hs-var">MFE</span></a></span></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="mfe_data_level_names"><span class="annot"><span class="annottext">MiniFixityEnv -&gt; FastStringEnv (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#mfe_data_level_names"><span class="hs-identifier hs-var hs-var">mfe_data_level_names</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.Env.html#FastStringEnv"><span class="hs-identifier hs-type">FastStringEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="mfe_type_level_names"><span class="annot"><span class="annottext">MiniFixityEnv -&gt; FastStringEnv (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#mfe_type_level_names"><span class="hs-identifier hs-var hs-var">mfe_type_level_names</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.Env.html#FastStringEnv"><span class="hs-identifier hs-type">FastStringEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">--------------------------------</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- Used for nested fixity decls to bind names along with their fixities.</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- the fixities are given as a UFM from an OccName's FastString to a fixity decl</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span id="local-6989586621682836679"><span class="annot"><a href="GHC.Rename.Fixity.html#addLocalFixities"><span class="hs-identifier hs-type">addLocalFixities</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#MiniFixityEnv"><span class="hs-identifier hs-type">MiniFixityEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836679"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836679"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-99"></span><span id="addLocalFixities"><span class="annot"><span class="annottext">addLocalFixities :: forall a. MiniFixityEnv -&gt; [Name] -&gt; RnM a -&gt; RnM a
+</span><a href="GHC.Rename.Fixity.html#addLocalFixities"><span class="hs-identifier hs-var hs-var">addLocalFixities</span></a></span></span><span> </span><span id="local-6989586621682836778"><span class="annot"><span class="annottext">MiniFixityEnv
+</span><a href="#local-6989586621682836778"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span id="local-6989586621682836779"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621682836779"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621682836780"><span class="annot"><span class="annottext">RnM a
+</span><a href="#local-6989586621682836780"><span class="hs-identifier hs-var">thing_inside</span></a></span></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Name, FixItem)] -&gt; RnM a -&gt; RnM a
+forall a. [(Name, FixItem)] -&gt; RnM a -&gt; RnM a
+</span><a href="GHC.Tc.Utils.Monad.html#extendFixityEnv"><span class="hs-identifier hs-var">extendFixityEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; Maybe (Name, FixItem)) -&gt; [Name] -&gt; [(Name, FixItem)]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Maybe (Name, FixItem)
+</span><a href="#local-6989586621682836783"><span class="hs-identifier hs-var">find_fixity</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621682836779"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">RnM a
+</span><a href="#local-6989586621682836780"><span class="hs-identifier hs-var">thing_inside</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>    </span><span id="local-6989586621682836783"><span class="annot"><span class="annottext">find_fixity :: Name -&gt; Maybe (Name, FixItem)
+</span><a href="#local-6989586621682836783"><span class="hs-identifier hs-var hs-var">find_fixity</span></a></span></span><span> </span><span id="local-6989586621682836784"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836784"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MiniFixityEnv -&gt; Name -&gt; Maybe (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#lookupMiniFixityEnv"><span class="hs-identifier hs-var">lookupMiniFixityEnv</span></a></span><span> </span><span class="annot"><span class="annottext">MiniFixityEnv
+</span><a href="#local-6989586621682836778"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836784"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-103"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682836785"><span class="annot"><span class="annottext">Located Fixity
+</span><a href="#local-6989586621682836785"><span class="hs-identifier hs-var">lfix</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Name, FixItem) -&gt; Maybe (Name, FixItem)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836784"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">OccName -&gt; Fixity -&gt; FixItem
+</span><a href="GHC.Types.Fixity.Env.html#FixItem"><span class="hs-identifier hs-var">FixItem</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682836787"><span class="hs-identifier hs-var">occ</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Located Fixity -&gt; Fixity
+forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span> </span><span class="annot"><span class="annottext">Located Fixity
+</span><a href="#local-6989586621682836785"><span class="hs-identifier hs-var">lfix</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>          </span><span class="annot"><span class="annottext">Maybe (Located Fixity)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Name, FixItem)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-105"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>        </span><span id="local-6989586621682836787"><span class="annot"><span class="annottext">occ :: OccName
+</span><a href="#local-6989586621682836787"><span class="hs-identifier hs-var hs-var">occ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836784"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupMiniFixityEnv"><span class="hs-identifier hs-type">lookupMiniFixityEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#MiniFixityEnv"><span class="hs-identifier hs-type">MiniFixityEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#Located"><span class="hs-identifier hs-type">Located</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span id="lookupMiniFixityEnv"><span class="annot"><span class="annottext">lookupMiniFixityEnv :: MiniFixityEnv -&gt; Name -&gt; Maybe (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#lookupMiniFixityEnv"><span class="hs-identifier hs-var hs-var">lookupMiniFixityEnv</span></a></span></span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#MFE"><span class="hs-identifier hs-type">MFE</span></a></span><span class="hs-special">{</span><span id="local-6989586621682836790"><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+mfe_data_level_names :: MiniFixityEnv -&gt; FastStringEnv (Located Fixity)
+mfe_data_level_names :: FastStringEnv (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#mfe_data_level_names"><span class="hs-identifier hs-var hs-var">mfe_data_level_names</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682836791"><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+mfe_type_level_names :: MiniFixityEnv -&gt; FastStringEnv (Located Fixity)
+mfe_type_level_names :: FastStringEnv (Located Fixity)
+</span><a href="GHC.Rename.Fixity.html#mfe_type_level_names"><span class="hs-identifier hs-var hs-var">mfe_type_level_names</span></a></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621682836792"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836792"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">NameSpace -&gt; Bool
+</span><a href="GHC.Types.Name.Occurrence.html#isValNameSpace"><span class="hs-identifier hs-var">isValNameSpace</span></a></span><span> </span><span class="annot"><span class="annottext">NameSpace
+</span><a href="#local-6989586621682836794"><span class="hs-identifier hs-var">namespace</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity) -&gt; Name -&gt; Maybe (Located Fixity)
+forall {a}. FastStringEnv a -&gt; Name -&gt; Maybe a
+</span><a href="#local-6989586621682836795"><span class="hs-identifier hs-var">find_fixity_in_env</span></a></span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+</span><a href="#local-6989586621682836790"><span class="hs-identifier hs-var">mfe_data_level_names</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836792"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity) -&gt; Name -&gt; Maybe (Located Fixity)
+forall {a}. FastStringEnv a -&gt; Name -&gt; Maybe a
+</span><a href="#local-6989586621682836795"><span class="hs-identifier hs-var">find_fixity_in_env</span></a></span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+</span><a href="#local-6989586621682836791"><span class="hs-identifier hs-var">mfe_type_level_names</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836792"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621682836794"><span class="annot"><span class="annottext">namespace :: NameSpace
+</span><a href="#local-6989586621682836794"><span class="hs-identifier hs-var hs-var">namespace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; NameSpace
+</span><a href="GHC.Types.Name.html#nameNameSpace"><span class="hs-identifier hs-var">nameNameSpace</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836792"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621682836795"><span class="annot"><span class="annottext">find_fixity_in_env :: FastStringEnv a -&gt; Name -&gt; Maybe a
+</span><a href="#local-6989586621682836795"><span class="hs-identifier hs-var hs-var">find_fixity_in_env</span></a></span></span><span> </span><span id="local-6989586621682836797"><span class="annot"><span class="annottext">FastStringEnv a
+</span><a href="#local-6989586621682836797"><span class="hs-identifier hs-var">mini_fix_env</span></a></span></span><span> </span><span id="local-6989586621682836798"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836798"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastStringEnv a -&gt; FastString -&gt; Maybe a
+forall a. FastStringEnv a -&gt; FastString -&gt; Maybe a
+</span><a href="GHC.Data.FastString.Env.html#lookupFsEnv"><span class="hs-identifier hs-var">lookupFsEnv</span></a></span><span> </span><span class="annot"><span class="annottext">FastStringEnv a
+</span><a href="#local-6989586621682836797"><span class="hs-identifier hs-var">mini_fix_env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OccName -&gt; FastString
+</span><a href="GHC.Types.Name.Occurrence.html#occNameFS"><span class="hs-identifier hs-var">occNameFS</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682836801"><span class="hs-identifier hs-var">occ</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>        </span><span id="local-6989586621682836801"><span class="annot"><span class="annottext">occ :: OccName
+</span><a href="#local-6989586621682836801"><span class="hs-identifier hs-var hs-var">occ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836798"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><a href="GHC.Rename.Fixity.html#emptyMiniFixityEnv"><span class="hs-identifier hs-type">emptyMiniFixityEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Rename.Fixity.html#MiniFixityEnv"><span class="hs-identifier hs-type">MiniFixityEnv</span></a></span><span>
+</span><span id="line-121"></span><span id="emptyMiniFixityEnv"><span class="annot"><span class="annottext">emptyMiniFixityEnv :: MiniFixityEnv
+</span><a href="GHC.Rename.Fixity.html#emptyMiniFixityEnv"><span class="hs-identifier hs-var hs-var">emptyMiniFixityEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+-&gt; FastStringEnv (Located Fixity) -&gt; MiniFixityEnv
+</span><a href="GHC.Rename.Fixity.html#MFE"><span class="hs-identifier hs-var">MFE</span></a></span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+forall a. FastStringEnv a
+</span><a href="GHC.Data.FastString.Env.html#emptyFsEnv"><span class="hs-identifier hs-var">emptyFsEnv</span></a></span><span> </span><span class="annot"><span class="annottext">FastStringEnv (Located Fixity)
+forall a. FastStringEnv a
+</span><a href="GHC.Data.FastString.Env.html#emptyFsEnv"><span class="hs-identifier hs-var">emptyFsEnv</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">{-
+--------------------------------
+lookupFixity is a bit strange.
+
+* Nested local fixity decls are put in the local fixity env, which we
+  find with getFixtyEnv
+
+* Imported fixities are found in the PIT
+
+* Top-level fixity decls in this module may be for Names that are
+    either  Global         (constructors, class operations)
+    or      Local/Exported (everything else)
+  (See notes with GHC.Rename.Names.getLocalDeclBinders for why we have this split.)
+  We put them all in the local fixity environment
+-}</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFixityRn"><span class="hs-identifier hs-type">lookupFixityRn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span>
+</span><span id="line-140"></span><span id="lookupFixityRn"><span class="annot"><span class="annottext">lookupFixityRn :: Name -&gt; RnM Fixity
+</span><a href="GHC.Rename.Fixity.html#lookupFixityRn"><span class="hs-identifier hs-var hs-var">lookupFixityRn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Bool, Fixity) -&gt; Fixity)
+-&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity) -&gt; RnM Fixity
+forall a b.
+(a -&gt; b)
+-&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+-&gt; IOEnv (Env TcGblEnv TcLclEnv) b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(Bool, Fixity) -&gt; Fixity
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">(IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity) -&gt; RnM Fixity)
+-&gt; (Name -&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity))
+-&gt; Name
+-&gt; RnM Fixity
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity)
+</span><a href="GHC.Rename.Fixity.html#lookupFixityRn_help"><span class="hs-identifier hs-var">lookupFixityRn_help</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | 'lookupFixityRn_help' returns @(True, fixity)@ if it finds a 'Fixity'</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- in a local environment or from an interface file. Otherwise, it returns</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- @(False, fixity)@ (e.g., for unbound 'Name's or 'Name's without</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- user-supplied fixity declarations).</span><span>
+</span><span id="line-146"></span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFixityRn_help"><span class="hs-identifier hs-type">lookupFixityRn_help</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>
+</span><span id="line-147"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span id="lookupFixityRn_help"><span class="annot"><span class="annottext">lookupFixityRn_help :: Name -&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity)
+</span><a href="GHC.Rename.Fixity.html#lookupFixityRn_help"><span class="hs-identifier hs-var hs-var">lookupFixityRn_help</span></a></span></span><span> </span><span id="local-6989586621682836806"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Bool
+</span><a href="GHC.Builtin.Names.html#isUnboundName"><span class="hs-identifier hs-var">isUnboundName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool, Fixity) -&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity)
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SourceText -&gt; Int -&gt; FixityDirection -&gt; Fixity
+</span><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-var">Fixity</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><a href="GHC.Types.SourceText.html#NoSourceText"><span class="hs-identifier hs-var">NoSourceText</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="GHC.Types.Fixity.html#minPrecedence"><span class="hs-identifier hs-var">minPrecedence</span></a></span><span> </span><span class="annot"><span class="annottext">FixityDirection
+</span><a href="GHC.Types.Fixity.html#InfixL"><span class="hs-identifier hs-var">InfixL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-comment">-- Minimise errors from unbound names; eg</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">--    a&gt;0 `foo` b&gt;0</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-comment">-- where 'foo' is not in scope, should not give an error (#7937)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682836811"><span class="annot"><a href="#local-6989586621682836811"><span class="hs-identifier hs-var">local_fix_env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TcRn FixityEnv
+</span><a href="GHC.Tc.Utils.Monad.html#getFixityEnv"><span class="hs-identifier hs-var">getFixityEnv</span></a></span><span>
+</span><span id="line-157"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="GHC.Types.Name.Env.html#lookupNameEnv"><span class="hs-identifier hs-type">lookupNameEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836811"><span class="hs-identifier hs-type">local_fix_env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836806"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-158"></span><span>           </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Fixity.Env.html#FixItem"><span class="hs-identifier hs-type">FixItem</span></a></span><span> </span><span class="annot"><span class="annottext">OccName
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682836814"><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836814"><span class="hs-identifier hs-var">fix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Fixity) -&gt; IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity)
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836814"><span class="hs-identifier hs-var">fix</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">;</span><span>
+</span><span id="line-159"></span><span>           </span><span class="annot"><span class="annottext">Maybe FixItem
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682836815"><span class="annot"><a href="#local-6989586621682836815"><span class="hs-identifier hs-var">this_mod</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv (Env TcGblEnv TcLclEnv) Module
+forall (m :: * -&gt; *). HasModule m =&gt; m Module
+</span><a href="GHC.Unit.Module.html#getModule"><span class="hs-identifier hs-var">getModule</span></a></span><span>
+</span><span id="line-162"></span><span>       </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="GHC.Types.Name.html#nameIsLocalOrFrom"><span class="hs-identifier hs-type">nameIsLocalOrFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836815"><span class="hs-identifier hs-type">this_mod</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682836806"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-163"></span><span>               </span><span class="hs-comment">-- Local (and interactive) names are all in the</span><span>
+</span><span id="line-164"></span><span>               </span><span class="hs-comment">-- fixity env, and don't have entries in the HPT</span><span>
+</span><span id="line-165"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#defaultFixity"><span class="hs-identifier hs-type">defaultFixity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="#local-6989586621682836819"><span class="hs-identifier hs-type">lookup_imported</span></a></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621682836820"><span class="annot"><span class="annottext">occ :: OccName
+</span><a href="#local-6989586621682836820"><span class="hs-identifier hs-var hs-var">occ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; OccName
+</span><a href="GHC.Types.Name.html#nameOccName"><span class="hs-identifier hs-var">nameOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621682836819"><span class="annot"><span class="annottext">lookup_imported :: IOEnv (Env TcGblEnv TcLclEnv) (Bool, Fixity)
+</span><a href="#local-6989586621682836819"><span class="hs-identifier hs-var hs-var">lookup_imported</span></a></span></span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-comment">-- For imported names, we have to get their fixities by doing a</span><span>
+</span><span id="line-171"></span><span>      </span><span class="hs-comment">-- loadInterfaceForName, and consulting the Ifaces that comes back</span><span>
+</span><span id="line-172"></span><span>      </span><span class="hs-comment">-- from that, because the interface file for the Name might not</span><span>
+</span><span id="line-173"></span><span>      </span><span class="hs-comment">-- have been loaded yet.  Why not?  Suppose you import module A,</span><span>
+</span><span id="line-174"></span><span>      </span><span class="hs-comment">-- which exports a function 'f', thus;</span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-comment">--        module CurrentModule where</span><span>
+</span><span id="line-176"></span><span>      </span><span class="hs-comment">--          import A( f )</span><span>
+</span><span id="line-177"></span><span>      </span><span class="hs-comment">--        module A( f ) where</span><span>
+</span><span id="line-178"></span><span>      </span><span class="hs-comment">--          import B( f )</span><span>
+</span><span id="line-179"></span><span>      </span><span class="hs-comment">-- Then B isn't loaded right away (after all, it's possible that</span><span>
+</span><span id="line-180"></span><span>      </span><span class="hs-comment">-- nothing from B will be used).  When we come across a use of</span><span>
+</span><span id="line-181"></span><span>      </span><span class="hs-comment">-- 'f', we need to know its fixity, and it's then, and only</span><span>
+</span><span id="line-182"></span><span>      </span><span class="hs-comment">-- then, that we load B.hi.  That is what's happening here.</span><span>
+</span><span id="line-183"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span>      </span><span class="hs-comment">-- loadInterfaceForName will find B.hi even if B is a hidden module,</span><span>
+</span><span id="line-185"></span><span>      </span><span class="hs-comment">-- and that's what we want.</span><span>
+</span><span id="line-186"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682836821"><span class="annot"><a href="#local-6989586621682836821"><span class="hs-identifier hs-var">iface</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; Name -&gt; TcRn ModIface
+</span><a href="GHC.Iface.Load.html#loadInterfaceForName"><span class="hs-identifier hs-var">loadInterfaceForName</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682836823"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-187"></span><span>           </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682836824"><span class="annot"><a href="#local-6989586621682836824"><span class="hs-identifier hs-var hs-var">mb_fix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ModIfaceBackend -&gt; OccName -&gt; Maybe Fixity
+</span><a href="GHC.Unit.Module.ModIface.html#mi_fix_fn"><span class="hs-identifier hs-var">mi_fix_fn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ModIface -&gt; IfaceBackendExts 'ModIfaceFinal
+forall (phase :: ModIfacePhase).
+ModIface_ phase -&gt; IfaceBackendExts phase
+</span><a href="GHC.Unit.Module.ModIface.html#mi_final_exts"><span class="hs-identifier hs-var">mi_final_exts</span></a></span><span> </span><span class="annot"><span class="annottext">ModIface
+</span><a href="#local-6989586621682836821"><span class="hs-identifier hs-var">iface</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OccName
+</span><a href="#local-6989586621682836820"><span class="hs-identifier hs-var">occ</span></a></span><span>
+</span><span id="line-188"></span><span>           </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682836827"><span class="annot"><a href="#local-6989586621682836827"><span class="hs-identifier hs-var hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Fixity
+</span><a href="#local-6989586621682836824"><span class="hs-identifier hs-var">mb_fix</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-189"></span><span>                            </span><span class="annot"><span class="annottext">Maybe Fixity
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-190"></span><span>                                  </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;looking up name&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-191"></span><span>                              </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;in iface, but found no fixity for it.&quot;</span></span><span>
+</span><span id="line-192"></span><span>                              </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Using default fixity instead.&quot;</span></span><span>
+</span><span id="line-193"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682836831"><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836831"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-194"></span><span>                                  </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;looking up name in iface and found:&quot;</span></span><span>
+</span><span id="line-195"></span><span>                              </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Name -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Fixity -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836831"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-196"></span><span>           </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.Monad.html#traceRn"><span class="hs-identifier hs-type">traceRn</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;lookupFixityRn_either:&quot;</span></span><span> </span><span class="annot"><a href="#local-6989586621682836827"><span class="hs-identifier hs-type">msg</span></a></span><span>
+</span><span id="line-197"></span><span>           </span><span class="hs-special">;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#defaultFixity"><span class="hs-identifier hs-type">defaultFixity</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682836835"><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836835"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Fixity
+</span><a href="#local-6989586621682836835"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682836824"><span class="hs-identifier hs-type">mb_fix</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621682836823"><span class="annot"><span class="annottext">doc :: SDoc
+</span><a href="#local-6989586621682836823"><span class="hs-identifier hs-var hs-var">doc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Checking fixity for&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621682836806"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-comment">---------------</span><span>
+</span><span id="line-202"></span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupTyFixityRn"><span class="hs-identifier hs-type">lookupTyFixityRn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html#LocatedN"><span class="hs-identifier hs-type">LocatedN</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span>
+</span><span id="line-203"></span><span id="lookupTyFixityRn"><span class="annot"><span class="annottext">lookupTyFixityRn :: LocatedN Name -&gt; RnM Fixity
+</span><a href="GHC.Rename.Fixity.html#lookupTyFixityRn"><span class="hs-identifier hs-var hs-var">lookupTyFixityRn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; RnM Fixity
+</span><a href="GHC.Rename.Fixity.html#lookupFixityRn"><span class="hs-identifier hs-var">lookupFixityRn</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; RnM Fixity)
+-&gt; (LocatedN Name -&gt; Name) -&gt; LocatedN Name -&gt; RnM Fixity
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LocatedN Name -&gt; Name
+forall l e. GenLocated l e -&gt; e
+</span><a href="GHC.Types.SrcLoc.html#unLoc"><span class="hs-identifier hs-var">unLoc</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="annot"><a href="GHC.Rename.Fixity.html#lookupFieldFixityRn"><span class="hs-identifier hs-type">lookupFieldFixityRn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Type.html#FieldOcc"><span class="hs-identifier hs-type">FieldOcc</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#RnM"><span class="hs-identifier hs-type">RnM</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Fixity.html#Fixity"><span class="hs-identifier hs-type">Fixity</span></a></span><span>
+</span><span id="line-206"></span><span id="lookupFieldFixityRn"><span class="annot"><span class="annottext">lookupFieldFixityRn :: FieldOcc GhcRn -&gt; RnM Fixity
+</span><a href="GHC.Rename.Fixity.html#lookupFieldFixityRn"><span class="hs-identifier hs-var hs-var">lookupFieldFixityRn</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Type.html#FieldOcc"><span class="hs-identifier hs-type">FieldOcc</span></a></span><span> </span><span id="local-6989586621682836837"><span class="annot"><span class="annottext">XCFieldOcc GhcRn
+</span><a href="#local-6989586621682836837"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">XRec GhcRn RdrName
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; RnM Fixity
+</span><a href="GHC.Rename.Fixity.html#lookupFixityRn"><span class="hs-identifier hs-var">lookupFixityRn</span></a></span><span> </span><span class="annot"><span class="annottext">XCFieldOcc GhcRn
+Name
+</span><a href="#local-6989586621682836837"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-207"></span></pre></body></html>

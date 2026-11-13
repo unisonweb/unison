@@ -1,0 +1,389 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html"><span class="hs-identifier">GHC.Data.FlatBag</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier">FlatBag</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#emptyFlatBag"><span class="hs-identifier">emptyFlatBag</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#unitFlatBag"><span class="hs-identifier">unitFlatBag</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier">sizeFlatBag</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier">elemsFlatBag</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier">mappendFlatBag</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Construction</span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier">fromList</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#fromSizedSeq"><span class="hs-identifier">fromSizedSeq</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html"><span class="hs-identifier">GHC.Data.SizedSeq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier">SizedSeq</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier">ssElts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#sizeSS"><span class="hs-identifier">sizeSS</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.SmallArray.html"><span class="hs-identifier">GHC.Data.SmallArray</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- | Store elements in a flattened representation.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- A 'FlatBag' is a data structure that stores an ordered list of elements</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- in a flat structure, avoiding the overhead of a linked list.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Use this data structure, if the code requires the following properties:</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- * Elements are stored in a long-lived object, and benefit from a flattened</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--   representation.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- * The 'FlatBag' will be traversed but not extended or filtered.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- * The number of elements should be known.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- * Sharing of the empty case improves memory behaviour.</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- A 'FlagBag' aims to have as little overhead as possible to store its elements.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- To achieve that, it distinguishes between the empty case, singleton, tuple</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- and general case.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Thus, we only pay for the additional three words of an 'Array' if we have at least</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- three elements.</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="FlatBag"><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-var">FlatBag</span></a></span></span><span> </span><span id="local-6989586621682341238"><span class="annot"><a href="#local-6989586621682341238"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="EmptyFlatBag"><span class="annot"><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UnitFlatBag"><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-var">UnitFlatBag</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621682341238"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TupleFlatBag"><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-var">TupleFlatBag</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621682341238"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621682341238"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FlatBag"><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-var">FlatBag</span></a></span></span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.SmallArray.html#SmallArray"><span class="hs-identifier hs-type">SmallArray</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341238"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682341353"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621682341357"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; FlatBag a -&gt; FlatBag b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlatBag b
+forall a. FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621682341358"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341358"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341359"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341359"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; FlatBag b
+forall a. a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-var">UnitFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; FlatBag b) -&gt; b -&gt; FlatBag b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341358"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341359"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621682341360"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341360"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span> </span><span id="local-6989586621682341361"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341361"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341362"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341362"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; FlatBag b
+forall a. a -&gt; a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-var">TupleFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341360"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341361"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341360"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341362"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621682341363"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341363"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341364"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341364"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SmallArray b -&gt; FlatBag b
+forall a. SmallArray a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-var">FlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">(SmallArray b -&gt; FlatBag b) -&gt; SmallArray b -&gt; FlatBag b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; SmallArray a -&gt; SmallArray b
+forall a b. (a -&gt; b) -&gt; SmallArray a -&gt; SmallArray b
+</span><a href="GHC.Data.SmallArray.html#mapSmallArray"><span class="hs-identifier hs-var">mapSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682341363"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341364"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682341367"><span id="local-6989586621682341374"><span id="local-6989586621682341379"><span id="local-6989586621682341382"><span id="local-6989586621682341385"><span id="local-6989586621682341388"><span id="local-6989586621682341391"><span id="local-6989586621682341394"><span id="local-6989586621682341397"><span id="local-6989586621682341400"><span id="local-6989586621682341404"><span id="local-6989586621682341409"><span id="local-6989586621682341414"><span id="local-6989586621682341419"><span id="local-6989586621682341424"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621682341433"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; FlatBag a -&gt; m
+</span><a href="#local-6989586621682341433"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span id="local-6989586621682341435"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341435"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341436"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341436"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341435"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341436"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span id="local-6989586621682341437"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341437"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span> </span><span id="local-6989586621682341438"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341438"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341439"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341439"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341437"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341438"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341437"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341439"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span id="local-6989586621682341440"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341440"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341441"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341441"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; SmallArray a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; SmallArray a -&gt; m
+</span><a href="GHC.Data.SmallArray.html#foldMapSmallArray"><span class="hs-identifier hs-var">foldMapSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621682341440"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341441"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621682341447"><span class="annot"><span class="annottext">length :: forall a. FlatBag a -&gt; Int
+</span><a href="#local-6989586621682341447"><span class="hs-identifier hs-var hs-var hs-var">length</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Word -&gt; Int) -&gt; (FlatBag a -&gt; Word) -&gt; FlatBag a -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a -&gt; Word
+forall a. FlatBag a -&gt; Word
+</span><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682341456"><span id="local-6989586621682341462"><span id="local-6989586621682341467"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621682341487"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; FlatBag a -&gt; f (FlatBag b)
+</span><a href="#local-6989586621682341487"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlatBag b -&gt; f (FlatBag b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">FlatBag b
+forall a. FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">traverse</span></span><span> </span><span id="local-6989586621682341489"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341489"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341490"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341490"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; FlatBag b
+forall a. a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-var">UnitFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; FlatBag b) -&gt; f b -&gt; f (FlatBag b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341489"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341490"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">traverse</span></span><span> </span><span id="local-6989586621682341492"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341492"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span> </span><span id="local-6989586621682341493"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341493"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341494"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341494"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; FlatBag b
+forall a. a -&gt; a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-var">TupleFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; b -&gt; FlatBag b) -&gt; f b -&gt; f (b -&gt; FlatBag b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341492"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341493"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">f (b -&gt; FlatBag b) -&gt; f b -&gt; f (FlatBag b)
+forall a b. f (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341492"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341494"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">traverse</span></span><span> </span><span id="local-6989586621682341495"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341495"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682341496"><span class="annot"><span class="annottext">fl :: FlatBag a
+</span><a href="#local-6989586621682341496"><span class="hs-identifier hs-var">fl</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341497"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341497"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [b] -&gt; FlatBag b
+forall a. Word -&gt; [a] -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier hs-var">fromList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SmallArray a -&gt; Int
+forall a. SmallArray a -&gt; Int
+</span><a href="GHC.Data.SmallArray.html#sizeofSmallArray"><span class="hs-identifier hs-var">sizeofSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341497"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([b] -&gt; FlatBag b) -&gt; f [b] -&gt; f (FlatBag b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; [a] -&gt; f [b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621682341495"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FlatBag a -&gt; [a]
+forall a. FlatBag a -&gt; [a]
+</span><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341496"><span class="hs-identifier hs-var">fl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682341309"><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341309"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341309"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621682341507"><span class="annot"><span class="annottext">rnf :: FlatBag a -&gt; ()
+</span><a href="#local-6989586621682341507"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341509"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341509"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341509"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span> </span><span id="local-6989586621682341510"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341510"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341511"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341511"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341510"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341511"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341512"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341512"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SmallArray a -&gt; ()
+forall a. NFData a =&gt; SmallArray a -&gt; ()
+</span><a href="GHC.Data.SmallArray.html#rnfSmallArray"><span class="hs-identifier hs-var">rnfSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341512"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Create an empty 'FlatBag'.</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- The empty 'FlatBag' is shared over all instances.</span><span>
+</span><span id="line-74"></span><span id="local-6989586621682341514"><span class="annot"><a href="GHC.Data.FlatBag.html#emptyFlatBag"><span class="hs-identifier hs-type">emptyFlatBag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341514"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-75"></span><span id="emptyFlatBag"><span class="annot"><span class="annottext">emptyFlatBag :: forall a. FlatBag a
+</span><a href="GHC.Data.FlatBag.html#emptyFlatBag"><span class="hs-identifier hs-var hs-var">emptyFlatBag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlatBag a
+forall a. FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | Create a singleton 'FlatBag'.</span></span><span>
+</span><span id="line-78"></span><span id="local-6989586621682341515"><span class="annot"><a href="GHC.Data.FlatBag.html#unitFlatBag"><span class="hs-identifier hs-type">unitFlatBag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682341515"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341515"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-79"></span><span id="unitFlatBag"><span class="annot"><span class="annottext">unitFlatBag :: forall a. a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#unitFlatBag"><span class="hs-identifier hs-var hs-var">unitFlatBag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; FlatBag a
+forall a. a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-var">UnitFlatBag</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><span class="hs-comment">-- | Calculate the size of</span></span><span>
+</span><span id="line-82"></span><span id="local-6989586621682341279"><span class="annot"><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-type">sizeFlatBag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341279"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span></span><span>
+</span><span id="line-83"></span><span id="sizeFlatBag"><span class="annot"><span class="annottext">sizeFlatBag :: forall a. FlatBag a -&gt; Word
+</span><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var hs-var">sizeFlatBag</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-84"></span><span class="annot"><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-85"></span><span class="annot"><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341518"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341518"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SmallArray a -&gt; Int
+forall a. SmallArray a -&gt; Int
+</span><a href="GHC.Data.SmallArray.html#sizeofSmallArray"><span class="hs-identifier hs-var">sizeofSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341518"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><span class="hs-comment">-- | Get all elements that are stored in the 'FlatBag'.</span></span><span>
+</span><span id="line-89"></span><span id="local-6989586621682341519"><span class="annot"><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-type">elemsFlatBag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341519"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682341519"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-90"></span><span id="elemsFlatBag"><span class="annot"><span class="annottext">elemsFlatBag :: forall a. FlatBag a -&gt; [a]
+</span><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var hs-var">elemsFlatBag</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-91"></span><span class="annot"><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341525"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341525"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341525"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-type">TupleFlatBag</span></a></span><span> </span><span id="local-6989586621682341526"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341526"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341527"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341527"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341526"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341527"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-93"></span><span class="annot"><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span id="local-6989586621682341528"><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341528"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SmallArray a -&gt; Int -&gt; a
+forall a. SmallArray a -&gt; Int -&gt; a
+</span><a href="GHC.Data.SmallArray.html#indexSmallArray"><span class="hs-identifier hs-var">indexSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341528"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682341530"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621682341530"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682341530"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">SmallArray a -&gt; Int
+forall a. SmallArray a -&gt; Int
+</span><a href="GHC.Data.SmallArray.html#sizeofSmallArray"><span class="hs-identifier hs-var">sizeofSmallArray</span></a></span><span> </span><span class="annot"><span class="annottext">SmallArray a
+</span><a href="#local-6989586621682341528"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Combine two 'FlatBag's.</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- The new 'FlatBag' contains all elements from both 'FlatBag's.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- If one of the 'FlatBag's is empty, the old 'FlatBag' is reused.</span><span>
+</span><span id="line-101"></span><span id="local-6989586621682341321"><span class="annot"><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier hs-type">mappendFlatBag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341321"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341321"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341321"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-102"></span><span id="mappendFlatBag"><span class="annot"><span class="annottext">mappendFlatBag :: forall a. FlatBag a -&gt; FlatBag a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier hs-var hs-var">mappendFlatBag</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span id="local-6989586621682341532"><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341532"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341532"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier hs-var">mappendFlatBag</span></a></span><span> </span><span id="local-6989586621682341533"><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341533"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341533"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-104"></span><span class="annot"><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier hs-var">mappendFlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341534"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341534"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-type">UnitFlatBag</span></a></span><span> </span><span id="local-6989586621682341535"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341535"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; FlatBag a
+forall a. a -&gt; a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-var">TupleFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341534"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341535"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="GHC.Data.FlatBag.html#mappendFlatBag"><span class="hs-identifier hs-var">mappendFlatBag</span></a></span><span> </span><span id="local-6989586621682341536"><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341536"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682341537"><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341537"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><span class="annottext">Word -&gt; [a] -&gt; FlatBag a
+forall a. Word -&gt; [a] -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier hs-var">fromList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FlatBag a -&gt; Word
+forall a. FlatBag a -&gt; Word
+</span><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341536"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Word -&gt; Word
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a -&gt; Word
+forall a. FlatBag a -&gt; Word
+</span><a href="GHC.Data.FlatBag.html#sizeFlatBag"><span class="hs-identifier hs-var">sizeFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341537"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FlatBag a -&gt; [a]
+forall a. FlatBag a -&gt; [a]
+</span><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341536"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FlatBag a -&gt; [a]
+forall a. FlatBag a -&gt; [a]
+</span><a href="GHC.Data.FlatBag.html#elemsFlatBag"><span class="hs-identifier hs-var">elemsFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">FlatBag a
+</span><a href="#local-6989586621682341537"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Store the list in a flattened memory representation, avoiding the memory overhead</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- of a linked list.</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- The size 'n' needs to be smaller or equal to the length of the list.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- If it is smaller than the length of the list, overflowing elements are</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- discarded. It is undefined behaviour to set 'n' to be bigger than the</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- length of the list.</span><span>
+</span><span id="line-116"></span><span id="local-6989586621682341304"><span class="annot"><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682341304"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341304"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-117"></span><span id="fromList"><span class="annot"><span class="annottext">fromList :: forall a. Word -&gt; [a] -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier hs-var hs-var">fromList</span></a></span></span><span> </span><span id="local-6989586621682341543"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682341543"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682341544"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682341544"><span class="hs-identifier hs-var">elts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682341544"><span class="hs-identifier hs-var">elts</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FlatBag a
+forall a. FlatBag a
+</span><a href="GHC.Data.FlatBag.html#EmptyFlatBag"><span class="hs-identifier hs-var">EmptyFlatBag</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-special">[</span><span id="local-6989586621682341545"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341545"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FlatBag a
+forall a. a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#UnitFlatBag"><span class="hs-identifier hs-var">UnitFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341545"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-special">[</span><span id="local-6989586621682341546"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341546"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682341547"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341547"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; FlatBag a
+forall a. a -&gt; a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#TupleFlatBag"><span class="hs-identifier hs-var">TupleFlatBag</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341546"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682341547"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621682341548"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682341548"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><span class="annottext">SmallArray a -&gt; FlatBag a
+forall a. SmallArray a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-var">FlatBag</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+-&gt; ((Int, a) -&gt; Int)
+-&gt; ((Int, a) -&gt; a)
+-&gt; [(Int, a)]
+-&gt; SmallArray a
+forall e a. Int -&gt; (e -&gt; Int) -&gt; (e -&gt; a) -&gt; [e] -&gt; SmallArray a
+</span><a href="GHC.Data.SmallArray.html#listToArray"><span class="hs-identifier hs-var">listToArray</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621682341543"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int, a) -&gt; Int
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(Int, a) -&gt; a
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; [a] -&gt; [(Int, a)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682341548"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | Convert a 'SizedSeq' into its flattened representation.</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- A 'FlatBag a' is more memory efficient than '[a]', if no further modification</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- is necessary.</span><span>
+</span><span id="line-128"></span><span id="local-6989586621682341333"><span class="annot"><a href="GHC.Data.FlatBag.html#fromSizedSeq"><span class="hs-identifier hs-type">fromSizedSeq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#SizedSeq"><span class="hs-identifier hs-type">SizedSeq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FlatBag.html#FlatBag"><span class="hs-identifier hs-type">FlatBag</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682341333"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-129"></span><span id="fromSizedSeq"><span class="annot"><span class="annottext">fromSizedSeq :: forall a. SizedSeq a -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#fromSizedSeq"><span class="hs-identifier hs-var hs-var">fromSizedSeq</span></a></span></span><span> </span><span id="local-6989586621682341552"><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621682341552"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; [a] -&gt; FlatBag a
+forall a. Word -&gt; [a] -&gt; FlatBag a
+</span><a href="GHC.Data.FlatBag.html#fromList"><span class="hs-identifier hs-var">fromList</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SizedSeq a -&gt; Word
+forall a. SizedSeq a -&gt; Word
+</span><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#sizeSS"><span class="hs-identifier hs-var">sizeSS</span></a></span><span> </span><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621682341552"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SizedSeq a -&gt; [a]
+forall a. SizedSeq a -&gt; [a]
+</span><a href="../../ghc-boot-9.10.3-46f3/src/GHC.Data.SizedSeq.html#ssElts"><span class="hs-identifier hs-var">ssElts</span></a></span><span> </span><span class="annot"><span class="annottext">SizedSeq a
+</span><a href="#local-6989586621682341552"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span></pre></body></html>

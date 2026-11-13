@@ -1,0 +1,858 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Which slots of a frame the code that resumes there reads: the</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- liveness that native code's exits use to write back only the slots the</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- interpreter will read (JIT/design.md, &quot;Only the live slots are</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- written&quot;), and that the serializer uses to write a captured frame's dead</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- slots as unit, since a dead slot holds whatever an earlier frame left</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- there ('Unison.Runtime.Machine.reflectValue').</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html"><span class="hs-identifier">Unison.Runtime.MCode.Live</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#liveAt"><span class="hs-identifier">liveAt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#instrReads"><span class="hs-identifier">instrReads</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier">argReads</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier">slotAt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator">(&lt;+&gt;)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IS</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.PrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">primArrayToList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Wide.html"><span class="hs-identifier">Unison.Runtime.Wide</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Wide.html#wideOn"><span class="hs-identifier">wideOn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Wide.html#wideWidth"><span class="hs-identifier">wideWidth</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.EnumContainers.html"><span class="hs-identifier">Unison.Util.EnumContainers</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">EC</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">-- | The union of two slot sets, where Nothing (every slot) absorbs.</span></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-type">(&lt;+&gt;)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span>
+</span><span id="line-26"></span><span id="local-6989586621681962506"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962506"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="%3C%2B%3E"><span class="annot"><span class="annottext">&lt;+&gt; :: Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var hs-var">&lt;+&gt;</span></a></span></span><span> </span><span id="local-6989586621681962507"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962507"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.union</span></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; IntSet -&gt; IntSet)
+-&gt; Maybe IntSet -&gt; Maybe (IntSet -&gt; IntSet)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962506"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (IntSet -&gt; IntSet) -&gt; Maybe IntSet -&gt; Maybe IntSet
+forall a b. Maybe (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962507"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">infixr</span><span> </span><span class="hs-number">5</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-type">&lt;+&gt;</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | The slots (frame offsets, 1 and up) the interpreter reads when it</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- runs @sect@ at depth @d@ with the frame base at offset @base@, and in</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- whatever of the same frame runs after it; Nothing when that can't be</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- told statically, and every slot then has to count. Only these need to</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- be on the Unison stack when native code exits there: the others are</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- never read again (a slot dead here is dead at every later point of the</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- same path; a continuation captured later copies the frame as it is,</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- dead slots included, and never reads them either). Depths follow</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- 'genSection': MCode's &quot;slot @i@ from the top&quot; is offset @d - i@, an</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- instruction pushes 'pushCount' values, a @Let@'s body starts at its</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- combinator's arity, a data match arm pushes the constructor's fields.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- An offset of 0 or below is the caller's (a pending argument), not ours.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- A wide variable's field slots (Unison.Runtime.Wide) are read by a data</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- match on it and by its 'Box'; once boxed, in place, the object holds</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- the fields and the slots are dead, so the walk carries the slots boxed</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- so far and a match on one of those reads its value slot only.</span><span>
+</span><span id="line-47"></span><span id="local-6989586621681962410"><span class="annot"><a href="Unison.Runtime.MCode.Live.html#liveAt"><span class="hs-identifier hs-type">liveAt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#GSection"><span class="hs-identifier hs-type">GSection</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681962410"><span class="hs-identifier hs-type">comb</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span></span><span>
+</span><span id="line-48"></span><span id="liveAt"><span class="annot"><span class="annottext">liveAt :: forall comb.
+(Word64 -&gt; Maybe Int)
+-&gt; Int -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#liveAt"><span class="hs-identifier hs-var hs-var">liveAt</span></a></span></span><span> </span><span id="local-6989586621681962540"><span class="annot"><span class="annottext">Word64 -&gt; Maybe Int
+</span><a href="#local-6989586621681962540"><span class="hs-identifier hs-var">bodyArityOf</span></a></span></span><span> </span><span id="local-6989586621681962541"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621681962542"><span class="annot"><span class="annottext">go :: IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621681962544"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span></span><span> </span><span id="local-6989586621681962545"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962547"><span class="annot"><span class="annottext">GRef comb
+</span><a href="#local-6989586621681962547"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681962548"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962548"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; GRef comb -&gt; Maybe IntSet
+forall {comb}. Int -&gt; GRef comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962549"><span class="hs-identifier hs-var">refReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GRef comb
+</span><a href="#local-6989586621681962547"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962548"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Call"><span class="hs-identifier hs-type">Call</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">comb
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962551"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962551"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962551"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Jump"><span class="hs-identifier hs-type">Jump</span></a></span><span> </span><span id="local-6989586621681962553"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962553"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962554"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962554"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962553"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962554"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Match"><span class="hs-identifier hs-type">Match</span></a></span><span> </span><span id="local-6989586621681962556"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962556"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962557"><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962557"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962556"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GBranch comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962558"><span class="hs-identifier hs-var">arms</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962557"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#NMatch"><span class="hs-identifier hs-type">NMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962560"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962560"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962561"><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962561"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962560"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GBranch comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962558"><span class="hs-identifier hs-var">arms</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962561"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#DMatch"><span class="hs-identifier hs-type">DMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962563"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962563"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962564"><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962564"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962563"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IS.member</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962563"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962566"><span class="hs-identifier hs-var">wideFields</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962563"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GBranch comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962558"><span class="hs-identifier hs-var">arms</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962564"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span class="hs-comment">-- the pure request has one field, the value; a request arm pushes</span><span>
+</span><span id="line-58"></span><span>      </span><span class="hs-comment">-- its constructor's fields</span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#RMatch"><span class="hs-identifier hs-type">RMatch</span></a></span><span> </span><span id="local-6989586621681962568"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962568"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962569"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962569"><span class="hs-identifier hs-var">pu</span></a></span></span><span> </span><span id="local-6989586621681962570"><span class="annot"><span class="annottext">EnumMap Word64 (GBranch comb)
+</span><a href="#local-6989586621681962570"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962568"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-61"></span><span>          </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962569"><span class="hs-identifier hs-var">pu</span></a></span><span>
+</span><span id="line-62"></span><span>          </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">((Word64, GBranch comb) -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [(Word64, GBranch comb)] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681962573"><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962573"><span class="hs-identifier hs-var">gb</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681962574"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962574"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GBranch comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962558"><span class="hs-identifier hs-var">arms</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch comb
+</span><a href="#local-6989586621681962573"><span class="hs-identifier hs-var">gb</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962574"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EnumMap Word64 (GBranch comb) -&gt; [(Word64, GBranch comb)]
+forall k a. EnumKey k =&gt; EnumMap k a -&gt; [(k, a)]
+</span><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-identifier hs-var">EC.mapToList</span></a></span><span> </span><span class="annot"><span class="annottext">EnumMap Word64 (GBranch comb)
+</span><a href="#local-6989586621681962570"><span class="hs-identifier hs-var">br</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621681962577"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962577"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962577"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Ins"><span class="hs-identifier hs-type">Ins</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Box"><span class="hs-identifier hs-type">Box</span></a></span><span> </span><span id="local-6989586621681962579"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962579"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681962580"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962580"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-65"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681962581"><span class="annot"><span class="annottext">fields :: IntSet
+</span><a href="#local-6989586621681962581"><span class="hs-identifier hs-var hs-var">fields</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962579"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962583"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962583"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962583"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Wide.html#wideWidth"><span class="hs-identifier hs-var">wideWidth</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962579"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962583"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962579"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962581"><span class="hs-identifier hs-var">fields</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; IntSet) -&gt; Maybe IntSet -&gt; Maybe IntSet
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; IntSet
+</span><span class="hs-operator hs-var">`IS.difference`</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962581"><span class="hs-identifier hs-var">fields</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962579"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962580"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Ins"><span class="hs-identifier hs-type">Ins</span></a></span><span> </span><span id="local-6989586621681962586"><span class="annot"><span class="annottext">GInstr comb
+</span><a href="#local-6989586621681962586"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962587"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962587"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; GInstr comb -&gt; Maybe IntSet
+forall comb. Int -&gt; Int -&gt; GInstr comb -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#instrReads"><span class="hs-identifier hs-var">instrReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962541"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GInstr comb
+</span><a href="#local-6989586621681962586"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GInstr comb -&gt; Maybe Int
+forall comb. GInstr comb -&gt; Maybe Int
+</span><a href="Unison.Runtime.MCode.html#pushCount"><span class="hs-identifier hs-var">pushCount</span></a></span><span> </span><span class="annot"><span class="annottext">GInstr comb
+</span><a href="#local-6989586621681962586"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; (Int -&gt; Maybe IntSet) -&gt; Maybe IntSet
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681962588"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962588"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962588"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962587"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Let"><span class="hs-identifier hs-type">Let</span></a></span><span> </span><span id="local-6989586621681962590"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962590"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#CIx"><span class="hs-identifier hs-type">CIx</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962592"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681962592"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962593"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962593"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Int
+</span><a href="#local-6989586621681962540"><span class="hs-identifier hs-var">bodyArityOf</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681962592"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681962594"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962594"><span class="hs-identifier hs-var">bodyArity</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962594"><span class="hs-identifier hs-var">bodyArity</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962545"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962590"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962544"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962594"><span class="hs-identifier hs-var">bodyArity</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962593"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-70"></span><span>        </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-71"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Die"><span class="hs-identifier hs-type">Die</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-72"></span><span>      </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="Unison.Runtime.MCode.html#Exit"><span class="hs-identifier hs-var">Exit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621681962549"><span class="annot"><span class="annottext">refReads :: Int -&gt; GRef comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962549"><span class="hs-identifier hs-var hs-var">refReads</span></a></span></span><span> </span><span id="local-6989586621681962597"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962597"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-74"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Stk"><span class="hs-identifier hs-type">Stk</span></a></span><span> </span><span id="local-6989586621681962599"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962599"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962597"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962599"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="annottext">GRef comb
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621681962566"><span class="annot"><span class="annottext">wideFields :: Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962566"><span class="hs-identifier hs-var hs-var">wideFields</span></a></span></span><span> </span><span id="local-6989586621681962606"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962606"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681962607"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962607"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="Unison.Runtime.Wide.html#wideOn"><span class="hs-identifier hs-var">wideOn</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [Maybe IntSet] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">(&lt;+&gt;)</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962606"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962607"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962608"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962608"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962608"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Wide.html#wideWidth"><span class="hs-identifier hs-var">wideWidth</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-comment">-- the arms of a match: each runs with the fields it binds pushed</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- (none, for a match on an unboxed value), the default arm with</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-comment">-- nothing pushed</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621681962558"><span class="annot"><span class="annottext">arms :: IntSet -&gt; Int -&gt; GBranch comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962558"><span class="hs-identifier hs-var hs-var">arms</span></a></span></span><span> </span><span id="local-6989586621681962609"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span></span><span> </span><span id="local-6989586621681962610"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Test1"><span class="hs-identifier hs-type">Test1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962612"><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962612"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681962613"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962613"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; Arm comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962614"><span class="hs-identifier hs-var">arm</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962612"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962613"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Test2"><span class="hs-identifier hs-type">Test2</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962616"><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962616"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962617"><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962617"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681962618"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962618"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; Arm comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962614"><span class="hs-identifier hs-var">arm</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962616"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; Arm comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962614"><span class="hs-identifier hs-var">arm</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962617"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962618"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestW"><span class="hs-identifier hs-type">TestW</span></a></span><span> </span><span id="local-6989586621681962620"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962620"><span class="hs-identifier hs-var">df</span></a></span></span><span> </span><span id="local-6989586621681962621"><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb)
+</span><a href="#local-6989586621681962621"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((Word64, Arm comb) -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [(Word64, Arm comb)] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681962622"><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962622"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681962623"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962623"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; Arm comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962614"><span class="hs-identifier hs-var">arm</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Arm comb
+</span><a href="#local-6989586621681962622"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962623"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962620"><span class="hs-identifier hs-var">df</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb) -&gt; [(Word64, Arm comb)]
+forall k a. EnumKey k =&gt; EnumMap k a -&gt; [(k, a)]
+</span><a href="Unison.Util.EnumContainers.html#mapToList"><span class="hs-identifier hs-var">EC.mapToList</span></a></span><span> </span><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb)
+</span><a href="#local-6989586621681962621"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestT"><span class="hs-identifier hs-type">TestT</span></a></span><span> </span><span id="local-6989586621681962625"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962625"><span class="hs-identifier hs-var">df</span></a></span></span><span> </span><span id="local-6989586621681962626"><span class="annot"><span class="annottext">Map Text (GSection comb)
+</span><a href="#local-6989586621681962626"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(GSection comb -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [GSection comb] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681962627"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962627"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681962628"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962628"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962627"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962628"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962625"><span class="hs-identifier hs-var">df</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Text (GSection comb) -&gt; [GSection comb]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Text (GSection comb)
+</span><a href="#local-6989586621681962626"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestY"><span class="hs-identifier hs-type">TestY</span></a></span><span> </span><span id="local-6989586621681962631"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962631"><span class="hs-identifier hs-var">df</span></a></span></span><span> </span><span id="local-6989586621681962632"><span class="annot"><span class="annottext">Map Bytes (GSection comb)
+</span><a href="#local-6989586621681962632"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(GSection comb -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [GSection comb] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681962633"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962633"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681962634"><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962634"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962633"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><a href="#local-6989586621681962634"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962609"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962610"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962631"><span class="hs-identifier hs-var">df</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Bytes (GSection comb) -&gt; [GSection comb]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">Map Bytes (GSection comb)
+</span><a href="#local-6989586621681962632"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621681962614"><span class="annot"><span class="annottext">arm :: IntSet -&gt; Int -&gt; Arm comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962614"><span class="hs-identifier hs-var hs-var">arm</span></a></span></span><span> </span><span id="local-6989586621681962635"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962635"><span class="hs-identifier hs-var">bx</span></a></span></span><span> </span><span id="local-6989586621681962636"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962636"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Arm"><span class="hs-identifier hs-type">Arm</span></a></span><span> </span><span id="local-6989586621681962638"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962638"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621681962639"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962639"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Int -&gt; GSection comb -&gt; Maybe IntSet
+</span><a href="#local-6989586621681962542"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621681962635"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962636"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962638"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681962639"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><span class="hs-comment">-- | The slots an instruction reads (see 'liveAt').</span></span><span>
+</span><span id="line-89"></span><span id="local-6989586621681962434"><span class="annot"><a href="Unison.Runtime.MCode.Live.html#instrReads"><span class="hs-identifier hs-type">instrReads</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#GInstr"><span class="hs-identifier hs-type">GInstr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681962434"><span class="hs-identifier hs-type">comb</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span></span><span>
+</span><span id="line-90"></span><span id="instrReads"><span class="annot"><span class="annottext">instrReads :: forall comb. Int -&gt; Int -&gt; GInstr comb -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#instrReads"><span class="hs-identifier hs-var hs-var">instrReads</span></a></span></span><span> </span><span id="local-6989586621681962646"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span id="local-6989586621681962647"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Prim1"><span class="hs-identifier hs-type">Prim1</span></a></span><span> </span><span class="annot"><span class="annottext">Prim1
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962649"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962649"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962649"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Prim2"><span class="hs-identifier hs-type">Prim2</span></a></span><span> </span><span class="annot"><span class="annottext">Prim2
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962651"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962651"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962652"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962652"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962651"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962652"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RefCAS"><span class="hs-identifier hs-type">RefCAS</span></a></span><span> </span><span id="local-6989586621681962654"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962654"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962655"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962655"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span id="local-6989586621681962656"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962656"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962654"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962655"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962656"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#ForeignCall"><span class="hs-identifier hs-type">ForeignCall</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ForeignFunc
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962658"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962658"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962658"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="annottext">GInstr comb
+</span><a href="Unison.Runtime.MCode.html#DLLCall"><span class="hs-identifier hs-var">DLLCall</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#SetAff"><span class="hs-identifier hs-type">SetAff</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962661"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962661"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962662"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962662"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962661"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962662"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Capture"><span class="hs-identifier hs-type">Capture</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Discard"><span class="hs-identifier hs-type">Discard</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span id="local-6989586621681962666"><span class="annot"><span class="annottext">GRef comb
+</span><a href="#local-6989586621681962666"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681962667"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962667"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GRef comb
+</span><a href="#local-6989586621681962666"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#Stk"><span class="hs-identifier hs-type">Stk</span></a></span><span> </span><span id="local-6989586621681962668"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962668"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962668"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">GRef comb
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962667"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Info"><span class="hs-identifier hs-type">Info</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Pack"><span class="hs-identifier hs-type">Pack</span></a></span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962671"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962671"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962671"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#PackWide"><span class="hs-identifier hs-type">PackWide</span></a></span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962673"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962673"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962673"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Box"><span class="hs-identifier hs-type">Box</span></a></span><span> </span><span id="local-6989586621681962674"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962674"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet)
+-&gt; Maybe IntSet -&gt; [Maybe IntSet] -&gt; Maybe IntSet
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">(&lt;+&gt;)</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962674"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962674"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962675"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962675"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962675"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Wide.html#wideWidth"><span class="hs-identifier hs-var">wideWidth</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RecPack"><span class="hs-identifier hs-type">RecPack</span></a></span><span> </span><span class="annot"><span class="annottext">RecordShape
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962677"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962677"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962677"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RecUnpack"><span class="hs-identifier hs-type">RecUnpack</span></a></span><span> </span><span class="annot"><span class="annottext">Vector FieldRef
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962679"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962679"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962679"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RecSet"><span class="hs-identifier hs-type">RecSet</span></a></span><span> </span><span class="annot"><span class="annottext">FieldRef
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962681"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962681"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962681"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Lit"><span class="hs-identifier hs-type">Lit</span></a></span><span> </span><span class="annot"><span class="annottext">MLit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Print"><span class="hs-identifier hs-type">Print</span></a></span><span> </span><span id="local-6989586621681962684"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962684"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962684"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Reset"><span class="hs-identifier hs-type">Reset</span></a></span><span> </span><span class="annot"><span class="annottext">EnumSet Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681962686"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962686"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962687"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621681962687"><span class="hs-identifier hs-var">mi</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962686"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; (Int -&gt; Maybe IntSet) -&gt; Maybe Int -&gt; Maybe IntSet
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621681962687"><span class="hs-identifier hs-var">mi</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#InLocal"><span class="hs-identifier hs-type">InLocal</span></a></span><span> </span><span id="local-6989586621681962690"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962690"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962690"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Fork"><span class="hs-identifier hs-type">Fork</span></a></span><span> </span><span id="local-6989586621681962692"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962692"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962692"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Atomically"><span class="hs-identifier hs-type">Atomically</span></a></span><span> </span><span id="local-6989586621681962694"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962694"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962694"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Seq"><span class="hs-identifier hs-type">Seq</span></a></span><span> </span><span id="local-6989586621681962696"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962696"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var">argReads</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962646"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681962696"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#TryForce"><span class="hs-identifier hs-type">TryForce</span></a></span><span> </span><span id="local-6989586621681962698"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962698"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962698"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#SandboxingFailure"><span class="hs-identifier hs-type">SandboxingFailure</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe IntSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#KeepAlive"><span class="hs-identifier hs-type">KeepAlive</span></a></span><span> </span><span id="local-6989586621681962701"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962701"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962701"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#NewForeignPtr"><span class="hs-identifier hs-type">NewForeignPtr</span></a></span><span> </span><span id="local-6989586621681962703"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962703"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962704"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962704"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962703"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962704"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#AddFinalizer"><span class="hs-identifier hs-type">AddFinalizer</span></a></span><span> </span><span id="local-6989586621681962706"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962706"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962707"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962707"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962706"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962707"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#MkCallback"><span class="hs-identifier hs-type">MkCallback</span></a></span><span> </span><span id="local-6989586621681962709"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962709"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962710"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962710"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962709"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962647"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962710"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">-- | The slots an argument list reads, as 'argSources' resolves them.</span></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-type">argReads</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#Args"><span class="hs-identifier hs-type">Args</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span>
+</span><span id="line-123"></span><span id="argReads"><span class="annot"><span class="annottext">argReads :: Int -&gt; Int -&gt; Args -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#argReads"><span class="hs-identifier hs-var hs-var">argReads</span></a></span></span><span> </span><span id="local-6989586621681962711"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962711"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span id="local-6989586621681962712"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><span class="annottext">Args
+</span><a href="Unison.Runtime.MCode.html#ZArgs"><span class="hs-identifier hs-var">ZArgs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#VArg1"><span class="hs-identifier hs-type">VArg1</span></a></span><span> </span><span id="local-6989586621681962715"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962715"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962715"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#VArg2"><span class="hs-identifier hs-type">VArg2</span></a></span><span> </span><span id="local-6989586621681962717"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962717"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962718"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962718"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962717"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe IntSet -&gt; Maybe IntSet -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var">slotAt</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962718"><span class="hs-identifier hs-var">j</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#VArgR"><span class="hs-identifier hs-type">VArgR</span></a></span><span> </span><span id="local-6989586621681962720"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962720"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681962721"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962721"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962720"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962722"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962722"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962722"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962721"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962720"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962722"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#VArgN"><span class="hs-identifier hs-type">VArgN</span></a></span><span> </span><span id="local-6989586621681962724"><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621681962724"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962725"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962725"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962725"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PrimArray Int -&gt; [Int]
+forall a. Prim a =&gt; PrimArray a -&gt; [a]
+</span><span class="hs-identifier hs-var">primArrayToList</span></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621681962724"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962725"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#VArgV"><span class="hs-identifier hs-type">VArgV</span></a></span><span> </span><span id="local-6989586621681962727"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962727"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962728"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681962728"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962728"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962711"><span class="hs-identifier hs-var">base</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962727"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962712"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962728"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><span class="hs-comment">-- | Slot @i@ from the top at depth @d@, if it is one of ours.</span></span><span>
+</span><span id="line-132"></span><span class="annot"><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-type">slotAt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IS.IntSet</span></span><span>
+</span><span id="line-133"></span><span id="slotAt"><span class="annot"><span class="annottext">slotAt :: Int -&gt; Int -&gt; Maybe IntSet
+</span><a href="Unison.Runtime.MCode.Live.html#slotAt"><span class="hs-identifier hs-var hs-var">slotAt</span></a></span></span><span> </span><span id="local-6989586621681962729"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962729"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681962730"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962730"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962729"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962730"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntSet
+</span><span class="hs-identifier hs-var">IS.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962729"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681962730"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IS.empty</span></span><span>
+</span><span id="line-136"></span></pre></body></html>

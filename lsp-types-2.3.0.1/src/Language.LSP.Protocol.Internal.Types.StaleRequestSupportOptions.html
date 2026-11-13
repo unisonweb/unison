@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">{-|
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="StaleRequestSupportOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-var">StaleRequestSupportOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StaleRequestSupportOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-var">StaleRequestSupportOptions</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The client will actively cancel the request.
+  -}</span></span><span>
+</span><span id="line-29"></span><span>  </span><span id="_cancel"><span class="annot"><span class="annottext">StaleRequestSupportOptions -&gt; Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#_cancel"><span class="hs-identifier hs-var hs-var">_cancel</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The list of requests for which the client
+  will retry the request if it receives a
+  response with error code `ContentModified`
+  -}</span></span><span>
+</span><span id="line-35"></span><span>  </span><span id="_retryOnContentModified"><span class="annot"><span class="annottext">StaleRequestSupportOptions -&gt; [Text]
+</span><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#_retryOnContentModified"><span class="hs-identifier hs-var hs-var">_retryOnContentModified</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682506092"><span id="local-6989586621682506101"><span id="local-6989586621682506105"><span class="annot"><span class="annottext">Int -&gt; StaleRequestSupportOptions -&gt; ShowS
+[StaleRequestSupportOptions] -&gt; ShowS
+StaleRequestSupportOptions -&gt; String
+(Int -&gt; StaleRequestSupportOptions -&gt; ShowS)
+-&gt; (StaleRequestSupportOptions -&gt; String)
+-&gt; ([StaleRequestSupportOptions] -&gt; ShowS)
+-&gt; Show StaleRequestSupportOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; StaleRequestSupportOptions -&gt; ShowS
+showsPrec :: Int -&gt; StaleRequestSupportOptions -&gt; ShowS
+$cshow :: StaleRequestSupportOptions -&gt; String
+show :: StaleRequestSupportOptions -&gt; String
+$cshowList :: [StaleRequestSupportOptions] -&gt; ShowS
+showList :: [StaleRequestSupportOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682506111"><span id="local-6989586621682506118"><span class="annot"><span class="annottext">StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+(StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; Eq StaleRequestSupportOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+== :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+$c/= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+/= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682506126"><span id="local-6989586621682506133"><span id="local-6989586621682506138"><span id="local-6989586621682506142"><span id="local-6989586621682506145"><span id="local-6989586621682506148"><span id="local-6989586621682506151"><span class="annot"><span class="annottext">Eq StaleRequestSupportOptions
+Eq StaleRequestSupportOptions =&gt;
+(StaleRequestSupportOptions
+ -&gt; StaleRequestSupportOptions -&gt; Ordering)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; Bool)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions)
+-&gt; (StaleRequestSupportOptions
+    -&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions)
+-&gt; Ord StaleRequestSupportOptions
+StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; Ordering
+StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; Ordering
+compare :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; Ordering
+$c&lt; :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+&lt; :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+$c&lt;= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+&lt;= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+$c&gt; :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+&gt; :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+$c&gt;= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+&gt;= :: StaleRequestSupportOptions -&gt; StaleRequestSupportOptions -&gt; Bool
+$cmax :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions
+max :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions
+$cmin :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions
+min :: StaleRequestSupportOptions
+-&gt; StaleRequestSupportOptions -&gt; StaleRequestSupportOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682506160"><span id="local-6989586621682506162"><span class="annot"><span class="annottext">(forall x.
+ StaleRequestSupportOptions -&gt; Rep StaleRequestSupportOptions x)
+-&gt; (forall x.
+    Rep StaleRequestSupportOptions x -&gt; StaleRequestSupportOptions)
+-&gt; Generic StaleRequestSupportOptions
+forall x.
+Rep StaleRequestSupportOptions x -&gt; StaleRequestSupportOptions
+forall x.
+StaleRequestSupportOptions -&gt; Rep StaleRequestSupportOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+StaleRequestSupportOptions -&gt; Rep StaleRequestSupportOptions x
+from :: forall x.
+StaleRequestSupportOptions -&gt; Rep StaleRequestSupportOptions x
+$cto :: forall x.
+Rep StaleRequestSupportOptions x -&gt; StaleRequestSupportOptions
+to :: forall x.
+Rep StaleRequestSupportOptions x -&gt; StaleRequestSupportOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682506168"><span class="annot"><span class="annottext">StaleRequestSupportOptions -&gt; ()
+(StaleRequestSupportOptions -&gt; ())
+-&gt; NFData StaleRequestSupportOptions
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: StaleRequestSupportOptions -&gt; ()
+rnf :: StaleRequestSupportOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682506193"><span id="local-6989586621682506200"><span class="annot"><span class="annottext">Eq StaleRequestSupportOptions
+Eq StaleRequestSupportOptions =&gt;
+(Int -&gt; StaleRequestSupportOptions -&gt; Int)
+-&gt; (StaleRequestSupportOptions -&gt; Int)
+-&gt; Hashable StaleRequestSupportOptions
+Int -&gt; StaleRequestSupportOptions -&gt; Int
+StaleRequestSupportOptions -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; StaleRequestSupportOptions -&gt; Int
+hashWithSalt :: Int -&gt; StaleRequestSupportOptions -&gt; Int
+$chash :: StaleRequestSupportOptions -&gt; Int
+hash :: StaleRequestSupportOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682506219"><span id="local-6989586621682506225"><span class="annot"><span class="annottext">(forall ann. StaleRequestSupportOptions -&gt; Doc ann)
+-&gt; (forall ann. [StaleRequestSupportOptions] -&gt; Doc ann)
+-&gt; Pretty StaleRequestSupportOptions
+forall ann. [StaleRequestSupportOptions] -&gt; Doc ann
+forall ann. StaleRequestSupportOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. StaleRequestSupportOptions -&gt; Doc ann
+pretty :: forall ann. StaleRequestSupportOptions -&gt; Doc ann
+$cprettyList :: forall ann. [StaleRequestSupportOptions] -&gt; Doc ann
+prettyList :: forall ann. [StaleRequestSupportOptions] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-type">StaleRequestSupportOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682506236"><span id="local-6989586621682506239"><span id="local-6989586621682506242"><span id="local-6989586621682506245"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-type">StaleRequestSupportOptions</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621682506264"><span class="annot"><span class="annottext">toJSON :: StaleRequestSupportOptions -&gt; Value
+</span><a href="#local-6989586621682506264"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-type">StaleRequestSupportOptions</span></a></span><span> </span><span id="local-6989586621682506266"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682506266"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682506267"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621682506267"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;cancel&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682506266"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;retryOnContentModified&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; [Text] -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621682506267"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682506273"><span id="local-6989586621682506277"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-type">StaleRequestSupportOptions</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621682506292"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser StaleRequestSupportOptions
+</span><a href="#local-6989586621682506292"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser StaleRequestSupportOptions)
+-&gt; Value
+-&gt; Parser StaleRequestSupportOptions
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;StaleRequestSupportOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser StaleRequestSupportOptions)
+ -&gt; Value -&gt; Parser StaleRequestSupportOptions)
+-&gt; (Object -&gt; Parser StaleRequestSupportOptions)
+-&gt; Value
+-&gt; Parser StaleRequestSupportOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682506295"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682506295"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; [Text] -&gt; StaleRequestSupportOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.StaleRequestSupportOptions.html#StaleRequestSupportOptions"><span class="hs-identifier hs-var">StaleRequestSupportOptions</span></a></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; [Text] -&gt; StaleRequestSupportOptions)
+-&gt; Parser Bool -&gt; Parser ([Text] -&gt; StaleRequestSupportOptions)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682506295"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;cancel&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser ([Text] -&gt; StaleRequestSupportOptions)
+-&gt; Parser [Text] -&gt; Parser StaleRequestSupportOptions
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682506295"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [Text]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;retryOnContentModified&quot;</span></span><span>
+</span><span id="line-47"></span></pre></body></html>

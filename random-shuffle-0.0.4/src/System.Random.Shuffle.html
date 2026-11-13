@@ -1,0 +1,450 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : System.Random.Shuffle</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Copyright   : (c) 2009 Oleg Kiselyov, Manlio Perillo</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- License     : BSD3 (see LICENSE file)</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- http://okmij.org/ftp/Haskell/perfect-shuffle.txt</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# OPTIONS_GHC -funbox-strict-fields #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Random.Shuffle.html"><span class="hs-identifier">System.Random.Shuffle</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>     </span><span class="annot"><a href="System.Random.Shuffle.html#shuffle"><span class="hs-identifier">shuffle</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.Shuffle.html#shuffle%27"><span class="hs-identifier">shuffle'</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Random.Shuffle.html#shuffleM"><span class="hs-identifier">shuffleM</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fix</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Random</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">RandomGen</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">randomR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">liftM2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Random</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadRandom</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getRandomR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- A complete binary tree, of leaves and internal nodes.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Internal node: Node card l r</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- where card is the number of leaves under the node.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- Invariant: card &gt;=2. All internal tree nodes are always full.</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="Tree"><span class="annot"><a href="System.Random.Shuffle.html#Tree"><span class="hs-identifier hs-var">Tree</span></a></span></span><span> </span><span id="local-6989586621679032205"><span class="annot"><a href="#local-6989586621679032205"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Leaf"><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679032205"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-28"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="Node"><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679032205"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679032205"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>              </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679032274"><span id="local-6989586621679032285"><span id="local-6989586621679032288"><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; ShowS
+[Tree a] -&gt; ShowS
+Tree a -&gt; String
+(Int -&gt; Tree a -&gt; ShowS)
+-&gt; (Tree a -&gt; String) -&gt; ([Tree a] -&gt; ShowS) -&gt; Show (Tree a)
+forall a. Show a =&gt; Int -&gt; Tree a -&gt; ShowS
+forall a. Show a =&gt; [Tree a] -&gt; ShowS
+forall a. Show a =&gt; Tree a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Tree a -&gt; ShowS
+showsPrec :: Int -&gt; Tree a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; Tree a -&gt; String
+show :: Tree a -&gt; String
+$cshowList :: forall a. Show a =&gt; [Tree a] -&gt; ShowS
+showList :: [Tree a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- Convert a sequence (e1...en) to a complete binary tree</span><span>
+</span><span id="line-33"></span><span id="local-6989586621679032196"><span class="annot"><a href="System.Random.Shuffle.html#buildTree"><span class="hs-identifier hs-type">buildTree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032196"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.Random.Shuffle.html#Tree"><span class="hs-identifier hs-type">Tree</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679032196"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-34"></span><span id="buildTree"><span class="annot"><span class="annottext">buildTree :: forall a. [a] -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#buildTree"><span class="hs-identifier hs-var hs-var">buildTree</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(([Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a
+forall a. (a -&gt; a) -&gt; a
+</span><span class="hs-identifier hs-var">fix</span></span><span> </span><span class="annot"><span class="annottext">([Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a
+forall {a}. ([Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a
+</span><a href="#local-6989586621679032293"><span class="hs-identifier hs-var">growLevel</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Tree a] -&gt; Tree a) -&gt; ([a] -&gt; [Tree a]) -&gt; [a] -&gt; Tree a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Tree a) -&gt; [a] -&gt; [Tree a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Tree a
+forall a. a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>      </span><span id="local-6989586621679032293"><span class="annot"><span class="annottext">growLevel :: ([Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a
+</span><a href="#local-6989586621679032293"><span class="hs-identifier hs-var hs-var">growLevel</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679032295"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032295"><span class="hs-identifier hs-var">node</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032295"><span class="hs-identifier hs-var">node</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><a href="#local-6989586621679032293"><span class="hs-identifier hs-var">growLevel</span></a></span><span> </span><span id="local-6989586621679032296"><span class="annot"><span class="annottext">[Tree a] -&gt; Tree a
+</span><a href="#local-6989586621679032296"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span id="local-6989586621679032297"><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679032297"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; Tree a
+</span><a href="#local-6989586621679032296"><span class="hs-identifier hs-var">self</span></a></span><span> </span><span class="annot"><span class="annottext">([Tree a] -&gt; Tree a) -&gt; [Tree a] -&gt; Tree a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; [Tree a]
+forall {a}. [Tree a] -&gt; [Tree a]
+</span><a href="#local-6989586621679032298"><span class="hs-identifier hs-var">inner</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679032297"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>      </span><span id="local-6989586621679032298"><span class="annot"><span class="annottext">inner :: [Tree a] -&gt; [Tree a]
+</span><a href="#local-6989586621679032298"><span class="hs-identifier hs-var hs-var">inner</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><a href="#local-6989586621679032298"><span class="hs-identifier hs-var">inner</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679032299"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032299"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032299"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><a href="#local-6989586621679032298"><span class="hs-identifier hs-var">inner</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032300"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032300"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679032301"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032301"><span class="hs-identifier hs-var">e2</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679032302"><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679032302"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032300"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [Tree a] -&gt; [Tree a]
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032301"><span class="hs-identifier hs-var">e2</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [Tree a] -&gt; [Tree a]
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tree a -&gt; Tree a -&gt; Tree a
+forall {a}. Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="#local-6989586621679032303"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032300"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032301"><span class="hs-identifier hs-var">e2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [Tree a] -&gt; [Tree a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; [Tree a]
+</span><a href="#local-6989586621679032298"><span class="hs-identifier hs-var">inner</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679032302"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>      </span><span id="local-6989586621679032303"><span class="annot"><span class="annottext">join :: Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="#local-6989586621679032303"><span class="hs-identifier hs-var hs-var">join</span></a></span></span><span> </span><span id="local-6989586621679032310"><span class="annot"><span class="annottext">l :: Tree a
+</span><a href="#local-6989586621679032310"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span id="local-6989586621679032311"><span class="annot"><span class="annottext">r :: Tree a
+</span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032310"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032311"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><a href="#local-6989586621679032303"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span id="local-6989586621679032312"><span class="annot"><span class="annottext">l :: Tree a
+</span><a href="#local-6989586621679032312"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032313"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032313"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span id="local-6989586621679032314"><span class="annot"><span class="annottext">r :: Tree a
+</span><a href="#local-6989586621679032314"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032313"><span class="hs-identifier hs-var">ct</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032312"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032314"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><a href="#local-6989586621679032303"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span id="local-6989586621679032316"><span class="annot"><span class="annottext">l :: Tree a
+</span><a href="#local-6989586621679032316"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span id="local-6989586621679032317"><span class="annot"><span class="annottext">r :: Tree a
+</span><a href="#local-6989586621679032317"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032318"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032318"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032318"><span class="hs-identifier hs-var">ct</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032316"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032317"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><a href="#local-6989586621679032303"><span class="hs-identifier hs-var">join</span></a></span><span> </span><span id="local-6989586621679032319"><span class="annot"><span class="annottext">l :: Tree a
+</span><a href="#local-6989586621679032319"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032320"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032320"><span class="hs-identifier hs-var">ctl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679032321"><span class="annot"><span class="annottext">r :: Tree a
+</span><a href="#local-6989586621679032321"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032322"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032322"><span class="hs-identifier hs-var">ctr</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032320"><span class="hs-identifier hs-var">ctl</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032322"><span class="hs-identifier hs-var">ctr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032319"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032321"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- |Given a sequence (e1,...en) to shuffle, and a sequence</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- (r1,...r[n-1]) of numbers such that r[i] is an independent sample</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- from a uniform random distribution [0..n-i], compute the</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- corresponding permutation of the input sequence.</span><span>
+</span><span id="line-53"></span><span id="local-6989586621679032216"><span class="annot"><a href="System.Random.Shuffle.html#shuffle"><span class="hs-identifier hs-type">shuffle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032216"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032216"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-54"></span><span id="shuffle"><span class="annot"><span class="annottext">shuffle :: forall a. [a] -&gt; [Int] -&gt; [a]
+</span><a href="System.Random.Shuffle.html#shuffle"><span class="hs-identifier hs-var hs-var">shuffle</span></a></span></span><span> </span><span id="local-6989586621679032323"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032323"><span class="hs-identifier hs-var">elements</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [Int] -&gt; [a]
+forall {a}. Tree a -&gt; [Int] -&gt; [a]
+</span><a href="#local-6989586621679032324"><span class="hs-identifier hs-var">shuffleTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Tree a
+forall a. [a] -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#buildTree"><span class="hs-identifier hs-var">buildTree</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032323"><span class="hs-identifier hs-var">elements</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>      </span><span id="local-6989586621679032324"><span class="annot"><span class="annottext">shuffleTree :: Tree a -&gt; [Int] -&gt; [a]
+</span><a href="#local-6989586621679032324"><span class="hs-identifier hs-var hs-var">shuffleTree</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032327"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032327"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032327"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><a href="#local-6989586621679032324"><span class="hs-identifier hs-var">shuffleTree</span></a></span><span> </span><span id="local-6989586621679032328"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032328"><span class="hs-identifier hs-var">tree</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032329"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032329"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679032330"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679032330"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032331"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032331"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679032332"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032332"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; (a, Tree a)
+forall {a}. Int -&gt; Tree a -&gt; (a, Tree a)
+</span><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032329"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032328"><span class="hs-identifier hs-var">tree</span></a></span><span>
+</span><span id="line-59"></span><span>	  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032331"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tree a -&gt; [Int] -&gt; [a]
+</span><a href="#local-6989586621679032324"><span class="hs-identifier hs-var">shuffleTree</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032332"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679032330"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>      </span><span class="annot"><a href="#local-6989586621679032324"><span class="hs-identifier hs-var">shuffleTree</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [a]
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[shuffle] called with lists of different lengths&quot;</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>      </span><span class="hs-comment">-- Extracts the n-th element from the tree and returns</span><span>
+</span><span id="line-63"></span><span>      </span><span class="hs-comment">-- that element, paired with a tree with the element</span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-comment">-- deleted.</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-comment">-- The function maintains the invariant of the completeness</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-comment">-- of the tree: all internal nodes are always full.</span><span>
+</span><span id="line-67"></span><span>      </span><span id="local-6989586621679032333"><span class="annot"><span class="annottext">extractTree :: Int -&gt; Tree a -&gt; (a, Tree a)
+</span><a href="#local-6989586621679032333"><span class="hs-identifier hs-var hs-var">extractTree</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032354"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032354"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679032355"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032355"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032354"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032355"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032356"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032356"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032357"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032357"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032357"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; Tree a
+forall a. a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032356"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span id="local-6989586621679032358"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032358"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032359"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032359"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032360"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032360"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679032361"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032361"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>	  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032364"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032364"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679032365"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032365"><span class="hs-identifier hs-var">r'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; (a, Tree a)
+</span><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032358"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032361"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-71"></span><span>	  </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032364"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032359"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Tree a
+forall a. a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-var">Leaf</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032360"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032365"><span class="hs-identifier hs-var">r'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span id="local-6989586621679032366"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032366"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032367"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032367"><span class="hs-identifier hs-var">n'</span></a></span></span><span> </span><span id="local-6989586621679032368"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032368"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Leaf"><span class="hs-identifier hs-type">Leaf</span></a></span><span> </span><span id="local-6989586621679032369"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032369"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>	  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032366"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032367"><span class="hs-identifier hs-var">n'</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032369"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032368"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span id="local-6989586621679032370"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032370"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032371"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032371"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679032372"><span class="annot"><span class="annottext">l :: Tree a
+</span><a href="#local-6989586621679032372"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679032373"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032373"><span class="hs-identifier hs-var">cl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679032374"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032374"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>	  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032370"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032373"><span class="hs-identifier hs-var">cl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032376"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032376"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679032377"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">l'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; (a, Tree a)
+</span><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032370"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032372"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-78"></span><span>		     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032376"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032371"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032377"><span class="hs-identifier hs-var">l'</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032374"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>	  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679032379"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032379"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679032380"><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032380"><span class="hs-identifier hs-var">r'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; (a, Tree a)
+</span><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032370"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032373"><span class="hs-identifier hs-var">cl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032374"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-80"></span><span>			</span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679032379"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+forall a. Int -&gt; Tree a -&gt; Tree a -&gt; Tree a
+</span><a href="System.Random.Shuffle.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032371"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032372"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><a href="#local-6989586621679032380"><span class="hs-identifier hs-var">r'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><a href="#local-6989586621679032333"><span class="hs-identifier hs-var">extractTree</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Tree a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (a, Tree a)
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;[extractTree] impossible&quot;</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- |Given a sequence (e1,...en) to shuffle, its length, and a random</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- generator, compute the corresponding permutation of the input</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- sequence.</span><span>
+</span><span id="line-86"></span><span id="local-6989586621679032225"><span id="local-6989586621679032227"><span class="annot"><a href="System.Random.Shuffle.html#shuffle%27"><span class="hs-identifier hs-type">shuffle'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679032225"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032227"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679032225"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032227"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-87"></span><span id="shuffle%27"><span class="annot"><span class="annottext">shuffle' :: forall gen a. RandomGen gen =&gt; [a] -&gt; Int -&gt; gen -&gt; [a]
+</span><a href="System.Random.Shuffle.html#shuffle%27"><span class="hs-identifier hs-var hs-var">shuffle'</span></a></span></span><span> </span><span id="local-6989586621679032383"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032383"><span class="hs-identifier hs-var">elements</span></a></span></span><span> </span><span id="local-6989586621679032384"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032384"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [Int] -&gt; [a]
+forall a. [a] -&gt; [Int] -&gt; [a]
+</span><a href="System.Random.Shuffle.html#shuffle"><span class="hs-identifier hs-var">shuffle</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032383"><span class="hs-identifier hs-var">elements</span></a></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [a]) -&gt; (gen -&gt; [Int]) -&gt; gen -&gt; [a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; gen -&gt; [Int]
+forall gen. RandomGen gen =&gt; Int -&gt; gen -&gt; [Int]
+</span><a href="#local-6989586621679032385"><span class="hs-identifier hs-var">rseq</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032384"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-comment">-- The sequence (r1,...r[n-1]) of numbers such that r[i] is an</span><span>
+</span><span id="line-90"></span><span>      </span><span class="hs-comment">-- independent sample from a uniform random distribution</span><span>
+</span><span id="line-91"></span><span>      </span><span class="hs-comment">-- [0..n-i]</span><span>
+</span><span id="line-92"></span><span>      </span><span id="local-6989586621679032230"><span class="annot"><a href="#local-6989586621679032385"><span class="hs-identifier hs-type">rseq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679032230"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679032230"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span></span><span>
+</span><span id="line-93"></span><span>      </span><span id="local-6989586621679032385"><span class="annot"><span class="annottext">rseq :: forall gen. RandomGen gen =&gt; Int -&gt; gen -&gt; [Int]
+</span><a href="#local-6989586621679032385"><span class="hs-identifier hs-var hs-var">rseq</span></a></span></span><span> </span><span id="local-6989586621679032390"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032390"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Int], [gen]) -&gt; [Int]
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(([Int], [gen]) -&gt; [Int])
+-&gt; (gen -&gt; ([Int], [gen])) -&gt; gen -&gt; [Int]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[(Int, gen)] -&gt; ([Int], [gen])
+forall a b. [(a, b)] -&gt; ([a], [b])
+</span><span class="hs-identifier hs-var">unzip</span></span><span> </span><span class="annot"><span class="annottext">([(Int, gen)] -&gt; ([Int], [gen]))
+-&gt; (gen -&gt; [(Int, gen)]) -&gt; gen -&gt; ([Int], [gen])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; gen -&gt; [(Int, gen)]
+forall gen. RandomGen gen =&gt; Int -&gt; gen -&gt; [(Int, gen)]
+</span><a href="#local-6989586621679032393"><span class="hs-identifier hs-var">rseq'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032390"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>            </span><span id="local-6989586621679032236"><span class="annot"><a href="#local-6989586621679032393"><span class="hs-identifier hs-type">rseq'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679032236"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679032236"><span class="hs-identifier hs-type">gen</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679032236"><span class="hs-identifier hs-type">gen</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-96"></span><span>            </span><span id="local-6989586621679032393"><span class="annot"><span class="annottext">rseq' :: forall gen. RandomGen gen =&gt; Int -&gt; gen -&gt; [(Int, gen)]
+</span><a href="#local-6989586621679032393"><span class="hs-identifier hs-var hs-var">rseq'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">gen
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-97"></span><span>            </span><span class="annot"><a href="#local-6989586621679032393"><span class="hs-identifier hs-var">rseq'</span></a></span><span> </span><span id="local-6989586621679032400"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032400"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679032401"><span class="annot"><span class="annottext">gen
+</span><a href="#local-6989586621679032401"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032402"><span class="hs-identifier hs-var">j</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">gen
+</span><a href="#local-6989586621679032401"><span class="hs-identifier hs-var">gen</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int, gen) -&gt; [(Int, gen)] -&gt; [(Int, gen)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; gen -&gt; [(Int, gen)]
+forall gen. RandomGen gen =&gt; Int -&gt; gen -&gt; [(Int, gen)]
+</span><a href="#local-6989586621679032393"><span class="hs-identifier hs-var">rseq'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032400"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">gen
+</span><a href="#local-6989586621679032403"><span class="hs-identifier hs-var">gen'</span></a></span><span>
+</span><span id="line-98"></span><span>                </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>                  </span><span class="hs-special">(</span><span id="local-6989586621679032402"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032402"><span class="hs-identifier hs-var">j</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679032403"><span class="annot"><span class="annottext">gen
+</span><a href="#local-6989586621679032403"><span class="hs-identifier hs-var">gen'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; gen -&gt; (Int, gen)
+forall g. RandomGen g =&gt; (Int, Int) -&gt; g -&gt; (Int, g)
+forall a g. (Random a, RandomGen g) =&gt; (a, a) -&gt; g -&gt; (a, g)
+</span><span class="hs-identifier hs-var">randomR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032400"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">gen
+</span><a href="#local-6989586621679032401"><span class="hs-identifier hs-var">gen</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><span class="hs-comment">-- |shuffle' wrapped in a random monad</span></span><span>
+</span><span id="line-102"></span><span id="local-6989586621679032241"><span id="local-6989586621679032243"><span class="annot"><a href="System.Random.Shuffle.html#shuffleM"><span class="hs-identifier hs-type">shuffleM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadRandom</span></span><span> </span><span class="annot"><a href="#local-6989586621679032241"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032243"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679032241"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679032243"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-103"></span><span id="shuffleM"><span class="annot"><span class="annottext">shuffleM :: forall (m :: * -&gt; *) a. MonadRandom m =&gt; [a] -&gt; m [a]
+</span><a href="System.Random.Shuffle.html#shuffleM"><span class="hs-identifier hs-var hs-var">shuffleM</span></a></span></span><span> </span><span id="local-6989586621679032419"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032419"><span class="hs-identifier hs-var">elements</span></a></span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032419"><span class="hs-identifier hs-var">elements</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; m [a]
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [a]) -&gt; m [Int] -&gt; m [a]
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [Int] -&gt; [a]
+forall a. [a] -&gt; [Int] -&gt; [a]
+</span><a href="System.Random.Shuffle.html#shuffle"><span class="hs-identifier hs-var">shuffle</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032419"><span class="hs-identifier hs-var">elements</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; m [Int]
+forall (m :: * -&gt; *). MonadRandom m =&gt; Int -&gt; m [Int]
+</span><a href="#local-6989586621679032421"><span class="hs-identifier hs-var">rseqM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679032419"><span class="hs-identifier hs-var">elements</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679032254"><span class="annot"><a href="#local-6989586621679032421"><span class="hs-identifier hs-type">rseqM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadRandom</span></span><span> </span><span class="annot"><a href="#local-6989586621679032254"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679032254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679032421"><span class="annot"><span class="annottext">rseqM :: forall (m :: * -&gt; *). MonadRandom m =&gt; Int -&gt; m [Int]
+</span><a href="#local-6989586621679032421"><span class="hs-identifier hs-var hs-var">rseqM</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; m [Int]
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="#local-6989586621679032421"><span class="hs-identifier hs-var">rseqM</span></a></span><span> </span><span id="local-6989586621679032435"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032435"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; [Int] -&gt; [Int]) -&gt; m Int -&gt; m [Int] -&gt; m [Int]
+forall (m :: * -&gt; *) a1 a2 r.
+Monad m =&gt;
+(a1 -&gt; a2 -&gt; r) -&gt; m a1 -&gt; m a2 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM2</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int) -&gt; m Int
+forall a. Random a =&gt; (a, a) -&gt; m a
+forall (m :: * -&gt; *) a. (MonadRandom m, Random a) =&gt; (a, a) -&gt; m a
+</span><span class="hs-identifier hs-var">getRandomR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032435"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; m [Int]
+forall (m :: * -&gt; *). MonadRandom m =&gt; Int -&gt; m [Int]
+</span><a href="#local-6989586621679032421"><span class="hs-identifier hs-var">rseqM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679032435"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span></pre></body></html>

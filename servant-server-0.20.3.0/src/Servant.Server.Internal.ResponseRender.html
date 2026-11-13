@@ -1,0 +1,569 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE EmptyCase #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html"><span class="hs-identifier">Servant.Server.Internal.ResponseRender</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BSL</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Wai</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Wai</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Status</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hContentType</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.SOP</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Types.SourceT</span></span><span>                      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span>                    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BB</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Seq</span></span><span> </span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API.ContentTypes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AcceptHeader</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">AllMimeRender</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MimeRender</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Accept</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">allMimeRender</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mimeRender</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">contentType</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API.MultiVerb</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API.Status</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API.Stream</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SourceIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API.UVerb.Union</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Types.Internal.Response</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Media</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;|)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span class="annot"><a href="#local-6989586621679155873"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="IsWaiBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-var">IsWaiBody</span></a></span></span><span> </span><span id="local-6989586621679155873"><span class="annot"><a href="#local-6989586621679155873"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="responseToWai"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#responseToWai"><span class="hs-identifier hs-type">responseToWai</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679155873"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Response</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-type">IsWaiBody</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>  </span><span id="local-6989586621679156073"><span class="annot"><span class="annottext">responseToWai :: InternalResponse ByteString -&gt; Response
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseToWai"><span class="hs-identifier hs-var hs-var hs-var">responseToWai</span></a></span></span><span> </span><span id="local-6989586621679156074"><span class="annot"><span class="annottext">InternalResponse ByteString
+</span><a href="#local-6989586621679156074"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="annottext">Status -&gt; ResponseHeaders -&gt; ByteString -&gt; Response
+</span><span class="hs-identifier hs-var">Wai.responseLBS</span></span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse ByteString -&gt; Status
+forall a. InternalResponse a -&gt; Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse ByteString
+</span><a href="#local-6989586621679156074"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Header -&gt; ResponseHeaders
+forall a. Seq a -&gt; [a]
+forall (t :: Type -&gt; Type) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse ByteString -&gt; Seq Header
+forall a. InternalResponse a -&gt; Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse ByteString
+</span><a href="#local-6989586621679156074"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse ByteString -&gt; ByteString
+forall a. InternalResponse a -&gt; a
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse ByteString
+</span><a href="#local-6989586621679156074"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-type">IsWaiBody</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621679156086"><span class="annot"><span class="annottext">responseToWai :: InternalResponse () -&gt; Response
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseToWai"><span class="hs-identifier hs-var hs-var hs-var">responseToWai</span></a></span></span><span> </span><span id="local-6989586621679156087"><span class="annot"><span class="annottext">InternalResponse ()
+</span><a href="#local-6989586621679156087"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="annottext">Status -&gt; ResponseHeaders -&gt; ByteString -&gt; Response
+</span><span class="hs-identifier hs-var">Wai.responseLBS</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse () -&gt; Status
+forall a. InternalResponse a -&gt; Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse ()
+</span><a href="#local-6989586621679156087"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Header -&gt; ResponseHeaders
+forall a. Seq a -&gt; [a]
+forall (t :: Type -&gt; Type) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse () -&gt; Seq Header
+forall a. InternalResponse a -&gt; Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse ()
+</span><a href="#local-6989586621679156087"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-type">IsWaiBody</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SourceIO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679156102"><span class="annot"><span class="annottext">responseToWai :: InternalResponse (SourceIO ByteString) -&gt; Response
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseToWai"><span class="hs-identifier hs-var hs-var hs-var">responseToWai</span></a></span></span><span> </span><span id="local-6989586621679156103"><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString)
+</span><a href="#local-6989586621679156103"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">Status -&gt; ResponseHeaders -&gt; StreamingBody -&gt; Response
+</span><span class="hs-identifier hs-var">Wai.responseStream</span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString) -&gt; Status
+forall a. InternalResponse a -&gt; Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString)
+</span><a href="#local-6989586621679156103"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq Header -&gt; ResponseHeaders
+forall a. Seq a -&gt; [a]
+forall (t :: Type -&gt; Type) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString) -&gt; Seq Header
+forall a. InternalResponse a -&gt; Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString)
+</span><a href="#local-6989586621679156103"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">(StreamingBody -&gt; Response) -&gt; StreamingBody -&gt; Response
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679156105"><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679156105"><span class="hs-identifier hs-var">output</span></a></span></span><span> </span><span id="local-6989586621679156106"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679156106"><span class="hs-identifier hs-var">flush</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><span class="annottext">(String -&gt; IO ())
+-&gt; (ByteString -&gt; IO ()) -&gt; SourceIO ByteString -&gt; IO ()
+forall (m :: Type -&gt; Type) a.
+Monad m =&gt;
+(String -&gt; m ()) -&gt; (a -&gt; m ()) -&gt; SourceT m a -&gt; m ()
+</span><span class="hs-identifier hs-var">S.foreach</span></span><span>
+</span><span id="line-51"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; String -&gt; IO ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: Type -&gt; Type) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>          </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679156109"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156109"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; IO ()
+</span><a href="#local-6989586621679156105"><span class="hs-identifier hs-var">output</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Builder
+</span><span class="hs-identifier hs-var">BB.byteString</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156109"><span class="hs-identifier hs-var">chunk</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (f :: Type -&gt; Type) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679156106"><span class="hs-identifier hs-var">flush</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString) -&gt; SourceIO ByteString
+forall a. InternalResponse a -&gt; a
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString)
+</span><a href="#local-6989586621679156103"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="SomeResponse"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-var">SomeResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679156111"><span class="annot"><a href="#local-6989586621679156111"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-type">IsWaiBody</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="SomeResponse"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-var">SomeResponse</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">class</span><span> </span><span id="ResponseListRender"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseListRender"><span class="hs-identifier hs-var">ResponseListRender</span></a></span></span><span> </span><span id="local-6989586621679155914"><span class="annot"><a href="#local-6989586621679155914"><span class="hs-identifier hs-type">cs</span></a></span></span><span> </span><span id="local-6989586621679155913"><span class="annot"><a href="#local-6989586621679155913"><span class="hs-keyword hs-type">as</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="responseListRender"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#responseListRender"><span class="hs-identifier hs-type">responseListRender</span></a></span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AcceptHeader</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Union</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ResponseTypes</span></span><span> </span><span class="annot"><a href="#local-6989586621679155913"><span class="hs-keyword hs-type">as</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span id="responseListStatuses"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#responseListStatuses"><span class="hs-identifier hs-type">responseListStatuses</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Status</span></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679155916"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseListRender"><span class="hs-identifier hs-type">ResponseListRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155916"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="hs-special">]</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679156119"><span class="annot"><span class="annottext">responseListRender :: AcceptHeader -&gt; Union (ResponseTypes '[]) -&gt; Maybe SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListRender"><span class="hs-identifier hs-var hs-var hs-var">responseListRender</span></a></span></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156120"><span class="annot"><span class="annottext">Union (ResponseTypes '[])
+</span><a href="#local-6989586621679156120"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Union (ResponseTypes '[])
+</span><a href="#local-6989586621679156120"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679156121"><span class="annot"><span class="annottext">responseListStatuses :: [Status]
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListStatuses"><span class="hs-identifier hs-var hs-var hs-var">responseListStatuses</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#IsWaiBody"><span class="hs-identifier hs-type">IsWaiBody</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-type">ResponseBody</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="ResponseRender"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-var">ResponseRender</span></a></span></span><span> </span><span id="local-6989586621679155919"><span class="annot"><a href="#local-6989586621679155919"><span class="hs-identifier hs-type">cs</span></a></span></span><span> </span><span id="local-6989586621679155920"><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span id="local-6989586621679155920"><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span id="local-6989586621679155920"><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span>
+</span><span id="line-71"></span><span>  </span><span id="responseRender"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-type">responseRender</span></a></span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AcceptHeader</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ResponseType</span></span><span> </span><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-type">ResponseBody</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155920"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679155930"><span id="local-6989586621679155931"><span id="local-6989586621679155932"><span class="hs-special">(</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155931"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseListRender"><span class="hs-identifier hs-type">ResponseListRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155932"><span class="hs-keyword hs-type">as</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">KnownStatus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-type">ResponseStatus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155931"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseListRender"><span class="hs-identifier hs-type">ResponseListRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679155931"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">'</span><span class="hs-glyph">:</span><span> </span><span class="annot"><a href="#local-6989586621679155932"><span class="hs-keyword hs-type">as</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679156131"><span class="annot"><span class="annottext">responseListRender :: AcceptHeader
+-&gt; Union (ResponseTypes (a : as)) -&gt; Maybe SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListRender"><span class="hs-identifier hs-var hs-var hs-var">responseListRender</span></a></span></span><span> </span><span id="local-6989586621679156132"><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156132"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Z</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I</span></span><span> </span><span id="local-6989586621679156142"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679156142"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(InternalResponse (ResponseBody a) -&gt; SomeResponse)
+-&gt; Maybe (InternalResponse (ResponseBody a)) -&gt; Maybe SomeResponse
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: Type -&gt; Type) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">InternalResponse (ResponseBody a) -&gt; SomeResponse
+forall a. IsWaiBody a =&gt; InternalResponse a -&gt; SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-var">SomeResponse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (cs :: k) a.
+ResponseRender cs a =&gt;
+AcceptHeader
+-&gt; ResponseType a -&gt; Maybe (InternalResponse (ResponseBody a))
+forall {k} (cs :: k) a.
+ResponseRender cs a =&gt;
+AcceptHeader
+-&gt; ResponseType a -&gt; Maybe (InternalResponse (ResponseBody a))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var">responseRender</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155931"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156132"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">x
+ResponseType a
+</span><a href="#local-6989586621679156142"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#responseListRender"><span class="hs-identifier hs-var">responseListRender</span></a></span><span> </span><span id="local-6989586621679156143"><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156143"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S</span></span><span> </span><span id="local-6989586621679156149"><span class="annot"><span class="annottext">NS I xs
+</span><a href="#local-6989586621679156149"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (cs :: k) (as :: [Type]).
+ResponseListRender cs as =&gt;
+AcceptHeader -&gt; Union (ResponseTypes as) -&gt; Maybe SomeResponse
+forall {k} (cs :: k) (as :: [Type]).
+ResponseListRender cs as =&gt;
+AcceptHeader -&gt; Union (ResponseTypes as) -&gt; Maybe SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListRender"><span class="hs-identifier hs-var">responseListRender</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155932"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156143"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">NS I xs
+Union (ResponseTypes as)
+</span><a href="#local-6989586621679156149"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span id="local-6989586621679156152"><span class="annot"><span class="annottext">responseListStatuses :: [Status]
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListStatuses"><span class="hs-identifier hs-var hs-var hs-var">responseListStatuses</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy (ResponseStatus a) -&gt; Status
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownStatus n =&gt;
+proxy n -&gt; Status
+forall (proxy :: Nat -&gt; Type). proxy (ResponseStatus a) -&gt; Status
+</span><span class="hs-identifier hs-var">statusVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-type">ResponseStatus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155931"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Status -&gt; [Status] -&gt; [Status]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">forall (cs :: k) (as :: [Type]).
+ResponseListRender cs as =&gt;
+[Status]
+forall {k} (cs :: k) (as :: [Type]).
+ResponseListRender cs as =&gt;
+[Status]
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseListStatuses"><span class="hs-identifier hs-var">responseListStatuses</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155930"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155932"><span class="hs-keyword hs-type">as</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621679155960"><span id="local-6989586621679155961"><span id="local-6989586621679155962"><span id="local-6989586621679155963"><span id="local-6989586621679155964"><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AsHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679155960"><span class="hs-identifier hs-type">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ResponseType</span></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679155962"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ServantHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679155963"><span class="hs-identifier hs-type">hs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155960"><span class="hs-identifier hs-type">xs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155964"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155964"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679155963"><span class="hs-identifier hs-type">hs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155962"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679155963"><span class="hs-identifier hs-type">hs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155962"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-type">ResponseStatus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WithHeaders</span></span><span> </span><span class="annot"><a href="#local-6989586621679155963"><span class="hs-identifier hs-type">hs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155962"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-type">ResponseBody</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621679156170"><span class="annot"><span class="annottext">responseRender :: AcceptHeader
+-&gt; ResponseType (WithHeaders hs a r)
+-&gt; Maybe (InternalResponse (ResponseBody (WithHeaders hs a r)))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var hs-var hs-var">responseRender</span></a></span></span><span> </span><span id="local-6989586621679156171"><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156171"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679156172"><span class="annot"><span class="annottext">ResponseType (WithHeaders hs a r)
+</span><a href="#local-6989586621679156172"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalResponse (ResponseBody r)
+-&gt; InternalResponse (ResponseBody r)
+</span><a href="#local-6989586621679156173"><span class="hs-identifier hs-var">addHeaders</span></a></span><span> </span><span class="annot"><span class="annottext">(InternalResponse (ResponseBody r)
+ -&gt; InternalResponse (ResponseBody r))
+-&gt; Maybe (InternalResponse (ResponseBody r))
+-&gt; Maybe (InternalResponse (ResponseBody r))
+forall (f :: Type -&gt; Type) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall (cs :: k) a.
+ResponseRender cs a =&gt;
+AcceptHeader
+-&gt; ResponseType a -&gt; Maybe (InternalResponse (ResponseBody a))
+forall {k} (cs :: k) a.
+ResponseRender cs a =&gt;
+AcceptHeader
+-&gt; ResponseType a -&gt; Maybe (InternalResponse (ResponseBody a))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var">responseRender</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155964"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155961"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><a href="#local-6989586621679156171"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">ResponseType r
+</span><a href="#local-6989586621679156175"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679156176"><span class="annot"><span class="annottext">NP I xs
+</span><a href="#local-6989586621679156176"><span class="hs-identifier hs-var">hs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679156175"><span class="annot"><span class="annottext">ResponseType r
+</span><a href="#local-6989586621679156175"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (headers :: [Type]) response returnType.
+AsHeaders headers response returnType =&gt;
+returnType -&gt; (NP I headers, response)
+</span><span class="hs-identifier hs-var">toHeaders</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155960"><span class="hs-identifier hs-type">xs</span></a></span><span> </span><span class="annot"><span class="annottext">a
+ResponseType (WithHeaders hs a r)
+</span><a href="#local-6989586621679156172"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621679156173"><span class="annot"><span class="annottext">addHeaders :: InternalResponse (ResponseBody r)
+-&gt; InternalResponse (ResponseBody r)
+</span><a href="#local-6989586621679156173"><span class="hs-identifier hs-var hs-var">addHeaders</span></a></span></span><span> </span><span id="local-6989586621679156178"><span class="annot"><span class="annottext">InternalResponse (ResponseBody r)
+</span><a href="#local-6989586621679156178"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="annottext">InternalResponse (ResponseBody r)
+</span><a href="#local-6989586621679156178"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-103"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="annot"><a href="#local-6989586621679156178"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">constructHeaders</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155963"><span class="hs-identifier hs-type">hs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156176"><span class="hs-identifier hs-type">hs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>          </span><span class="hs-special">}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679155991"><span id="local-6989586621679155992"><span id="local-6989586621679155993"><span id="local-6989586621679155994"><span id="local-6989586621679155995"><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownStatus</span></span><span> </span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MimeRender</span></span><span> </span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155993"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155994"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155995"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155993"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155995"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155993"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155995"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679155993"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679156197"><span class="annot"><span class="annottext">responseRender :: AcceptHeader
+-&gt; ResponseType (RespondAs ct s desc a)
+-&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a)))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var hs-var hs-var">responseRender</span></a></span></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156198"><span class="annot"><span class="annottext">ResponseType (RespondAs ct s desc a)
+</span><a href="#local-6989586621679156198"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">InternalResponse ByteString -&gt; Maybe (InternalResponse ByteString)
+InternalResponse ByteString
+-&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a)))
+forall a. a -&gt; Maybe a
+forall (f :: Type -&gt; Type) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(InternalResponse ByteString
+ -&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a))))
+-&gt; (InternalResponse ByteString -&gt; InternalResponse ByteString)
+-&gt; InternalResponse ByteString
+-&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a)))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (ct :: k) a.
+Accept ct =&gt;
+InternalResponse a -&gt; InternalResponse a
+forall ct a. Accept ct =&gt; InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType"><span class="hs-identifier hs-var">addContentType</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="annot"><span class="annottext">(InternalResponse ByteString
+ -&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a))))
+-&gt; InternalResponse ByteString
+-&gt; Maybe (InternalResponse (ResponseBody (RespondAs ct s desc a)))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-117"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span>
+</span><span id="line-118"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">statusCode :: Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Status
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownStatus n =&gt;
+proxy n -&gt; Status
+forall (proxy :: Nat -&gt; Type). proxy s -&gt; Status
+</span><span class="hs-identifier hs-var">statusVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155991"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>          </span><span class="annot"><span class="annottext">responseBody :: ByteString
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy ct -&gt; a -&gt; ByteString
+forall {k} (ctype :: k) a.
+MimeRender ctype a =&gt;
+Proxy ctype -&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">mimeRender</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall t. Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679155992"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+ResponseType (RespondAs ct s desc a)
+</span><a href="#local-6989586621679156198"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-120"></span><span>          </span><span class="annot"><span class="annottext">headers :: Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq Header
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-121"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679156008"><span id="local-6989586621679156009"><span id="local-6989586621679156010"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownStatus</span></span><span> </span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156009"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156010"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156010"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondAs</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156010"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>  </span><span id="local-6989586621679156211"><span class="annot"><span class="annottext">responseRender :: AcceptHeader
+-&gt; ResponseType (RespondAs '() s desc ())
+-&gt; Maybe
+     (InternalResponse (ResponseBody (RespondAs '() s desc ())))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var hs-var hs-var">responseRender</span></a></span></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ResponseType (RespondAs '() s desc ())
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">InternalResponse (ResponseBody (RespondAs '() s desc ()))
+-&gt; Maybe
+     (InternalResponse (ResponseBody (RespondAs '() s desc ())))
+forall a. a -&gt; Maybe a
+forall (f :: Type -&gt; Type) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(InternalResponse (ResponseBody (RespondAs '() s desc ()))
+ -&gt; Maybe
+      (InternalResponse (ResponseBody (RespondAs '() s desc ()))))
+-&gt; InternalResponse (ResponseBody (RespondAs '() s desc ()))
+-&gt; Maybe
+     (InternalResponse (ResponseBody (RespondAs '() s desc ())))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-129"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span>
+</span><span id="line-130"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">statusCode :: Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Status
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownStatus n =&gt;
+proxy n -&gt; Status
+forall (proxy :: Nat -&gt; Type). proxy s -&gt; Status
+</span><span class="hs-identifier hs-var">statusVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156008"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-131"></span><span>          </span><span class="annot"><span class="annottext">responseBody :: ()
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>          </span><span class="annot"><span class="annottext">headers :: Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq Header
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-133"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-136"></span><span>  </span><span id="local-6989586621679156019"><span id="local-6989586621679156020"><span id="local-6989586621679156021"><span id="local-6989586621679156022"><span id="local-6989586621679156023"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Accept</span></span><span> </span><span class="annot"><a href="#local-6989586621679156019"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownStatus</span></span><span> </span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156021"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondStreaming</span></span><span> </span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156022"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156023"><span class="hs-identifier hs-type">framing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156019"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondStreaming</span></span><span> </span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156022"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156023"><span class="hs-identifier hs-type">framing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156019"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">RespondStreaming</span></span><span> </span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156022"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156023"><span class="hs-identifier hs-type">framing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156019"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SourceIO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679156223"><span class="annot"><span class="annottext">responseRender :: AcceptHeader
+-&gt; ResponseType (RespondStreaming s desc framing ct)
+-&gt; Maybe
+     (InternalResponse
+        (ResponseBody (RespondStreaming s desc framing ct)))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var hs-var hs-var">responseRender</span></a></span></span><span> </span><span class="annot"><span class="annottext">AcceptHeader
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679156224"><span class="annot"><span class="annottext">ResponseType (RespondStreaming s desc framing ct)
+</span><a href="#local-6989586621679156224"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>    </span><span class="annot"><span class="annottext">InternalResponse (SourceIO ByteString)
+-&gt; Maybe (InternalResponse (SourceIO ByteString))
+InternalResponse (SourceIO ByteString)
+-&gt; Maybe
+     (InternalResponse
+        (ResponseBody (RespondStreaming s desc framing ct)))
+forall a. a -&gt; Maybe a
+forall (f :: Type -&gt; Type) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(InternalResponse (SourceIO ByteString)
+ -&gt; Maybe
+      (InternalResponse
+         (ResponseBody (RespondStreaming s desc framing ct))))
+-&gt; (InternalResponse (SourceIO ByteString)
+    -&gt; InternalResponse (SourceIO ByteString))
+-&gt; InternalResponse (SourceIO ByteString)
+-&gt; Maybe
+     (InternalResponse
+        (ResponseBody (RespondStreaming s desc framing ct)))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall {k} (ct :: k) a.
+Accept ct =&gt;
+InternalResponse a -&gt; InternalResponse a
+forall ct a. Accept ct =&gt; InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType"><span class="hs-identifier hs-var">addContentType</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156019"><span class="hs-identifier hs-type">ct</span></a></span><span> </span><span class="annot"><span class="annottext">(InternalResponse (SourceIO ByteString)
+ -&gt; Maybe
+      (InternalResponse
+         (ResponseBody (RespondStreaming s desc framing ct))))
+-&gt; InternalResponse (SourceIO ByteString)
+-&gt; Maybe
+     (InternalResponse
+        (ResponseBody (RespondStreaming s desc framing ct)))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-143"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span>
+</span><span id="line-144"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">statusCode :: Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Status
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownStatus n =&gt;
+proxy n -&gt; Status
+forall (proxy :: Nat -&gt; Type). proxy s -&gt; Status
+</span><span class="hs-identifier hs-var">statusVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156020"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-145"></span><span>          </span><span class="annot"><span class="annottext">responseBody :: SourceIO ByteString
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SourceIO ByteString
+ResponseType (RespondStreaming s desc framing ct)
+</span><a href="#local-6989586621679156224"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-146"></span><span>          </span><span class="annot"><span class="annottext">headers :: Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq Header
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-147"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679156030"><span id="local-6989586621679156031"><span id="local-6989586621679156032"><span id="local-6989586621679156033"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AllMimeRender</span></span><span> </span><span class="annot"><a href="#local-6989586621679156030"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156031"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownStatus</span></span><span> </span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseRender"><span class="hs-identifier hs-type">ResponseRender</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156030"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Respond</span></span><span> </span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156033"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156031"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseStatus"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseStatus"><span class="hs-identifier hs-var">ResponseStatus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Respond</span></span><span> </span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156033"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156031"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="ResponseBody"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#ResponseBody"><span class="hs-identifier hs-var">ResponseBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Respond</span></span><span> </span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156033"><span class="hs-identifier hs-type">desc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679156031"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-comment">-- Note: here it seems like we are rendering for all possible content types,</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-comment">-- only to choose the correct one afterwards. However, render results besides the</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-comment">-- one picked by 'M.mapAcceptMedia' are not evaluated, and therefore nor are the</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-comment">-- corresponding rendering functions.</span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621679156235"><span class="annot"><span class="annottext">responseRender :: AcceptHeader
+-&gt; ResponseType (Respond s desc a)
+-&gt; Maybe (InternalResponse (ResponseBody (Respond s desc a)))
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseRender"><span class="hs-identifier hs-var hs-var hs-var">responseRender</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AcceptHeader</span></span><span> </span><span id="local-6989586621679156237"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156237"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679156238"><span class="annot"><span class="annottext">ResponseType (Respond s desc a)
+</span><a href="#local-6989586621679156238"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">[(MediaType, InternalResponse ByteString)]
+-&gt; ByteString -&gt; Maybe (InternalResponse ByteString)
+forall b. [(MediaType, b)] -&gt; ByteString -&gt; Maybe b
+</span><span class="hs-identifier hs-var">M.mapAcceptMedia</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((MediaType, ByteString)
+ -&gt; (MediaType, InternalResponse ByteString))
+-&gt; [(MediaType, ByteString)]
+-&gt; [(MediaType, InternalResponse ByteString)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(MediaType
+ -&gt; ByteString -&gt; (MediaType, InternalResponse ByteString))
+-&gt; (MediaType, ByteString)
+-&gt; (MediaType, InternalResponse ByteString)
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">MediaType -&gt; ByteString -&gt; (MediaType, InternalResponse ByteString)
+</span><a href="#local-6989586621679156241"><span class="hs-identifier hs-var">mkRenderOutput</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy cs -&gt; a -&gt; [(MediaType, ByteString)]
+forall (list :: [Type]) a.
+AllMimeRender list a =&gt;
+Proxy list -&gt; a -&gt; [(MediaType, ByteString)]
+</span><span class="hs-identifier hs-var">allMimeRender</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: [Type]). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156030"><span class="hs-identifier hs-type">cs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+ResponseType (Respond s desc a)
+</span><a href="#local-6989586621679156238"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156237"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>      </span><span class="annot"><a href="#local-6989586621679156241"><span class="hs-identifier hs-type">mkRenderOutput</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.MediaType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M.MediaType</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>      </span><span id="local-6989586621679156241"><span class="annot"><span class="annottext">mkRenderOutput :: MediaType -&gt; ByteString -&gt; (MediaType, InternalResponse ByteString)
+</span><a href="#local-6989586621679156241"><span class="hs-identifier hs-var hs-var">mkRenderOutput</span></a></span></span><span> </span><span id="local-6989586621679156242"><span class="annot"><span class="annottext">MediaType
+</span><a href="#local-6989586621679156242"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679156243"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156243"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-164"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MediaType
+</span><a href="#local-6989586621679156242"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(InternalResponse ByteString
+ -&gt; (MediaType, InternalResponse ByteString))
+-&gt; (InternalResponse ByteString -&gt; InternalResponse ByteString)
+-&gt; InternalResponse ByteString
+-&gt; (MediaType, InternalResponse ByteString)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">MediaType
+-&gt; InternalResponse ByteString -&gt; InternalResponse ByteString
+forall a. MediaType -&gt; InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType%27"><span class="hs-identifier hs-var">addContentType'</span></a></span><span> </span><span class="annot"><span class="annottext">MediaType
+</span><a href="#local-6989586621679156242"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">(InternalResponse ByteString
+ -&gt; (MediaType, InternalResponse ByteString))
+-&gt; InternalResponse ByteString
+-&gt; (MediaType, InternalResponse ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-165"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span>
+</span><span id="line-166"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">statusCode :: Status
+</span><span class="hs-identifier hs-var">statusCode</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Status
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownStatus n =&gt;
+proxy n -&gt; Status
+forall (proxy :: Nat -&gt; Type). proxy s -&gt; Status
+</span><span class="hs-identifier hs-var">statusVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156032"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-167"></span><span>              </span><span class="annot"><span class="annottext">responseBody :: ByteString
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679156243"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-168"></span><span>              </span><span class="annot"><span class="annottext">headers :: Seq Header
+</span><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Seq Header
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-169"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#addContentType"><span class="hs-identifier hs-type">addContentType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679156001"><span class="annot"><a href="#local-6989586621679156001"><span class="hs-identifier hs-type">ct</span></a></span></span><span> </span><span id="local-6989586621679156002"><span class="annot"><a href="#local-6989586621679156002"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Accept</span></span><span> </span><span class="annot"><a href="#local-6989586621679156001"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156002"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156002"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-172"></span><span id="addContentType"><span class="annot"><span class="annottext">addContentType :: forall {k} (ct :: k) a.
+Accept ct =&gt;
+InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType"><span class="hs-identifier hs-var hs-var">addContentType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MediaType -&gt; InternalResponse a -&gt; InternalResponse a
+forall a. MediaType -&gt; InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType%27"><span class="hs-identifier hs-var">addContentType'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy ct -&gt; MediaType
+forall {k} (ctype :: k). Accept ctype =&gt; Proxy ctype -&gt; MediaType
+</span><span class="hs-identifier hs-var">contentType</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: k). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679156001"><span class="hs-identifier hs-type">ct</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span id="local-6989586621679156043"><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#addContentType%27"><span class="hs-identifier hs-type">addContentType'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.MediaType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156043"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156043"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-175"></span><span id="addContentType%27"><span class="annot"><span class="annottext">addContentType' :: forall a. MediaType -&gt; InternalResponse a -&gt; InternalResponse a
+</span><a href="Servant.Server.Internal.ResponseRender.html#addContentType%27"><span class="hs-identifier hs-var hs-var">addContentType'</span></a></span></span><span> </span><span id="local-6989586621679156249"><span class="annot"><span class="annottext">MediaType
+</span><a href="#local-6989586621679156249"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679156250"><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156250"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156250"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">hContentType</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.renderHeader</span></span><span> </span><span class="annot"><a href="#local-6989586621679156249"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;|</span></span><span> </span><span class="annot"><span class="hs-identifier hs-var">headers</span></span><span> </span><span class="annot"><a href="#local-6989586621679156250"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#setEmptyBody"><span class="hs-identifier hs-type">setEmptyBody</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span>
+</span><span id="line-178"></span><span id="setEmptyBody"><span class="annot"><span class="annottext">setEmptyBody :: SomeResponse -&gt; SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#setEmptyBody"><span class="hs-identifier hs-var hs-var">setEmptyBody</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span> </span><span id="local-6989586621679156255"><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156255"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalResponse ByteString -&gt; SomeResponse
+forall a. IsWaiBody a =&gt; InternalResponse a -&gt; SomeResponse
+</span><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-var">SomeResponse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">InternalResponse a -&gt; InternalResponse ByteString
+forall a. InternalResponse a -&gt; InternalResponse ByteString
+</span><a href="#local-6989586621679156256"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156255"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621679156055"><span class="annot"><a href="#local-6989586621679156256"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><a href="#local-6989586621679156055"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BSL.ByteString</span></span></span><span>
+</span><span id="line-181"></span><span>    </span><span id="local-6989586621679156256"><span class="annot"><span class="annottext">go :: forall a. InternalResponse a -&gt; InternalResponse ByteString
+</span><a href="#local-6989586621679156256"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679156258"><span id="local-6989586621679156259"><span id="local-6989586621679156260"><span class="annot"><span class="annottext">a
+Seq Header
+Status
+statusCode :: forall a. InternalResponse a -&gt; Status
+headers :: forall a. InternalResponse a -&gt; Seq Header
+responseBody :: forall a. InternalResponse a -&gt; a
+statusCode :: Status
+headers :: Seq Header
+responseBody :: a
+</span><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">InternalResponse</span></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">responseBody :: ByteString
+</span><span class="hs-identifier hs-var">responseBody</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Seq Header
+Status
+statusCode :: Status
+headers :: Seq Header
+statusCode :: Status
+headers :: Seq Header
+</span><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></span><span class="hs-special">}</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#someResponseToWai"><span class="hs-identifier hs-type">someResponseToWai</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Wai.Response</span></span><span>
+</span><span id="line-184"></span><span id="someResponseToWai"><span class="annot"><span class="annottext">someResponseToWai :: SomeResponse -&gt; Response
+</span><a href="Servant.Server.Internal.ResponseRender.html#someResponseToWai"><span class="hs-identifier hs-var hs-var">someResponseToWai</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.Server.Internal.ResponseRender.html#SomeResponse"><span class="hs-identifier hs-type">SomeResponse</span></a></span><span> </span><span id="local-6989586621679156264"><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156264"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">InternalResponse a -&gt; Response
+forall a. IsWaiBody a =&gt; InternalResponse a -&gt; Response
+</span><a href="Servant.Server.Internal.ResponseRender.html#responseToWai"><span class="hs-identifier hs-var">responseToWai</span></a></span><span> </span><span class="annot"><span class="annottext">InternalResponse a
+</span><a href="#local-6989586621679156264"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-185"></span></pre></body></html>

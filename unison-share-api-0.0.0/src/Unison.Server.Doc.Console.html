@@ -1,0 +1,1111 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Render a doc that the server has evaluated (a 'Doc', the structure Unison Share and the codebase server return) for</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- the console. This is @syntax.docFormatConsole@ in &quot;Unison.Runtime.IOSource&quot;, for the evaluated structure, together</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- with how each special form shows up on the console.</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html"><span class="hs-identifier">Unison.Server.Doc.Console</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#docToConsole"><span class="hs-identifier">docToConsole</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Seq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Editor.DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DisplayObject</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Reference</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Server.Doc.html"><span class="hs-identifier">Unison.Server.Doc</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html"><span class="hs-identifier">Unison.Server.Syntax</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Server</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.AnnotatedText</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AnnotatedText</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Segment</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.ColorText</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ColorText</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.ColorText</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CT</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Pretty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.SyntaxText</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ST</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">type</span><span> </span><span id="Pretty"><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-var">Pretty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">P.Pretty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ColorText</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Unison.Server.Doc.Console.html#docToConsole"><span class="hs-identifier hs-type">docToConsole</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-29"></span><span id="docToConsole"><span class="annot"><span class="annottext">docToConsole :: Doc -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#docToConsole"><span class="hs-identifier hs-var hs-var">docToConsole</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="#local-6989586621680223592"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621680223592"><span class="annot"><span class="annottext">go :: Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span> </span><span id="local-6989586621680223594"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223594"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223594"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Code"><span class="hs-identifier hs-type">Code</span></a></span><span> </span><span id="local-6989586621680223597"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223597"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;`&quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223597"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;`&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#CodeBlock"><span class="hs-identifier hs-type">CodeBlock</span></a></span><span> </span><span id="local-6989586621680223600"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223600"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span id="local-6989586621680223601"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223601"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;``` &quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223600"><span class="hs-identifier hs-var">typ</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223601"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;```&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Italic"><span class="hs-identifier hs-type">Italic</span></a></span><span> </span><span id="local-6989586621680223604"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223604"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223605"><span class="hs-identifier hs-var">emphasized</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;*&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223604"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Strikethrough"><span class="hs-identifier hs-type">Strikethrough</span></a></span><span> </span><span id="local-6989586621680223607"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223607"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223605"><span class="hs-identifier hs-var">emphasized</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;~~&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223607"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Bold"><span class="hs-identifier hs-type">Bold</span></a></span><span> </span><span id="local-6989586621680223609"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223609"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.bold</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223609"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Style"><span class="hs-identifier hs-type">Style</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680223612"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223612"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223612"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Anchor"><span class="hs-identifier hs-type">Anchor</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680223614"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223614"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223614"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Blockquote"><span class="hs-identifier hs-type">Blockquote</span></a></span><span> </span><span id="local-6989586621680223616"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223616"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223617"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&gt; &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223616"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="annottext">Doc
+</span><a href="Unison.Server.Doc.html#Blankline"><span class="hs-identifier hs-var">Blankline</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="annottext">Doc
+</span><a href="Unison.Server.Doc.html#Linebreak"><span class="hs-identifier hs-var">Linebreak</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">Doc
+</span><a href="Unison.Server.Doc.html#SectionBreak"><span class="hs-identifier hs-var">SectionBreak</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&#1805;&quot;</span></span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Tooltip"><span class="hs-identifier hs-type">Tooltip</span></a></span><span> </span><span id="local-6989586621680223622"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223622"><span class="hs-identifier hs-var">inner</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223622"><span class="hs-identifier hs-var">inner</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Aside"><span class="hs-identifier hs-type">Aside</span></a></span><span> </span><span id="local-6989586621680223624"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223624"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.hiBlack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;(&quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223624"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;)&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Callout"><span class="hs-identifier hs-type">Callout</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Doc
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span id="local-6989586621680223627"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223627"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223617"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  | &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223627"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Callout"><span class="hs-identifier hs-type">Callout</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680223628"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223628"><span class="hs-identifier hs-var">icon</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680223629"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223629"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223617"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  | &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.bold</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223628"><span class="hs-identifier hs-var">icon</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223629"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span id="local-6989586621680223632"><span class="annot"><span class="annottext">[[Doc]]
+</span><a href="#local-6989586621680223632"><span class="hs-identifier hs-var">rows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Pretty ColorText]] -&gt; Pretty ColorText
+forall s. (IsString s, ListLike s Char) =&gt; [[Pretty s]] -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.table</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([Doc] -&gt; [Pretty ColorText]) -&gt; [[Doc]] -&gt; [[Pretty ColorText]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Doc -&gt; Pretty ColorText) -&gt; [Doc] -&gt; [Pretty ColorText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Doc]]
+</span><a href="#local-6989586621680223632"><span class="hs-identifier hs-var">rows</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Folded"><span class="hs-identifier hs-type">Folded</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680223635"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223635"><span class="hs-identifier hs-var">summary</span></a></span></span><span> </span><span id="local-6989586621680223636"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223636"><span class="hs-identifier hs-var">details</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223635"><span class="hs-identifier hs-var">summary</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223636"><span class="hs-identifier hs-var">details</span></a></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Paragraph"><span class="hs-identifier hs-type">Paragraph</span></a></span><span> </span><span id="local-6989586621680223638"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223638"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Either Doc [Doc] -&gt; Pretty ColorText)
+-&gt; [Either Doc [Doc]] -&gt; [Pretty ColorText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Either Doc [Doc] -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223639"><span class="hs-identifier hs-var">paragraphPiece</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Doc] -&gt; [Either Doc [Doc]]
+</span><a href="#local-6989586621680223640"><span class="hs-identifier hs-var">paragraphRuns</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223638"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#BulletedList"><span class="hs-identifier hs-type">BulletedList</span></a></span><span> </span><span id="local-6989586621680223642"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223642"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText
+-&gt; Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223643"><span class="hs-identifier hs-var">indent'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;* &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223644"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680223644"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223644"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223642"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#NumberedList"><span class="hs-identifier hs-type">NumberedList</span></a></span><span> </span><span id="local-6989586621680223646"><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223646"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621680223647"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223647"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680223649"><span class="annot"><span class="annottext">dot :: Text
+</span><a href="#local-6989586621680223649"><span class="hs-identifier hs-var hs-var">dot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;. &quot;</span></span><span>
+</span><span id="line-55"></span><span>            </span><span id="local-6989586621680223650"><span class="annot"><span class="annottext">w :: Int
+</span><a href="#local-6989586621680223650"><span class="hs-identifier hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223646"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Nat -&gt; Nat
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Nat
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Doc] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223647"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">Text.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223649"><span class="hs-identifier hs-var">dot</span></a></span><span>
+</span><span id="line-56"></span><span>            </span><span id="local-6989586621680223655"><span class="annot"><span class="annottext">num :: Nat -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223655"><span class="hs-identifier hs-var hs-var">num</span></a></span></span><span> </span><span id="local-6989586621680223656"><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223656"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Char -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.justifyRight</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680223650"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223656"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223649"><span class="hs-identifier hs-var">dot</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>            </span><span id="local-6989586621680223658"><span class="annot"><span class="annottext">pad :: Pretty ColorText
+</span><a href="#local-6989586621680223658"><span class="hs-identifier hs-var hs-var">pad</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680223650"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; &quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText
+-&gt; Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223643"><span class="hs-identifier hs-var">indent'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223655"><span class="hs-identifier hs-var">num</span></a></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223660"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223658"><span class="hs-identifier hs-var">pad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223661"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680223660"><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223660"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223661"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223661"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Nat] -&gt; [Doc] -&gt; [(Nat, Doc)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621680223646"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223647"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Section"><span class="hs-identifier hs-type">Section</span></a></span><span> </span><span id="local-6989586621680223663"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223663"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621680223664"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223664"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680223665"><span class="annot"><span class="annottext">t :: Pretty ColorText
+</span><a href="#local-6989586621680223665"><span class="hs-identifier hs-var hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+-&gt; Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223643"><span class="hs-identifier hs-var">indent'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;# &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Doc
+forall specialForm. DocG specialForm -&gt; DocG specialForm
+</span><a href="Unison.Server.Doc.html#Bold"><span class="hs-identifier hs-var">Bold</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223663"><span class="hs-identifier hs-var">title</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>            </span><span id="local-6989586621680223666"><span class="annot"><span class="annottext">subs :: [Pretty ColorText]
+</span><a href="#local-6989586621680223666"><span class="hs-identifier hs-var hs-var">subs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223617"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  &quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223667"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680223667"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223667"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223664"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-62"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223665"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; [Pretty ColorText]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Pretty ColorText]
+</span><a href="#local-6989586621680223666"><span class="hs-identifier hs-var">subs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#UntitledSection"><span class="hs-identifier hs-type">UntitledSection</span></a></span><span> </span><span id="local-6989586621680223669"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223669"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223670"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680223670"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223670"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223669"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Join"><span class="hs-identifier hs-type">Join</span></a></span><span> </span><span id="local-6989586621680223672"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223672"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Doc -&gt; Pretty ColorText) -&gt; [Doc] -&gt; Pretty ColorText
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223672"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Column"><span class="hs-identifier hs-type">Column</span></a></span><span> </span><span id="local-6989586621680223675"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223675"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Doc -&gt; Pretty ColorText) -&gt; [Doc] -&gt; [Pretty ColorText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223675"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span id="local-6989586621680223677"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223677"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223677"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#NamedLink"><span class="hs-identifier hs-type">NamedLink</span></a></span><span> </span><span id="local-6989586621680223679"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223679"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.underline</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223679"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621680223682"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223682"><span class="hs-identifier hs-var">alt</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680223683"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223683"><span class="hs-identifier hs-var">caption</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223682"><span class="hs-identifier hs-var">alt</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Doc
+forall specialForm. DocG specialForm -&gt; DocG specialForm
+</span><a href="Unison.Server.Doc.html#Italic"><span class="hs-identifier hs-var">Italic</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223683"><span class="hs-identifier hs-var">caption</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Image"><span class="hs-identifier hs-type">Image</span></a></span><span> </span><span id="local-6989586621680223684"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223684"><span class="hs-identifier hs-var">alt</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe Doc
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223684"><span class="hs-identifier hs-var">alt</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span id="local-6989586621680223686"><span class="annot"><span class="annottext">RenderedSpecialForm
+</span><a href="#local-6989586621680223686"><span class="hs-identifier hs-var">form</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RenderedSpecialForm -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223687"><span class="hs-identifier hs-var">special</span></a></span><span> </span><span class="annot"><span class="annottext">RenderedSpecialForm
+</span><a href="#local-6989586621680223686"><span class="hs-identifier hs-var">form</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-comment">-- A code block inside a paragraph is not words: it keeps its lines, and the text before and after it wraps on its own.</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><a href="#local-6989586621680223639"><span class="hs-identifier hs-type">paragraphPiece</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621680223639"><span class="annot"><span class="annottext">paragraphPiece :: Either Doc [Doc] -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223639"><span class="hs-identifier hs-var hs-var">paragraphPiece</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621680223688"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223688"><span class="hs-identifier hs-var">block</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223688"><span class="hs-identifier hs-var">block</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621680223689"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223689"><span class="hs-identifier hs-var">ds</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ColorText -&gt; [Pretty ColorText])
+-&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s. IsString s =&gt; (s -&gt; [Pretty s]) -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.wrap'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText]
+forall a. a -&gt; [a]
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Pretty ColorText -&gt; [Pretty ColorText])
+-&gt; (ColorText -&gt; Pretty ColorText)
+-&gt; ColorText
+-&gt; [Pretty ColorText]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ColorText -&gt; Pretty ColorText
+forall s. (IsString s, ListLike s Char) =&gt; s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.lit</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Doc -&gt; Pretty ColorText) -&gt; [Doc] -&gt; Pretty ColorText
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223689"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="#local-6989586621680223640"><span class="hs-identifier hs-type">paragraphRuns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621680223640"><span class="annot"><span class="annottext">paragraphRuns :: [Doc] -&gt; [Either Doc [Doc]]
+</span><a href="#local-6989586621680223640"><span class="hs-identifier hs-var hs-var">paragraphRuns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>      </span><span id="local-6989586621680223693"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223693"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680223694"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223694"><span class="hs-identifier hs-var">rest</span></a></span></span><span>
+</span><span id="line-82"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Bool
+</span><a href="#local-6989586621680223695"><span class="hs-identifier hs-var">isBlock</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223693"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Either Doc [Doc]
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223693"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Either Doc [Doc] -&gt; [Either Doc [Doc]] -&gt; [Either Doc [Doc]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; [Either Doc [Doc]]
+</span><a href="#local-6989586621680223640"><span class="hs-identifier hs-var">paragraphRuns</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223694"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-83"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-84"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680223696"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223696"><span class="hs-identifier hs-var">inline</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223697"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223697"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Doc -&gt; Bool) -&gt; [Doc] -&gt; ([Doc], [Doc])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">List.span</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Doc -&gt; Bool) -&gt; Doc -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Bool
+</span><a href="#local-6989586621680223695"><span class="hs-identifier hs-var">isBlock</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223694"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-85"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; Either Doc [Doc]
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223693"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223696"><span class="hs-identifier hs-var">inline</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Either Doc [Doc] -&gt; [Either Doc [Doc]] -&gt; [Either Doc [Doc]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; [Either Doc [Doc]]
+</span><a href="#local-6989586621680223640"><span class="hs-identifier hs-var">paragraphRuns</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223697"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><a href="#local-6989586621680223695"><span class="hs-identifier hs-type">isBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621680223695"><span class="annot"><span class="annottext">isBlock :: Doc -&gt; Bool
+</span><a href="#local-6989586621680223695"><span class="hs-identifier hs-var hs-var">isBlock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#CodeBlock"><span class="hs-identifier hs-type">CodeBlock</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-90"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#Eval"><span class="hs-identifier hs-type">Eval</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-91"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#ExampleBlock"><span class="hs-identifier hs-type">ExampleBlock</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-92"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#Signature"><span class="hs-identifier hs-type">Signature</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-93"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#Source"><span class="hs-identifier hs-type">Source</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-94"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Special"><span class="hs-identifier hs-type">Special</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#FoldedSource"><span class="hs-identifier hs-type">FoldedSource</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-comment">-- Emphasis marks go inside the first and last words of a paragraph, so they stay with them when the paragraph wraps.</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621680223605"><span class="annot"><span class="annottext">emphasized :: Text -&gt; Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223605"><span class="hs-identifier hs-var hs-var">emphasized</span></a></span></span><span> </span><span id="local-6989586621680223717"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223717"><span class="hs-identifier hs-var">mark</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Paragraph"><span class="hs-identifier hs-type">Paragraph</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680223718"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223718"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680223719"><span class="annot"><span class="annottext">rest :: [Doc]
+</span><a href="#local-6989586621680223719"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680223720"><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223720"><span class="hs-identifier hs-var">mid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223721"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223721"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Doc] -&gt; [Doc]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.init</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223719"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Doc] -&gt; Doc
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">List.last</span></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223719"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223717"><span class="hs-identifier hs-var">mark</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223718"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Doc -&gt; Pretty ColorText) -&gt; [Doc] -&gt; Pretty ColorText
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc]
+</span><a href="#local-6989586621680223720"><span class="hs-identifier hs-var">mid</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223721"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223717"><span class="hs-identifier hs-var">mark</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>      </span><span id="local-6989586621680223724"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223724"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223717"><span class="hs-identifier hs-var">mark</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223592"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621680223724"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223717"><span class="hs-identifier hs-var">mark</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><a href="#local-6989586621680223687"><span class="hs-identifier hs-type">special</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.html#RenderedSpecialForm"><span class="hs-identifier hs-type">RenderedSpecialForm</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621680223687"><span class="annot"><span class="annottext">special :: RenderedSpecialForm -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223687"><span class="hs-identifier hs-var hs-var">special</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Source"><span class="hs-identifier hs-type">Source</span></a></span><span> </span><span id="local-6989586621680223725"><span class="annot"><span class="annottext">[SrcRefs]
+</span><a href="#local-6989586621680223725"><span class="hs-identifier hs-var">srcs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SrcRefs] -&gt; Pretty ColorText
+forall {a}.
+[Ref (a, DisplayObject SyntaxText Src)] -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223726"><span class="hs-identifier hs-var">sources</span></a></span><span> </span><span class="annot"><span class="annottext">[SrcRefs]
+</span><a href="#local-6989586621680223725"><span class="hs-identifier hs-var">srcs</span></a></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#FoldedSource"><span class="hs-identifier hs-type">FoldedSource</span></a></span><span> </span><span id="local-6989586621680223727"><span class="annot"><span class="annottext">[SrcRefs]
+</span><a href="#local-6989586621680223727"><span class="hs-identifier hs-var">srcs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SrcRefs] -&gt; Pretty ColorText
+forall {a}.
+[Ref (a, DisplayObject SyntaxText Src)] -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223726"><span class="hs-identifier hs-var">sources</span></a></span><span> </span><span class="annot"><span class="annottext">[SrcRefs]
+</span><a href="#local-6989586621680223727"><span class="hs-identifier hs-var">srcs</span></a></span><span>
+</span><span id="line-108"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Example"><span class="hs-identifier hs-type">Example</span></a></span><span> </span><span id="local-6989586621680223729"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223729"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. IsString s =&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.backticked</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223729"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#ExampleBlock"><span class="hs-identifier hs-type">ExampleBlock</span></a></span><span> </span><span id="local-6989586621680223732"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223732"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Width -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentN</span></span><span> </span><span class="annot"><span class="annottext">Width
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223732"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span id="local-6989586621680223735"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223735"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.underline</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223735"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Signature"><span class="hs-identifier hs-type">Signature</span></a></span><span> </span><span id="local-6989586621680223736"><span class="annot"><span class="annottext">[SyntaxText]
+</span><a href="#local-6989586621680223736"><span class="hs-identifier hs-var">sigs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;\n\n&quot;</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Width -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Width -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentN</span></span><span> </span><span class="annot"><span class="annottext">Width
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223737"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680223737"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223737"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[SyntaxText]
+</span><a href="#local-6989586621680223736"><span class="hs-identifier hs-var">sigs</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#SignatureInline"><span class="hs-identifier hs-type">SignatureInline</span></a></span><span> </span><span id="local-6989586621680223739"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223739"><span class="hs-identifier hs-var">sig</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. IsString s =&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.backticked</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223739"><span class="hs-identifier hs-var">sig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Eval"><span class="hs-identifier hs-type">Eval</span></a></span><span> </span><span id="local-6989586621680223740"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223740"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span id="local-6989586621680223741"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223741"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Width -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentN</span></span><span> </span><span class="annot"><span class="annottext">Width
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.lines</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223740"><span class="hs-identifier hs-var">code</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;&#10728;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.green</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223741"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#EvalInline"><span class="hs-identifier hs-type">EvalInline</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680223745"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223745"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. IsString s =&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.backticked</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223745"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Embed"><span class="hs-identifier hs-type">Embed</span></a></span><span> </span><span id="local-6989586621680223747"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223747"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Width -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Width -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentN</span></span><span> </span><span class="annot"><span class="annottext">Width
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;{{ embed {{&quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223747"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;}} }}&quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var">nl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#EmbedInline"><span class="hs-identifier hs-type">EmbedInline</span></a></span><span> </span><span id="local-6989586621680223749"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223749"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;{{ embed {{&quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223749"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;}} }}&quot;</span></span><span>
+</span><span id="line-117"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Video"><span class="hs-identifier hs-type">Video</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;(a video)&quot;</span></span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#FrontMatter"><span class="hs-identifier hs-type">FrontMatter</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#LaTeXInline"><span class="hs-identifier hs-type">LaTeXInline</span></a></span><span> </span><span id="local-6989586621680223753"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223753"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. IsString s =&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.backticked</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223753"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Svg"><span class="hs-identifier hs-type">Svg</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;(an image)&quot;</span></span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#RenderError"><span class="hs-identifier hs-type">RenderError</span></a></span><span> </span><span class="annot"><span class="annottext">RenderError SyntaxText
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.red</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;&#127384;  This part of the doc couldn't be rendered&quot;</span></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621680223726"><span class="annot"><span class="annottext">sources :: [Ref (a, DisplayObject SyntaxText Src)] -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223726"><span class="hs-identifier hs-var hs-var">sources</span></a></span></span><span> </span><span id="local-6989586621680223763"><span class="annot"><span class="annottext">[Ref (a, DisplayObject SyntaxText Src)]
+</span><a href="#local-6989586621680223763"><span class="hs-identifier hs-var">srcs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+forall s. Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.group</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Width -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Width -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentN</span></span><span> </span><span class="annot"><span class="annottext">Width
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText -&gt; [Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+Pretty s -&gt; f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.sep</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;\n\n&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Ref (a, DisplayObject SyntaxText Src) -&gt; Pretty ColorText)
+-&gt; [Ref (a, DisplayObject SyntaxText Src)] -&gt; [Pretty ColorText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Ref (a, DisplayObject SyntaxText Src) -&gt; Pretty ColorText
+forall {a}.
+Ref (a, DisplayObject SyntaxText Src) -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223764"><span class="hs-identifier hs-var">source</span></a></span><span> </span><span class="annot"><span class="annottext">[Ref (a, DisplayObject SyntaxText Src)]
+</span><a href="#local-6989586621680223763"><span class="hs-identifier hs-var">srcs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621680223764"><span class="annot"><span class="annottext">source :: Ref (a, DisplayObject SyntaxText Src) -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223764"><span class="hs-identifier hs-var hs-var">source</span></a></span></span><span> </span><span id="local-6989586621680223765"><span class="annot"><span class="annottext">Ref (a, DisplayObject SyntaxText Src)
+</span><a href="#local-6989586621680223765"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Ref (a, DisplayObject SyntaxText Src)
+</span><a href="#local-6989586621680223765"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-126"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Term"><span class="hs-identifier hs-type">Term</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223767"><span class="annot"><span class="annottext">DisplayObject SyntaxText Src
+</span><a href="#local-6989586621680223767"><span class="hs-identifier hs-var">obj</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText Src -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223768"><span class="hs-identifier hs-var">displayObject</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText Src
+</span><a href="#local-6989586621680223767"><span class="hs-identifier hs-var">obj</span></a></span><span>
+</span><span id="line-127"></span><span>      </span><span class="annot"><a href="Unison.Server.Doc.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223770"><span class="annot"><span class="annottext">DisplayObject SyntaxText Src
+</span><a href="#local-6989586621680223770"><span class="hs-identifier hs-var">obj</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText Src -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223768"><span class="hs-identifier hs-var">displayObject</span></a></span><span> </span><span class="annot"><span class="annottext">DisplayObject SyntaxText Src
+</span><a href="#local-6989586621680223770"><span class="hs-identifier hs-var">obj</span></a></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621680223768"><span class="annot"><span class="annottext">displayObject :: DisplayObject SyntaxText Src -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223768"><span class="hs-identifier hs-var hs-var">displayObject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-130"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">BuiltinObject</span></span><span> </span><span id="local-6989586621680223781"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223781"><span class="hs-identifier hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223781"><span class="hs-identifier hs-var">code</span></a></span><span>
+</span><span id="line-131"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">MissingObject</span></span><span> </span><span id="local-6989586621680223783"><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680223783"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText
+</span><span class="hs-identifier hs-var">P.red</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pretty ColorText
+</span><span class="hs-string">&quot;&#128566;  Missing source for: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621680223783"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">UserObject</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Server.Doc.html#Src"><span class="hs-identifier hs-type">Src</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680223786"><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223786"><span class="hs-identifier hs-var">full</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var">syntax</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxText
+</span><a href="#local-6989586621680223786"><span class="hs-identifier hs-var">full</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><a href="#local-6989586621680223595"><span class="hs-identifier hs-type">lit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621680223595"><span class="annot"><span class="annottext">lit :: Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var hs-var">lit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+forall s. IsString s =&gt; Text -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.text</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><a href="#local-6989586621680223602"><span class="hs-identifier hs-type">nl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621680223602"><span class="annot"><span class="annottext">nl :: Pretty ColorText
+</span><a href="#local-6989586621680223602"><span class="hs-identifier hs-var hs-var">nl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223595"><span class="hs-identifier hs-var">lit</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><a href="#local-6989586621680223617"><span class="hs-identifier hs-type">indent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621680223617"><span class="annot"><span class="annottext">indent :: Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223617"><span class="hs-identifier hs-var hs-var">indent</span></a></span></span><span> </span><span id="local-6989586621680223788"><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223788"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+-&gt; Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223643"><span class="hs-identifier hs-var">indent'</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223788"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223788"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><a href="#local-6989586621680223643"><span class="hs-identifier hs-type">indent'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621680223643"><span class="annot"><span class="annottext">indent' :: Pretty ColorText
+-&gt; Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+</span><a href="#local-6989586621680223643"><span class="hs-identifier hs-var hs-var">indent'</span></a></span></span><span> </span><span id="local-6989586621680223789"><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223789"><span class="hs-identifier hs-var">initial</span></a></span></span><span> </span><span id="local-6989586621680223790"><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223790"><span class="hs-identifier hs-var">afterNewline</span></a></span></span><span> </span><span id="local-6989586621680223791"><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223791"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223789"><span class="hs-identifier hs-var">initial</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText -&gt; Pretty ColorText -&gt; Pretty ColorText
+forall s.
+(ListLike s Char, IsString s) =&gt;
+Pretty s -&gt; Pretty s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.indentAfterNewline</span></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223790"><span class="hs-identifier hs-var">afterNewline</span></a></span><span> </span><span class="annot"><span class="annottext">Pretty ColorText
+</span><a href="#local-6989586621680223791"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="annot"><span class="hs-comment">-- | Code with its syntax highlighting, as lines (a literal can't have a newline in it).</span></span><span>
+</span><span id="line-147"></span><span class="annot"><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-type">syntax</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#SyntaxText"><span class="hs-identifier hs-type">Server.SyntaxText</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Server.Doc.Console.html#Pretty"><span class="hs-identifier hs-type">Pretty</span></a></span><span>
+</span><span id="line-148"></span><span id="syntax"><span class="annot"><span class="annottext">syntax :: SyntaxText -&gt; Pretty ColorText
+</span><a href="Unison.Server.Doc.Console.html#syntax"><span class="hs-identifier hs-var hs-var">syntax</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AnnotatedText</span></span><span> </span><span id="local-6989586621680223794"><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680223794"><span class="hs-identifier hs-var">segments</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><span class="annottext">[Pretty ColorText] -&gt; Pretty ColorText
+forall (f :: * -&gt; *) s.
+(Foldable f, IsString s) =&gt;
+f (Pretty s) -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.lines</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([(Text, Maybe Color)] -&gt; Pretty ColorText)
+-&gt; [[(Text, Maybe Color)]] -&gt; [Pretty ColorText]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Text, Maybe Color) -&gt; Pretty ColorText)
+-&gt; [(Text, Maybe Color)] -&gt; Pretty ColorText
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">(Text, Maybe Color) -&gt; Pretty ColorText
+forall {a}. (Text, Maybe a) -&gt; Pretty (AnnotatedText a)
+</span><a href="#local-6989586621680223795"><span class="hs-identifier hs-var">piece</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Segment Element] -&gt; [[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223796"><span class="hs-identifier hs-var">splitLines</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq (Segment Element) -&gt; [Segment Element]
+forall a. Seq a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">Seq (Segment Element)
+</span><a href="#local-6989586621680223794"><span class="hs-identifier hs-var">segments</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621680223795"><span class="annot"><span class="annottext">piece :: (Text, Maybe a) -&gt; Pretty (AnnotatedText a)
+</span><a href="#local-6989586621680223795"><span class="hs-identifier hs-var hs-var">piece</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680223800"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223800"><span class="hs-identifier hs-var">text</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223801"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621680223801"><span class="hs-identifier hs-var">color</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AnnotatedText a -&gt; Pretty (AnnotatedText a)
+forall s. (IsString s, ListLike s Char) =&gt; s -&gt; Pretty s
+</span><span class="hs-identifier hs-var">P.lit</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Seq (Segment a) -&gt; AnnotatedText a
+forall a. Seq (Segment a) -&gt; AnnotatedText a
+</span><span class="hs-identifier hs-var">AnnotatedText</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Segment a -&gt; Seq (Segment a)
+forall a. a -&gt; Seq a
+</span><span class="hs-identifier hs-var">Seq.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe a -&gt; Segment a
+forall a. Text -&gt; Maybe a -&gt; Segment a
+</span><span class="hs-identifier hs-var">Segment</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223800"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621680223801"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="#local-6989586621680223796"><span class="hs-identifier hs-type">splitLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Server.Element</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CT.Color</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621680223796"><span class="annot"><span class="annottext">splitLines :: [Segment Element] -&gt; [[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223796"><span class="hs-identifier hs-var hs-var">splitLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>      </span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">([[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]])
+-&gt; ([Segment Element] -&gt; [[(Text, Maybe Color)]])
+-&gt; [Segment Element]
+-&gt; [[(Text, Maybe Color)]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([(Text, Maybe Color)] -&gt; [(Text, Maybe Color)])
+-&gt; [[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">[(Text, Maybe Color)] -&gt; [(Text, Maybe Color)]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">([[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]])
+-&gt; ([Segment Element] -&gt; [[(Text, Maybe Color)]])
+-&gt; [Segment Element]
+-&gt; [[(Text, Maybe Color)]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([[(Text, Maybe Color)]]
+ -&gt; Segment Element -&gt; [[(Text, Maybe Color)]])
+-&gt; [[(Text, Maybe Color)]]
+-&gt; [Segment Element]
+-&gt; [[(Text, Maybe Color)]]
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+-&gt; Segment Element -&gt; [[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223806"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-156"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-157"></span><span>        </span><span class="hs-comment">-- The lines so far, last first, each with its pieces last first.</span><span>
+</span><span id="line-158"></span><span>        </span><span class="annot"><a href="#local-6989586621680223806"><span class="hs-identifier hs-type">step</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CT.Color</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Server.Element</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CT.Color</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-159"></span><span>        </span><span id="local-6989586621680223806"><span class="annot"><span class="annottext">step :: [[(Text, Maybe Color)]]
+-&gt; Segment Element -&gt; [[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223806"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621680223807"><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223807"><span class="hs-identifier hs-var">soFar</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Segment</span></span><span> </span><span id="local-6989586621680223808"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223808"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span id="local-6989586621680223809"><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680223809"><span class="hs-identifier hs-var">element</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-160"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680223810"><span class="annot"><span class="annottext">color :: Maybe Color
+</span><a href="#local-6989586621680223810"><span class="hs-identifier hs-var hs-var">color</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Element
+</span><a href="#local-6989586621680223809"><span class="hs-identifier hs-var">element</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Element -&gt; (Element -&gt; Maybe Color) -&gt; Maybe Color
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Element Reference -&gt; Maybe Color
+forall r. Element r -&gt; Maybe Color
+</span><span class="hs-identifier hs-var">CT.defaultColors</span></span><span> </span><span class="annot"><span class="annottext">(Element Reference -&gt; Maybe Color)
+-&gt; (Element -&gt; Element Reference) -&gt; Element -&gt; Maybe Color
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Element -&gt; Element Reference
+</span><a href="Unison.Server.Doc.Console.html#elementForColor"><span class="hs-identifier hs-var">elementForColor</span></a></span><span>
+</span><span id="line-161"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223807"><span class="hs-identifier hs-var">soFar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; [Text]
+Text -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.splitOn</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223808"><span class="hs-identifier hs-var">text</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-162"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621680223814"><span class="annot"><span class="annottext">[(Text, Maybe Color)]
+</span><a href="#local-6989586621680223814"><span class="hs-identifier hs-var">cur</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680223815"><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223815"><span class="hs-identifier hs-var">done</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680223816"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223816"><span class="hs-identifier hs-var">first</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680223817"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621680223817"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-163"></span><span>                  </span><span class="annot"><span class="annottext">([[(Text, Maybe Color)]] -&gt; Text -&gt; [[(Text, Maybe Color)]])
+-&gt; [[(Text, Maybe Color)]] -&gt; [Text] -&gt; [[(Text, Maybe Color)]]
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680223818"><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223818"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621680223819"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223819"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223819"><span class="hs-identifier hs-var">line</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Color
+</span><a href="#local-6989586621680223810"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[(Text, Maybe Color)]
+-&gt; [[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223818"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223816"><span class="hs-identifier hs-var">first</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Color
+</span><a href="#local-6989586621680223810"><span class="hs-identifier hs-var">color</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text, Maybe Color)
+-&gt; [(Text, Maybe Color)] -&gt; [(Text, Maybe Color)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[(Text, Maybe Color)]
+</span><a href="#local-6989586621680223814"><span class="hs-identifier hs-var">cur</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(Text, Maybe Color)]
+-&gt; [[(Text, Maybe Color)]] -&gt; [[(Text, Maybe Color)]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223815"><span class="hs-identifier hs-var">done</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621680223817"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-164"></span><span>                </span><span class="annot"><span class="annottext">([[(Text, Maybe Color)]], [Text])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[(Text, Maybe Color)]]
+</span><a href="#local-6989586621680223807"><span class="hs-identifier hs-var">soFar</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="annot"><span class="hs-comment">-- | The server's syntax elements say what they are, which is all the colors need (not what they refer to).</span></span><span>
+</span><span id="line-167"></span><span class="annot"><a href="Unison.Server.Doc.Console.html#elementForColor"><span class="hs-identifier hs-type">elementForColor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Server.Syntax.html#Element"><span class="hs-identifier hs-type">Server.Element</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST.Element</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference.Reference</span></span><span>
+</span><span id="line-168"></span><span id="elementForColor"><span class="annot"><span class="annottext">elementForColor :: Element -&gt; Element Reference
+</span><a href="Unison.Server.Doc.Console.html#elementForColor"><span class="hs-identifier hs-var hs-var">elementForColor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#NumericLiteral"><span class="hs-identifier hs-var">Server.NumericLiteral</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.NumericLiteral</span></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#TextLiteral"><span class="hs-identifier hs-var">Server.TextLiteral</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.TextLiteral</span></span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#BytesLiteral"><span class="hs-identifier hs-var">Server.BytesLiteral</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.BytesLiteral</span></span><span>
+</span><span id="line-172"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#CharLiteral"><span class="hs-identifier hs-var">Server.CharLiteral</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.CharLiteral</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#BooleanLiteral"><span class="hs-identifier hs-var">Server.BooleanLiteral</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.BooleanLiteral</span></span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#Blank"><span class="hs-identifier hs-var">Server.Blank</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.Blank</span></span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#Var"><span class="hs-identifier hs-var">Server.Var</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.Var</span></span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#TypeReference"><span class="hs-identifier hs-type">Server.TypeReference</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Name -&gt; Reference -&gt; Element Reference
+forall r. Maybe Name -&gt; r -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.TypeReference</span></span><span> </span><span class="annot"><span class="annottext">Maybe Name
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Reference
+forall {h}. Reference' Text h
+</span><a href="#local-6989586621680223836"><span class="hs-identifier hs-var">dummy</span></a></span><span>
+</span><span id="line-177"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#DataConstructorReference"><span class="hs-identifier hs-type">Server.DataConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Name -&gt; Referent' Reference -&gt; Element Reference
+forall r. Maybe Name -&gt; Referent' r -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.TermReference</span></span><span> </span><span class="annot"><span class="annottext">Maybe Name
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference -&gt; Referent' Reference
+</span><span class="hs-identifier hs-var">Referent.Ref</span></span><span> </span><span class="annot"><span class="annottext">Reference
+forall {h}. Reference' Text h
+</span><a href="#local-6989586621680223836"><span class="hs-identifier hs-var">dummy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#AbilityConstructorReference"><span class="hs-identifier hs-type">Server.AbilityConstructorReference</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Name -&gt; Referent' Reference -&gt; Element Reference
+forall r. Maybe Name -&gt; Referent' r -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.TermReference</span></span><span> </span><span class="annot"><span class="annottext">Maybe Name
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference -&gt; Referent' Reference
+</span><span class="hs-identifier hs-var">Referent.Ref</span></span><span> </span><span class="annot"><span class="annottext">Reference
+forall {h}. Reference' Text h
+</span><a href="#local-6989586621680223836"><span class="hs-identifier hs-var">dummy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#TermReference"><span class="hs-identifier hs-type">Server.TermReference</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Name -&gt; Referent' Reference -&gt; Element Reference
+forall r. Maybe Name -&gt; Referent' r -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.TermReference</span></span><span> </span><span class="annot"><span class="annottext">Maybe Name
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference -&gt; Referent' Reference
+</span><span class="hs-identifier hs-var">Referent.Ref</span></span><span> </span><span class="annot"><span class="annottext">Reference
+forall {h}. Reference' Text h
+</span><a href="#local-6989586621680223836"><span class="hs-identifier hs-var">dummy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#Op"><span class="hs-identifier hs-type">Server.Op</span></a></span><span> </span><span id="local-6989586621680223843"><span class="annot"><span class="annottext">SeqOp
+</span><a href="#local-6989586621680223843"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SeqOp -&gt; Element Reference
+forall r. SeqOp -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.Op</span></span><span> </span><span class="annot"><span class="annottext">SeqOp
+</span><a href="#local-6989586621680223843"><span class="hs-identifier hs-var">op</span></a></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#AbilityBraces"><span class="hs-identifier hs-var">Server.AbilityBraces</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.AbilityBraces</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#ControlKeyword"><span class="hs-identifier hs-var">Server.ControlKeyword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.ControlKeyword</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#TypeOperator"><span class="hs-identifier hs-var">Server.TypeOperator</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.TypeOperator</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#BindingEquals"><span class="hs-identifier hs-var">Server.BindingEquals</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.BindingEquals</span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#TypeAscriptionColon"><span class="hs-identifier hs-var">Server.TypeAscriptionColon</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.TypeAscriptionColon</span></span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DataTypeKeyword"><span class="hs-identifier hs-var">Server.DataTypeKeyword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DataTypeKeyword</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DataTypeParams"><span class="hs-identifier hs-var">Server.DataTypeParams</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DataTypeParams</span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#Unit"><span class="hs-identifier hs-var">Server.Unit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.Unit</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DataTypeModifier"><span class="hs-identifier hs-var">Server.DataTypeModifier</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DataTypeModifier</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#UseKeyword"><span class="hs-identifier hs-var">Server.UseKeyword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.UseKeyword</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#UsePrefix"><span class="hs-identifier hs-var">Server.UsePrefix</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.UsePrefix</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#UseSuffix"><span class="hs-identifier hs-var">Server.UseSuffix</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.UseSuffix</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#HashQualifier"><span class="hs-identifier hs-type">Server.HashQualifier</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HashQualified Name -&gt; Element Reference
+forall r. HashQualified Name -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.HashQualifier</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; HashQualified Name
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ.NameOnly</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Name
+Text -&gt; Name
+</span><span class="hs-identifier hs-var">Name.unsafeParseText</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;x&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DelayForceChar"><span class="hs-identifier hs-var">Server.DelayForceChar</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DelayForceChar</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DelimiterChar"><span class="hs-identifier hs-var">Server.DelimiterChar</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DelimiterChar</span></span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#Parenthesis"><span class="hs-identifier hs-var">Server.Parenthesis</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.Parenthesis</span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#LinkKeyword"><span class="hs-identifier hs-var">Server.LinkKeyword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.LinkKeyword</span></span><span>
+</span><span id="line-198"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DocDelimiter"><span class="hs-identifier hs-var">Server.DocDelimiter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DocDelimiter</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#DocKeyword"><span class="hs-identifier hs-var">Server.DocKeyword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.DocKeyword</span></span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><a href="Unison.Server.Syntax.html#RecordFieldName"><span class="hs-identifier hs-type">Server.RecordFieldName</span></a></span><span> </span><span id="local-6989586621680223886"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223886"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Element Reference
+forall r. Text -&gt; Element r
+</span><span class="hs-identifier hs-var">ST.RecordFieldName</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680223886"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-201"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#RecordFieldValueColon"><span class="hs-identifier hs-var">Server.RecordFieldValueColon</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.RecordFieldValueColon</span></span><span>
+</span><span id="line-202"></span><span>  </span><span class="annot"><span class="annottext">Element
+</span><a href="Unison.Server.Syntax.html#RecordExtraFields"><span class="hs-identifier hs-var">Server.RecordExtraFields</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Element Reference
+forall r. Element r
+</span><span class="hs-identifier hs-var">ST.RecordExtraFields</span></span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-204"></span><span>    </span><span id="local-6989586621680223836"><span class="annot"><span class="annottext">dummy :: Reference' Text h
+</span><a href="#local-6989586621680223836"><span class="hs-identifier hs-var hs-var">dummy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Reference' Text h
+forall t h. t -&gt; Reference' t h
+</span><span class="hs-identifier hs-var">Reference.Builtin</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-205"></span></pre></body></html>

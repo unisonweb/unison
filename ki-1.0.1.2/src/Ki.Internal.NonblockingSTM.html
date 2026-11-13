@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | STM minus retry. These STM actions are guaranteed not to block, and thus guaranteed not to be interrupted by an</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- async exception.</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html"><span class="hs-identifier">Ki.Internal.NonblockingSTM</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier">NonblockingSTM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingAtomically"><span class="hs-identifier">nonblockingAtomically</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingThrowSTM"><span class="hs-identifier">nonblockingThrowSTM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-comment">-- * TVar</span></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingReadTVar"><span class="hs-identifier">nonblockingReadTVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingWriteTVar%27"><span class="hs-identifier">nonblockingWriteTVar'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">STM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">atomically</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readTVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwSTM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeTVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">newtype</span><span> </span><span id="NonblockingSTM"><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-var">NonblockingSTM</span></a></span></span><span> </span><span id="local-6989586621679052976"><span class="annot"><a href="#local-6989586621679052976"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NonblockingSTM"><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-var">NonblockingSTM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679052976"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679052991"><span id="local-6989586621679052996"><span id="local-6989586621679053000"><span id="local-6989586621679053004"><span id="local-6989586621679053008"><span class="annot"><span class="annottext">Functor NonblockingSTM
+Functor NonblockingSTM =&gt;
+(forall a. a -&gt; NonblockingSTM a)
+-&gt; (forall a b.
+    NonblockingSTM (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b)
+-&gt; (forall a b c.
+    (a -&gt; b -&gt; c)
+    -&gt; NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM c)
+-&gt; (forall a b.
+    NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b)
+-&gt; (forall a b.
+    NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM a)
+-&gt; Applicative NonblockingSTM
+forall a. a -&gt; NonblockingSTM a
+forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+forall a b.
+NonblockingSTM (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM c
+forall (f :: * -&gt; *).
+Functor f =&gt;
+(forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+$cpure :: forall a. a -&gt; NonblockingSTM a
+pure :: forall a. a -&gt; NonblockingSTM a
+$c&lt;*&gt; :: forall a b.
+NonblockingSTM (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+&lt;*&gt; :: forall a b.
+NonblockingSTM (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+$cliftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM c
+liftA2 :: forall a b c.
+(a -&gt; b -&gt; c)
+-&gt; NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM c
+$c*&gt; :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+*&gt; :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+$c&lt;* :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+&lt;* :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679053016"><span id="local-6989586621679053021"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b)
+-&gt; (forall a b. a -&gt; NonblockingSTM b -&gt; NonblockingSTM a)
+-&gt; Functor NonblockingSTM
+forall a b. a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+forall a b. (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+fmap :: forall a b. (a -&gt; b) -&gt; NonblockingSTM a -&gt; NonblockingSTM b
+$c&lt;$ :: forall a b. a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+&lt;$ :: forall a b. a -&gt; NonblockingSTM b -&gt; NonblockingSTM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679053029"><span id="local-6989586621679053034"><span id="local-6989586621679053038"><span class="annot"><span class="annottext">Applicative NonblockingSTM
+Applicative NonblockingSTM =&gt;
+(forall a b.
+ NonblockingSTM a -&gt; (a -&gt; NonblockingSTM b) -&gt; NonblockingSTM b)
+-&gt; (forall a b.
+    NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b)
+-&gt; (forall a. a -&gt; NonblockingSTM a)
+-&gt; Monad NonblockingSTM
+forall a. a -&gt; NonblockingSTM a
+forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+forall a b.
+NonblockingSTM a -&gt; (a -&gt; NonblockingSTM b) -&gt; NonblockingSTM b
+forall (m :: * -&gt; *).
+Applicative m =&gt;
+(forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+$c&gt;&gt;= :: forall a b.
+NonblockingSTM a -&gt; (a -&gt; NonblockingSTM b) -&gt; NonblockingSTM b
+&gt;&gt;= :: forall a b.
+NonblockingSTM a -&gt; (a -&gt; NonblockingSTM b) -&gt; NonblockingSTM b
+$c&gt;&gt; :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+&gt;&gt; :: forall a b.
+NonblockingSTM a -&gt; NonblockingSTM b -&gt; NonblockingSTM b
+$creturn :: forall a. a -&gt; NonblockingSTM a
+return :: forall a. a -&gt; NonblockingSTM a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingAtomically"><span class="hs-identifier hs-type">nonblockingAtomically</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679052960"><span class="annot"><a href="#local-6989586621679052960"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-type">NonblockingSTM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679052960"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-23"></span><span id="nonblockingAtomically"><span class="annot"><span class="annottext">nonblockingAtomically :: forall a. NonblockingSTM a -&gt; IO a
+</span><a href="Ki.Internal.NonblockingSTM.html#nonblockingAtomically"><span class="hs-identifier hs-var hs-var">nonblockingAtomically</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="annottext">forall a b. Coercible a b =&gt; a -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679052960"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679052960"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">STM a -&gt; IO a
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingThrowSTM"><span class="hs-identifier hs-type">nonblockingThrowSTM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679052963"><span class="annot"><a href="#local-6989586621679052963"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679052965"><span class="annot"><a href="#local-6989586621679052965"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679052963"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052963"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-type">NonblockingSTM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052965"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-27"></span><span id="nonblockingThrowSTM"><span class="annot"><span class="annottext">nonblockingThrowSTM :: forall e x. Exception e =&gt; e -&gt; NonblockingSTM x
+</span><a href="Ki.Internal.NonblockingSTM.html#nonblockingThrowSTM"><span class="hs-identifier hs-var hs-var">nonblockingThrowSTM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="annottext">forall a b. Coercible a b =&gt; a -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679052963"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679052965"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">e -&gt; STM x
+forall e a. Exception e =&gt; e -&gt; STM a
+</span><span class="hs-identifier hs-var">throwSTM</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingReadTVar"><span class="hs-identifier hs-type">nonblockingReadTVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679052970"><span class="annot"><a href="#local-6989586621679052970"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679052970"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-type">NonblockingSTM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052970"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-31"></span><span id="nonblockingReadTVar"><span class="annot"><span class="annottext">nonblockingReadTVar :: forall a. TVar a -&gt; NonblockingSTM a
+</span><a href="Ki.Internal.NonblockingSTM.html#nonblockingReadTVar"><span class="hs-identifier hs-var hs-var">nonblockingReadTVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="annottext">forall a b. Coercible a b =&gt; a -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679052970"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679052970"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">TVar a -&gt; STM a
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#nonblockingWriteTVar%27"><span class="hs-identifier hs-type">nonblockingWriteTVar'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679052974"><span class="annot"><a href="#local-6989586621679052974"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679052974"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052974"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-type">NonblockingSTM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span id="nonblockingWriteTVar%27"><span class="annot"><span class="annottext">nonblockingWriteTVar' :: forall a. TVar a -&gt; a -&gt; NonblockingSTM ()
+</span><a href="Ki.Internal.NonblockingSTM.html#nonblockingWriteTVar%27"><span class="hs-identifier hs-var hs-var">nonblockingWriteTVar'</span></a></span></span><span> </span><span id="local-6989586621679053048"><span class="annot"><span class="annottext">TVar a
+</span><a href="#local-6989586621679053048"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679053049"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679053049"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">STM () -&gt; NonblockingSTM ()
+forall a. STM a -&gt; NonblockingSTM a
+</span><a href="Ki.Internal.NonblockingSTM.html#NonblockingSTM"><span class="hs-identifier hs-var">NonblockingSTM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar a -&gt; a -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar a
+</span><a href="#local-6989586621679053048"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679053049"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span></pre></body></html>

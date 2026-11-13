@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Types.Unique.MemoFun.html"><span class="hs-identifier">GHC.Types.Unique.MemoFun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.MemoFun.html#memoiseUniqueFun"><span class="hs-identifier">memoiseUniqueFun</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html"><span class="hs-identifier">GHC.Types.Unique.FM</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.IORef.html"><span class="hs-identifier">Data.IORef</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.Unsafe.html"><span class="hs-identifier">System.IO.Unsafe</span></a></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span id="local-6989586621682353440"><span id="local-6989586621682353442"><span class="annot"><a href="GHC.Types.Unique.MemoFun.html#memoiseUniqueFun"><span class="hs-identifier hs-type">memoiseUniqueFun</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682353440"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682353440"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682353442"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682353440"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682353442"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-11"></span><span id="memoiseUniqueFun"><span class="annot"><span class="annottext">memoiseUniqueFun :: forall k a. Uniquable k =&gt; (k -&gt; a) -&gt; k -&gt; a
+</span><a href="GHC.Types.Unique.MemoFun.html#memoiseUniqueFun"><span class="hs-identifier hs-var hs-var">memoiseUniqueFun</span></a></span></span><span> </span><span id="local-6989586621682353475"><span class="annot"><span class="annottext">k -&gt; a
+</span><a href="#local-6989586621682353475"><span class="hs-identifier hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (k -&gt; a) -&gt; k -&gt; a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (k -&gt; a) -&gt; k -&gt; a) -&gt; IO (k -&gt; a) -&gt; k -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-12"></span><span>  </span><span id="local-6989586621682353477"><span class="annot"><a href="#local-6989586621682353477"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UniqFM k a -&gt; IO (IORef (UniqFM k a))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">UniqFM k a
+forall {k} (key :: k) elt. UniqFM key elt
+</span><a href="GHC.Types.Unique.FM.html#emptyUFM"><span class="hs-identifier hs-var">emptyUFM</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682353480"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621682353480"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; a) -&gt; IO a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-14"></span><span>    </span><span id="local-6989586621682353481"><span class="annot"><a href="#local-6989586621682353481"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (UniqFM k a) -&gt; IO (UniqFM k a)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (UniqFM k a)
+</span><a href="#local-6989586621682353477"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html#lookupUFM"><span class="hs-identifier hs-type">lookupUFM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682353481"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682353480"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-16"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682353484"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682353484"><span class="hs-identifier hs-var">a</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682353484"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-17"></span><span>      </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-18"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621682353485"><span class="annot"><span class="annottext">a :: a
+</span><a href="#local-6989586621682353485"><span class="hs-identifier hs-var hs-var hs-var">a</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; a
+</span><a href="#local-6989586621682353475"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621682353480"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-19"></span><span>            </span><span class="hs-glyph">!</span><span id="local-6989586621682353486"><span class="annot"><span class="annottext">m' :: UniqFM k a
+</span><a href="#local-6989586621682353486"><span class="hs-identifier hs-var hs-var hs-var">m'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UniqFM k a -&gt; k -&gt; a -&gt; UniqFM k a
+forall key elt.
+Uniquable key =&gt;
+UniqFM key elt -&gt; key -&gt; elt -&gt; UniqFM key elt
+</span><a href="GHC.Types.Unique.FM.html#addToUFM"><span class="hs-identifier hs-var">addToUFM</span></a></span><span> </span><span class="annot"><span class="annottext">UniqFM k a
+</span><a href="#local-6989586621682353481"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621682353480"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682353485"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-20"></span><span>        </span><span class="annot"><span class="annottext">IORef (UniqFM k a) -&gt; UniqFM k a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (UniqFM k a)
+</span><a href="#local-6989586621682353477"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">UniqFM k a
+</span><a href="#local-6989586621682353486"><span class="hs-identifier hs-var">m'</span></a></span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682353485"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-22"></span></pre></body></html>

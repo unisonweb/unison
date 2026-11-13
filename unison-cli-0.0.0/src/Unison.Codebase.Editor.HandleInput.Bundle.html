@@ -1,0 +1,580 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | The `bundle` command: like `compile`, but a self-contained executable,</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- unisonrt with the program in it (Unison.Runtime.Bundle,</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- unison-runtime/unisonrt/README.md). Releases ship unisonrt minified, so</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- bundles are too.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html"><span class="hs-identifier">Unison.Codebase.Editor.HandleInput.Bundle</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#handleBundle"><span class="hs-identifier">handleBundle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleProblem"><span class="hs-identifier">BundleProblem</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleFromCodebase"><span class="hs-identifier">bundleFromCodebase</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">displayException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ExceptT</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runExceptT</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">doesFileExist</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">findExecutable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Environment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getExecutablePath</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">lookupEnv</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">takeDirectory</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;/&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Temp</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withSystemTempDirectory</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Info</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">os</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Process</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">readProcessWithExitCode</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.Project</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Project</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.ProjectBranch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ProjectBranch</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Sqlite.Queries</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Q</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Codebase</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Branch.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Branch</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html"><span class="hs-identifier">Unison.Codebase.Editor.Output</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#Output"><span class="hs-identifier">Output</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#BundleFailed"><span class="hs-identifier">BundleFailed</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.Output.html#BundleWritten"><span class="hs-identifier">BundleWritten</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Execute</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codebase</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">codebaseToCodeLookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.MainTerm</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MainTerm</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Path</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Path</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.ProjectPath</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PP</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Codebase.Runtime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Runtime</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualified</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Runtime</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Error</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Runtime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Runtime.Bundle</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">writeBundle</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Runtime.Version</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">runtimeVersion</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Symbol</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SyntaxName</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">tryAny</span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Writes the bundle, given how to compile the program to a .uc file</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- (the `compile` command's own code).</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#handleBundle"><span class="hs-identifier hs-type">handleBundle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HQ.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span id="handleBundle"><span class="annot"><span class="annottext">handleBundle :: (FilePath -&gt; HashQualified Name -&gt; Cli ())
+-&gt; FilePath -&gt; HashQualified Name -&gt; Cli ()
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#handleBundle"><span class="hs-identifier hs-var hs-var">handleBundle</span></a></span></span><span> </span><span id="local-6989586621681627750"><span class="annot"><span class="annottext">FilePath -&gt; HashQualified Name -&gt; Cli ()
+</span><a href="#local-6989586621681627750"><span class="hs-identifier hs-var">compile</span></a></span></span><span> </span><span id="local-6989586621681627751"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627751"><span class="hs-identifier hs-var">output</span></a></span></span><span> </span><span id="local-6989586621681627752"><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621681627752"><span class="hs-identifier hs-var">main</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621681627753"><span class="annot"><a href="#local-6989586621681627753"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli FilePath
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleRuntime"><span class="hs-identifier hs-var">bundleRuntime</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621681627755"><span class="annot"><a href="#local-6989586621681627755"><span class="hs-identifier hs-var">program</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681627756"><span class="hs-identifier hs-type">withTempDirectory</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681627757"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627757"><span class="hs-identifier hs-var">dir</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="annottext">FilePath -&gt; HashQualified Name -&gt; Cli ()
+</span><a href="#local-6989586621681627750"><span class="hs-identifier hs-var">compile</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627757"><span class="hs-identifier hs-var">dir</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;program&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashQualified Name
+</span><a href="#local-6989586621681627752"><span class="hs-identifier hs-var">main</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">IO ByteString -&gt; Cli ByteString
+forall a. IO a -&gt; Cli a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">B.readFile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627757"><span class="hs-identifier hs-var">dir</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;program.uc&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">writeBundle</span></span><span> </span><span class="annot"><a href="#local-6989586621681627753"><span class="hs-identifier hs-type">runtime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627755"><span class="hs-identifier hs-type">program</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627751"><span class="hs-identifier hs-type">output</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681627760"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627760"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#BundleFailed"><span class="hs-identifier hs-var">BundleFailed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627760"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681627763"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627763"><span class="hs-identifier hs-var">written</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Output -&gt; Cli ()
+</span><a href="Unison.Cli.Monad.html#respond"><span class="hs-identifier hs-var">Cli.respond</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#BundleWritten"><span class="hs-identifier hs-var">BundleWritten</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627763"><span class="hs-identifier hs-var">written</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621681627479"><span class="annot"><a href="#local-6989586621681627756"><span class="hs-identifier hs-type">withTempDirectory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627479"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627479"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621681627756"><span class="annot"><span class="annottext">withTempDirectory :: forall a. (FilePath -&gt; Cli a) -&gt; Cli a
+</span><a href="#local-6989586621681627756"><span class="hs-identifier hs-var hs-var">withTempDirectory</span></a></span></span><span> </span><span id="local-6989586621681627765"><span class="annot"><span class="annottext">FilePath -&gt; Cli a
+</span><a href="#local-6989586621681627765"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall x. (FilePath -&gt; IO x) -&gt; IO x)
+-&gt; (FilePath -&gt; Cli a) -&gt; Cli a
+forall a b.
+(forall x. (a -&gt; IO x) -&gt; IO x) -&gt; (a -&gt; Cli b) -&gt; Cli b
+</span><a href="Unison.Cli.Monad.html#with"><span class="hs-identifier hs-var">Cli.with</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; (FilePath -&gt; IO x) -&gt; IO x
+forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+FilePath -&gt; (FilePath -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">withSystemTempDirectory</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;ucm-bundle&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Cli a
+</span><a href="#local-6989586621681627765"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | The unisonrt a bundle starts from, of this ucm's runtime version. A</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- release ships it minified next to ucm, so it is used as it is (a</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- development build's is the whole runtime, and so are its bundles).</span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleRuntime"><span class="hs-identifier hs-type">bundleRuntime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span>
+</span><span id="line-69"></span><span id="bundleRuntime"><span class="annot"><span class="annottext">bundleRuntime :: Cli FilePath
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleRuntime"><span class="hs-identifier hs-var hs-var">bundleRuntime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Either Text FilePath) -&gt; Cli (Either Text FilePath)
+forall a. IO a -&gt; Cli a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO (Either Text FilePath)
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#locateRuntime"><span class="hs-identifier hs-var">locateRuntime</span></a></span><span> </span><span class="annot"><span class="annottext">Cli (Either Text FilePath)
+-&gt; (Either Text FilePath -&gt; Cli FilePath) -&gt; Cli FilePath
+forall a b. Cli a -&gt; (a -&gt; Cli b) -&gt; Cli b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Cli FilePath)
+-&gt; (FilePath -&gt; Cli FilePath)
+-&gt; Either Text FilePath
+-&gt; Cli FilePath
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Output -&gt; Cli FilePath
+forall a. Output -&gt; Cli a
+</span><a href="Unison.Cli.Monad.html#returnEarly"><span class="hs-identifier hs-var">Cli.returnEarly</span></a></span><span> </span><span class="annot"><span class="annottext">(Output -&gt; Cli FilePath)
+-&gt; (Text -&gt; Output) -&gt; Text -&gt; Cli FilePath
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Output
+</span><a href="Unison.Codebase.Editor.Output.html#BundleFailed"><span class="hs-identifier hs-var">BundleFailed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Cli FilePath
+forall a. a -&gt; Cli a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#locateRuntime"><span class="hs-identifier hs-type">locateRuntime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span id="locateRuntime"><span class="annot"><span class="annottext">locateRuntime :: IO (Either Text FilePath)
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#locateRuntime"><span class="hs-identifier hs-var hs-var">locateRuntime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT Text IO FilePath -&gt; IO (Either Text FilePath)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621681627772"><span class="annot"><a href="#local-6989586621681627772"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Either Text FilePath) -&gt; ExceptT Text IO FilePath
+forall e (m :: * -&gt; *) a. m (Either e a) -&gt; ExceptT e m a
+</span><span class="hs-identifier hs-var">ExceptT</span></span><span> </span><span class="annot"><span class="annottext">IO (Either Text FilePath)
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#findRuntime"><span class="hs-identifier hs-var">findRuntime</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#checkVersion"><span class="hs-identifier hs-type">checkVersion</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627772"><span class="hs-identifier hs-type">runtime</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681627772"><span class="hs-identifier hs-type">runtime</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">data</span><span> </span><span id="BundleProblem"><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleProblem"><span class="hs-identifier hs-var">BundleProblem</span></a></span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="BundleProblem"><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleProblem"><span class="hs-identifier hs-var">BundleProblem</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | compiling the program failed</span></span><span>
+</span><span id="line-80"></span><span>    </span><span id="BundleCompileError"><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleCompileError"><span class="hs-identifier hs-var">BundleCompileError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | `ucm bundle project/branch:path.to.main OUTPUT`: the bundle command,</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- without the interactive loop.</span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleFromCodebase"><span class="hs-identifier hs-type">bundleFromCodebase</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Codebase</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Runtime</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PP.ProjectPathNames</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleProblem"><span class="hs-identifier hs-type">BundleProblem</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span id="bundleFromCodebase"><span class="annot"><span class="annottext">bundleFromCodebase :: Codebase IO Symbol Ann
+-&gt; Runtime Symbol
+-&gt; ProjectPathNames
+-&gt; FilePath
+-&gt; IO (Either BundleProblem FilePath)
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#bundleFromCodebase"><span class="hs-identifier hs-var hs-var">bundleFromCodebase</span></a></span></span><span> </span><span id="local-6989586621681627778"><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681627778"><span class="hs-identifier hs-var">codebase</span></a></span></span><span> </span><span id="local-6989586621681627779"><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681627779"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span id="local-6989586621681627780"><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span></span><span> </span><span id="local-6989586621681627781"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627781"><span class="hs-identifier hs-var">output</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT BundleProblem IO FilePath
+-&gt; IO (Either BundleProblem FilePath)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681627788"><span class="annot"><span class="annottext">problem :: Text -&gt; ExceptT BundleProblem IO a
+</span><a href="#local-6989586621681627788"><span class="hs-identifier hs-var hs-var hs-var">problem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BundleProblem -&gt; ExceptT BundleProblem IO a
+forall a. BundleProblem -&gt; ExceptT BundleProblem IO a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">(BundleProblem -&gt; ExceptT BundleProblem IO a)
+-&gt; (Text -&gt; BundleProblem) -&gt; Text -&gt; ExceptT BundleProblem IO a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; BundleProblem
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleProblem"><span class="hs-identifier hs-var">BundleProblem</span></a></span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621681627789"><span class="annot"><a href="#local-6989586621681627789"><span class="hs-identifier hs-var">ids</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><span class="annottext">IO (Either Text (ProjectId, ProjectBranchId))
+-&gt; ExceptT
+     BundleProblem IO (Either Text (ProjectId, ProjectBranchId))
+forall a. IO a -&gt; ExceptT BundleProblem IO a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Either Text (ProjectId, ProjectBranchId))
+ -&gt; ExceptT
+      BundleProblem IO (Either Text (ProjectId, ProjectBranchId)))
+-&gt; (Transaction (Either Text (ProjectId, ProjectBranchId))
+    -&gt; IO (Either Text (ProjectId, ProjectBranchId)))
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+-&gt; ExceptT
+     BundleProblem IO (Either Text (ProjectId, ProjectBranchId))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+-&gt; IO (Either Text (ProjectId, ProjectBranchId))
+forall (m :: * -&gt; *) v a b.
+MonadIO m =&gt;
+Codebase m v a -&gt; Transaction b -&gt; m b
+</span><span class="hs-identifier hs-var">Codebase.runTransaction</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681627778"><span class="hs-identifier hs-var">codebase</span></a></span><span> </span><span class="annot"><span class="annottext">(Transaction (Either Text (ProjectId, ProjectBranchId))
+ -&gt; ExceptT
+      BundleProblem IO (Either Text (ProjectId, ProjectBranchId)))
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+-&gt; ExceptT
+     BundleProblem IO (Either Text (ProjectId, ProjectBranchId))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-89"></span><span>      </span><span class="annot"><span class="annottext">ProjectName -&gt; Transaction (Maybe Project)
+</span><span class="hs-identifier hs-var">Q.loadProjectByName</span></span><span> </span><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span> </span><span class="annot"><span class="annottext">Transaction (Maybe Project)
+-&gt; (Maybe Project
+    -&gt; Transaction (Either Text (ProjectId, ProjectBranchId)))
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+forall a b. Transaction a -&gt; (a -&gt; Transaction b) -&gt; Transaction b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">Maybe Project
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either Text (ProjectId, ProjectBranchId)
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+forall a. a -&gt; Transaction a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Either Text (ProjectId, ProjectBranchId)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I couldn't find the project &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681627793"><span class="annot"><span class="annottext">Project
+</span><a href="#local-6989586621681627793"><span class="hs-identifier hs-var">project</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-92"></span><span>          </span><span class="annot"><span class="annottext">ProjectId -&gt; ProjectBranchName -&gt; Transaction (Maybe ProjectBranch)
+</span><span class="hs-identifier hs-var">Q.loadProjectBranchByName</span></span><span> </span><span class="annot"><span class="annottext">Project
+</span><a href="#local-6989586621681627793"><span class="hs-identifier hs-var">project</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span> </span><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span> </span><span class="annot"><span class="annottext">Transaction (Maybe ProjectBranch)
+-&gt; (Maybe ProjectBranch
+    -&gt; Either Text (ProjectId, ProjectBranchId))
+-&gt; Transaction (Either Text (ProjectId, ProjectBranchId))
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-93"></span><span>            </span><span class="annot"><span class="annottext">Maybe ProjectBranch
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text (ProjectId, ProjectBranchId)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I couldn't find the branch &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branch</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; of &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall target source. From source target =&gt; source -&gt; target
+</span><span class="hs-identifier hs-var">into</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="annottext">ProjectPathNames
+</span><a href="#local-6989586621681627780"><span class="hs-identifier hs-var">mainPath</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">project</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681627796"><span class="annot"><span class="annottext">ProjectBranch
+</span><a href="#local-6989586621681627796"><span class="hs-identifier hs-var">branch</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(ProjectId, ProjectBranchId)
+-&gt; Either Text (ProjectId, ProjectBranchId)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Project
+</span><a href="#local-6989586621681627793"><span class="hs-identifier hs-var">project</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">projectId</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ProjectBranch
+</span><a href="#local-6989586621681627796"><span class="hs-identifier hs-var">branch</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">branchId</span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621681627797"><span class="annot"><a href="#local-6989586621681627797"><span class="hs-identifier hs-var">projectId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681627798"><span class="annot"><a href="#local-6989586621681627798"><span class="hs-identifier hs-var">branchId</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">either</span></span><span> </span><span class="annot"><a href="#local-6989586621681627788"><span class="hs-identifier hs-type">problem</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621681627789"><span class="hs-identifier hs-type">ids</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621681627799"><span class="annot"><a href="#local-6989586621681627799"><span class="hs-identifier hs-var">mainName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681627788"><span class="hs-identifier hs-type">problem</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;The path has to lead to a definition, as in project/branch:path.to.main.&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Path.toName</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PP.path</span></span><span> </span><span class="annot"><a href="#local-6989586621681627780"><span class="hs-identifier hs-type">mainPath</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621681627803"><span class="annot"><a href="#local-6989586621681627803"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Branch.toNames</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Branch.head</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Codebase.expectProjectBranchRoot</span></span><span> </span><span class="annot"><a href="#local-6989586621681627778"><span class="hs-identifier hs-type">codebase</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627797"><span class="hs-identifier hs-type">projectId</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627798"><span class="hs-identifier hs-type">branchId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621681627808"><span class="annot"><a href="#local-6989586621681627808"><span class="hs-identifier hs-var">main</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-100"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">MainTerm.getMainTerm</span></span><span>
+</span><span id="line-101"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Codebase.runTransaction</span></span><span> </span><span class="annot"><a href="#local-6989586621681627778"><span class="hs-identifier hs-type">codebase</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Codebase.getTypeOfTerm</span></span><span> </span><span class="annot"><a href="#local-6989586621681627778"><span class="hs-identifier hs-type">codebase</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><a href="#local-6989586621681627803"><span class="hs-identifier hs-type">names</span></a></span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ.NameOnly</span></span><span> </span><span class="annot"><a href="#local-6989586621681627799"><span class="hs-identifier hs-type">mainName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">Runtime.mainType</span></span><span> </span><span class="annot"><a href="#local-6989586621681627779"><span class="hs-identifier hs-type">runtime</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621681627813"><span class="annot"><a href="#local-6989586621681627813"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681627808"><span class="hs-identifier hs-type">main</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MainTerm.Success</span></span><span> </span><span class="annot"><span class="annottext">HashQualified Name
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681627815"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681627815"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">Term Symbol Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type Symbol Ann
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; ExceptT BundleProblem IO Reference
+forall a. a -&gt; ExceptT BundleProblem IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681627815"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="annottext">MainTerm Symbol
+</span><span class="hs-identifier hs-var">MainTerm.NotFound</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT BundleProblem IO Reference
+forall {a}. Text -&gt; ExceptT BundleProblem IO a
+</span><a href="#local-6989586621681627788"><span class="hs-identifier hs-var">problem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I couldn't find &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">SyntaxName.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681627799"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MainTerm.BadType</span></span><span> </span><span class="annot"><span class="annottext">[(HashQualified Name, Reference, Type Symbol Ann)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT BundleProblem IO Reference
+forall {a}. Text -&gt; ExceptT BundleProblem IO a
+</span><a href="#local-6989586621681627788"><span class="hs-identifier hs-var">problem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">SyntaxName.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681627799"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; has to have the type '{IO, Exception} ().&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MainTerm.Ambiguous</span></span><span> </span><span class="annot"><span class="annottext">[(HashQualified Name, Reference, Type Symbol Ann)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ExceptT BundleProblem IO Reference
+forall {a}. Text -&gt; ExceptT BundleProblem IO a
+</span><a href="#local-6989586621681627788"><span class="hs-identifier hs-var">problem</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; Text
+</span><span class="hs-identifier hs-var">SyntaxName.toText</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621681627799"><span class="hs-identifier hs-var">mainName</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; names more than one definition.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>  </span><span id="local-6989586621681627820"><span class="annot"><a href="#local-6989586621681627820"><span class="hs-identifier hs-var">rtFile</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#locateRuntime"><span class="hs-identifier hs-type">locateRuntime</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">either</span></span><span> </span><span class="annot"><a href="#local-6989586621681627788"><span class="hs-identifier hs-type">problem</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681627821"><span class="annot"><a href="#local-6989586621681627821"><span class="hs-identifier hs-var hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">PPED.makePPED</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Names -&gt; Namer
+</span><span class="hs-identifier hs-var">PPE.hqNamer</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681627803"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Suffixifier
+</span><span class="hs-identifier hs-var">PPE.suffixifyByHash</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621681627803"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-operator">.</span><span class="hs-identifier">suffixifiedPPE</span><span>
+</span><span id="line-112"></span><span>      </span><span id="local-6989586621681627825"><span class="annot"><a href="#local-6989586621681627825"><span class="hs-identifier hs-var hs-var">codeLookup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">() -&gt; CodeLookup Symbol IO Ann -&gt; CodeLookup Symbol IO ()
+forall a b. a -&gt; CodeLookup Symbol IO b -&gt; CodeLookup Symbol IO a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann -&gt; CodeLookup Symbol IO Ann
+forall (m :: * -&gt; *).
+MonadIO m =&gt;
+Codebase m Symbol Ann -&gt; CodeLookup Symbol m Ann
+</span><span class="hs-identifier hs-var">Codebase.codebaseToCodeLookup</span></span><span> </span><span class="annot"><span class="annottext">Codebase IO Symbol Ann
+</span><a href="#local-6989586621681627778"><span class="hs-identifier hs-var">codebase</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621681627827"><span class="annot"><a href="#local-6989586621681627827"><span class="hs-identifier hs-var">program</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">withSystemTempDirectory</span></span><span> </span><span class="annot"><span class="hs-string">&quot;ucm-bundle&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681627828"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627828"><span class="hs-identifier hs-var">dir</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681627829"><span class="annot"><span class="annottext">uc :: FilePath
+</span><a href="#local-6989586621681627829"><span class="hs-identifier hs-var hs-var">uc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627828"><span class="hs-identifier hs-var">dir</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;program.uc&quot;</span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><span class="annottext">Runtime Symbol
+-&gt; CompileOpts
+-&gt; CodeLookup Symbol IO ()
+-&gt; PrettyPrintEnv
+-&gt; Reference
+-&gt; FilePath
+-&gt; IO (Maybe Error)
+forall e e' v.
+Runtime e e' v
+-&gt; CompileOpts
+-&gt; CodeLookup v IO ()
+-&gt; PrettyPrintEnv
+-&gt; Reference
+-&gt; FilePath
+-&gt; IO (Maybe e)
+</span><span class="hs-identifier hs-var">Runtime.compileTo</span></span><span> </span><span class="annot"><span class="annottext">Runtime Symbol
+</span><a href="#local-6989586621681627779"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="annot"><span class="annottext">CompileOpts
+</span><span class="hs-identifier hs-var">Runtime.defaultCompileOpts</span></span><span> </span><span class="annot"><span class="annottext">CodeLookup Symbol IO ()
+</span><a href="#local-6989586621681627825"><span class="hs-identifier hs-var">codeLookup</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621681627821"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681627813"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627829"><span class="hs-identifier hs-var">uc</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe Error)
+-&gt; (Maybe Error -&gt; IO (Either BundleProblem ByteString))
+-&gt; IO (Either BundleProblem ByteString)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681627832"><span class="annot"><span class="annottext">Error
+</span><a href="#local-6989586621681627832"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either BundleProblem ByteString
+-&gt; IO (Either BundleProblem ByteString)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BundleProblem -&gt; Either BundleProblem ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Error -&gt; BundleProblem
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#BundleCompileError"><span class="hs-identifier hs-var">BundleCompileError</span></a></span><span> </span><span class="annot"><span class="annottext">Error
+</span><a href="#local-6989586621681627832"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">Maybe Error
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either BundleProblem ByteString
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Either BundleProblem ByteString)
+-&gt; IO ByteString -&gt; IO (Either BundleProblem ByteString)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">B.readFile</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627829"><span class="hs-identifier hs-var">uc</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">writeBundle</span></span><span> </span><span class="annot"><a href="#local-6989586621681627820"><span class="hs-identifier hs-type">rtFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627827"><span class="hs-identifier hs-type">program</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681627781"><span class="hs-identifier hs-type">output</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621681627788"><span class="hs-identifier hs-type">problem</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.pack</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | unisonrt: the one UNISONRT names, else the one next to ucm, else the</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- one on the PATH.</span><span>
+</span><span id="line-123"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#findRuntime"><span class="hs-identifier hs-type">findRuntime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span id="findRuntime"><span class="annot"><span class="annottext">findRuntime :: IO (Either Text FilePath)
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#findRuntime"><span class="hs-identifier hs-var hs-var">findRuntime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">FilePath -&gt; IO (Maybe FilePath)
+</span><span class="hs-identifier hs-var">lookupEnv</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;UNISONRT&quot;</span></span><span> </span><span class="annot"><span class="annottext">IO (Maybe FilePath)
+-&gt; (Maybe FilePath -&gt; IO (Either Text FilePath))
+-&gt; IO (Either Text FilePath)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681627833"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627833"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>      </span><span class="annot"><span class="annottext">FilePath -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesFileExist</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627833"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">IO Bool
+-&gt; (Bool -&gt; Either Text FilePath) -&gt; IO (Either Text FilePath)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Either Text FilePath
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627833"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text FilePath
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;UNISONRT names &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627833"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;, which doesn't exist.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>    </span><span class="annot"><span class="annottext">Maybe FilePath
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>      </span><span id="local-6989586621681627834"><span class="annot"><a href="#local-6989586621681627834"><span class="hs-identifier hs-var">beside</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627835"><span class="hs-identifier hs-var">exe</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; FilePath)
+-&gt; (FilePath -&gt; FilePath) -&gt; FilePath -&gt; FilePath
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath
+</span><span class="hs-identifier hs-var">takeDirectory</span></span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; FilePath) -&gt; IO FilePath -&gt; IO FilePath
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO FilePath
+</span><span class="hs-identifier hs-var">getExecutablePath</span></span><span>
+</span><span id="line-132"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">doesFileExist</span></span><span> </span><span class="annot"><a href="#local-6989586621681627834"><span class="hs-identifier hs-type">beside</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-133"></span><span>        </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either Text FilePath -&gt; IO (Either Text FilePath)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; Either Text FilePath
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627834"><span class="hs-identifier hs-var">beside</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>        </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-135"></span><span>          </span><span class="annot"><span class="annottext">FilePath -&gt; IO (Maybe FilePath)
+</span><span class="hs-identifier hs-var">findExecutable</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;unisonrt&quot;</span></span><span> </span><span class="annot"><span class="annottext">IO (Maybe FilePath)
+-&gt; (Maybe FilePath -&gt; Either Text FilePath)
+-&gt; IO (Either Text FilePath)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-136"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681627836"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627836"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Either Text FilePath
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627836"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-137"></span><span>            </span><span class="annot"><span class="annottext">Maybe FilePath
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>              </span><span class="annot"><span class="annottext">Text -&gt; Either Text FilePath
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either Text FilePath) -&gt; Text -&gt; Either Text FilePath
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-139"></span><span>                </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I couldn't find unisonrt, the runtime a bundle is made from. It is &quot;</span></span><span>
+</span><span id="line-140"></span><span>                  </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;looked for next to ucm, then on the PATH; UNISONRT can name it.&quot;</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>    </span><span id="local-6989586621681627835"><span class="annot"><span class="annottext">exe :: FilePath
+</span><a href="#local-6989586621681627835"><span class="hs-identifier hs-var hs-var">exe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;unisonrt&quot;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier hs-var">os</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mingw32&quot;</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;.exe&quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><span class="hs-comment">-- | A bundle's program only runs on the runtime version that compiled it.</span></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#checkVersion"><span class="hs-identifier hs-type">checkVersion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span id="checkVersion"><span class="annot"><span class="annottext">checkVersion :: FilePath -&gt; IO (Either Text ())
+</span><a href="Unison.Codebase.Editor.HandleInput.Bundle.html#checkVersion"><span class="hs-identifier hs-var hs-var">checkVersion</span></a></span></span><span> </span><span id="local-6989586621681627848"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627848"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>  </span><span class="annot"><span class="annottext">IO (ExitCode, FilePath, FilePath)
+-&gt; IO (Either SomeException (ExitCode, FilePath, FilePath))
+forall (m :: * -&gt; *) a.
+MonadUnliftIO m =&gt;
+m a -&gt; m (Either SomeException a)
+</span><span class="hs-identifier hs-var">tryAny</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+-&gt; [FilePath] -&gt; FilePath -&gt; IO (ExitCode, FilePath, FilePath)
+</span><span class="hs-identifier hs-var">readProcessWithExitCode</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627848"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;--version&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException (ExitCode, FilePath, FilePath))
+-&gt; (Either SomeException (ExitCode, FilePath, FilePath)
+    -&gt; Either Text ())
+-&gt; IO (Either Text ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681627849"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621681627849"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I couldn't run &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627848"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException -&gt; FilePath
+forall e. Exception e =&gt; e -&gt; FilePath
+</span><span class="hs-identifier hs-var">displayException</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621681627849"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExitCode
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681627850"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627850"><span class="hs-identifier hs-var">out</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text ()
+</span><a href="#local-6989586621681627851"><span class="hs-identifier hs-var">versions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">Text.strip</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627850"><span class="hs-identifier hs-var">out</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621681627851"><span class="annot"><span class="annottext">versions :: Text -&gt; Either Text ()
+</span><a href="#local-6989586621681627851"><span class="hs-identifier hs-var hs-var">versions</span></a></span></span><span> </span><span id="local-6989586621681627853"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681627853"><span class="hs-identifier hs-var">theirs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-152"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681627853"><span class="hs-identifier hs-var">theirs</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier hs-var">runtimeVersion</span></span><span>
+</span><span id="line-153"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">() -&gt; Either Text ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-keyword">else</span><span>
+</span><span id="line-155"></span><span>          </span><span class="annot"><span class="annottext">Text -&gt; Either Text ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either Text ()) -&gt; Text -&gt; Either Text ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-156"></span><span>            </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unlines</span></span><span>
+</span><span id="line-157"></span><span>              </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;The unisonrt at &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Text
+</span><span class="hs-identifier hs-var">Text.pack</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621681627848"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot; runs programs of another version of Unison.&quot;</span></span><span class="hs-special">,</span><span>
+</span><span id="line-158"></span><span>                </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  unisonrt: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681627853"><span class="hs-identifier hs-var">theirs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-159"></span><span>                </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;  this ucm: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier hs-var">runtimeVersion</span></span><span class="hs-special">,</span><span>
+</span><span id="line-160"></span><span>                </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Build or install the two together.&quot;</span></span><span>
+</span><span id="line-161"></span><span>              </span><span class="hs-special">]</span><span>
+</span><span id="line-162"></span></pre></body></html>

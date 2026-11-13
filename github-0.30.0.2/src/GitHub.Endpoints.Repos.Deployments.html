@@ -1,0 +1,200 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | The deployments API, as described at &lt;https://developer.github.com/v3/repos/deployments/&gt;</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Deployments</span></a></span><span>
+</span><span id="line-3"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentsWithOptionsForR"><span class="hs-identifier">deploymentsWithOptionsForR</span></a></span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentR"><span class="hs-identifier">createDeploymentR</span></a></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentStatusesForR"><span class="hs-identifier">deploymentStatusesForR</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentStatusR"><span class="hs-identifier">createDeploymentStatusR</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">second</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | List deployments.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/deployments/#list-deployments&gt;</span><span>
+</span><span id="line-19"></span><span id="local-6989586621679537174"><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentsWithOptionsForR"><span class="hs-identifier hs-type">deploymentsWithOptionsForR</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679537174"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GitHub.Data.Deployments.html#DeploymentQueryOption"><span class="hs-identifier hs-type">DeploymentQueryOption</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Deployments.html#Deployment"><span class="hs-identifier hs-type">Deployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537174"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-26"></span><span id="deploymentsWithOptionsForR"><span class="annot"><span class="annottext">deploymentsWithOptionsForR :: forall a.
+FromJSON a =&gt;
+Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; [DeploymentQueryOption]
+-&gt; Request 'RA (Vector (Deployment a))
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentsWithOptionsForR"><span class="hs-identifier hs-var hs-var">deploymentsWithOptionsForR</span></a></span></span><span> </span><span id="local-6989586621679537240"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537240"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537241"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537241"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679537242"><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679537242"><span class="hs-identifier hs-var">limit</span></a></span></span><span> </span><span id="local-6989586621679537243"><span class="annot"><span class="annottext">[DeploymentQueryOption]
+</span><a href="#local-6989586621679537243"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector (Deployment a))
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name Owner -&gt; Name Repo -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deployPaths"><span class="hs-identifier hs-var">deployPaths</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537240"><span class="hs-identifier hs-var">owner</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537241"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(DeploymentQueryOption -&gt; (ByteString, Maybe ByteString))
+-&gt; [DeploymentQueryOption] -&gt; QueryString
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString)
+-&gt; (ByteString, ByteString) -&gt; (ByteString, Maybe ByteString)
+forall b c d. (b -&gt; c) -&gt; (d, b) -&gt; (d, c)
+forall (a :: * -&gt; * -&gt; *) b c d.
+Arrow a =&gt;
+a b c -&gt; a (d, b) (d, c)
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">((ByteString, ByteString) -&gt; (ByteString, Maybe ByteString))
+-&gt; (DeploymentQueryOption -&gt; (ByteString, ByteString))
+-&gt; DeploymentQueryOption
+-&gt; (ByteString, Maybe ByteString)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DeploymentQueryOption -&gt; (ByteString, ByteString)
+</span><a href="GitHub.Data.Deployments.html#renderDeploymentQueryOption"><span class="hs-identifier hs-var">renderDeploymentQueryOption</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[DeploymentQueryOption]
+</span><a href="#local-6989586621679537243"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679537242"><span class="hs-identifier hs-var">limit</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Create a deployment.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/deployments/#create-a-deployment&gt;</span><span>
+</span><span id="line-33"></span><span id="local-6989586621679537201"><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentR"><span class="hs-identifier hs-type">createDeploymentR</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span>   </span><span class="annot"><a href="#local-6989586621679537201"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-35"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679537201"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-36"></span><span>       </span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Deployments.html#CreateDeployment"><span class="hs-identifier hs-type">CreateDeployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537201"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Deployments.html#Deployment"><span class="hs-identifier hs-type">Deployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537201"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-41"></span><span id="createDeploymentR"><span class="annot"><span class="annottext">createDeploymentR :: forall a.
+(ToJSON a, FromJSON a) =&gt;
+Name Owner
+-&gt; Name Repo -&gt; CreateDeployment a -&gt; Request 'RW (Deployment a)
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentR"><span class="hs-identifier hs-var hs-var">createDeploymentR</span></a></span></span><span> </span><span id="local-6989586621679537252"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537252"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537253"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537253"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW (Deployment a)
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name Owner -&gt; Name Repo -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deployPaths"><span class="hs-identifier hs-var">deployPaths</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537252"><span class="hs-identifier hs-var">owner</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537253"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW (Deployment a))
+-&gt; (CreateDeployment a -&gt; ByteString)
+-&gt; CreateDeployment a
+-&gt; Request 'RW (Deployment a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CreateDeployment a -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | List deployment statuses.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/deployments/#list-deployment-statuses&gt;</span><span>
+</span><span id="line-46"></span><span id="local-6989586621679537211"><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentStatusesForR"><span class="hs-identifier hs-type">deploymentStatusesForR</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Deployments.html#Deployment"><span class="hs-identifier hs-type">Deployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537211"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Deployments.html#DeploymentStatus"><span class="hs-identifier hs-type">DeploymentStatus</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-52"></span><span id="deploymentStatusesForR"><span class="annot"><span class="annottext">deploymentStatusesForR :: forall a.
+Name Owner
+-&gt; Name Repo
+-&gt; Id (Deployment a)
+-&gt; FetchCount
+-&gt; Request 'RA (Vector DeploymentStatus)
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentStatusesForR"><span class="hs-identifier hs-var hs-var">deploymentStatusesForR</span></a></span></span><span> </span><span id="local-6989586621679537259"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537259"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537260"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537260"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679537261"><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537261"><span class="hs-identifier hs-var">deploy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; Request 'RA (Vector DeploymentStatus)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name Owner -&gt; Name Repo -&gt; Id (Deployment a) -&gt; Paths
+forall a. Name Owner -&gt; Name Repo -&gt; Id (Deployment a) -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#statusesPaths"><span class="hs-identifier hs-var">statusesPaths</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537259"><span class="hs-identifier hs-var">owner</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537260"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537261"><span class="hs-identifier hs-var">deploy</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Create a deployment status.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/deployments/#list-deployment-statuses&gt;</span><span>
+</span><span id="line-57"></span><span id="local-6989586621679537216"><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentStatusR"><span class="hs-identifier hs-type">createDeploymentStatusR</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Deployments.html#Deployment"><span class="hs-identifier hs-type">Deployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537216"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Deployments.html#CreateDeploymentStatus"><span class="hs-identifier hs-type">CreateDeploymentStatus</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Deployments.html#DeploymentStatus"><span class="hs-identifier hs-type">DeploymentStatus</span></a></span></span><span>
+</span><span id="line-63"></span><span id="createDeploymentStatusR"><span class="annot"><span class="annottext">createDeploymentStatusR :: forall a.
+Name Owner
+-&gt; Name Repo
+-&gt; Id (Deployment a)
+-&gt; CreateDeploymentStatus
+-&gt; Request 'RW DeploymentStatus
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentStatusR"><span class="hs-identifier hs-var hs-var">createDeploymentStatusR</span></a></span></span><span> </span><span id="local-6989586621679537265"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537265"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537266"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537266"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679537267"><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537267"><span class="hs-identifier hs-var">deploy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod
+-&gt; Paths -&gt; ByteString -&gt; Request 'RW DeploymentStatus
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name Owner -&gt; Name Repo -&gt; Id (Deployment a) -&gt; Paths
+forall a. Name Owner -&gt; Name Repo -&gt; Id (Deployment a) -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#statusesPaths"><span class="hs-identifier hs-var">statusesPaths</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537265"><span class="hs-identifier hs-var">owner</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537266"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537267"><span class="hs-identifier hs-var">deploy</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW DeploymentStatus)
+-&gt; (CreateDeploymentStatus -&gt; ByteString)
+-&gt; CreateDeploymentStatus
+-&gt; Request 'RW DeploymentStatus
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">CreateDeploymentStatus -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679537215"><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#statusesPaths"><span class="hs-identifier hs-type">statusesPaths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Deployments.html#Deployment"><span class="hs-identifier hs-type">Deployment</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679537215"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Paths"><span class="hs-identifier hs-type">Paths</span></a></span></span><span>
+</span><span id="line-67"></span><span id="statusesPaths"><span class="annot"><span class="annottext">statusesPaths :: forall a. Name Owner -&gt; Name Repo -&gt; Id (Deployment a) -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#statusesPaths"><span class="hs-identifier hs-var hs-var">statusesPaths</span></a></span></span><span> </span><span id="local-6989586621679537271"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537271"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537272"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537272"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679537273"><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537273"><span class="hs-identifier hs-var">deploy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="annottext">Name Owner -&gt; Name Repo -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deployPaths"><span class="hs-identifier hs-var">deployPaths</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537271"><span class="hs-identifier hs-var">owner</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537272"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="annot"><span class="annottext">Paths -&gt; Paths -&gt; Paths
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Id (Deployment a) -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id (Deployment a)
+</span><a href="#local-6989586621679537273"><span class="hs-identifier hs-var">deploy</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;statuses&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deployPaths"><span class="hs-identifier hs-type">deployPaths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Paths"><span class="hs-identifier hs-type">Paths</span></a></span><span>
+</span><span id="line-71"></span><span id="deployPaths"><span class="annot"><span class="annottext">deployPaths :: Name Owner -&gt; Name Repo -&gt; Paths
+</span><a href="GitHub.Endpoints.Repos.Deployments.html#deployPaths"><span class="hs-identifier hs-var hs-var">deployPaths</span></a></span></span><span> </span><span id="local-6989586621679537275"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537275"><span class="hs-identifier hs-var">owner</span></a></span></span><span> </span><span id="local-6989586621679537276"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537276"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679537275"><span class="hs-identifier hs-var">owner</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679537276"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;deployments&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-73"></span></pre></body></html>

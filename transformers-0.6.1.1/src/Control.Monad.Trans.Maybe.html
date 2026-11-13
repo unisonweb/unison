@@ -1,0 +1,859 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 710 &amp;&amp; __GLASGOW_HASKELL__ &lt; 802
+</span><span class="hs-pragma">{-# LANGUAGE AutoDeriveTypeable #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Module      :  Control.Monad.Trans.Maybe</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Copyright   :  (c) 2007 Yitzak Gale, Eric Kidd</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Maintainer  :  R.Paterson@city.ac.uk</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- The 'MaybeT' monad transformer extends a monad with the ability to exit</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- the computation without returning a value.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- A sequence of actions produces a value only if all the actions in</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- the sequence do.  If one exits, the rest of the sequence is skipped</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- and the composite action exits.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- For a variant allowing a range of exception values, see</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &quot;Control.Monad.Trans.Except&quot;.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html"><span class="hs-identifier">Control.Monad.Trans.Maybe</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The MaybeT monad transformer</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier">MaybeT</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier">mapMaybeT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Monad transformations</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#hoistMaybe"><span class="hs-identifier">hoistMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#maybeToExceptT"><span class="hs-identifier">maybeToExceptT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#exceptToMaybeT"><span class="hs-identifier">exceptToMaybeT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Lifting other operations</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCallCC"><span class="hs-identifier">liftCallCC</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCatch"><span class="hs-identifier">liftCatch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftListen"><span class="hs-identifier">liftListen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftPass"><span class="hs-identifier">liftPass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html"><span class="hs-identifier">Control.Monad.IO.Class</span></a></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html"><span class="hs-identifier">Control.Monad.Signatures</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Class.html"><span class="hs-identifier">Control.Monad.Trans.Class</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Except.html"><span class="hs-identifier">Control.Monad.Trans.Except</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Except.html#ExceptT"><span class="hs-identifier">ExceptT</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html"><span class="hs-identifier">Data.Functor.Classes</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,12,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html"><span class="hs-identifier">Data.Functor.Contravariant</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadPlus</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mzero</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mplus</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">liftM</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Fail.html"><span class="hs-identifier">Control.Monad.Fail</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fail</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Fix.html"><span class="hs-identifier">Control.Monad.Fix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadFix</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mfix</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,4,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html"><span class="hs-identifier">Control.Monad.Zip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#MonadZip"><span class="hs-identifier">MonadZip</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#mzipWith"><span class="hs-identifier">mzipWith</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,8,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Foldable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Foldable</span><span class="hs-special">(</span><span class="hs-identifier">foldMap</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Traversable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Traversable</span><span class="hs-special">(</span><span class="hs-identifier">traverse</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 704
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | The parameterizable maybe monad, obtained by composing an arbitrary</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- monad with the 'Maybe' monad.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- Computations are actions that may produce a value or exit.</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- The 'return' function yields a computation that produces that</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- value, while @&gt;&gt;=@ sequences two subcomputations, exiting if either</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- computation does.</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">newtype</span><span> </span><span id="MaybeT"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span></span><span> </span><span id="local-6989586621679090425"><span class="annot"><a href="#local-6989586621679090425"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679090426"><span class="annot"><a href="#local-6989586621679090426"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MaybeT"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runMaybeT"><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var hs-var">runMaybeT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679090425"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090426"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090764"><span id="local-6989586621679090766"><span class="annot"><span class="annottext">(forall x. MaybeT m a -&gt; Rep (MaybeT m a) x)
+-&gt; (forall x. Rep (MaybeT m a) x -&gt; MaybeT m a)
+-&gt; Generic (MaybeT m a)
+forall x. Rep (MaybeT m a) x -&gt; MaybeT m a
+forall x. MaybeT m a -&gt; Rep (MaybeT m a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall (m :: * -&gt; *) a x. Rep (MaybeT m a) x -&gt; MaybeT m a
+forall (m :: * -&gt; *) a x. MaybeT m a -&gt; Rep (MaybeT m a) x
+$cfrom :: forall (m :: * -&gt; *) a x. MaybeT m a -&gt; Rep (MaybeT m a) x
+from :: forall x. MaybeT m a -&gt; Rep (MaybeT m a) x
+$cto :: forall (m :: * -&gt; *) a x. Rep (MaybeT m a) x -&gt; MaybeT m a
+to :: forall x. Rep (MaybeT m a) x -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090773"><span id="local-6989586621679090776"><span class="annot"><span class="annottext">(forall a. MaybeT m a -&gt; Rep1 (MaybeT m) a)
+-&gt; (forall a. Rep1 (MaybeT m) a -&gt; MaybeT m a)
+-&gt; Generic1 (MaybeT m)
+forall a. Rep1 (MaybeT m) a -&gt; MaybeT m a
+forall a. MaybeT m a -&gt; Rep1 (MaybeT m) a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+forall (m :: * -&gt; *) a.
+Functor m =&gt;
+Rep1 (MaybeT m) a -&gt; MaybeT m a
+forall (m :: * -&gt; *) a.
+Functor m =&gt;
+MaybeT m a -&gt; Rep1 (MaybeT m) a
+$cfrom1 :: forall (m :: * -&gt; *) a.
+Functor m =&gt;
+MaybeT m a -&gt; Rep1 (MaybeT m) a
+from1 :: forall a. MaybeT m a -&gt; Rep1 (MaybeT m) a
+$cto1 :: forall (m :: * -&gt; *) a.
+Functor m =&gt;
+Rep1 (MaybeT m) a -&gt; MaybeT m a
+to1 :: forall a. Rep1 (MaybeT m) a -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic1</span></span></span></span><span class="hs-special">)</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 704
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Generic</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090449"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090449"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090449"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679090791"><span class="annot"><span class="annottext">liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; MaybeT m a -&gt; MaybeT m b -&gt; Bool
+</span><a href="#local-6989586621679090791"><span class="hs-identifier hs-var hs-var hs-var">liftEq</span></a></span></span><span> </span><span id="local-6989586621679090793"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679090793"><span class="hs-identifier hs-var">eq</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090794"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090794"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090795"><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679090795"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Maybe b -&gt; Bool) -&gt; m (Maybe a) -&gt; m (Maybe b) -&gt; Bool
+forall a b. (a -&gt; b -&gt; Bool) -&gt; m a -&gt; m b -&gt; Bool
+forall (f :: * -&gt; *) a b.
+Eq1 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftEq"><span class="hs-identifier hs-var">liftEq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; Bool) -&gt; Maybe a -&gt; Maybe b -&gt; Bool
+forall a b. (a -&gt; b -&gt; Bool) -&gt; Maybe a -&gt; Maybe b -&gt; Bool
+forall (f :: * -&gt; *) a b.
+Eq1 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; f a -&gt; f b -&gt; Bool
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftEq"><span class="hs-identifier hs-var">liftEq</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679090793"><span class="hs-identifier hs-var">eq</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090794"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679090795"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftEq"><span class="hs-pragma hs-type">liftEq</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090458"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090458"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090458"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679090809"><span class="annot"><span class="annottext">liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; MaybeT m a -&gt; MaybeT m b -&gt; Ordering
+</span><a href="#local-6989586621679090809"><span class="hs-identifier hs-var hs-var hs-var">liftCompare</span></a></span></span><span> </span><span id="local-6989586621679090811"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679090811"><span class="hs-identifier hs-var">comp</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090812"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090812"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090813"><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679090813"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Maybe b -&gt; Ordering)
+-&gt; m (Maybe a) -&gt; m (Maybe b) -&gt; Ordering
+forall a b. (a -&gt; b -&gt; Ordering) -&gt; m a -&gt; m b -&gt; Ordering
+forall (f :: * -&gt; *) a b.
+Ord1 f =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftCompare"><span class="hs-identifier hs-var">liftCompare</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; Ordering) -&gt; Maybe a -&gt; Maybe b -&gt; Ordering
+forall a b. (a -&gt; b -&gt; Ordering) -&gt; Maybe a -&gt; Maybe b -&gt; Ordering
+forall (f :: * -&gt; *) a b.
+Ord1 f =&gt;
+(a -&gt; b -&gt; Ordering) -&gt; f a -&gt; f b -&gt; Ordering
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftCompare"><span class="hs-identifier hs-var">liftCompare</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679090811"><span class="hs-identifier hs-var">comp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090812"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679090813"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftCompare"><span class="hs-pragma hs-type">liftCompare</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090471"><span id="local-6989586621679090819"><span id="local-6989586621679090823"><span id="local-6989586621679090826"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090471"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090471"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679090830"><span class="annot"><span class="annottext">liftReadsPrec :: forall a.
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (MaybeT m a)
+</span><a href="#local-6989586621679090830"><span class="hs-identifier hs-var hs-var hs-var">liftReadsPrec</span></a></span></span><span> </span><span id="local-6989586621679090832"><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679090832"><span class="hs-identifier hs-var">rp</span></a></span></span><span> </span><span id="local-6989586621679090833"><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679090833"><span class="hs-identifier hs-var">rl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; ReadS (MaybeT m a)) -&gt; Int -&gt; ReadS (MaybeT m a)
+forall a. (String -&gt; ReadS a) -&gt; Int -&gt; ReadS a
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsData"><span class="hs-identifier hs-var">readsData</span></a></span><span> </span><span class="annot"><span class="annottext">((String -&gt; ReadS (MaybeT m a)) -&gt; Int -&gt; ReadS (MaybeT m a))
+-&gt; (String -&gt; ReadS (MaybeT m a)) -&gt; Int -&gt; ReadS (MaybeT m a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; ReadS (m (Maybe a)))
+-&gt; String
+-&gt; (m (Maybe a) -&gt; MaybeT m a)
+-&gt; String
+-&gt; ReadS (MaybeT m a)
+forall a t.
+(Int -&gt; ReadS a) -&gt; String -&gt; (a -&gt; t) -&gt; String -&gt; ReadS t
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsUnaryWith"><span class="hs-identifier hs-var">readsUnaryWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; ReadS (Maybe a))
+-&gt; ReadS [Maybe a] -&gt; Int -&gt; ReadS (m (Maybe a))
+forall a. (Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (m a)
+forall (f :: * -&gt; *) a.
+Read1 f =&gt;
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftReadsPrec"><span class="hs-identifier hs-var">liftReadsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS (Maybe a)
+</span><a href="#local-6989586621679090836"><span class="hs-identifier hs-var">rp'</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [Maybe a]
+</span><a href="#local-6989586621679090837"><span class="hs-identifier hs-var">rl'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MaybeT&quot;</span></span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>        </span><span id="local-6989586621679090836"><span class="annot"><span class="annottext">rp' :: Int -&gt; ReadS (Maybe a)
+</span><a href="#local-6989586621679090836"><span class="hs-identifier hs-var hs-var">rp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Maybe a)
+forall a. (Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Maybe a)
+forall (f :: * -&gt; *) a.
+Read1 f =&gt;
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (f a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftReadsPrec"><span class="hs-identifier hs-var">liftReadsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679090832"><span class="hs-identifier hs-var">rp</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679090833"><span class="hs-identifier hs-var">rl</span></a></span><span>
+</span><span id="line-100"></span><span>        </span><span id="local-6989586621679090837"><span class="annot"><span class="annottext">rl' :: ReadS [Maybe a]
+</span><a href="#local-6989586621679090837"><span class="hs-identifier hs-var hs-var">rl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; ReadS [Maybe a]
+forall a. (Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; ReadS [Maybe a]
+forall (f :: * -&gt; *) a.
+Read1 f =&gt;
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; ReadS [f a]
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftReadList"><span class="hs-identifier hs-var">liftReadList</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679090832"><span class="hs-identifier hs-var">rp</span></a></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679090833"><span class="hs-identifier hs-var">rl</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090487"><span id="local-6989586621679090849"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090487"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090487"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679090854"><span class="annot"><span class="annottext">liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; MaybeT m a -&gt; ShowS
+</span><a href="#local-6989586621679090854"><span class="hs-identifier hs-var hs-var hs-var">liftShowsPrec</span></a></span></span><span> </span><span id="local-6989586621679090856"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679090856"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span id="local-6989586621679090857"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679090857"><span class="hs-identifier hs-var">sl</span></a></span></span><span> </span><span id="local-6989586621679090858"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090858"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090859"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090859"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; m (Maybe a) -&gt; ShowS)
+-&gt; String -&gt; Int -&gt; m (Maybe a) -&gt; ShowS
+forall a. (Int -&gt; a -&gt; ShowS) -&gt; String -&gt; Int -&gt; a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#showsUnaryWith"><span class="hs-identifier hs-var">showsUnaryWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Maybe a -&gt; ShowS)
+-&gt; ([Maybe a] -&gt; ShowS) -&gt; Int -&gt; m (Maybe a) -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; m a -&gt; ShowS
+forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftShowsPrec"><span class="hs-identifier hs-var">liftShowsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe a -&gt; ShowS
+</span><a href="#local-6989586621679090861"><span class="hs-identifier hs-var">sp'</span></a></span><span> </span><span class="annot"><span class="annottext">[Maybe a] -&gt; ShowS
+</span><a href="#local-6989586621679090862"><span class="hs-identifier hs-var">sl'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;MaybeT&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090858"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090859"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-105"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>        </span><span id="local-6989586621679090861"><span class="annot"><span class="annottext">sp' :: Int -&gt; Maybe a -&gt; ShowS
+</span><a href="#local-6989586621679090861"><span class="hs-identifier hs-var hs-var">sp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Maybe a -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Maybe a -&gt; ShowS
+forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; f a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftShowsPrec"><span class="hs-identifier hs-var">liftShowsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679090856"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679090857"><span class="hs-identifier hs-var">sl</span></a></span><span>
+</span><span id="line-107"></span><span>        </span><span id="local-6989586621679090862"><span class="annot"><span class="annottext">sl' :: [Maybe a] -&gt; ShowS
+</span><a href="#local-6989586621679090862"><span class="hs-identifier hs-var hs-var">sl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Maybe a] -&gt; ShowS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [Maybe a] -&gt; ShowS
+forall (f :: * -&gt; *) a.
+Show1 f =&gt;
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; [f a] -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#liftShowList"><span class="hs-identifier hs-var">liftShowList</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679090856"><span class="hs-identifier hs-var">sp</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679090857"><span class="hs-identifier hs-var">sl</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090493"><span id="local-6989586621679090494"><span id="local-6989586621679090873"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Eq1"><span class="hs-identifier hs-type">Eq1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090493"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679090494"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090493"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090494"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679090879"><span class="annot"><span class="annottext">== :: MaybeT m a -&gt; MaybeT m a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">(==)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; MaybeT m a -&gt; Bool
+forall (f :: * -&gt; *) a. (Eq1 f, Eq a) =&gt; f a -&gt; f a -&gt; Bool
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#eq1"><span class="hs-identifier hs-var">eq1</span></a></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090500"><span id="local-6989586621679090501"><span id="local-6989586621679090889"><span id="local-6989586621679090893"><span id="local-6989586621679090896"><span id="local-6989586621679090899"><span id="local-6989586621679090902"><span id="local-6989586621679090905"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Ord1"><span class="hs-identifier hs-type">Ord1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090500"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679090501"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090500"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090501"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679090911"><span class="annot"><span class="annottext">compare :: MaybeT m a -&gt; MaybeT m a -&gt; Ordering
+</span><a href="#local-6989586621679090911"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; MaybeT m a -&gt; Ordering
+forall (f :: * -&gt; *) a. (Ord1 f, Ord a) =&gt; f a -&gt; f a -&gt; Ordering
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#compare1"><span class="hs-identifier hs-var">compare1</span></a></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090507"><span id="local-6989586621679090508"><span id="local-6989586621679090918"><span id="local-6989586621679090922"><span id="local-6989586621679090925"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Read1"><span class="hs-identifier hs-type">Read1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090507"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679090508"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090507"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090508"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679090930"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS (MaybeT m a)
+</span><a href="#local-6989586621679090930"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS (MaybeT m a)
+forall (f :: * -&gt; *) a. (Read1 f, Read a) =&gt; Int -&gt; ReadS (f a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#readsPrec1"><span class="hs-identifier hs-var">readsPrec1</span></a></span><span>
+</span><span id="line-112"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090514"><span id="local-6989586621679090515"><span id="local-6989586621679090937"><span id="local-6989586621679090941"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#Show1"><span class="hs-identifier hs-type">Show1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090514"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679090515"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090514"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090515"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679090946"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; MaybeT m a -&gt; ShowS
+</span><a href="#local-6989586621679090946"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; MaybeT m a -&gt; ShowS
+forall (f :: * -&gt; *) a. (Show1 f, Show a) =&gt; Int -&gt; f a -&gt; ShowS
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Classes.html#showsPrec1"><span class="hs-identifier hs-var">showsPrec1</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Transform the computation inside a @MaybeT@.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- * @'runMaybeT' ('mapMaybeT' f m) = f ('runMaybeT' m)@</span><span>
+</span><span id="line-117"></span><span id="local-6989586621679090518"><span id="local-6989586621679090519"><span id="local-6989586621679090520"><span id="local-6989586621679090521"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier hs-type">mapMaybeT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679090518"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090519"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679090520"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090521"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090518"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090519"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090520"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090521"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-118"></span><span id="mapMaybeT"><span class="annot"><span class="annottext">mapMaybeT :: forall (m :: * -&gt; *) a (n :: * -&gt; *) b.
+(m (Maybe a) -&gt; n (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT n b
+</span><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier hs-var hs-var">mapMaybeT</span></a></span></span><span> </span><span id="local-6989586621679090949"><span class="annot"><span class="annottext">m (Maybe a) -&gt; n (Maybe b)
+</span><a href="#local-6989586621679090949"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">n (Maybe b) -&gt; MaybeT n b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(n (Maybe b) -&gt; MaybeT n b)
+-&gt; (MaybeT m a -&gt; n (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT n b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; n (Maybe b)
+</span><a href="#local-6989586621679090949"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; n (Maybe b))
+-&gt; (MaybeT m a -&gt; m (Maybe a)) -&gt; MaybeT m a -&gt; n (Maybe b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span>
+</span><span id="line-119"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-pragma hs-type">mapMaybeT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">-- | Convert a 'Maybe' computation to 'MaybeT'.</span></span><span>
+</span><span id="line-122"></span><span id="local-6989586621679090529"><span id="local-6989586621679090530"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#hoistMaybe"><span class="hs-identifier hs-type">hoistMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679090529"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090530"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090529"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090530"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-123"></span><span id="hoistMaybe"><span class="annot"><span class="annottext">hoistMaybe :: forall (m :: * -&gt; *) b. Applicative m =&gt; Maybe b -&gt; MaybeT m b
+</span><a href="Control.Monad.Trans.Maybe.html#hoistMaybe"><span class="hs-identifier hs-var hs-var">hoistMaybe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe b) -&gt; MaybeT m b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe b) -&gt; MaybeT m b)
+-&gt; (Maybe b -&gt; m (Maybe b)) -&gt; Maybe b -&gt; MaybeT m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; m (Maybe b)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | Convert a 'MaybeT' computation to 'ExceptT', with a default</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- exception value.</span><span>
+</span><span id="line-127"></span><span id="local-6989586621679090535"><span id="local-6989586621679090536"><span id="local-6989586621679090537"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#maybeToExceptT"><span class="hs-identifier hs-type">maybeToExceptT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679090535"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679090536"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090535"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090537"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Except.html#ExceptT"><span class="hs-identifier hs-type">ExceptT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090536"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090535"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090537"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-128"></span><span id="maybeToExceptT"><span class="annot"><span class="annottext">maybeToExceptT :: forall (m :: * -&gt; *) e a.
+Functor m =&gt;
+e -&gt; MaybeT m a -&gt; ExceptT e m a
+</span><a href="Control.Monad.Trans.Maybe.html#maybeToExceptT"><span class="hs-identifier hs-var hs-var">maybeToExceptT</span></a></span></span><span> </span><span id="local-6989586621679090956"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679090956"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679090957"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090957"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Either e a) -&gt; ExceptT e m a
+forall e (m :: * -&gt; *) a. m (Either e a) -&gt; ExceptT e m a
+</span><a href="Control.Monad.Trans.Except.html#ExceptT"><span class="hs-identifier hs-var">ExceptT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Either e a) -&gt; ExceptT e m a)
+-&gt; m (Either e a) -&gt; ExceptT e m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Either e a) -&gt; m (Maybe a) -&gt; m (Either e a)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either e a -&gt; (a -&gt; Either e a) -&gt; Maybe a -&gt; Either e a
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; Either e a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679090956"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either e a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679090957"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-129"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#maybeToExceptT"><span class="hs-pragma hs-type">maybeToExceptT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Convert a 'ExceptT' computation to 'MaybeT', discarding the</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- value of any exception.</span><span>
+</span><span id="line-133"></span><span id="local-6989586621679090552"><span id="local-6989586621679090553"><span id="local-6989586621679090554"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#exceptToMaybeT"><span class="hs-identifier hs-type">exceptToMaybeT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679090552"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Except.html#ExceptT"><span class="hs-identifier hs-type">ExceptT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090553"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090552"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090554"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090552"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090554"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-134"></span><span id="exceptToMaybeT"><span class="annot"><span class="annottext">exceptToMaybeT :: forall (m :: * -&gt; *) e a. Functor m =&gt; ExceptT e m a -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#exceptToMaybeT"><span class="hs-identifier hs-var hs-var">exceptToMaybeT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Except.html#ExceptT"><span class="hs-identifier hs-type">ExceptT</span></a></span><span> </span><span id="local-6989586621679090961"><span class="annot"><span class="annottext">m (Either e a)
+</span><a href="#local-6989586621679090961"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a) -&gt; m (Maybe a) -&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Either e a -&gt; Maybe a) -&gt; m (Either e a) -&gt; m (Maybe a)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e -&gt; Maybe a) -&gt; (a -&gt; Maybe a) -&gt; Either e a -&gt; Maybe a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a -&gt; e -&gt; Maybe a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Either e a)
+</span><a href="#local-6989586621679090961"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-135"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#exceptToMaybeT"><span class="hs-pragma hs-type">exceptToMaybeT</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090567"><span id="local-6989586621679090967"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679090567"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090567"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621679090974"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; MaybeT m a -&gt; MaybeT m b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679090975"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679090975"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; m (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT m b
+forall (m :: * -&gt; *) a (n :: * -&gt; *) b.
+(m (Maybe a) -&gt; n (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT n b
+</span><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier hs-var">mapMaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe a -&gt; Maybe b) -&gt; m (Maybe a) -&gt; m (Maybe b)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679090975"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090593"><span id="local-6989586621679090978"><span id="local-6989586621679090985"><span id="local-6989586621679090990"><span id="local-6989586621679090993"><span id="local-6989586621679090996"><span id="local-6989586621679090999"><span id="local-6989586621679091002"><span id="local-6989586621679091005"><span id="local-6989586621679091008"><span id="local-6989586621679091011"><span id="local-6989586621679091014"><span id="local-6989586621679091017"><span id="local-6989586621679091022"><span id="local-6989586621679091027"><span id="local-6989586621679091032"><span id="local-6989586621679091037"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679090593"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090593"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>    </span><span id="local-6989586621679091048"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; MaybeT f a -&gt; m
+</span><a href="#local-6989586621679091048"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679091050"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679091050"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679091051"><span class="annot"><span class="annottext">f (Maybe a)
+</span><a href="#local-6989586621679091051"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; m) -&gt; f (Maybe a) -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; f a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; Maybe a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Maybe a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679091050"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (Maybe a)
+</span><a href="#local-6989586621679091051"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090611"><span id="local-6989586621679091061"><span id="local-6989586621679091067"><span id="local-6989586621679091072"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679090611"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090611"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679091088"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; MaybeT f a -&gt; f (MaybeT f b)
+</span><a href="#local-6989586621679091088"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679091090"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679091090"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679091091"><span class="annot"><span class="annottext">f (Maybe a)
+</span><a href="#local-6989586621679091091"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f (Maybe b) -&gt; MaybeT f b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(f (Maybe b) -&gt; MaybeT f b) -&gt; f (f (Maybe b)) -&gt; f (MaybeT f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; f (Maybe b)) -&gt; f (Maybe a) -&gt; f (f (Maybe b))
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; f a -&gt; f (f b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679091090"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (Maybe a)
+</span><a href="#local-6989586621679091091"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">traverse</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090628"><span id="local-6989586621679091100"><span id="local-6989586621679091105"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679090628"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090628"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090628"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679091109"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a)
+-&gt; (a -&gt; m (Maybe a)) -&gt; a -&gt; MaybeT m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; m (Maybe a)) -&gt; (a -&gt; Maybe a) -&gt; a -&gt; m (Maybe a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">pure</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679091115"><span class="annot"><span class="annottext">MaybeT m (a -&gt; b)
+</span><a href="#local-6989586621679091115"><span class="hs-identifier hs-var">mf</span></a></span></span><span> </span><span id="local-6989586621679091116"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. MaybeT m (a -&gt; b) -&gt; MaybeT m a -&gt; MaybeT m b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span id="local-6989586621679091117"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091117"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe b) -&gt; MaybeT m b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe b) -&gt; MaybeT m b) -&gt; m (Maybe b) -&gt; MaybeT m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-153"></span><span>        </span><span id="local-6989586621679091118"><span class="annot"><a href="#local-6989586621679091118"><span class="hs-identifier hs-var">mb_f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT m (a -&gt; b) -&gt; m (Maybe (a -&gt; b))
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m (a -&gt; b)
+</span><a href="#local-6989586621679091115"><span class="hs-identifier hs-var">mf</span></a></span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091118"><span class="hs-identifier hs-type">mb_f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-155"></span><span>            </span><span class="annot"><span class="annottext">Maybe (a -&gt; b)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; m (Maybe b)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe b
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-156"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679091119"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091119"><span class="hs-identifier hs-var">f</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>                </span><span id="local-6989586621679091120"><span class="annot"><a href="#local-6989586621679091120"><span class="hs-identifier hs-var">mb_x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091117"><span class="hs-identifier hs-var">mx</span></a></span><span>
+</span><span id="line-158"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091120"><span class="hs-identifier hs-type">mb_x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-159"></span><span>                    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; m (Maybe b)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe b
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-160"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679091121"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091121"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; m (Maybe b)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Maybe b
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679091119"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091121"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679091124"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091124"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679091125"><span class="annot"><span class="annottext">*&gt; :: forall a b. MaybeT m a -&gt; MaybeT m b -&gt; MaybeT m b
+</span><span class="hs-operator hs-var hs-var hs-var">*&gt;</span></span></span><span> </span><span id="local-6989586621679091126"><span class="annot"><span class="annottext">MaybeT m b
+</span><a href="#local-6989586621679091126"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091124"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; (a -&gt; MaybeT m b) -&gt; MaybeT m b
+forall a b. MaybeT m a -&gt; (a -&gt; MaybeT m b) -&gt; MaybeT m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MaybeT m b
+</span><a href="#local-6989586621679091126"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">*&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090645"><span id="local-6989586621679091134"><span id="local-6989586621679091138"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679090645"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090645"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090645"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679091142"><span class="annot"><span class="annottext">empty :: forall a. MaybeT m a
+</span><a href="#local-6989586621679091142"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">empty</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679091146"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091146"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679091147"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. MaybeT m a -&gt; MaybeT m a -&gt; MaybeT m a
+</span><a href="#local-6989586621679091147"><span class="hs-operator hs-var hs-var hs-var">&lt;|&gt;</span></a></span></span><span> </span><span id="local-6989586621679091149"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091149"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a) -&gt; m (Maybe a) -&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>        </span><span id="local-6989586621679091150"><span class="annot"><a href="#local-6989586621679091150"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091146"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-170"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091150"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-171"></span><span>            </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091149"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-172"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679091150"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;|&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090634"><span id="local-6989586621679091157"><span id="local-6989586621679091160"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090634"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090634"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,8,0))
+</span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MaybeT</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Just</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">return</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>    </span><span id="local-6989586621679091167"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091167"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679091168"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. MaybeT m a -&gt; (a -&gt; MaybeT m b) -&gt; MaybeT m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679091169"><span class="annot"><span class="annottext">a -&gt; MaybeT m b
+</span><a href="#local-6989586621679091169"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe b) -&gt; MaybeT m b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe b) -&gt; MaybeT m b) -&gt; m (Maybe b) -&gt; MaybeT m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-181"></span><span>        </span><span id="local-6989586621679091170"><span class="annot"><a href="#local-6989586621679091170"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091167"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-182"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091170"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-183"></span><span>            </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; m (Maybe b)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe b
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-184"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679091171"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091171"><span class="hs-identifier hs-var">y</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MaybeT m b -&gt; m (Maybe b)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; MaybeT m b
+</span><a href="#local-6989586621679091169"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091171"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&gt;&gt;=</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,13,0))
+</span><span>    </span><span class="hs-identifier">fail</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">MaybeT</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">fail</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090656"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fail.MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090656"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679091179"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var">fail</span></span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fail</span></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-197"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090663"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090663"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090663"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-198"></span><span>    </span><span id="local-6989586621679091192"><span class="annot"><span class="annottext">mzero :: forall a. MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var">mzero</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mzero</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621679091195"><span class="annot"><span class="annottext">mplus :: forall a. MaybeT m a -&gt; MaybeT m a -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var">mplus</span></span></span><span> </span><span id="local-6989586621679091196"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091196"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679091197"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091197"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a) -&gt; m (Maybe a) -&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-201"></span><span>        </span><span id="local-6989586621679091198"><span class="annot"><a href="#local-6989586621679091198"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091196"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-202"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091198"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-203"></span><span>            </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091197"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-204"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe a)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679091198"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mplus</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090669"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadFix</span></span><span> </span><span class="annot"><a href="#local-6989586621679090669"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090669"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621679091208"><span class="annot"><span class="annottext">mfix :: forall a. (a -&gt; MaybeT m a) -&gt; MaybeT m a
+</span><span class="hs-identifier hs-var hs-var hs-var">mfix</span></span></span><span> </span><span id="local-6989586621679091209"><span class="annot"><span class="annottext">a -&gt; MaybeT m a
+</span><a href="#local-6989586621679091209"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe a -&gt; m (Maybe a)) -&gt; m (Maybe a)
+forall a. (a -&gt; m a) -&gt; m a
+forall (m :: * -&gt; *) a. MonadFix m =&gt; (a -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">mfix</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(MaybeT m a -&gt; m (Maybe a))
+-&gt; (Maybe a -&gt; MaybeT m a) -&gt; Maybe a -&gt; m (Maybe a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; MaybeT m a
+</span><a href="#local-6989586621679091209"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; MaybeT m a) -&gt; (Maybe a -&gt; a) -&gt; Maybe a -&gt; MaybeT m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a -&gt; a
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">a
+forall {a}. a
+</span><a href="#local-6989586621679091210"><span class="hs-identifier hs-var">bomb</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679091210"><span class="annot"><span class="annottext">bomb :: a
+</span><a href="#local-6989586621679091210"><span class="hs-identifier hs-var hs-var">bomb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;mfix (MaybeT): inner computation returned Nothing&quot;</span></span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">mfix</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Class.html#MonadTrans"><span class="hs-identifier hs-type">MonadTrans</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-213"></span><span>    </span><span id="local-6989586621679091221"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; MaybeT m a
+</span><a href="#local-6989586621679091221"><span class="hs-identifier hs-var hs-var hs-var">lift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a)
+-&gt; (m a -&gt; m (Maybe a)) -&gt; m a -&gt; MaybeT m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a) -&gt; m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span>
+</span><span id="line-214"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-pragma hs-type">lift</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090690"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090690"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090690"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-217"></span><span>    </span><span id="local-6989586621679091234"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; MaybeT m a
+</span><a href="#local-6989586621679091234"><span class="hs-identifier hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; MaybeT m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="Control.Monad.Trans.Class.html#lift"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; MaybeT m a) -&gt; (IO a -&gt; m a) -&gt; IO a -&gt; MaybeT m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span>
+</span><span id="line-218"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-pragma hs-type">liftIO</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,4,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090702"><span id="local-6989586621679091241"><span id="local-6989586621679091246"><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#MonadZip"><span class="hs-identifier hs-type">MonadZip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090702"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#MonadZip"><span class="hs-identifier hs-type">MonadZip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090702"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-222"></span><span>    </span><span id="local-6989586621679091253"><span class="annot"><span class="annottext">mzipWith :: forall a b c.
+(a -&gt; b -&gt; c) -&gt; MaybeT m a -&gt; MaybeT m b -&gt; MaybeT m c
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#mzipWith"><span class="hs-identifier hs-var hs-var hs-var">mzipWith</span></a></span></span><span> </span><span id="local-6989586621679091254"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679091254"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679091255"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679091255"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span id="local-6989586621679091256"><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679091256"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe c) -&gt; MaybeT m c
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe c) -&gt; MaybeT m c) -&gt; m (Maybe c) -&gt; MaybeT m c
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; Maybe b -&gt; Maybe c)
+-&gt; m (Maybe a) -&gt; m (Maybe b) -&gt; m (Maybe c)
+forall a b c. (a -&gt; b -&gt; c) -&gt; m a -&gt; m b -&gt; m c
+forall (m :: * -&gt; *) a b c.
+MonadZip m =&gt;
+(a -&gt; b -&gt; c) -&gt; m a -&gt; m b -&gt; m c
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#mzipWith"><span class="hs-identifier hs-var">mzipWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; Maybe a -&gt; Maybe b -&gt; Maybe c
+forall a b c. (a -&gt; b -&gt; c) -&gt; Maybe a -&gt; Maybe b -&gt; Maybe c
+forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">liftA2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679091254"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679091255"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe b)
+</span><a href="#local-6989586621679091256"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-223"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.Zip.html#mzipWith"><span class="hs-pragma hs-type">mzipWith</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,12,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090713"><span id="local-6989586621679091261"><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#Contravariant"><span class="hs-identifier hs-type">Contravariant</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090713"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#Contravariant"><span class="hs-identifier hs-type">Contravariant</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090713"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621679091267"><span class="annot"><span class="annottext">contramap :: forall a' a. (a' -&gt; a) -&gt; MaybeT m a -&gt; MaybeT m a'
+</span><a href="#local-6989586621679091267"><span class="hs-identifier hs-var hs-var hs-var">contramap</span></a></span></span><span> </span><span id="local-6989586621679091269"><span class="annot"><span class="annottext">a' -&gt; a
+</span><a href="#local-6989586621679091269"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a') -&gt; MaybeT m a'
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a') -&gt; MaybeT m a')
+-&gt; (MaybeT m a -&gt; m (Maybe a')) -&gt; MaybeT m a -&gt; MaybeT m a'
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a' -&gt; Maybe a) -&gt; m (Maybe a) -&gt; m (Maybe a')
+forall a' a. (a' -&gt; a) -&gt; m a -&gt; m a'
+forall (f :: * -&gt; *) a' a.
+Contravariant f =&gt;
+(a' -&gt; a) -&gt; f a -&gt; f a'
+</span><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#contramap"><span class="hs-identifier hs-var">contramap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a' -&gt; a) -&gt; Maybe a' -&gt; Maybe a
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a' -&gt; a
+</span><a href="#local-6989586621679091269"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; m (Maybe a'))
+-&gt; (MaybeT m a -&gt; m (Maybe a)) -&gt; MaybeT m a -&gt; m (Maybe a')
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Functor.Contravariant.html#contramap"><span class="hs-pragma hs-type">contramap</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-232"></span><span class="annot"><span class="hs-comment">-- | Lift a @callCC@ operation to the new monad.</span></span><span>
+</span><span id="line-233"></span><span id="local-6989586621679090716"><span id="local-6989586621679090717"><span id="local-6989586621679090718"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCallCC"><span class="hs-identifier hs-type">liftCallCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#CallCC"><span class="hs-identifier hs-type">CallCC</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090716"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090717"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090718"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#CallCC"><span class="hs-identifier hs-type">CallCC</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090716"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679090717"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090718"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-234"></span><span id="liftCallCC"><span class="annot"><span class="annottext">liftCallCC :: forall (m :: * -&gt; *) a b.
+CallCC m (Maybe a) (Maybe b) -&gt; CallCC (MaybeT m) a b
+</span><a href="Control.Monad.Trans.Maybe.html#liftCallCC"><span class="hs-identifier hs-var hs-var">liftCallCC</span></a></span></span><span> </span><span id="local-6989586621679091270"><span class="annot"><span class="annottext">CallCC m (Maybe a) (Maybe b)
+</span><a href="#local-6989586621679091270"><span class="hs-identifier hs-var">callCC</span></a></span></span><span> </span><span id="local-6989586621679091271"><span class="annot"><span class="annottext">(a -&gt; MaybeT m b) -&gt; MaybeT m a
+</span><a href="#local-6989586621679091271"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-235"></span><span>    </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a) -&gt; m (Maybe a) -&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">CallCC m (Maybe a) (Maybe b)
+</span><a href="#local-6989586621679091270"><span class="hs-identifier hs-var">callCC</span></a></span><span> </span><span class="annot"><span class="annottext">CallCC m (Maybe a) (Maybe b) -&gt; CallCC m (Maybe a) (Maybe b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679091272"><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe b)
+</span><a href="#local-6989586621679091272"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; MaybeT m b) -&gt; MaybeT m a
+</span><a href="#local-6989586621679091271"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m (Maybe b) -&gt; MaybeT m b
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe b) -&gt; MaybeT m b)
+-&gt; (a -&gt; m (Maybe b)) -&gt; a -&gt; MaybeT m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; m (Maybe b)
+</span><a href="#local-6989586621679091272"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; m (Maybe b)) -&gt; (a -&gt; Maybe a) -&gt; a -&gt; m (Maybe b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCallCC"><span class="hs-pragma hs-type">liftCallCC</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="annot"><span class="hs-comment">-- | Lift a @catchE@ operation to the new monad.</span></span><span>
+</span><span id="line-239"></span><span id="local-6989586621679090723"><span id="local-6989586621679090724"><span id="local-6989586621679090725"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCatch"><span class="hs-identifier hs-type">liftCatch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Catch"><span class="hs-identifier hs-type">Catch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090723"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090724"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090725"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Catch"><span class="hs-identifier hs-type">Catch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090723"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090724"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679090725"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-240"></span><span id="liftCatch"><span class="annot"><span class="annottext">liftCatch :: forall e (m :: * -&gt; *) a.
+Catch e m (Maybe a) -&gt; Catch e (MaybeT m) a
+</span><a href="Control.Monad.Trans.Maybe.html#liftCatch"><span class="hs-identifier hs-var hs-var">liftCatch</span></a></span></span><span> </span><span id="local-6989586621679091273"><span class="annot"><span class="annottext">Catch e m (Maybe a)
+</span><a href="#local-6989586621679091273"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679091274"><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091274"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679091275"><span class="annot"><span class="annottext">e -&gt; MaybeT m a
+</span><a href="#local-6989586621679091275"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (Maybe a) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a. m (Maybe a) -&gt; MaybeT m a
+</span><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-var">MaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; MaybeT m a) -&gt; m (Maybe a) -&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Catch e m (Maybe a)
+</span><a href="#local-6989586621679091273"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">MaybeT m a
+</span><a href="#local-6989586621679091274"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MaybeT m a -&gt; m (Maybe a)
+forall (m :: * -&gt; *) a. MaybeT m a -&gt; m (Maybe a)
+</span><a href="Control.Monad.Trans.Maybe.html#runMaybeT"><span class="hs-identifier hs-var">runMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">(MaybeT m a -&gt; m (Maybe a))
+-&gt; (e -&gt; MaybeT m a) -&gt; e -&gt; m (Maybe a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">e -&gt; MaybeT m a
+</span><a href="#local-6989586621679091275"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftCatch"><span class="hs-pragma hs-type">liftCatch</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="annot"><span class="hs-comment">-- | Lift a @listen@ operation to the new monad.</span></span><span>
+</span><span id="line-244"></span><span id="local-6989586621679090730"><span id="local-6989586621679090731"><span id="local-6989586621679090732"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftListen"><span class="hs-identifier hs-type">liftListen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090730"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Listen"><span class="hs-identifier hs-type">Listen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090731"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090730"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090732"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Listen"><span class="hs-identifier hs-type">Listen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090731"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090730"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679090732"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-245"></span><span id="liftListen"><span class="annot"><span class="annottext">liftListen :: forall (m :: * -&gt; *) w a.
+Monad m =&gt;
+Listen w m (Maybe a) -&gt; Listen w (MaybeT m) a
+</span><a href="Control.Monad.Trans.Maybe.html#liftListen"><span class="hs-identifier hs-var hs-var">liftListen</span></a></span></span><span> </span><span id="local-6989586621679091280"><span class="annot"><span class="annottext">Listen w m (Maybe a)
+</span><a href="#local-6989586621679091280"><span class="hs-identifier hs-var">listen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (Maybe a) -&gt; m (Maybe (a, w))) -&gt; MaybeT m a -&gt; MaybeT m (a, w)
+forall (m :: * -&gt; *) a (n :: * -&gt; *) b.
+(m (Maybe a) -&gt; n (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT n b
+</span><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier hs-var">mapMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">((m (Maybe a) -&gt; m (Maybe (a, w)))
+ -&gt; MaybeT m a -&gt; MaybeT m (a, w))
+-&gt; (m (Maybe a) -&gt; m (Maybe (a, w)))
+-&gt; MaybeT m a
+-&gt; MaybeT m (a, w)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679091281"><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679091281"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-246"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679091282"><span class="annot"><a href="#local-6989586621679091282"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091283"><span class="annot"><a href="#local-6989586621679091283"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Listen w m (Maybe a)
+</span><a href="#local-6989586621679091280"><span class="hs-identifier hs-var">listen</span></a></span><span> </span><span class="annot"><span class="annottext">m (Maybe a)
+</span><a href="#local-6989586621679091281"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-247"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679091285"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091285"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091285"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w
+</span><a href="#local-6989586621679091283"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679091282"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-248"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftListen"><span class="hs-pragma hs-type">liftListen</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="annot"><span class="hs-comment">-- | Lift a @pass@ operation to the new monad.</span></span><span>
+</span><span id="line-251"></span><span id="local-6989586621679090740"><span id="local-6989586621679090741"><span id="local-6989586621679090742"><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftPass"><span class="hs-identifier hs-type">liftPass</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679090740"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Pass"><span class="hs-identifier hs-type">Pass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090741"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090740"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090742"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Signatures.html#Pass"><span class="hs-identifier hs-type">Pass</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090741"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#MaybeT"><span class="hs-identifier hs-type">MaybeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090740"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679090742"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-252"></span><span id="liftPass"><span class="annot"><span class="annottext">liftPass :: forall (m :: * -&gt; *) w a.
+Monad m =&gt;
+Pass w m (Maybe a) -&gt; Pass w (MaybeT m) a
+</span><a href="Control.Monad.Trans.Maybe.html#liftPass"><span class="hs-identifier hs-var hs-var">liftPass</span></a></span></span><span> </span><span id="local-6989586621679091289"><span class="annot"><span class="annottext">Pass w m (Maybe a)
+</span><a href="#local-6989586621679091289"><span class="hs-identifier hs-var">pass</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (Maybe (a, w -&gt; w)) -&gt; m (Maybe a))
+-&gt; MaybeT m (a, w -&gt; w) -&gt; MaybeT m a
+forall (m :: * -&gt; *) a (n :: * -&gt; *) b.
+(m (Maybe a) -&gt; n (Maybe b)) -&gt; MaybeT m a -&gt; MaybeT n b
+</span><a href="Control.Monad.Trans.Maybe.html#mapMaybeT"><span class="hs-identifier hs-var">mapMaybeT</span></a></span><span> </span><span class="annot"><span class="annottext">((m (Maybe (a, w -&gt; w)) -&gt; m (Maybe a))
+ -&gt; MaybeT m (a, w -&gt; w) -&gt; MaybeT m a)
+-&gt; (m (Maybe (a, w -&gt; w)) -&gt; m (Maybe a))
+-&gt; MaybeT m (a, w -&gt; w)
+-&gt; MaybeT m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679091290"><span class="annot"><span class="annottext">m (Maybe (a, w -&gt; w))
+</span><a href="#local-6989586621679091290"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pass w m (Maybe a)
+</span><a href="#local-6989586621679091289"><span class="hs-identifier hs-var">pass</span></a></span><span> </span><span class="annot"><span class="annottext">Pass w m (Maybe a) -&gt; Pass w m (Maybe a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-253"></span><span>    </span><span id="local-6989586621679091291"><span class="annot"><a href="#local-6989586621679091291"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (Maybe (a, w -&gt; w))
+</span><a href="#local-6989586621679091290"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-254"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091291"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-255"></span><span>        </span><span class="annot"><span class="annottext">Maybe (a, w -&gt; w)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w -&gt; w
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679091293"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091293"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679091294"><span class="annot"><span class="annottext">w -&gt; w
+</span><a href="#local-6989586621679091294"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679091293"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">w -&gt; w
+</span><a href="#local-6989586621679091294"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Control.Monad.Trans.Maybe.html#liftPass"><span class="hs-pragma hs-type">liftPass</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-258"></span></pre></body></html>

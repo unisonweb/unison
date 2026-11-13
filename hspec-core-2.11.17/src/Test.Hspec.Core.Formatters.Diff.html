@@ -1,0 +1,669 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html"><span class="hs-identifier">Test.Hspec.Core.Formatters.Diff</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier">Diff</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#diff"><span class="hs-identifier">diff</span></a></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier">LineDiff</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#lineDiff"><span class="hs-identifier">lineDiff</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#splitLines"><span class="hs-identifier">splitLines</span></a></span><span class="hs-cpp">
+
+#ifdef TEST
+</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">partition</span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="hs-identifier">breakList</span><span class="hs-cpp">
+#endif
+</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Algorithm.Diff.html"><span class="hs-identifier">Data.Algorithm.Diff</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Diff</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="Diff"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier hs-var">Diff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="First"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#First"><span class="hs-identifier hs-var">First</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Second"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Second"><span class="hs-identifier hs-var">Second</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Both"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138682"><span id="local-6989586621679138690"><span class="annot"><span class="annottext">Diff -&gt; Diff -&gt; Bool
+(Diff -&gt; Diff -&gt; Bool) -&gt; (Diff -&gt; Diff -&gt; Bool) -&gt; Eq Diff
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Diff -&gt; Diff -&gt; Bool
+== :: Diff -&gt; Diff -&gt; Bool
+$c/= :: Diff -&gt; Diff -&gt; Bool
+/= :: Diff -&gt; Diff -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138695"><span id="local-6989586621679138705"><span id="local-6989586621679138709"><span class="annot"><span class="annottext">Int -&gt; Diff -&gt; ShowS
+[Diff] -&gt; ShowS
+Diff -&gt; [Char]
+(Int -&gt; Diff -&gt; ShowS)
+-&gt; (Diff -&gt; [Char]) -&gt; ([Diff] -&gt; ShowS) -&gt; Show Diff
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Diff -&gt; ShowS
+showsPrec :: Int -&gt; Diff -&gt; ShowS
+$cshow :: Diff -&gt; [Char]
+show :: Diff -&gt; [Char]
+$cshowList :: [Diff] -&gt; ShowS
+showList :: [Diff] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="LineDiff"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-var">LineDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span id="LinesFirst"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesFirst"><span class="hs-identifier hs-var">LinesFirst</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LinesSecond"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesSecond"><span class="hs-identifier hs-var">LinesSecond</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LinesBoth"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesBoth"><span class="hs-identifier hs-var">LinesBoth</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SingleLineDiff"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#SingleLineDiff"><span class="hs-identifier hs-var">SingleLineDiff</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LinesOmitted"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesOmitted"><span class="hs-identifier hs-var">LinesOmitted</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138720"><span id="local-6989586621679138731"><span class="annot"><span class="annottext">LineDiff -&gt; LineDiff -&gt; Bool
+(LineDiff -&gt; LineDiff -&gt; Bool)
+-&gt; (LineDiff -&gt; LineDiff -&gt; Bool) -&gt; Eq LineDiff
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: LineDiff -&gt; LineDiff -&gt; Bool
+== :: LineDiff -&gt; LineDiff -&gt; Bool
+$c/= :: LineDiff -&gt; LineDiff -&gt; Bool
+/= :: LineDiff -&gt; LineDiff -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138735"><span id="local-6989586621679138750"><span id="local-6989586621679138754"><span class="annot"><span class="annottext">Int -&gt; LineDiff -&gt; ShowS
+[LineDiff] -&gt; ShowS
+LineDiff -&gt; [Char]
+(Int -&gt; LineDiff -&gt; ShowS)
+-&gt; (LineDiff -&gt; [Char]) -&gt; ([LineDiff] -&gt; ShowS) -&gt; Show LineDiff
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; [Char]) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; LineDiff -&gt; ShowS
+showsPrec :: Int -&gt; LineDiff -&gt; ShowS
+$cshow :: LineDiff -&gt; [Char]
+show :: LineDiff -&gt; [Char]
+$cshowList :: [LineDiff] -&gt; ShowS
+showList :: [LineDiff] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#lineDiff"><span class="hs-identifier hs-type">lineDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span id="lineDiff"><span class="annot"><span class="annottext">lineDiff :: Maybe Int -&gt; [Char] -&gt; [Char] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#lineDiff"><span class="hs-identifier hs-var hs-var">lineDiff</span></a></span></span><span> </span><span id="local-6989586621679138757"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679138757"><span class="hs-identifier hs-var">context</span></a></span></span><span> </span><span id="local-6989586621679138758"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138758"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span id="local-6989586621679138759"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138759"><span class="hs-identifier hs-var">actual</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([LineDiff] -&gt; [LineDiff])
+-&gt; (Int -&gt; [LineDiff] -&gt; [LineDiff])
+-&gt; Maybe Int
+-&gt; [LineDiff]
+-&gt; [LineDiff]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#applyContext"><span class="hs-identifier hs-var">applyContext</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679138757"><span class="hs-identifier hs-var">context</span></a></span><span> </span><span class="annot"><span class="annottext">([LineDiff] -&gt; [LineDiff]) -&gt; [LineDiff] -&gt; [LineDiff]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#singleLineDiffs"><span class="hs-identifier hs-var">singleLineDiffs</span></a></span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138764"><span class="hs-identifier hs-var">diffs</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="#local-6989586621679138764"><span class="hs-identifier hs-type">diffs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679138764"><span class="annot"><span class="annottext">diffs :: [LineDiff]
+</span><a href="#local-6989586621679138764"><span class="hs-identifier hs-var hs-var">diffs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]] -&gt; [Diff [[Char]]]
+forall t. Eq t =&gt; [t] -&gt; [t] -&gt; [Diff [t]]
+</span><a href="Data.Algorithm.Diff.html#getGroupedDiff"><span class="hs-identifier hs-var">Diff.getGroupedDiff</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138766"><span class="hs-identifier hs-var">expectedLines</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138767"><span class="hs-identifier hs-var">actualLines</span></a></span><span> </span><span class="annot"><span class="annottext">[Diff [[Char]]] -&gt; (Diff [[Char]] -&gt; LineDiff) -&gt; [LineDiff]
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">Diff.First</span></a></span><span> </span><span id="local-6989586621679138770"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138770"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LinesFirst"><span class="hs-identifier hs-var">LinesFirst</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138770"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Diff.Second</span></a></span><span> </span><span id="local-6989586621679138772"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138772"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LinesSecond"><span class="hs-identifier hs-var">LinesSecond</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138772"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Diff.Both</span></a></span><span> </span><span id="local-6989586621679138774"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138774"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LinesBoth"><span class="hs-identifier hs-var">LinesBoth</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138774"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="#local-6989586621679138766"><span class="hs-identifier hs-type">expectedLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679138766"><span class="annot"><span class="annottext">expectedLines :: [[Char]]
+</span><a href="#local-6989586621679138766"><span class="hs-identifier hs-var hs-var">expectedLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitLines"><span class="hs-identifier hs-var">splitLines</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138758"><span class="hs-identifier hs-var">expected</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="#local-6989586621679138767"><span class="hs-identifier hs-type">actualLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679138767"><span class="annot"><span class="annottext">actualLines :: [[Char]]
+</span><a href="#local-6989586621679138767"><span class="hs-identifier hs-var hs-var">actualLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitLines"><span class="hs-identifier hs-var">splitLines</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138759"><span class="hs-identifier hs-var">actual</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#singleLineDiffs"><span class="hs-identifier hs-type">singleLineDiffs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span id="singleLineDiffs"><span class="annot"><span class="annottext">singleLineDiffs :: [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#singleLineDiffs"><span class="hs-identifier hs-var hs-var">singleLineDiffs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138775"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679138775"><span class="annot"><span class="annottext">go :: [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138775"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">case</span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesFirst"><span class="hs-identifier hs-type">LinesFirst</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679138776"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138776"><span class="hs-identifier hs-var">first_</span></a></span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesSecond"><span class="hs-identifier hs-type">LinesSecond</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679138777"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138777"><span class="hs-identifier hs-var">second_</span></a></span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138778"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138778"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Diff] -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#SingleLineDiff"><span class="hs-identifier hs-var">SingleLineDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Diff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#diff"><span class="hs-identifier hs-var">diff</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138776"><span class="hs-identifier hs-var">first_</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138777"><span class="hs-identifier hs-var">second_</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138775"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138778"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span id="local-6989586621679138779"><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138779"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138780"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138780"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138779"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138775"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138780"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#splitLines"><span class="hs-identifier hs-type">splitLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-60"></span><span id="splitLines"><span class="annot"><span class="annottext">splitLines :: [Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitLines"><span class="hs-identifier hs-var hs-var">splitLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="#local-6989586621679138781"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><a href="#local-6989586621679138781"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679138781"><span class="annot"><span class="annottext">go :: [Char] -&gt; [[Char]]
+</span><a href="#local-6989586621679138781"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679138782"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138782"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; ([Char], [Char])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138782"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679138784"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138784"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\n'</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138785"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138785"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138784"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; [[Char]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="#local-6989586621679138781"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138785"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">([Char], [Char])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138782"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">data</span><span> </span><span id="TrimMode"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#TrimMode"><span class="hs-identifier hs-var">TrimMode</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FirstChunk"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#FirstChunk"><span class="hs-identifier hs-var">FirstChunk</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Chunk"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Chunk"><span class="hs-identifier hs-var">Chunk</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="LastChunk"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LastChunk"><span class="hs-identifier hs-var">LastChunk</span></a></span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#applyContext"><span class="hs-identifier hs-type">applyContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-70"></span><span id="applyContext"><span class="annot"><span class="annottext">applyContext :: Int -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#applyContext"><span class="hs-identifier hs-var hs-var">applyContext</span></a></span></span><span> </span><span id="local-6989586621679138789"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138789"><span class="hs-identifier hs-var">context</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679138790"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138790"><span class="hs-identifier hs-var">diffs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138790"><span class="hs-identifier hs-var">diffs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679138791"><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138791"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138792"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138792"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TrimMode -&gt; LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138793"><span class="hs-identifier hs-var">trimChunk</span></a></span><span> </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#FirstChunk"><span class="hs-identifier hs-var">FirstChunk</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138791"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138794"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138792"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><a href="#local-6989586621679138795"><span class="hs-identifier hs-type">omitThreshold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679138795"><span class="annot"><span class="annottext">omitThreshold :: Int
+</span><a href="#local-6989586621679138795"><span class="hs-identifier hs-var hs-var">omitThreshold</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><a href="#local-6989586621679138794"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679138794"><span class="annot"><span class="annottext">go :: [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138794"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679138796"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138796"><span class="hs-identifier hs-var">diffs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138796"><span class="hs-identifier hs-var">diffs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-special">[</span><span id="local-6989586621679138797"><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138797"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TrimMode -&gt; LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138793"><span class="hs-identifier hs-var">trimChunk</span></a></span><span> </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LastChunk"><span class="hs-identifier hs-var">LastChunk</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138797"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>      </span><span id="local-6989586621679138798"><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138798"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138799"><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138799"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TrimMode -&gt; LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138793"><span class="hs-identifier hs-var">trimChunk</span></a></span><span> </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#Chunk"><span class="hs-identifier hs-var">Chunk</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138798"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138794"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[LineDiff]
+</span><a href="#local-6989586621679138799"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><a href="#local-6989586621679138793"><span class="hs-identifier hs-type">trimChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#TrimMode"><span class="hs-identifier hs-type">TrimMode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679138793"><span class="annot"><span class="annottext">trimChunk :: TrimMode -&gt; LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="#local-6989586621679138793"><span class="hs-identifier hs-var hs-var">trimChunk</span></a></span></span><span> </span><span id="local-6989586621679138800"><span class="annot"><span class="annottext">TrimMode
+</span><a href="#local-6989586621679138800"><span class="hs-identifier hs-var">mode</span></a></span></span><span> </span><span id="local-6989586621679138801"><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138801"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138801"><span class="hs-identifier hs-var">chunk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LinesBoth"><span class="hs-identifier hs-type">LinesBoth</span></a></span><span> </span><span id="local-6989586621679138802"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138802"><span class="hs-identifier hs-var">allLines</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679138803"><span class="hs-identifier hs-var">meetsThreshold</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#keep"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138805"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">([LineDiff] -&gt; [LineDiff])
+-&gt; ([LineDiff] -&gt; [LineDiff]) -&gt; [LineDiff] -&gt; [LineDiff]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LinesOmitted"><span class="hs-identifier hs-var">LinesOmitted</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138807"><span class="hs-identifier hs-var">omitted</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([LineDiff] -&gt; [LineDiff])
+-&gt; ([LineDiff] -&gt; [LineDiff]) -&gt; [LineDiff] -&gt; [LineDiff]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#keep"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138808"><span class="hs-identifier hs-var">end</span></a></span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>          </span><span class="annot"><a href="#local-6989586621679138803"><span class="hs-identifier hs-type">meetsThreshold</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-88"></span><span>          </span><span id="local-6989586621679138803"><span class="annot"><span class="annottext">meetsThreshold :: Bool
+</span><a href="#local-6989586621679138803"><span class="hs-identifier hs-var hs-var">meetsThreshold</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138795"><span class="hs-identifier hs-var">omitThreshold</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138807"><span class="hs-identifier hs-var">omitted</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>          </span><span id="local-6989586621679138810"><span class="annot"><span class="annottext">lastLineHasNL :: Bool
+</span><a href="#local-6989586621679138810"><span class="hs-identifier hs-var hs-var">lastLineHasNL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TrimMode
+</span><a href="#local-6989586621679138800"><span class="hs-identifier hs-var">mode</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138802"><span class="hs-identifier hs-var">allLines</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-91"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LastChunk"><span class="hs-identifier hs-var">LastChunk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-92"></span><span>            </span><span class="annot"><span class="annottext">(TrimMode, [[Char]])
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>          </span><span class="annot"><a href="#local-6989586621679138807"><span class="hs-identifier hs-type">omitted</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-95"></span><span>          </span><span id="local-6989586621679138807"><span class="annot"><span class="annottext">omitted :: Int
+</span><a href="#local-6989586621679138807"><span class="hs-identifier hs-var hs-var">omitted</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138812"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138813"><span class="hs-identifier hs-var">keepStart</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138814"><span class="hs-identifier hs-var">keepEnd</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>          </span><span class="annot"><a href="#local-6989586621679138813"><span class="hs-identifier hs-type">keepStart</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-98"></span><span>          </span><span id="local-6989586621679138813"><span class="annot"><span class="annottext">keepStart :: Int
+</span><a href="#local-6989586621679138813"><span class="hs-identifier hs-var hs-var">keepStart</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="#local-6989586621679138800"><span class="hs-identifier hs-var">mode</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-99"></span><span>            </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#FirstChunk"><span class="hs-identifier hs-var">FirstChunk</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-100"></span><span>            </span><span class="annot"><span class="annottext">TrimMode
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138789"><span class="hs-identifier hs-var">context</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>          </span><span class="annot"><a href="#local-6989586621679138814"><span class="hs-identifier hs-type">keepEnd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-103"></span><span>          </span><span id="local-6989586621679138814"><span class="annot"><span class="annottext">keepEnd :: Int
+</span><a href="#local-6989586621679138814"><span class="hs-identifier hs-var hs-var">keepEnd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="#local-6989586621679138800"><span class="hs-identifier hs-var">mode</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>            </span><span class="annot"><span class="annottext">TrimMode
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LastChunk"><span class="hs-identifier hs-var">LastChunk</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-105"></span><span>            </span><span class="annot"><span class="annottext">TrimMode
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138789"><span class="hs-identifier hs-var">context</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>          </span><span class="annot"><a href="#local-6989586621679138812"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-108"></span><span>          </span><span id="local-6989586621679138812"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679138812"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138802"><span class="hs-identifier hs-var">allLines</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679138810"><span class="hs-identifier hs-var">lastLineHasNL</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-109"></span><span>            </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-110"></span><span>            </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>          </span><span class="annot"><a href="#local-6989586621679138805"><span class="hs-identifier hs-type">start</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-113"></span><span>          </span><span id="local-6989586621679138805"><span class="annot"><span class="annottext">start :: [[Char]]
+</span><a href="#local-6989586621679138805"><span class="hs-identifier hs-var hs-var">start</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [[Char]] -&gt; [[Char]]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138813"><span class="hs-identifier hs-var">keepStart</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138802"><span class="hs-identifier hs-var">allLines</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>          </span><span class="annot"><a href="#local-6989586621679138808"><span class="hs-identifier hs-type">end</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-116"></span><span>          </span><span id="local-6989586621679138808"><span class="annot"><span class="annottext">end :: [[Char]]
+</span><a href="#local-6989586621679138808"><span class="hs-identifier hs-var hs-var">end</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [[Char]] -&gt; [[Char]]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138813"><span class="hs-identifier hs-var">keepStart</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679138807"><span class="hs-identifier hs-var">omitted</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138802"><span class="hs-identifier hs-var">allLines</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><span class="annottext">LineDiff
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LineDiff
+</span><a href="#local-6989586621679138801"><span class="hs-identifier hs-var">chunk</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#keep"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#LineDiff"><span class="hs-identifier hs-type">LineDiff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span id="keep"><span class="annot"><span class="annottext">keep :: [[Char]] -&gt; [LineDiff] -&gt; [LineDiff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#keep"><span class="hs-identifier hs-var hs-var">keep</span></a></span></span><span> </span><span id="local-6989586621679138819"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138819"><span class="hs-identifier hs-var">xs</span></a></span></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138819"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[[Char]] -&gt; LineDiff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#LinesBoth"><span class="hs-identifier hs-var">LinesBoth</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138819"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">LineDiff -&gt; [LineDiff] -&gt; [LineDiff]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#diff"><span class="hs-identifier hs-type">diff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-126"></span><span id="diff"><span class="annot"><span class="annottext">diff :: [Char] -&gt; [Char] -&gt; [Diff]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#diff"><span class="hs-identifier hs-var hs-var">diff</span></a></span></span><span> </span><span id="local-6989586621679138821"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138821"><span class="hs-identifier hs-var">expected</span></a></span></span><span> </span><span id="local-6989586621679138822"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138822"><span class="hs-identifier hs-var">actual</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Diff]
+</span><a href="#local-6989586621679138823"><span class="hs-identifier hs-var">diffs</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><a href="#local-6989586621679138823"><span class="hs-identifier hs-type">diffs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621679138823"><span class="annot"><span class="annottext">diffs :: [Diff]
+</span><a href="#local-6989586621679138823"><span class="hs-identifier hs-var hs-var">diffs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Diff [[Char]] -&gt; Diff) -&gt; [Diff [[Char]]] -&gt; [Diff]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Diff [Char] -&gt; Diff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#toDiff"><span class="hs-identifier hs-var">toDiff</span></a></span><span> </span><span class="annot"><span class="annottext">(Diff [Char] -&gt; Diff)
+-&gt; (Diff [[Char]] -&gt; Diff [Char]) -&gt; Diff [[Char]] -&gt; Diff
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([[Char]] -&gt; [Char]) -&gt; Diff [[Char]] -&gt; Diff [Char]
+forall a b. (a -&gt; b) -&gt; Diff a -&gt; Diff b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [Char]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Diff [[Char]]] -&gt; [Diff]) -&gt; [Diff [[Char]]] -&gt; [Diff]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]] -&gt; [Diff [[Char]]]
+forall t. Eq t =&gt; [t] -&gt; [t] -&gt; [Diff [t]]
+</span><a href="Data.Algorithm.Diff.html#getGroupedDiff"><span class="hs-identifier hs-var">Diff.getGroupedDiff</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138826"><span class="hs-identifier hs-var">expectedChunks</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138827"><span class="hs-identifier hs-var">actualChunks</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><a href="#local-6989586621679138826"><span class="hs-identifier hs-type">expectedChunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679138826"><span class="annot"><span class="annottext">expectedChunks :: [[Char]]
+</span><a href="#local-6989586621679138826"><span class="hs-identifier hs-var hs-var">expectedChunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#partition"><span class="hs-identifier hs-var">partition</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138821"><span class="hs-identifier hs-var">expected</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><a href="#local-6989586621679138827"><span class="hs-identifier hs-type">actualChunks</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679138827"><span class="annot"><span class="annottext">actualChunks :: [[Char]]
+</span><a href="#local-6989586621679138827"><span class="hs-identifier hs-var hs-var">actualChunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#partition"><span class="hs-identifier hs-var">partition</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138822"><span class="hs-identifier hs-var">actual</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#toDiff"><span class="hs-identifier hs-type">toDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Algorithm.Diff.html#Diff"><span class="hs-identifier hs-type">Diff.Diff</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span><span>
+</span><span id="line-138"></span><span id="toDiff"><span class="annot"><span class="annottext">toDiff :: Diff [Char] -&gt; Diff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#toDiff"><span class="hs-identifier hs-var hs-var">toDiff</span></a></span></span><span> </span><span id="local-6989586621679138829"><span class="annot"><span class="annottext">Diff [Char]
+</span><a href="#local-6989586621679138829"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Diff [Char]
+</span><a href="#local-6989586621679138829"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-139"></span><span>  </span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">Diff.First</span></a></span><span> </span><span id="local-6989586621679138830"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138830"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Diff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#First"><span class="hs-identifier hs-var">First</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138830"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Diff.Second</span></a></span><span> </span><span id="local-6989586621679138831"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138831"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Diff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#Second"><span class="hs-identifier hs-var">Second</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138831"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Diff.Both</span></a></span><span> </span><span id="local-6989586621679138832"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138832"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Diff
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138832"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#partition"><span class="hs-identifier hs-type">partition</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-144"></span><span id="partition"><span class="annot"><span class="annottext">partition :: [Char] -&gt; [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#partition"><span class="hs-identifier hs-var hs-var">partition</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Bool) -&gt; [[Char]] -&gt; [[Char]]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; ([Char] -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([[Char]] -&gt; [[Char]])
+-&gt; ([Char] -&gt; [[Char]]) -&gt; [Char] -&gt; [[Char]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]]
+</span><a href="#local-6989586621679138834"><span class="hs-identifier hs-var">mergeBackslashes</span></a></span><span> </span><span class="annot"><span class="annottext">([[Char]] -&gt; [[Char]])
+-&gt; ([Char] -&gt; [[Char]]) -&gt; [Char] -&gt; [[Char]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; [[Char]]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#breakList"><span class="hs-identifier hs-var">breakList</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlphaNum</span></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><a href="#local-6989586621679138834"><span class="hs-identifier hs-type">mergeBackslashes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679138834"><span class="annot"><span class="annottext">mergeBackslashes :: [[Char]] -&gt; [[Char]]
+</span><a href="#local-6989586621679138834"><span class="hs-identifier hs-var hs-var">mergeBackslashes</span></a></span></span><span> </span><span id="local-6989586621679138837"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138837"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138837"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-148"></span><span>      </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\\'</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; Maybe ([Char], [Char])
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitEscape"><span class="hs-identifier hs-var">splitEscape</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679138839"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138839"><span class="hs-identifier hs-var">escape</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138840"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138840"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138841"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138841"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;\\&quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138839"><span class="hs-identifier hs-var">escape</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; [[Char]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138840"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; [[Char]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]]
+</span><a href="#local-6989586621679138834"><span class="hs-identifier hs-var">mergeBackslashes</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138841"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-149"></span><span>      </span><span id="local-6989586621679138842"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138842"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679138843"><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138843"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138842"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]] -&gt; [[Char]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; [[Char]]
+</span><a href="#local-6989586621679138834"><span class="hs-identifier hs-var">mergeBackslashes</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679138843"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-150"></span><span>      </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span id="local-6989586621679138627"><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#breakList"><span class="hs-identifier hs-type">breakList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679138627"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679138627"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679138627"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span><span>
+</span><span id="line-153"></span><span id="breakList"><span class="annot"><span class="annottext">breakList :: forall a. (a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#breakList"><span class="hs-identifier hs-var hs-var">breakList</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-154"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#breakList"><span class="hs-identifier hs-var">breakList</span></a></span><span> </span><span id="local-6989586621679138847"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679138847"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679138848"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138848"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">break</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679138847"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138848"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679138849"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138849"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138850"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138850"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; [a]) -&gt; [a] -&gt; [[a]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a]
+forall a. a -&gt; [a]
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138849"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; [[a]] -&gt; [[a]]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">span</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679138847"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138850"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679138852"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138852"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679138853"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138853"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138852"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [[a]] -&gt; [[a]]
+forall {t :: * -&gt; *} {a}. Foldable t =&gt; t a -&gt; [t a] -&gt; [t a]
+</span><a href="#local-6989586621679138854"><span class="hs-operator hs-var">`cons`</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#breakList"><span class="hs-identifier hs-var">breakList</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679138847"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679138853"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-158"></span><span>    </span><span id="local-6989586621679138854"><span class="annot"><span class="annottext">cons :: t a -&gt; [t a] -&gt; [t a]
+</span><a href="#local-6989586621679138854"><span class="hs-identifier hs-var hs-var">cons</span></a></span></span><span> </span><span id="local-6989586621679138857"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679138857"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-159"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">t a -&gt; Bool
+forall a. t a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679138857"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[t a] -&gt; [t a]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-160"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679138857"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">t a -&gt; [t a] -&gt; [t a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#splitEscape"><span class="hs-identifier hs-type">splitEscape</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span id="splitEscape"><span class="annot"><span class="annottext">splitEscape :: [Char] -&gt; Maybe ([Char], [Char])
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitEscape"><span class="hs-identifier hs-var hs-var">splitEscape</span></a></span></span><span> </span><span id="local-6989586621679138858"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138858"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe ([Char], [Char])
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitNumericEscape"><span class="hs-identifier hs-var">splitNumericEscape</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138858"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ([Char], [Char])
+-&gt; Maybe ([Char], [Char]) -&gt; Maybe ([Char], [Char])
+forall a. Maybe a -&gt; Maybe a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe ([Char], [Char])] -&gt; Maybe ([Char], [Char])
+forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Foldable t, MonadPlus m) =&gt;
+t (m a) -&gt; m a
+</span><span class="hs-identifier hs-var">msum</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([Char] -&gt; Maybe ([Char], [Char]))
+-&gt; [[Char]] -&gt; [Maybe ([Char], [Char])]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Maybe ([Char], [Char])
+</span><a href="#local-6989586621679138862"><span class="hs-identifier hs-var">split</span></a></span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#escapes"><span class="hs-identifier hs-var">escapes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><a href="#local-6989586621679138862"><span class="hs-identifier hs-type">split</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679138862"><span class="annot"><span class="annottext">split :: [Char] -&gt; Maybe ([Char], [Char])
+</span><a href="#local-6989586621679138862"><span class="hs-identifier hs-var hs-var">split</span></a></span></span><span> </span><span id="local-6989586621679138864"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138864"><span class="hs-identifier hs-var">escape</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138864"><span class="hs-identifier hs-var">escape</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; ([Char], [Char]))
+-&gt; Maybe [Char] -&gt; Maybe ([Char], [Char])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Maybe [Char]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; Maybe [a]
+</span><span class="hs-identifier hs-var">stripPrefix</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138864"><span class="hs-identifier hs-var">escape</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138858"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#splitNumericEscape"><span class="hs-identifier hs-type">splitNumericEscape</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span id="splitNumericEscape"><span class="annot"><span class="annottext">splitNumericEscape :: [Char] -&gt; Maybe ([Char], [Char])
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#splitNumericEscape"><span class="hs-identifier hs-var hs-var">splitNumericEscape</span></a></span></span><span> </span><span id="local-6989586621679138867"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138867"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; ([Char], [Char])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">span</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679138867"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ([Char], [Char])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-171"></span><span>  </span><span id="local-6989586621679138869"><span class="annot"><span class="annottext">([Char], [Char])
+</span><a href="#local-6989586621679138869"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; Maybe ([Char], [Char])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([Char], [Char])
+</span><a href="#local-6989586621679138869"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><a href="Test.Hspec.Core.Formatters.Diff.html#escapes"><span class="hs-identifier hs-type">escapes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-174"></span><span id="escapes"><span class="annot"><span class="annottext">escapes :: [[Char]]
+</span><a href="Test.Hspec.Core.Formatters.Diff.html#escapes"><span class="hs-identifier hs-var hs-var">escapes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ACK&quot;</span></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;CAN&quot;</span></span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DC1&quot;</span></span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DC2&quot;</span></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DC3&quot;</span></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DC4&quot;</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DEL&quot;</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;DLE&quot;</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ENQ&quot;</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;EOT&quot;</span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ESC&quot;</span></span><span>
+</span><span id="line-186"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ETB&quot;</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ETX&quot;</span></span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;NAK&quot;</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;NUL&quot;</span></span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;SOH&quot;</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;STX&quot;</span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;SUB&quot;</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;SYN&quot;</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;EM&quot;</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;FS&quot;</span></span><span>
+</span><span id="line-196"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;GS&quot;</span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;RS&quot;</span></span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;SI&quot;</span></span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;SO&quot;</span></span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;US&quot;</span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;a&quot;</span></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;b&quot;</span></span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;f&quot;</span></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;n&quot;</span></span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;r&quot;</span></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;t&quot;</span></span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;v&quot;</span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&amp;&quot;</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;'&quot;</span></span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;\\&quot;</span></span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-213"></span></pre></body></html>

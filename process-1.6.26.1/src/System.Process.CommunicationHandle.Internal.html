@@ -1,0 +1,249 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Process.CommunicationHandle.Internal</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-comment">-- * 'CommunicationHandle': a 'Handle' that can be serialised,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-comment">-- enabling inter-process communication.</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-identifier">CommunicationHandle</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">closeCommunicationHandle</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-comment">-- ** Internal functions</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">useCommunicationHandle</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">createCommunicationPipe</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Arrow</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">first</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Handle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Handle</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">hClose</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-pragma">{-# LINE 44 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.FD</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">mkFD</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">setNonBlockingMode</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Handle</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">noNewlineTranslation</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-pragma">{-# LINE 49 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.IO.Handle.Internals</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">mkFileHandleNoFinalizer</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-pragma">{-# LINE 59 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Fd</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">FdOption</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">setFdOption</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Internals</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">fdGetMode</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Process.Internals</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">createPipeFd</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-pragma">{-# LINE 68 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- Communication handles.</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | A 'CommunicationHandle' is an abstraction over operating-system specific</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- internal representation of a 'Handle', which can be communicated through a</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- command-line interface.</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- In a typical use case, the parent process creates a pipe, using e.g.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- 'createWeReadTheyWritePipe' or 'createTheyReadWeWritePipe'.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--  - One end of the pipe is a 'Handle', which can be read from/written to by</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--    the parent process.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">--  - The other end is a 'CommunicationHandle', which can be inherited by a</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--    child process. A reference to the handle can be serialised (using</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--    the 'Show' instance), and passed to the child process.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--    It is recommended to close the parent's reference to the 'CommunicationHandle'</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--    using 'closeCommunicationHandle' after it has been inherited by the child</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--    process.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--  - The child process can deserialise the 'CommunicationHandle' (using</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--    the 'Read' instance), and then use 'openCommunicationHandleWrite' or</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--    'openCommunicationHandleRead' in order to retrieve a 'Handle' which it</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--    can write to/read from.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- 'readCreateProcessWithExitCodeCommunicationHandle' provides a high-level API</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- to this functionality. See there for example code.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @since 1.6.20.0</span><span>
+</span><span id="line-96"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-identifier">CommunicationHandle</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>    </span><span class="hs-identifier">HANDLE</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-identifier">Fd</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Ord</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-pragma">{-# LINE 108 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- @since 1.6.20.0</span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Show</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-identifier">showsPrec</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-identifier">h</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-identifier">showsPrec</span><span> </span><span class="hs-identifier">p</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>      </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">ptrToWordPtr</span><span class="hs-cpp">
+#endif
+</span><span>      </span><span class="hs-identifier">h</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- @since 1.6.20.0</span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Read</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-identifier">readsPrec</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">str</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-identifier">fmap</span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">first</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>              </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">wordPtrToPtr</span><span class="hs-cpp">
+#endif
+</span><span>      </span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-127"></span><span>      </span><span class="hs-identifier">readsPrec</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">str</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Internal function used to define 'openCommunicationHandleRead' and</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- openCommunicationHandleWrite.</span><span>
+</span><span id="line-131"></span><span class="hs-identifier">useCommunicationHandle</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Handle</span><span>
+</span><span id="line-132"></span><span class="hs-identifier">useCommunicationHandle</span><span> </span><span class="hs-identifier">_wantToRead</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-identifier">ch</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if defined(__IO_MANAGER_WINIO__)
+</span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-operator">&lt;!&gt;</span><span> </span><span class="hs-identifier">associateHandleWithFallback</span><span> </span><span class="hs-identifier">_wantToRead</span><span> </span><span class="hs-identifier">ch</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-identifier">ch</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- | Close a 'CommunicationHandle'.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- Use this to close the 'CommunicationHandle' in the parent process after</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- the 'CommunicationHandle' has been inherited by the child process.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- @since 1.6.20.0</span><span>
+</span><span id="line-145"></span><span class="hs-identifier">closeCommunicationHandle</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span class="hs-identifier">closeCommunicationHandle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-identifier">ch</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-identifier">hClose</span><span> </span><span class="hs-operator">=&lt;&lt;</span><span> </span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-identifier">ch</span><span class="hs-cpp">
+
+#if defined(__IO_MANAGER_WINIO__)
+</span><span class="hs-comment">-- Internal function used when associating a 'HANDLE' with the current process.</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- Explanation: with WinIO, a synchronous handle cannot be associated with the</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- current process, while an asynchronous one must be associated before being usable.</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- In a child process, we don't necessarily know which kind of handle we will receive,</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- so we try to associate it (in case it is an asynchronous handle). This might</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- fail (if the handle is synchronous), in which case we continue in synchronous</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- mode (without associating).</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- With the current API, inheritable handles in WinIO created with mkNamedPipe</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- are synchronous, but it's best to be safe in case the child receives an</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- asynchronous handle anyway.</span><span>
+</span><span id="line-163"></span><span class="hs-identifier">associateHandleWithFallback</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">HANDLE</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span class="hs-identifier">associateHandleWithFallback</span><span> </span><span class="hs-identifier">_wantToRead</span><span> </span><span class="hs-identifier">h</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>  </span><span class="hs-identifier">associateHandle'</span><span> </span><span class="hs-identifier">h</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">catch</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">handler</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-identifier">handler</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IOError</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-identifier">handler</span><span> </span><span class="hs-identifier">ioErr</span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-identifier">IOError</span><span> </span><span class="hs-special">{</span><span> </span><span class="hs-identifier">ioe_handle</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">_mbErrHandle</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ioe_type</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">errTy</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ioe_errno</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mbErrNo</span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>      </span><span class="hs-comment">-- Catches the following error that occurs when attemping to associate</span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-comment">-- a HANDLE that does not have OVERLAPPING mode set:</span><span>
+</span><span id="line-171"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span>      </span><span class="hs-comment">--   associateHandleWithIOCP: invalid argument (The parameter is incorrect.)</span><span>
+</span><span id="line-173"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">InvalidArgument</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">errTy</span><span>
+</span><span id="line-174"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-number">22</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">mbErrNo</span><span>
+</span><span id="line-175"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span>
+</span><span id="line-177"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">throwIO</span><span> </span><span class="hs-identifier">ioErr</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | Gets a GHC Handle File description from the given OS Handle or POSIX fd.</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-pragma">{-# LINE 210 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-210"></span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Fd</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Handle</span><span>
+</span><span id="line-211"></span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">fdint</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-identifier">iomode</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">fdGetMode</span><span> </span><span class="hs-identifier">fdint</span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">fd0</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">_</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">mkFD</span><span> </span><span class="hs-identifier">fdint</span><span> </span><span class="hs-identifier">iomode</span><span> </span><span class="hs-identifier">Nothing</span><span> </span><span class="hs-identifier">False</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-comment">-- The following copies over 'mkHandleFromFDNoFinalizer'</span><span>
+</span><span id="line-215"></span><span>  </span><span class="hs-identifier">fd</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">setNonBlockingMode</span><span> </span><span class="hs-identifier">fd0</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-identifier">fd_str</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-string">&quot;&lt;file descriptor: &quot;</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-identifier">show</span><span> </span><span class="hs-identifier">fd</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-string">&quot;&gt;&quot;</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span class="hs-pragma">{-# LINE 218 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-identifier">mkFileHandleNoFinalizer</span><span> </span><span class="hs-identifier">fd</span><span> </span><span class="hs-identifier">fd_str</span><span> </span><span class="hs-identifier">iomode</span><span> </span><span class="hs-identifier">Nothing</span><span> </span><span class="hs-identifier">noNewlineTranslation</span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-pragma">{-# LINE 231 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-pragma">{-# LINE 232 &quot;libraries/process/System/Process/CommunicationHandle/Internal.hsc&quot; #-}</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- Creating pipes.</span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- | Internal helper function used to define 'createWeReadTheyWritePipe'</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- and 'createTheyReadWeWritePipe' while reducing code duplication.</span><span>
+</span><span id="line-238"></span><span class="hs-comment">--</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- The returned 'Handle' does not have any finalizers attached to it;</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- use 'hClose' to close it.</span><span>
+</span><span id="line-241"></span><span class="hs-identifier">createCommunicationPipe</span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>    </span><span class="hs-comment">-- ^ 'id' (we read, they write) or 'swap' (they read, we write)</span><span>
+</span><span id="line-244"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span> </span><span class="hs-comment">-- ^ whether to pass a handle supporting asynchronous I/O to the child process</span><span>
+</span><span id="line-245"></span><span>          </span><span class="hs-comment">-- (this flag only has an effect on Windows and when using WinIO)</span><span>
+</span><span id="line-246"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Handle</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span class="hs-special">)</span><span>
+</span><span id="line-247"></span><span class="hs-identifier">createCommunicationPipe</span><span> </span><span class="hs-identifier">swapIfTheyReadWeWrite</span><span> </span><span class="hs-identifier">_passAsyncHandleToChild</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if !defined(mingw32_HOST_OS)
+</span><span>  </span><span class="hs-comment">-- NB: it's important to use 'createPipeFd' here.</span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-comment">-- Were we to instead use 'createPipe', we would create a Handle for both pipe</span><span>
+</span><span id="line-252"></span><span>  </span><span class="hs-comment">-- ends, including the end we pass to the child.</span><span>
+</span><span id="line-253"></span><span>  </span><span class="hs-comment">-- Such Handle would have a finalizer which closes the underlying file descriptor.</span><span>
+</span><span id="line-254"></span><span>  </span><span class="hs-comment">-- However, we will already close the FD after it is inherited by the child.</span><span>
+</span><span id="line-255"></span><span>  </span><span class="hs-comment">-- This could lead to the following scenario:</span><span>
+</span><span id="line-256"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-comment">--  - the parent creates a new pipe, e.g. pipe2([7,8]),</span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-comment">--  - the parent spawns a child process, and lets FD 8 be inherited by the child,</span><span>
+</span><span id="line-259"></span><span>  </span><span class="hs-comment">--  - the parent closes FD 8,</span><span>
+</span><span id="line-260"></span><span>  </span><span class="hs-comment">--  - the parent opens FD 8 for some other purpose, e.g. for writing to a file,</span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-comment">--  - the finalizer for the Handle wrapping FD 8 runs, closing FD 8, even though</span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-comment">--    it is now in use for a completely different purpose.</span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">ourFd</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">theirFd</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">swapIfTheyReadWeWrite</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">createPipeFd</span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-comment">-- Don't allow the child process to inherit a parent file descriptor</span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-comment">-- (such inheritance happens by default on Unix).</span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-identifier">setFdOption</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">ourFd</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">CloseOnExec</span><span> </span><span class="hs-identifier">True</span><span>
+</span><span id="line-267"></span><span>  </span><span class="hs-comment">-- NB: we will be closing this handle manually, so don't use 'handleFromFd'</span><span>
+</span><span id="line-268"></span><span>  </span><span class="hs-comment">-- which attaches a finalizer that closes the FD. See the above comment</span><span>
+</span><span id="line-269"></span><span>  </span><span class="hs-comment">-- about 'createPipeFd'.</span><span>
+</span><span id="line-270"></span><span>  </span><span class="hs-identifier">ourHandle</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getGhcHandle</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">ourFd</span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ourHandle</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">theirFd</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span>  </span><span class="hs-identifier">trueForWinIO</span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">False</span><span class="hs-cpp">
+#  if defined (__IO_MANAGER_WINIO__)
+</span><span>      </span><span class="hs-operator">&lt;!&gt;</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">True</span><span class="hs-cpp">
+#  endif
+</span><span>  </span><span class="hs-comment">-- On Windows, use mkNamedPipe to create the two pipe ends.</span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-identifier">alloca</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">pfdStdInput</span><span>  </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-280"></span><span>    </span><span class="hs-identifier">alloca</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">pfdStdOutput</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-281"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">inheritRead</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">inheritWrite</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">swapIfTheyReadWeWrite</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">False</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">True</span><span class="hs-special">)</span><span>
+</span><span id="line-282"></span><span>          </span><span class="hs-comment">-- WinIO:</span><span>
+</span><span id="line-283"></span><span>          </span><span class="hs-comment">--  - make the parent pipe end overlapped,</span><span>
+</span><span id="line-284"></span><span>          </span><span class="hs-comment">--  - make the child end overlapped if requested,</span><span>
+</span><span id="line-285"></span><span>          </span><span class="hs-comment">-- Otherwise: make both pipe ends synchronous.</span><span>
+</span><span id="line-286"></span><span>          </span><span class="hs-identifier">overlappedRead</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">trueForWinIO</span><span> </span><span class="hs-operator">&amp;&amp;</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">_passAsyncHandleToChild</span><span> </span><span class="hs-operator">||</span><span> </span><span class="hs-identifier">not</span><span> </span><span class="hs-identifier">inheritRead</span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-287"></span><span>          </span><span class="hs-identifier">overlappedWrite</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">trueForWinIO</span><span> </span><span class="hs-operator">&amp;&amp;</span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">_passAsyncHandleToChild</span><span> </span><span class="hs-operator">||</span><span> </span><span class="hs-identifier">not</span><span> </span><span class="hs-identifier">inheritWrite</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-288"></span><span>      </span><span class="hs-identifier">throwErrnoIf_</span><span> </span><span class="hs-special">(</span><span class="hs-operator">==</span><span class="hs-identifier">False</span><span class="hs-special">)</span><span> </span><span class="hs-string">&quot;mkNamedPipe&quot;</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-289"></span><span>        </span><span class="hs-identifier">mkNamedPipe</span><span>
+</span><span id="line-290"></span><span>          </span><span class="hs-identifier">pfdStdInput</span><span>  </span><span class="hs-identifier">inheritRead</span><span>  </span><span class="hs-identifier">overlappedRead</span><span>
+</span><span id="line-291"></span><span>          </span><span class="hs-identifier">pfdStdOutput</span><span> </span><span class="hs-identifier">inheritWrite</span><span> </span><span class="hs-identifier">overlappedWrite</span><span>
+</span><span id="line-292"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-identifier">ourPtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ourMode</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">theirPtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">_theirMode</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-293"></span><span>            </span><span class="hs-identifier">swapIfTheyReadWeWrite</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-identifier">pfdStdInput</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ReadMode</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">pfdStdOutput</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">WriteMode</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>      </span><span class="hs-identifier">ourHANDLE</span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">ourPtr</span><span>
+</span><span id="line-295"></span><span>      </span><span class="hs-identifier">theirHANDLE</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">theirPtr</span><span>
+</span><span id="line-296"></span><span>      </span><span class="hs-comment">-- With WinIO, we need to associate any handles we are going to use in</span><span>
+</span><span id="line-297"></span><span>      </span><span class="hs-comment">-- the current process before being able to use them.</span><span>
+</span><span id="line-298"></span><span>      </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#  if defined (__IO_MANAGER_WINIO__)
+</span><span>        </span><span class="hs-operator">&lt;!&gt;</span><span> </span><span class="hs-identifier">associateHandle'</span><span> </span><span class="hs-identifier">ourHANDLE</span><span class="hs-cpp">
+#  endif
+</span><span>      </span><span class="hs-identifier">ourHandle</span><span> </span><span class="hs-glyph">&lt;-</span><span class="hs-cpp">
+#  if !defined (__IO_MANAGER_WINIO__)
+</span><span>        </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-identifier">fd</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">rawFdToHandle</span><span> </span><span class="hs-identifier">fd</span><span> </span><span class="hs-identifier">ourMode</span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-operator">=&lt;&lt;</span><span> </span><span class="hs-identifier">openHANDLE</span><span> </span><span class="hs-identifier">ourHANDLE</span><span class="hs-cpp">
+#  else
+</span><span>        </span><span class="hs-comment">-- NB: it's OK to call the following function even when we're not</span><span>
+</span><span id="line-307"></span><span>        </span><span class="hs-comment">-- using WinIO at runtime, so we don't use &lt;!&gt;.</span><span>
+</span><span id="line-308"></span><span>        </span><span class="hs-identifier">rawHANDLEToHandle</span><span> </span><span class="hs-identifier">ourHANDLE</span><span> </span><span class="hs-identifier">ourMode</span><span class="hs-cpp">
+#  endif
+</span><span>      </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ourHandle</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CommunicationHandle</span><span> </span><span class="hs-identifier">theirHANDLE</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

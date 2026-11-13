@@ -1,0 +1,387 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | What the runtime records when it profiles a program. The reports made</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- from it are in &quot;Unison.Codebase.Runtime.Profile&quot;.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html"><span class="hs-identifier">Unison.Runtime.Profile</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier">ProfTrie</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#Profile"><span class="hs-identifier">Profile</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#SomeProfile"><span class="hs-identifier">SomeProfile</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfileSpec"><span class="hs-identifier">ProfileSpec</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#emptyProfile"><span class="hs-identifier">emptyProfile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier">singlePath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Profile.html#addPath"><span class="hs-identifier">addPath</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Reference.html"><span class="hs-identifier">Unison.Reference</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- A `ProfTrie` maps non-empty paths to counts of occurrences of that</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- path. This allows tracking relative frequency of call stacks. The</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- path elements are parameterized to allow for more efficient `Map` keys</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- to be used during construction, and can be paired with a decoding to</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- `Reference` as below.</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">newtype</span><span> </span><span id="ProfTrie"><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-var">ProfTrie</span></a></span></span><span> </span><span id="local-6989586621679333901"><span class="annot"><a href="#local-6989586621679333901"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span id="local-6989586621679333902"><span class="annot"><a href="#local-6989586621679333902"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProfT"><span class="annot"><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679333901"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679333902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333901"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333902"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679333940"><span id="local-6989586621679333946"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; ProfTrie k a -&gt; ProfTrie k b)
+-&gt; (forall a b. a -&gt; ProfTrie k b -&gt; ProfTrie k a)
+-&gt; Functor (ProfTrie k)
+forall a b. a -&gt; ProfTrie k b -&gt; ProfTrie k a
+forall a b. (a -&gt; b) -&gt; ProfTrie k a -&gt; ProfTrie k b
+forall k a b. a -&gt; ProfTrie k b -&gt; ProfTrie k a
+forall k a b. (a -&gt; b) -&gt; ProfTrie k a -&gt; ProfTrie k b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall k a b. (a -&gt; b) -&gt; ProfTrie k a -&gt; ProfTrie k b
+fmap :: forall a b. (a -&gt; b) -&gt; ProfTrie k a -&gt; ProfTrie k b
+$c&lt;$ :: forall k a b. a -&gt; ProfTrie k b -&gt; ProfTrie k a
+&lt;$ :: forall a b. a -&gt; ProfTrie k b -&gt; ProfTrie k a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- A profile pairs the above arbitrary key based profile trie with a</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- decoding of the integers to references and a total sample count.</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="Profile"><span class="annot"><a href="Unison.Runtime.Profile.html#Profile"><span class="hs-identifier hs-var">Profile</span></a></span></span><span> </span><span id="local-6989586621679333900"><span class="annot"><a href="#local-6989586621679333900"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Prof"><span class="annot"><a href="Unison.Runtime.Profile.html#Prof"><span class="hs-identifier hs-var">Prof</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333900"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679333900"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Abstracts over the exact key type used in a profile.</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="SomeProfile"><span class="annot"><a href="Unison.Runtime.Profile.html#SomeProfile"><span class="hs-identifier hs-var">SomeProfile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679333952"><span class="annot"><a href="#local-6989586621679333952"><span class="hs-identifier hs-type">k</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679333952"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="SomeProf"><span class="annot"><a href="Unison.Runtime.Profile.html#SomeProf"><span class="hs-identifier hs-var">SomeProf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333952"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="ProfileSpec"><span class="annot"><a href="Unison.Runtime.Profile.html#ProfileSpec"><span class="hs-identifier hs-var">ProfileSpec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NoProf"><span class="annot"><a href="Unison.Runtime.Profile.html#NoProf"><span class="hs-identifier hs-var">NoProf</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="MiniProf"><span class="annot"><a href="Unison.Runtime.Profile.html#MiniProf"><span class="hs-identifier hs-var">MiniProf</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="FullProf"><span class="annot"><a href="Unison.Runtime.Profile.html#FullProf"><span class="hs-identifier hs-var">FullProf</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679333958"><span id="local-6989586621679333966"><span class="annot"><span class="annottext">ProfileSpec -&gt; ProfileSpec -&gt; Bool
+(ProfileSpec -&gt; ProfileSpec -&gt; Bool)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; Bool) -&gt; Eq ProfileSpec
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+== :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+$c/= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+/= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679333974"><span id="local-6989586621679333979"><span id="local-6989586621679333983"><span id="local-6989586621679333987"><span id="local-6989586621679333990"><span id="local-6989586621679333993"><span id="local-6989586621679333996"><span class="annot"><span class="annottext">Eq ProfileSpec
+Eq ProfileSpec =&gt;
+(ProfileSpec -&gt; ProfileSpec -&gt; Ordering)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; Bool)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; Bool)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; Bool)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; Bool)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec)
+-&gt; (ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec)
+-&gt; Ord ProfileSpec
+ProfileSpec -&gt; ProfileSpec -&gt; Bool
+ProfileSpec -&gt; ProfileSpec -&gt; Ordering
+ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ProfileSpec -&gt; ProfileSpec -&gt; Ordering
+compare :: ProfileSpec -&gt; ProfileSpec -&gt; Ordering
+$c&lt; :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+&lt; :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+$c&lt;= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+&lt;= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+$c&gt; :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+&gt; :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+$c&gt;= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+&gt;= :: ProfileSpec -&gt; ProfileSpec -&gt; Bool
+$cmax :: ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec
+max :: ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec
+$cmin :: ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec
+min :: ProfileSpec -&gt; ProfileSpec -&gt; ProfileSpec
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679334005"><span id="local-6989586621679334012"><span id="local-6989586621679334016"><span class="annot"><span class="annottext">Int -&gt; ProfileSpec -&gt; ShowS
+[ProfileSpec] -&gt; ShowS
+ProfileSpec -&gt; String
+(Int -&gt; ProfileSpec -&gt; ShowS)
+-&gt; (ProfileSpec -&gt; String)
+-&gt; ([ProfileSpec] -&gt; ShowS)
+-&gt; Show ProfileSpec
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ProfileSpec -&gt; ShowS
+showsPrec :: Int -&gt; ProfileSpec -&gt; ShowS
+$cshow :: ProfileSpec -&gt; String
+show :: ProfileSpec -&gt; String
+$cshowList :: [ProfileSpec] -&gt; ShowS
+showList :: [ProfileSpec] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679333896"><span class="annot"><a href="Unison.Runtime.Profile.html#emptyProfile"><span class="hs-identifier hs-type">emptyProfile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#Profile"><span class="hs-identifier hs-type">Profile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333896"><span class="hs-identifier hs-type">k</span></a></span></span><span>
+</span><span id="line-40"></span><span id="emptyProfile"><span class="annot"><span class="annottext">emptyProfile :: forall k. Profile k
+</span><a href="Unison.Runtime.Profile.html#emptyProfile"><span class="hs-identifier hs-var hs-var">emptyProfile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, Int) -&gt; ProfTrie k (Int, Int) -&gt; Map k Reference -&gt; Profile k
+forall k.
+(Int, Int) -&gt; ProfTrie k (Int, Int) -&gt; Map k Reference -&gt; Profile k
+</span><a href="Unison.Runtime.Profile.html#Prof"><span class="hs-identifier hs-var">Prof</span></a></span><span> </span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="Unison.Runtime.Profile.html#zero"><span class="hs-identifier hs-var">zero</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int)) -&gt; ProfTrie k (Int, Int)
+forall k a. Map k (a, ProfTrie k a) -&gt; ProfTrie k a
+</span><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map k Reference
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Unison.Runtime.Profile.html#zero"><span class="hs-identifier hs-type">zero</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="zero"><span class="annot"><span class="annottext">zero :: (Int, Int)
+</span><a href="Unison.Runtime.Profile.html#zero"><span class="hs-identifier hs-var hs-var">zero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.Runtime.Profile.html#inc"><span class="hs-identifier hs-type">inc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span id="inc"><span class="annot"><span class="annottext">inc :: Bool -&gt; (Int, Int) -&gt; (Int, Int)
+</span><a href="Unison.Runtime.Profile.html#inc"><span class="hs-identifier hs-var hs-var">inc</span></a></span></span><span> </span><span id="local-6989586621679334024"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334024"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334025"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679334025"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679334026"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679334026"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; (Int, Int)
+forall {a} {b}. a -&gt; b -&gt; (a, b)
+</span><a href="#local-6989586621679334027"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679334025"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334024"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679334026"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679334026"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679334027"><span class="annot"><span class="annottext">pair :: a -&gt; b -&gt; (a, b)
+</span><a href="#local-6989586621679334027"><span class="hs-identifier hs-var hs-var">pair</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679334029"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679334029"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679334030"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679334030"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679334029"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679334030"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- Creates a singleton profile trie from a path.</span><span>
+</span><span id="line-51"></span><span id="local-6989586621679333908"><span class="annot"><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-type">singlePath</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679333908"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679333908"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333908"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-56"></span><span id="singlePath"><span class="annot"><span class="annottext">singlePath :: forall k.
+Ord k =&gt;
+Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-var hs-var">singlePath</span></a></span></span><span> </span><span id="local-6989586621679334033"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334033"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; (Int, Int) -&gt; (Int, Int)
+</span><a href="Unison.Runtime.Profile.html#inc"><span class="hs-identifier hs-var">inc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334033"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="Unison.Runtime.Profile.html#zero"><span class="hs-identifier hs-var">zero</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int)) -&gt; ProfTrie k (Int, Int)
+forall k a. Map k (a, ProfTrie k a) -&gt; ProfTrie k a
+</span><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-var">singlePath</span></a></span><span> </span><span id="local-6989586621679334034"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334034"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334035"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334035"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679334036"><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334036"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="Unison.Runtime.Profile.html#zero"><span class="hs-identifier hs-var">zero</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ProfTrie k (Int, Int) -&gt; ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; (Map k ((Int, Int), ProfTrie k (Int, Int))
+    -&gt; ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int)) -&gt; ProfTrie k (Int, Int)
+forall k a. Map k (a, ProfTrie k a) -&gt; ProfTrie k a
+</span><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span><span> </span><span class="annot"><span class="annottext">(Map k ((Int, Int), ProfTrie k (Int, Int))
+ -&gt; ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">k
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.singleton</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334035"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall k.
+Ord k =&gt;
+Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-var">singlePath</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334034"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334036"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span id="local-6989586621679333918"><span class="annot"><a href="Unison.Runtime.Profile.html#addPath0"><span class="hs-identifier hs-type">addPath0</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679333918"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679333918"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333918"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333918"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-66"></span><span id="addPath0"><span class="annot"><span class="annottext">addPath0 :: forall k.
+Ord k =&gt;
+Bool
+-&gt; [k]
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#addPath0"><span class="hs-identifier hs-var hs-var">addPath0</span></a></span></span><span> </span><span id="local-6989586621679334045"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334045"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334046"><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679334046"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679334047"><span class="annot"><span class="annottext">ProfTrie k (Int, Int)
+</span><a href="#local-6989586621679334047"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">ProfTrie k (Int, Int)
+</span><a href="#local-6989586621679334047"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int, Int) -&gt; ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; (Int, Int) -&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; (Int, Int) -&gt; (Int, Int)
+</span><a href="Unison.Runtime.Profile.html#inc"><span class="hs-identifier hs-var">inc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334045"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679334046"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Unison.Runtime.Profile.html#addPath0"><span class="hs-identifier hs-var">addPath0</span></a></span><span> </span><span id="local-6989586621679334048"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334048"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334049"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334049"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679334050"><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334050"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334051"><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679334051"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-type">ProfT</span></a></span><span> </span><span id="local-6989586621679334052"><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334052"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int, Int)
+</span><a href="#local-6989586621679334051"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ProfTrie k (Int, Int) -&gt; ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; (Map k ((Int, Int), ProfTrie k (Int, Int))
+    -&gt; ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int)) -&gt; ProfTrie k (Int, Int)
+forall k a. Map k (a, ProfTrie k a) -&gt; ProfTrie k a
+</span><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span><span> </span><span class="annot"><span class="annottext">(Map k ((Int, Int), ProfTrie k (Int, Int))
+ -&gt; ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">(Maybe ((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; k
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+forall k a.
+Ord k =&gt;
+(Maybe a -&gt; Maybe a) -&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.alter</span></span><span> </span><span class="annot"><span class="annottext">Maybe ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334054"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334049"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334052"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679334054"><span class="annot"><span class="annottext">f :: Maybe ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334054"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall k.
+Ord k =&gt;
+Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-var">singlePath</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334048"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334050"><span class="hs-identifier hs-var">is</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><a href="#local-6989586621679334054"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679334055"><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334055"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; [k]
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall k.
+Ord k =&gt;
+Bool
+-&gt; [k]
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#addPath0"><span class="hs-identifier hs-var">addPath0</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334048"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334050"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334055"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Adds a path to a profile trie, incrementing the count for the given</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- path.</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679333927"><span class="annot"><a href="Unison.Runtime.Profile.html#addPath"><span class="hs-identifier hs-type">addPath</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679333927"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679333927"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333927"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfTrie"><span class="hs-identifier hs-type">ProfTrie</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679333927"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span></span><span>
+</span><span id="line-80"></span><span id="addPath"><span class="annot"><span class="annottext">addPath :: forall k.
+Ord k =&gt;
+Bool -&gt; [k] -&gt; ProfTrie k (Int, Int) -&gt; ProfTrie k (Int, Int)
+</span><a href="Unison.Runtime.Profile.html#addPath"><span class="hs-identifier hs-var hs-var">addPath</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span id="local-6989586621679334060"><span class="annot"><span class="annottext">ProfTrie k (Int, Int)
+</span><a href="#local-6989586621679334060"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProfTrie k (Int, Int)
+</span><a href="#local-6989586621679334060"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="Unison.Runtime.Profile.html#addPath"><span class="hs-identifier hs-var">addPath</span></a></span><span> </span><span id="local-6989586621679334061"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334061"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679334062"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334062"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679334063"><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334063"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-type">ProfT</span></a></span><span> </span><span id="local-6989586621679334064"><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334064"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int)) -&gt; ProfTrie k (Int, Int)
+forall k a. Map k (a, ProfTrie k a) -&gt; ProfTrie k a
+</span><a href="Unison.Runtime.Profile.html#ProfT"><span class="hs-identifier hs-var">ProfT</span></a></span><span> </span><span class="annot"><span class="annottext">(Map k ((Int, Int), ProfTrie k (Int, Int))
+ -&gt; ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ProfTrie k (Int, Int)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Maybe ((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; k
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Map k ((Int, Int), ProfTrie k (Int, Int))
+forall k a.
+Ord k =&gt;
+(Maybe a -&gt; Maybe a) -&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.alter</span></span><span> </span><span class="annot"><span class="annottext">Maybe ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334065"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679334062"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Map k ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334064"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679334065"><span class="annot"><span class="annottext">f :: Maybe ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334065"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ((Int, Int), ProfTrie k (Int, Int))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall k.
+Ord k =&gt;
+Bool -&gt; [k] -&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#singlePath"><span class="hs-identifier hs-var">singlePath</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334061"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334063"><span class="hs-identifier hs-var">is</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="#local-6989586621679334065"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679334066"><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334066"><span class="hs-identifier hs-var">q</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(((Int, Int), ProfTrie k (Int, Int))
+ -&gt; Maybe ((Int, Int), ProfTrie k (Int, Int)))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; Maybe ((Int, Int), ProfTrie k (Int, Int))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; [k]
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+forall k.
+Ord k =&gt;
+Bool
+-&gt; [k]
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+-&gt; ((Int, Int), ProfTrie k (Int, Int))
+</span><a href="Unison.Runtime.Profile.html#addPath0"><span class="hs-identifier hs-var">addPath0</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679334061"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[k]
+</span><a href="#local-6989586621679334063"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">((Int, Int), ProfTrie k (Int, Int))
+</span><a href="#local-6989586621679334066"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-85"></span></pre></body></html>

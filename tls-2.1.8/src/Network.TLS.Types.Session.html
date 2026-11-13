@@ -1,0 +1,251 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679239490"><span id="local-6989586621679239491"></span></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html"><span class="hs-identifier">Network.TLS.Types.Session</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.Serialise</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HostName</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html"><span class="hs-identifier">Network.TLS.Crypto</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier">Group</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier">Hash</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#hash"><span class="hs-identifier">hash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Imports.html"><span class="hs-identifier">Network.TLS.Imports</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html"><span class="hs-identifier">Network.TLS.Types.Cipher</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Types.Version.html"><span class="hs-identifier">Network.TLS.Types.Version</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><span class="hs-comment">-- | A session ID</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="SessionID"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionID"><span class="hs-identifier hs-var">SessionID</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><span class="hs-comment">-- | Identity</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">type</span><span> </span><span id="SessionIDorTicket"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-var">SessionIDorTicket</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- | Encrypted session ticket (encrypt(encode 'SessionData')).</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">type</span><span> </span><span id="Ticket"><span class="annot"><a href="Network.TLS.Types.Session.html#Ticket"><span class="hs-identifier hs-var">Ticket</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Network.TLS.Types.Session.html#isTicket"><span class="hs-identifier hs-type">isTicket</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-type">SessionIDorTicket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-25"></span><span id="isTicket"><span class="annot"><span class="annottext">isTicket :: SessionIDorTicket -&gt; Bool
+</span><a href="Network.TLS.Types.Session.html#isTicket"><span class="hs-identifier hs-var hs-var">isTicket</span></a></span></span><span> </span><span id="local-6989586621679239504"><span class="annot"><span class="annottext">SessionIDorTicket
+</span><a href="#local-6989586621679239504"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SessionIDorTicket -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">SessionIDorTicket
+</span><a href="#local-6989586621679239504"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Network.TLS.Types.Session.html#toSessionID"><span class="hs-identifier hs-type">toSessionID</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Ticket"><span class="hs-identifier hs-type">Ticket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionID"><span class="hs-identifier hs-type">SessionID</span></a></span><span>
+</span><span id="line-30"></span><span id="toSessionID"><span class="annot"><span class="annottext">toSessionID :: SessionIDorTicket -&gt; SessionIDorTicket
+</span><a href="Network.TLS.Types.Session.html#toSessionID"><span class="hs-identifier hs-var hs-var">toSessionID</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; SessionIDorTicket -&gt; SessionIDorTicket
+</span><a href="Network.TLS.Crypto.html#hash"><span class="hs-identifier hs-var">hash</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><a href="Network.TLS.Crypto.html#SHA256"><span class="hs-identifier hs-var">SHA256</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- | Compression identification</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">type</span><span> </span><span id="CompressionID"><span class="annot"><a href="Network.TLS.Types.Session.html#CompressionID"><span class="hs-identifier hs-var">CompressionID</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><span class="hs-comment">-- | Session data to resume</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="SessionData"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-var">SessionData</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SessionData"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-var">SessionData</span></a></span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="sessionVersion"><span class="annot"><span class="annottext">SessionData -&gt; Version
+</span><a href="Network.TLS.Types.Session.html#sessionVersion"><span class="hs-identifier hs-var hs-var">sessionVersion</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Version.html#Version"><span class="hs-identifier hs-type">Version</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionCipher"><span class="annot"><span class="annottext">SessionData -&gt; CipherID
+</span><a href="Network.TLS.Types.Session.html#sessionCipher"><span class="hs-identifier hs-var hs-var">sessionCipher</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#CipherID"><span class="hs-identifier hs-type">CipherID</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionCompression"><span class="annot"><span class="annottext">SessionData -&gt; CompressionID
+</span><a href="Network.TLS.Types.Session.html#sessionCompression"><span class="hs-identifier hs-var hs-var">sessionCompression</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#CompressionID"><span class="hs-identifier hs-type">CompressionID</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionClientSNI"><span class="annot"><span class="annottext">SessionData -&gt; Maybe HostName
+</span><a href="Network.TLS.Types.Session.html#sessionClientSNI"><span class="hs-identifier hs-var hs-var">sessionClientSNI</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HostName</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionSecret"><span class="annot"><span class="annottext">SessionData -&gt; SessionIDorTicket
+</span><a href="Network.TLS.Types.Session.html#sessionSecret"><span class="hs-identifier hs-var hs-var">sessionSecret</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionGroup"><span class="annot"><span class="annottext">SessionData -&gt; Maybe Group
+</span><a href="Network.TLS.Types.Session.html#sessionGroup"><span class="hs-identifier hs-var hs-var">sessionGroup</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionTicketInfo"><span class="annot"><span class="annottext">SessionData -&gt; Maybe TLS13TicketInfo
+</span><a href="Network.TLS.Types.Session.html#sessionTicketInfo"><span class="hs-identifier hs-var hs-var">sessionTicketInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#TLS13TicketInfo"><span class="hs-identifier hs-type">TLS13TicketInfo</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionALPN"><span class="annot"><span class="annottext">SessionData -&gt; Maybe SessionIDorTicket
+</span><a href="Network.TLS.Types.Session.html#sessionALPN"><span class="hs-identifier hs-var hs-var">sessionALPN</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionMaxEarlyDataSize"><span class="annot"><span class="annottext">SessionData -&gt; Int
+</span><a href="Network.TLS.Types.Session.html#sessionMaxEarlyDataSize"><span class="hs-identifier hs-var hs-var">sessionMaxEarlyDataSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionFlags"><span class="annot"><span class="annottext">SessionData -&gt; [SessionFlag]
+</span><a href="Network.TLS.Types.Session.html#sessionFlags"><span class="hs-identifier hs-var hs-var">sessionFlags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionFlag"><span class="hs-identifier hs-type">SessionFlag</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-comment">-- sessionFromTicket :: Bool</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679239520"><span id="local-6989586621679239544"><span id="local-6989586621679239548"><span class="annot"><span class="annottext">Int -&gt; SessionData -&gt; ShowS
+[SessionData] -&gt; ShowS
+SessionData -&gt; HostName
+(Int -&gt; SessionData -&gt; ShowS)
+-&gt; (SessionData -&gt; HostName)
+-&gt; ([SessionData] -&gt; ShowS)
+-&gt; Show SessionData
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; HostName) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SessionData -&gt; ShowS
+showsPrec :: Int -&gt; SessionData -&gt; ShowS
+$cshow :: SessionData -&gt; HostName
+show :: SessionData -&gt; HostName
+$cshowList :: [SessionData] -&gt; ShowS
+showList :: [SessionData] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239558"><span id="local-6989586621679239581"><span class="annot"><span class="annottext">SessionData -&gt; SessionData -&gt; Bool
+(SessionData -&gt; SessionData -&gt; Bool)
+-&gt; (SessionData -&gt; SessionData -&gt; Bool) -&gt; Eq SessionData
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SessionData -&gt; SessionData -&gt; Bool
+== :: SessionData -&gt; SessionData -&gt; Bool
+$c/= :: SessionData -&gt; SessionData -&gt; Bool
+/= :: SessionData -&gt; SessionData -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239591"><span id="local-6989586621679239593"><span class="annot"><span class="annottext">(forall x. SessionData -&gt; Rep SessionData x)
+-&gt; (forall x. Rep SessionData x -&gt; SessionData)
+-&gt; Generic SessionData
+forall x. Rep SessionData x -&gt; SessionData
+forall x. SessionData -&gt; Rep SessionData x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. SessionData -&gt; Rep SessionData x
+from :: forall x. SessionData -&gt; Rep SessionData x
+$cto :: forall x. Rep SessionData x -&gt; SessionData
+to :: forall x. Rep SessionData x -&gt; SessionData
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Network.TLS.Types.Session.html#is0RTTPossible"><span class="hs-identifier hs-type">is0RTTPossible</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-type">SessionData</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-51"></span><span id="is0RTTPossible"><span class="annot"><span class="annottext">is0RTTPossible :: SessionData -&gt; Bool
+</span><a href="Network.TLS.Types.Session.html#is0RTTPossible"><span class="hs-identifier hs-var hs-var">is0RTTPossible</span></a></span></span><span> </span><span id="local-6989586621679239599"><span class="annot"><span class="annottext">SessionData
+</span><a href="#local-6989586621679239599"><span class="hs-identifier hs-var">sd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SessionData -&gt; Int
+</span><a href="Network.TLS.Types.Session.html#sessionMaxEarlyDataSize"><span class="hs-identifier hs-var">sessionMaxEarlyDataSize</span></a></span><span> </span><span class="annot"><span class="annottext">SessionData
+</span><a href="#local-6989586621679239599"><span class="hs-identifier hs-var">sd</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- | Some session flags</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">data</span><span> </span><span id="SessionFlag"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionFlag"><span class="hs-identifier hs-var">SessionFlag</span></a></span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Session created with Extended Main Secret</span></span><span>
+</span><span id="line-56"></span><span>      </span><span id="SessionEMS"><span class="annot"><a href="Network.TLS.Types.Session.html#SessionEMS"><span class="hs-identifier hs-var">SessionEMS</span></a></span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679239602"><span id="local-6989586621679239604"><span id="local-6989586621679239607"><span class="annot"><span class="annottext">Int -&gt; SessionFlag -&gt; ShowS
+[SessionFlag] -&gt; ShowS
+SessionFlag -&gt; HostName
+(Int -&gt; SessionFlag -&gt; ShowS)
+-&gt; (SessionFlag -&gt; HostName)
+-&gt; ([SessionFlag] -&gt; ShowS)
+-&gt; Show SessionFlag
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; HostName) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SessionFlag -&gt; ShowS
+showsPrec :: Int -&gt; SessionFlag -&gt; ShowS
+$cshow :: SessionFlag -&gt; HostName
+show :: SessionFlag -&gt; HostName
+$cshowList :: [SessionFlag] -&gt; ShowS
+showList :: [SessionFlag] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239610"><span id="local-6989586621679239612"><span class="annot"><span class="annottext">SessionFlag -&gt; SessionFlag -&gt; Bool
+(SessionFlag -&gt; SessionFlag -&gt; Bool)
+-&gt; (SessionFlag -&gt; SessionFlag -&gt; Bool) -&gt; Eq SessionFlag
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SessionFlag -&gt; SessionFlag -&gt; Bool
+== :: SessionFlag -&gt; SessionFlag -&gt; Bool
+$c/= :: SessionFlag -&gt; SessionFlag -&gt; Bool
+/= :: SessionFlag -&gt; SessionFlag -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239615"><span id="local-6989586621679239623"><span id="local-6989586621679239630"><span id="local-6989586621679239638"><span id="local-6989586621679239641"><span id="local-6989586621679239646"><span id="local-6989586621679239652"><span id="local-6989586621679239656"><span class="annot"><span class="annottext">Int -&gt; SessionFlag
+SessionFlag -&gt; Int
+SessionFlag -&gt; [SessionFlag]
+SessionFlag -&gt; SessionFlag
+SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+SessionFlag -&gt; SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+(SessionFlag -&gt; SessionFlag)
+-&gt; (SessionFlag -&gt; SessionFlag)
+-&gt; (Int -&gt; SessionFlag)
+-&gt; (SessionFlag -&gt; Int)
+-&gt; (SessionFlag -&gt; [SessionFlag])
+-&gt; (SessionFlag -&gt; SessionFlag -&gt; [SessionFlag])
+-&gt; (SessionFlag -&gt; SessionFlag -&gt; [SessionFlag])
+-&gt; (SessionFlag -&gt; SessionFlag -&gt; SessionFlag -&gt; [SessionFlag])
+-&gt; Enum SessionFlag
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: SessionFlag -&gt; SessionFlag
+succ :: SessionFlag -&gt; SessionFlag
+$cpred :: SessionFlag -&gt; SessionFlag
+pred :: SessionFlag -&gt; SessionFlag
+$ctoEnum :: Int -&gt; SessionFlag
+toEnum :: Int -&gt; SessionFlag
+$cfromEnum :: SessionFlag -&gt; Int
+fromEnum :: SessionFlag -&gt; Int
+$cenumFrom :: SessionFlag -&gt; [SessionFlag]
+enumFrom :: SessionFlag -&gt; [SessionFlag]
+$cenumFromThen :: SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+enumFromThen :: SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+$cenumFromTo :: SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+enumFromTo :: SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+$cenumFromThenTo :: SessionFlag -&gt; SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+enumFromThenTo :: SessionFlag -&gt; SessionFlag -&gt; SessionFlag -&gt; [SessionFlag]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239664"><span id="local-6989586621679239666"><span class="annot"><span class="annottext">(forall x. SessionFlag -&gt; Rep SessionFlag x)
+-&gt; (forall x. Rep SessionFlag x -&gt; SessionFlag)
+-&gt; Generic SessionFlag
+forall x. Rep SessionFlag x -&gt; SessionFlag
+forall x. SessionFlag -&gt; Rep SessionFlag x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. SessionFlag -&gt; Rep SessionFlag x
+from :: forall x. SessionFlag -&gt; Rep SessionFlag x
+$cto :: forall x. Rep SessionFlag x -&gt; SessionFlag
+to :: forall x. Rep SessionFlag x -&gt; SessionFlag
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">type</span><span> </span><span id="Second"><span class="annot"><a href="Network.TLS.Types.Session.html#Second"><span class="hs-identifier hs-var">Second</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">type</span><span> </span><span id="Millisecond"><span class="annot"><a href="Network.TLS.Types.Session.html#Millisecond"><span class="hs-identifier hs-var">Millisecond</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="TLS13TicketInfo"><span class="annot"><a href="Network.TLS.Types.Session.html#TLS13TicketInfo"><span class="hs-identifier hs-var">TLS13TicketInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TLS13TicketInfo"><span class="annot"><a href="Network.TLS.Types.Session.html#TLS13TicketInfo"><span class="hs-identifier hs-var">TLS13TicketInfo</span></a></span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="lifetime"><span class="annot"><span class="annottext">TLS13TicketInfo -&gt; Second
+</span><a href="Network.TLS.Types.Session.html#lifetime"><span class="hs-identifier hs-var hs-var">lifetime</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span class="hs-comment">-- NewSessionTicket.ticket_lifetime in seconds</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="ageAdd"><span class="annot"><span class="annottext">TLS13TicketInfo -&gt; Second
+</span><a href="Network.TLS.Types.Session.html#ageAdd"><span class="hs-identifier hs-var hs-var">ageAdd</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span class="hs-comment">-- NewSessionTicket.ticket_age_add</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="txrxTime"><span class="annot"><span class="annottext">TLS13TicketInfo -&gt; Millisecond
+</span><a href="Network.TLS.Types.Session.html#txrxTime"><span class="hs-identifier hs-var hs-var">txrxTime</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Millisecond"><span class="hs-identifier hs-type">Millisecond</span></a></span><span> </span><span class="hs-comment">-- serverSendTime or clientReceiveTime</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="estimatedRTT"><span class="annot"><span class="annottext">TLS13TicketInfo -&gt; Maybe Millisecond
+</span><a href="Network.TLS.Types.Session.html#estimatedRTT"><span class="hs-identifier hs-var hs-var">estimatedRTT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Millisecond"><span class="hs-identifier hs-type">Millisecond</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679239674"><span id="local-6989586621679239683"><span id="local-6989586621679239686"><span class="annot"><span class="annottext">Int -&gt; TLS13TicketInfo -&gt; ShowS
+[TLS13TicketInfo] -&gt; ShowS
+TLS13TicketInfo -&gt; HostName
+(Int -&gt; TLS13TicketInfo -&gt; ShowS)
+-&gt; (TLS13TicketInfo -&gt; HostName)
+-&gt; ([TLS13TicketInfo] -&gt; ShowS)
+-&gt; Show TLS13TicketInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; HostName) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TLS13TicketInfo -&gt; ShowS
+showsPrec :: Int -&gt; TLS13TicketInfo -&gt; ShowS
+$cshow :: TLS13TicketInfo -&gt; HostName
+show :: TLS13TicketInfo -&gt; HostName
+$cshowList :: [TLS13TicketInfo] -&gt; ShowS
+showList :: [TLS13TicketInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239689"><span id="local-6989586621679239697"><span class="annot"><span class="annottext">TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool
+(TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool)
+-&gt; (TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool)
+-&gt; Eq TLS13TicketInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool
+== :: TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool
+$c/= :: TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool
+/= :: TLS13TicketInfo -&gt; TLS13TicketInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679239700"><span id="local-6989586621679239702"><span class="annot"><span class="annottext">(forall x. TLS13TicketInfo -&gt; Rep TLS13TicketInfo x)
+-&gt; (forall x. Rep TLS13TicketInfo x -&gt; TLS13TicketInfo)
+-&gt; Generic TLS13TicketInfo
+forall x. Rep TLS13TicketInfo x -&gt; TLS13TicketInfo
+forall x. TLS13TicketInfo -&gt; Rep TLS13TicketInfo x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. TLS13TicketInfo -&gt; Rep TLS13TicketInfo x
+from :: forall x. TLS13TicketInfo -&gt; Rep TLS13TicketInfo x
+$cto :: forall x. Rep TLS13TicketInfo x -&gt; TLS13TicketInfo
+to :: forall x. Rep TLS13TicketInfo x -&gt; TLS13TicketInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679239705"><span id="local-6989586621679239712"><span id="local-6989586621679239718"><span id="local-6989586621679239721"><span class="annot"><span class="hs-identifier hs-type">Serialise</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#TLS13TicketInfo"><span class="hs-identifier hs-type">TLS13TicketInfo</span></a></span></span></span></span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679239771"><span id="local-6989586621679239778"><span id="local-6989586621679239784"><span id="local-6989586621679239787"><span class="annot"><span class="hs-identifier hs-type">Serialise</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionFlag"><span class="hs-identifier hs-type">SessionFlag</span></a></span></span></span></span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679239796"><span id="local-6989586621679239803"><span id="local-6989586621679239809"><span id="local-6989586621679239812"><span class="annot"><span class="hs-identifier hs-type">Serialise</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-type">SessionData</span></a></span></span></span></span></span><span>
+</span><span id="line-73"></span></pre></body></html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | A tiny wrapper around 'IntSet.IntSet' for representing sets of 'Enum'</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- things.</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html"><span class="hs-identifier">GHC.Data.EnumSet</span></a></span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier">EnumSet</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#member"><span class="hs-identifier">member</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#insert"><span class="hs-identifier">insert</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#delete"><span class="hs-identifier">delete</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#toList"><span class="hs-identifier">toList</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#fromList"><span class="hs-identifier">fromList</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#empty"><span class="hs-identifier">empty</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#difference"><span class="hs-identifier">difference</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Binary.html"><span class="hs-identifier">GHC.Utils.Binary</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.IntSet.html"><span class="hs-identifier">Data.IntSet</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntSet</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">newtype</span><span> </span><span id="EnumSet"><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span></span><span> </span><span id="local-6989586621682367291"><span class="annot"><a href="#local-6989586621682367291"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EnumSet"><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span></span><span> </span><span class="annot"><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#IntSet"><span class="hs-identifier hs-type">IntSet.IntSet</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682367344"><span id="local-6989586621682367349"><span id="local-6989586621682367355"><span class="annot"><span class="annottext">NonEmpty (EnumSet a) -&gt; EnumSet a
+EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+(EnumSet a -&gt; EnumSet a -&gt; EnumSet a)
+-&gt; (NonEmpty (EnumSet a) -&gt; EnumSet a)
+-&gt; (forall b. Integral b =&gt; b -&gt; EnumSet a -&gt; EnumSet a)
+-&gt; Semigroup (EnumSet a)
+forall b. Integral b =&gt; b -&gt; EnumSet a -&gt; EnumSet a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall k (a :: k). NonEmpty (EnumSet a) -&gt; EnumSet a
+forall k (a :: k). EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+forall k (a :: k) b. Integral b =&gt; b -&gt; EnumSet a -&gt; EnumSet a
+$c&lt;&gt; :: forall k (a :: k). EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+&lt;&gt; :: EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+$csconcat :: forall k (a :: k). NonEmpty (EnumSet a) -&gt; EnumSet a
+sconcat :: NonEmpty (EnumSet a) -&gt; EnumSet a
+$cstimes :: forall k (a :: k) b. Integral b =&gt; b -&gt; EnumSet a -&gt; EnumSet a
+stimes :: forall b. Integral b =&gt; b -&gt; EnumSet a -&gt; EnumSet a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682367367"><span id="local-6989586621682367372"><span id="local-6989586621682367376"><span class="annot"><span class="annottext">Semigroup (EnumSet a)
+EnumSet a
+Semigroup (EnumSet a) =&gt;
+EnumSet a
+-&gt; (EnumSet a -&gt; EnumSet a -&gt; EnumSet a)
+-&gt; ([EnumSet a] -&gt; EnumSet a)
+-&gt; Monoid (EnumSet a)
+[EnumSet a] -&gt; EnumSet a
+EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall k (a :: k). Semigroup (EnumSet a)
+forall k (a :: k). EnumSet a
+forall k (a :: k). [EnumSet a] -&gt; EnumSet a
+forall k (a :: k). EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+$cmempty :: forall k (a :: k). EnumSet a
+mempty :: EnumSet a
+$cmappend :: forall k (a :: k). EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+mappend :: EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+$cmconcat :: forall k (a :: k). [EnumSet a] -&gt; EnumSet a
+mconcat :: [EnumSet a] -&gt; EnumSet a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682367382"><span class="annot"><span class="annottext">EnumSet a -&gt; ()
+(EnumSet a -&gt; ()) -&gt; NFData (EnumSet a)
+forall a. (a -&gt; ()) -&gt; NFData a
+forall k (a :: k). EnumSet a -&gt; ()
+$crnf :: forall k (a :: k). EnumSet a -&gt; ()
+rnf :: EnumSet a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span id="local-6989586621682367284"><span class="annot"><a href="GHC.Data.EnumSet.html#member"><span class="hs-identifier hs-type">member</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621682367284"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682367284"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367284"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-24"></span><span id="member"><span class="annot"><span class="annottext">member :: forall a. Enum a =&gt; a -&gt; EnumSet a -&gt; Bool
+</span><a href="GHC.Data.EnumSet.html#member"><span class="hs-identifier hs-var hs-var">member</span></a></span></span><span> </span><span id="local-6989586621682367391"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367391"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367392"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367392"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntSet -&gt; Bool
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#member"><span class="hs-identifier hs-var">IntSet.member</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Key
+forall a. Enum a =&gt; a -&gt; Key
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367391"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367392"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span id="local-6989586621682367288"><span class="annot"><a href="GHC.Data.EnumSet.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621682367288"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682367288"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367288"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367288"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-27"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall a. Enum a =&gt; a -&gt; EnumSet a -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span id="local-6989586621682367397"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367397"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367398"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367398"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; EnumSet a) -&gt; IntSet -&gt; EnumSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntSet -&gt; IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#insert"><span class="hs-identifier hs-var">IntSet.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Key
+forall a. Enum a =&gt; a -&gt; Key
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367397"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367398"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="local-6989586621682367400"><span class="annot"><a href="GHC.Data.EnumSet.html#delete"><span class="hs-identifier hs-type">delete</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621682367400"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682367400"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367400"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367400"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-30"></span><span id="delete"><span class="annot"><span class="annottext">delete :: forall a. Enum a =&gt; a -&gt; EnumSet a -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#delete"><span class="hs-identifier hs-var hs-var">delete</span></a></span></span><span> </span><span id="local-6989586621682367403"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367403"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367404"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367404"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; EnumSet a) -&gt; IntSet -&gt; EnumSet a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; IntSet -&gt; IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#delete"><span class="hs-identifier hs-var">IntSet.delete</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Key
+forall a. Enum a =&gt; a -&gt; Key
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682367403"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367404"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span id="local-6989586621682367297"><span class="annot"><a href="GHC.Data.EnumSet.html#toList"><span class="hs-identifier hs-type">toList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621682367297"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367297"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682367297"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-33"></span><span id="toList"><span class="annot"><span class="annottext">toList :: forall a. Enum a =&gt; EnumSet a -&gt; [a]
+</span><a href="GHC.Data.EnumSet.html#toList"><span class="hs-identifier hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367408"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367408"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Key -&gt; a) -&gt; [Key] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; a
+forall a. Enum a =&gt; Key -&gt; a
+</span><span class="hs-identifier hs-var">toEnum</span></span><span> </span><span class="annot"><span class="annottext">([Key] -&gt; [a]) -&gt; [Key] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Key]
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#toList"><span class="hs-identifier hs-var">IntSet.toList</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367408"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span id="local-6989586621682367301"><span class="annot"><a href="GHC.Data.EnumSet.html#fromList"><span class="hs-identifier hs-type">fromList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621682367301"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682367301"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367301"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-36"></span><span id="fromList"><span class="annot"><span class="annottext">fromList :: forall a. Enum a =&gt; [a] -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#fromList"><span class="hs-identifier hs-var hs-var">fromList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; EnumSet a) -&gt; ([a] -&gt; IntSet) -&gt; [a] -&gt; EnumSet a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Key] -&gt; IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#fromList"><span class="hs-identifier hs-var">IntSet.fromList</span></a></span><span> </span><span class="annot"><span class="annottext">([Key] -&gt; IntSet) -&gt; ([a] -&gt; [Key]) -&gt; [a] -&gt; IntSet
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Key) -&gt; [a] -&gt; [Key]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Key
+forall a. Enum a =&gt; a -&gt; Key
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span id="local-6989586621682367415"><span class="annot"><a href="GHC.Data.EnumSet.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367415"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-39"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall k (a :: k). EnumSet a
+</span><a href="GHC.Data.EnumSet.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#empty"><span class="hs-identifier hs-var">IntSet.empty</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span id="local-6989586621682367417"><span class="annot"><a href="GHC.Data.EnumSet.html#difference"><span class="hs-identifier hs-type">difference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367417"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367417"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367417"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-42"></span><span id="difference"><span class="annot"><span class="annottext">difference :: forall k (a :: k). EnumSet a -&gt; EnumSet a -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#difference"><span class="hs-identifier hs-var hs-var">difference</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367418"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367418"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367419"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367419"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#difference"><span class="hs-identifier hs-var">IntSet.difference</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367418"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367419"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Represents the 'EnumSet' as a bit set.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Assumes that all elements are non-negative.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- This is only efficient for values that are sufficiently small,</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- for example in the lower hundreds.</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682367317"><span id="local-6989586621682367423"><span class="annot"><a href="GHC.Utils.Binary.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367317"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621682367430"><span class="annot"><span class="annottext">put_ :: BinHandle -&gt; EnumSet a -&gt; IO ()
+</span><a href="#local-6989586621682367430"><span class="hs-identifier hs-var hs-var hs-var">put_</span></a></span></span><span> </span><span id="local-6989586621682367432"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682367432"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; BitArray -&gt; IO ()
+forall a. Binary a =&gt; BinHandle -&gt; a -&gt; IO ()
+</span><a href="GHC.Utils.Binary.html#put_"><span class="hs-identifier hs-var">put_</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682367432"><span class="hs-identifier hs-var">bh</span></a></span><span> </span><span class="annot"><span class="annottext">(BitArray -&gt; IO ())
+-&gt; (EnumSet a -&gt; BitArray) -&gt; EnumSet a -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">EnumSet a -&gt; BitArray
+forall {k} (a :: k). EnumSet a -&gt; BitArray
+</span><a href="GHC.Data.EnumSet.html#enumSetToBitArray"><span class="hs-identifier hs-var">enumSetToBitArray</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621682367437"><span class="annot"><span class="annottext">get :: BinHandle -&gt; IO (EnumSet a)
+</span><a href="#local-6989586621682367437"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span id="local-6989586621682367439"><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682367439"><span class="hs-identifier hs-var">bh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BitArray -&gt; EnumSet a
+forall {k} (a :: k). BitArray -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#bitArrayToEnumSet"><span class="hs-identifier hs-var">bitArrayToEnumSet</span></a></span><span> </span><span class="annot"><span class="annottext">(BitArray -&gt; EnumSet a) -&gt; IO BitArray -&gt; IO (EnumSet a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">BinHandle -&gt; IO BitArray
+forall a. Binary a =&gt; BinHandle -&gt; IO a
+</span><a href="GHC.Utils.Binary.html#get"><span class="hs-identifier hs-var">get</span></a></span><span> </span><span class="annot"><span class="annottext">BinHandle
+</span><a href="#local-6989586621682367439"><span class="hs-identifier hs-var">bh</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- TODO: Using 'Natural' instead of 'Integer' should be slightly more efficient</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- but we don't currently have a 'Binary' instance for 'Natural'.</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="BitArray"><span class="annot"><a href="GHC.Data.EnumSet.html#BitArray"><span class="hs-identifier hs-var">BitArray</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621682367320"><span class="annot"><a href="GHC.Data.EnumSet.html#enumSetToBitArray"><span class="hs-identifier hs-type">enumSetToBitArray</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367320"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#BitArray"><span class="hs-identifier hs-type">BitArray</span></a></span></span><span>
+</span><span id="line-59"></span><span id="enumSetToBitArray"><span class="annot"><span class="annottext">enumSetToBitArray :: forall {k} (a :: k). EnumSet a -&gt; BitArray
+</span><a href="GHC.Data.EnumSet.html#enumSetToBitArray"><span class="hs-identifier hs-var hs-var">enumSetToBitArray</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span id="local-6989586621682367446"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367446"><span class="hs-identifier hs-var">int_set</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">(BitArray -&gt; Key -&gt; BitArray) -&gt; BitArray -&gt; IntSet -&gt; BitArray
+forall a. (a -&gt; Key -&gt; a) -&gt; a -&gt; IntSet -&gt; a
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#foldl%27"><span class="hs-identifier hs-var">IntSet.foldl'</span></a></span><span> </span><span class="annot"><span class="annottext">BitArray -&gt; Key -&gt; BitArray
+forall a. Bits a =&gt; a -&gt; Key -&gt; a
+</span><span class="hs-identifier hs-var">setBit</span></span><span> </span><span class="annot"><span class="annottext">BitArray
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367446"><span class="hs-identifier hs-var">int_set</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span id="local-6989586621682367322"><span class="annot"><a href="GHC.Data.EnumSet.html#bitArrayToEnumSet"><span class="hs-identifier hs-type">bitArrayToEnumSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#BitArray"><span class="hs-identifier hs-type">BitArray</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-type">EnumSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682367322"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-63"></span><span id="bitArrayToEnumSet"><span class="annot"><span class="annottext">bitArrayToEnumSet :: forall {k} (a :: k). BitArray -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#bitArrayToEnumSet"><span class="hs-identifier hs-var hs-var">bitArrayToEnumSet</span></a></span></span><span> </span><span id="local-6989586621682367460"><span class="annot"><span class="annottext">BitArray
+</span><a href="#local-6989586621682367460"><span class="hs-identifier hs-var">ba</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; EnumSet a
+forall {k} (a :: k). IntSet -&gt; EnumSet a
+</span><a href="GHC.Data.EnumSet.html#EnumSet"><span class="hs-identifier hs-var">EnumSet</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Key -&gt; IntSet -&gt; IntSet
+</span><a href="#local-6989586621682367461"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BitArray -&gt; Key
+forall a. Bits a =&gt; a -&gt; Key
+</span><span class="hs-identifier hs-var">popCount</span></span><span> </span><span class="annot"><span class="annottext">BitArray
+</span><a href="#local-6989586621682367460"><span class="hs-identifier hs-var">ba</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#empty"><span class="hs-identifier hs-var">IntSet.empty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621682367461"><span class="annot"><span class="annottext">go :: Key -&gt; Key -&gt; IntSet -&gt; IntSet
+</span><a href="#local-6989586621682367461"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621682367463"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367463"><span class="hs-identifier hs-var">int_set</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367463"><span class="hs-identifier hs-var">int_set</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="#local-6989586621682367461"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621682367464"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367464"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682367465"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367465"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621682367466"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367466"><span class="hs-identifier hs-var">int_set</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">BitArray
+</span><a href="#local-6989586621682367460"><span class="hs-identifier hs-var">ba</span></a></span><span> </span><span class="annot"><span class="annottext">BitArray -&gt; Key -&gt; Bool
+forall a. Bits a =&gt; a -&gt; Key -&gt; Bool
+</span><span class="hs-operator hs-var">`testBit`</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367465"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Key -&gt; IntSet -&gt; IntSet
+</span><a href="#local-6989586621682367461"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Key
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367464"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Key
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367465"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; IntSet -&gt; IntSet
+</span><a href="../../containers-0.7-71fc/src/Data.IntSet.Internal.html#insert"><span class="hs-identifier hs-var">IntSet.insert</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367465"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367466"><span class="hs-identifier hs-var">int_set</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Key -&gt; IntSet -&gt; IntSet
+</span><a href="#local-6989586621682367461"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367464"><span class="hs-identifier hs-var">n</span></a></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Key
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621682367465"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621682367466"><span class="hs-identifier hs-var">int_set</span></a></span><span>
+</span><span id="line-70"></span></pre></body></html>

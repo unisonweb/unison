@@ -1,0 +1,675 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Server.Progress.html"><span class="hs-identifier">Language.LSP.Server.Progress</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#withProgress"><span class="hs-identifier">withProgress</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#withIndefiniteProgress"><span class="hs-identifier">withIndefiniteProgress</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier">ProgressAmount</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancellable"><span class="hs-identifier">ProgressCancellable</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancelledException"><span class="hs-identifier">ProgressCancelledException</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Extra</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Unlift</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">J</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Lens</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Server.Core.html"><span class="hs-identifier">Language.LSP.Server.Core</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">U</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">UnliftIO.Exception</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UE</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">{- | A package indicating the percentage of progress complete and a
+ an optional message to go with it during a 'withProgress'
+
+ @since 0.10.0.0
+-}</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">data</span><span> </span><span id="ProgressAmount"><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-var">ProgressAmount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProgressAmount"><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-var">ProgressAmount</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UInt</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><span class="hs-comment">{- | Thrown if the user cancels a 'Cancellable' 'withProgress'/'withIndefiniteProgress'/ session
+
+ @since 0.11.0.0
+-}</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">data</span><span> </span><span id="ProgressCancelledException"><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancelledException"><span class="hs-identifier hs-var">ProgressCancelledException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProgressCancelledException"><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancelledException"><span class="hs-identifier hs-var">ProgressCancelledException</span></a></span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679212459"><span id="local-6989586621679212461"><span id="local-6989586621679212465"><span class="annot"><span class="annottext">Int -&gt; ProgressCancelledException -&gt; ShowS
+[ProgressCancelledException] -&gt; ShowS
+ProgressCancelledException -&gt; String
+(Int -&gt; ProgressCancelledException -&gt; ShowS)
+-&gt; (ProgressCancelledException -&gt; String)
+-&gt; ([ProgressCancelledException] -&gt; ShowS)
+-&gt; Show ProgressCancelledException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ProgressCancelledException -&gt; ShowS
+showsPrec :: Int -&gt; ProgressCancelledException -&gt; ShowS
+$cshow :: ProgressCancelledException -&gt; String
+show :: ProgressCancelledException -&gt; String
+$cshowList :: [ProgressCancelledException] -&gt; ShowS
+showList :: [ProgressCancelledException] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212474"><span id="local-6989586621679212478"><span id="local-6989586621679212481"><span id="local-6989586621679212484"><span class="annot"><span class="hs-identifier hs-type">E.Exception</span></span><span> </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancelledException"><span class="hs-identifier hs-type">ProgressCancelledException</span></a></span></span></span></span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">{- | Whether or not the user should be able to cancel a 'withProgress'/'withIndefiniteProgress'
+ session
+
+ @since 0.11.0.0
+-}</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="ProgressCancellable"><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancellable"><span class="hs-identifier hs-var">ProgressCancellable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Cancellable"><span class="annot"><a href="Language.LSP.Server.Progress.html#Cancellable"><span class="hs-identifier hs-var">Cancellable</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="NotCancellable"><span class="annot"><a href="Language.LSP.Server.Progress.html#NotCancellable"><span class="hs-identifier hs-var">NotCancellable</span></a></span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- Get a new id for the progress session and make a new one</span><span>
+</span><span id="line-56"></span><span id="local-6989586621679212280"><span id="local-6989586621679212281"><span class="annot"><a href="Language.LSP.Server.Progress.html#getNewProgressId"><span class="hs-identifier hs-type">getNewProgressId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Server.Core.html#MonadLsp"><span class="hs-identifier hs-type">MonadLsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212280"><span class="hs-identifier hs-type">config</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212281"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212281"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span></span></span><span>
+</span><span id="line-57"></span><span id="getNewProgressId"><span class="annot"><span class="annottext">getNewProgressId :: forall config (m :: * -&gt; *). MonadLsp config m =&gt; m ProgressToken
+</span><a href="Language.LSP.Server.Progress.html#getNewProgressId"><span class="hs-identifier hs-var hs-var">getNewProgressId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="annottext">(LanguageContextState config -&gt; TVar Int32)
+-&gt; (Int32 -&gt; (ProgressToken, Int32)) -&gt; m ProgressToken
+forall config (m :: * -&gt; *) s a.
+MonadLsp config m =&gt;
+(LanguageContextState config -&gt; TVar s) -&gt; (s -&gt; (a, s)) -&gt; m a
+</span><a href="Language.LSP.Server.Core.html#stateState"><span class="hs-identifier hs-var">stateState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgressData -&gt; TVar Int32
+</span><a href="Language.LSP.Server.Core.html#progressNextId"><span class="hs-identifier hs-var">progressNextId</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgressData -&gt; TVar Int32)
+-&gt; (LanguageContextState config -&gt; ProgressData)
+-&gt; LanguageContextState config
+-&gt; TVar Int32
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LanguageContextState config -&gt; ProgressData
+forall config. LanguageContextState config -&gt; ProgressData
+</span><a href="Language.LSP.Server.Core.html#resProgressData"><span class="hs-identifier hs-var">resProgressData</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int32 -&gt; (ProgressToken, Int32)) -&gt; m ProgressToken)
+-&gt; (Int32 -&gt; (ProgressToken, Int32)) -&gt; m ProgressToken
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679212495"><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621679212495"><span class="hs-identifier hs-var">cur</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679212499"><span class="annot"><span class="annottext">next :: Int32
+</span><a href="#local-6989586621679212499"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621679212495"><span class="hs-identifier hs-var">cur</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int32
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-60"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 |? Text) -&gt; ProgressToken
+</span><span class="hs-identifier hs-var">L.ProgressToken</span></span><span> </span><span class="annot"><span class="annottext">((Int32 |? Text) -&gt; ProgressToken)
+-&gt; (Int32 |? Text) -&gt; ProgressToken
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 |? Text
+forall a b. a -&gt; a |? b
+</span><span class="hs-identifier hs-var">L.InL</span></span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621679212495"><span class="hs-identifier hs-var">cur</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int32
+</span><a href="#local-6989586621679212499"><span class="hs-identifier hs-var">next</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Language.LSP.Server.Progress.html#getNewProgressId"><span class="hs-pragma hs-type">getNewProgressId</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Language.LSP.Server.Progress.html#withProgressBase"><span class="hs-identifier hs-type">withProgressBase</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679212306"><span class="annot"><a href="#local-6989586621679212306"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span id="local-6989586621679212307"><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679212310"><span class="annot"><a href="#local-6989586621679212310"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Core.html#MonadLsp"><span class="hs-identifier hs-type">MonadLsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212306"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancellable"><span class="hs-identifier hs-type">ProgressCancellable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-type">ProgressAmount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212310"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212310"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-72"></span><span id="withProgressBase"><span class="annot"><span class="annottext">withProgressBase :: forall c (m :: * -&gt; *) a.
+MonadLsp c m =&gt;
+Bool
+-&gt; Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+</span><a href="Language.LSP.Server.Progress.html#withProgressBase"><span class="hs-identifier hs-var hs-var">withProgressBase</span></a></span></span><span> </span><span id="local-6989586621679212567"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679212567"><span class="hs-identifier hs-var">indefinite</span></a></span></span><span> </span><span id="local-6989586621679212568"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212568"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621679212569"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212569"><span class="hs-identifier hs-var">clientToken</span></a></span></span><span> </span><span id="local-6989586621679212570"><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212570"><span class="hs-identifier hs-var">cancellable</span></a></span></span><span> </span><span id="local-6989586621679212571"><span class="annot"><span class="annottext">(ProgressAmount -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212571"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679212574"><span class="annot"><span class="annottext">initialProgress :: ProgressAmount
+</span><a href="#local-6989586621679212574"><span class="hs-identifier hs-var hs-var hs-var">initialProgress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe UInt -&gt; Maybe Text -&gt; ProgressAmount
+</span><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-var">ProgressAmount</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679212567"><span class="hs-identifier hs-var">indefinite</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe UInt
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">UInt -&gt; Maybe UInt
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Core.html#LanguageContextEnv"><span class="hs-identifier hs-type">LanguageContextEnv</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Language.LSP.Server.Core.html#resProgressStartDelay"><span class="hs-identifier hs-var">resProgressStartDelay</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679212577"><span class="annot"><a href="#local-6989586621679212577"><span class="hs-identifier hs-var">startDelay</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.LSP.Server.Core.html#resProgressUpdateDelay"><span class="hs-identifier hs-var">resProgressUpdateDelay</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679212579"><span class="annot"><a href="#local-6989586621679212579"><span class="hs-identifier hs-var">updateDelay</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (LanguageContextEnv c)
+forall config (m :: * -&gt; *).
+MonadLsp config m =&gt;
+m (LanguageContextEnv config)
+</span><a href="Language.LSP.Server.Core.html#getLspEnv"><span class="hs-identifier hs-var">getLspEnv</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679212581"><span class="annot"><a href="#local-6989586621679212581"><span class="hs-identifier hs-var">tokenVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">newEmptyTMVarIO</span></span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679212584"><span class="annot"><a href="#local-6989586621679212584"><span class="hs-identifier hs-var">reportVar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">newTMVarIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679212574"><span class="hs-identifier hs-type">initialProgress</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679212586"><span class="annot"><a href="#local-6989586621679212586"><span class="hs-identifier hs-var">endBarrier</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">newEmptyMVar</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-keyword">let</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="#local-6989586621679212588"><span class="hs-identifier hs-type">updater</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-type">ProgressAmount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679212588"><span class="annot"><a href="#local-6989586621679212588"><span class="hs-identifier hs-var hs-var">updater</span></a></span></span><span> </span><span id="local-6989586621679212589"><span class="annot"><span class="annottext">ProgressAmount
+</span><a href="#local-6989586621679212589"><span class="hs-identifier hs-var">pa</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; m ()) -&gt; IO () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-comment">-- I don't know of a way to do this with a normal MVar!</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-comment">-- That is: put something into it regardless of whether it is full or empty</span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount -&gt; STM (Maybe ProgressAmount)
+forall a. TMVar a -&gt; STM (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount
+</span><a href="#local-6989586621679212584"><span class="hs-identifier hs-var">reportVar</span></a></span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">putTMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679212584"><span class="hs-identifier hs-type">reportVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212589"><span class="hs-identifier hs-type">pa</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><a href="#local-6989586621679212593"><span class="hs-identifier hs-type">progressEnded</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679212593"><span class="annot"><a href="#local-6989586621679212593"><span class="hs-identifier hs-var hs-var">progressEnded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO ()
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679212586"><span class="hs-identifier hs-var">endBarrier</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="#local-6989586621679212595"><span class="hs-identifier hs-type">endProgress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679212595"><span class="annot"><a href="#local-6989586621679212595"><span class="hs-identifier hs-var hs-var">endProgress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Bool -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO Bool -&gt; IO ()) -&gt; IO Bool -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; () -&gt; IO Bool
+forall a. MVar a -&gt; a -&gt; IO Bool
+</span><span class="hs-identifier hs-var">tryPutMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679212586"><span class="hs-identifier hs-var">endBarrier</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-comment">-- Once we have a 'ProgressToken', store it in the variable and also register the cancellation</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-comment">-- handler.</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><a href="#local-6989586621679212598"><span class="hs-identifier hs-type">registerToken</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679212598"><span class="annot"><a href="#local-6989586621679212598"><span class="hs-identifier hs-var hs-var">registerToken</span></a></span></span><span> </span><span id="local-6989586621679212599"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212599"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-98"></span><span>      </span><span id="local-6989586621679212600"><span class="annot"><a href="#local-6989586621679212600"><span class="hs-identifier hs-var">handlers</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (TVar (Map ProgressToken (IO ())))
+</span><a href="#local-6989586621679212601"><span class="hs-identifier hs-var">getProgressCancellationHandlers</span></a></span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">putTMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679212581"><span class="hs-identifier hs-type">tokenVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212599"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">modifyTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679212600"><span class="hs-identifier hs-type">handlers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621679212599"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212595"><span class="hs-identifier hs-type">endProgress</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">-- Deregister our 'ProgressToken', specifically its cancellation handler. It is important</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- to do this reliably or else we will leak handlers.</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><a href="#local-6989586621679212604"><span class="hs-identifier hs-type">unregisterToken</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679212604"><span class="annot"><a href="#local-6989586621679212604"><span class="hs-identifier hs-var hs-var">unregisterToken</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>      </span><span id="local-6989586621679212605"><span class="annot"><a href="#local-6989586621679212605"><span class="hs-identifier hs-var">handlers</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (TVar (Map ProgressToken (IO ())))
+</span><a href="#local-6989586621679212601"><span class="hs-identifier hs-var">getProgressCancellationHandlers</span></a></span><span>
+</span><span id="line-108"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>        </span><span id="local-6989586621679212606"><span class="annot"><a href="#local-6989586621679212606"><span class="hs-identifier hs-var">mt</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">tryReadTMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679212581"><span class="hs-identifier hs-type">tokenVar</span></a></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">for_</span></span><span> </span><span class="annot"><a href="#local-6989586621679212606"><span class="hs-identifier hs-type">mt</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679212609"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212609"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TVar (Map ProgressToken (IO ()))
+-&gt; (Map ProgressToken (IO ()) -&gt; Map ProgressToken (IO ()))
+-&gt; STM ()
+forall a. TVar a -&gt; (a -&gt; a) -&gt; STM ()
+</span><span class="hs-identifier hs-var">modifyTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Map ProgressToken (IO ()))
+</span><a href="#local-6989586621679212605"><span class="hs-identifier hs-var">handlers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgressToken
+-&gt; Map ProgressToken (IO ()) -&gt; Map ProgressToken (IO ())
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.delete</span></span><span> </span><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212609"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-comment">-- Find and register our 'ProgressToken', asking the client for it if necessary.</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-comment">-- Note that this computation may terminate before we get the token, we need to wait</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-comment">-- for the token var to be filled if we want to use it.</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><a href="#local-6989586621679212611"><span class="hs-identifier hs-type">createToken</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679212611"><span class="annot"><a href="#local-6989586621679212611"><span class="hs-identifier hs-var hs-var">createToken</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-comment">-- See Note [Delayed progress reporting]</span><span>
+</span><span id="line-118"></span><span>      </span><span class="hs-comment">-- This delays the creation of the token as well as the 'begin' message. Creating</span><span>
+</span><span id="line-119"></span><span>      </span><span class="hs-comment">-- the token shouldn't result in any visible action on the client side since</span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-comment">-- the title/initial percentage aren't given until the 'begin' mesage. However,</span><span>
+</span><span id="line-121"></span><span>      </span><span class="hs-comment">-- it's neater not to create tokens that we won't use, and clients may find it</span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-comment">-- easier to clean them up if they receive begin/end reports for them.</span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; m ()) -&gt; IO () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">threadDelay</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679212577"><span class="hs-identifier hs-var">startDelay</span></a></span><span>
+</span><span id="line-124"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212569"><span class="hs-identifier hs-var">clientToken</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-125"></span><span>        </span><span class="hs-comment">-- See Note [Client- versus server-initiated progress]</span><span>
+</span><span id="line-126"></span><span>        </span><span class="hs-comment">-- Client-initiated progress</span><span>
+</span><span id="line-127"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679212613"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212613"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ProgressToken -&gt; m ()
+</span><a href="#local-6989586621679212598"><span class="hs-identifier hs-var">registerToken</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212613"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-comment">-- Try server-initiated progress</span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>          </span><span id="local-6989586621679212614"><span class="annot"><a href="#local-6989586621679212614"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m ProgressToken
+forall config (m :: * -&gt; *). MonadLsp config m =&gt; m ProgressToken
+</span><a href="Language.LSP.Server.Progress.html#getNewProgressId"><span class="hs-identifier hs-var">getNewProgressId</span></a></span><span>
+</span><span id="line-131"></span><span>          </span><span id="local-6989586621679212615"><span class="annot"><a href="#local-6989586621679212615"><span class="hs-identifier hs-var">clientCaps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Language.LSP.Server.Core.html#getClientCapabilities"><span class="hs-identifier hs-type">getClientCapabilities</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>          </span><span class="hs-comment">-- If we don't have a progress token from the client and</span><span>
+</span><span id="line-134"></span><span>          </span><span class="hs-comment">-- the client doesn't support server-initiated progress then</span><span>
+</span><span id="line-135"></span><span>          </span><span class="hs-comment">-- there's nothing to do: we can't report progress.</span><span>
+</span><span id="line-136"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Server.Progress.html#clientSupportsServerInitiatedProgress"><span class="hs-identifier hs-type">clientSupportsServerInitiatedProgress</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212615"><span class="hs-identifier hs-type">clientCaps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">void</span></span><span>
+</span><span id="line-138"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-139"></span><span>            </span><span class="hs-comment">-- Server-initiated progress</span><span>
+</span><span id="line-140"></span><span>            </span><span class="hs-comment">-- See Note [Client- versus server-initiated progress]</span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><a href="Language.LSP.Server.Core.html#sendRequest"><span class="hs-identifier hs-type">sendRequest</span></a></span><span>
+</span><span id="line-142"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">SMethod_WindowWorkDoneProgressCreate</span></span><span>
+</span><span id="line-143"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WorkDoneProgressCreateParams</span></span><span> </span><span class="annot"><a href="#local-6989586621679212614"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>            </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-145"></span><span>              </span><span class="hs-comment">-- Successfully registered the token, we can now use it.</span><span>
+</span><span id="line-146"></span><span>              </span><span class="hs-comment">-- So we go ahead and start. We do this as soon as we get the</span><span>
+</span><span id="line-147"></span><span>              </span><span class="hs-comment">-- token back so the client gets feedback ASAP</span><span>
+</span><span id="line-148"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">MessageResult
+  @'ServerToClient @'Request 'Method_WindowWorkDoneProgressCreate
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ProgressToken -&gt; m ()
+</span><a href="#local-6989586621679212598"><span class="hs-identifier hs-var">registerToken</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212614"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-149"></span><span>              </span><span class="hs-comment">-- The client sent us an error, we can't use the token.</span><span>
+</span><span id="line-150"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679212622"><span class="annot"><span class="annottext">TResponseError
+  @'ServerToClient 'Method_WindowWorkDoneProgressCreate
+</span><a href="#local-6989586621679212622"><span class="hs-identifier hs-var">_err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; m ()
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">-- Actually send the progress reports.</span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="#local-6989586621679212623"><span class="hs-identifier hs-type">sendReports</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679212623"><span class="annot"><a href="#local-6989586621679212623"><span class="hs-identifier hs-var hs-var">sendReports</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-155"></span><span>      </span><span id="local-6989586621679212624"><span class="annot"><a href="#local-6989586621679212624"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ProgressToken -&gt; m ProgressToken
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ProgressToken -&gt; m ProgressToken)
+-&gt; IO ProgressToken -&gt; m ProgressToken
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM ProgressToken -&gt; IO ProgressToken
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM ProgressToken -&gt; IO ProgressToken)
+-&gt; STM ProgressToken -&gt; IO ProgressToken
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressToken -&gt; STM ProgressToken
+forall a. TMVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressToken
+</span><a href="#local-6989586621679212581"><span class="hs-identifier hs-var">tokenVar</span></a></span><span>
+</span><span id="line-156"></span><span>      </span><span class="annot"><a href="#local-6989586621679212626"><span class="hs-identifier hs-type">begin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212624"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-157"></span><span>      </span><span class="hs-comment">-- Once we are sending updates, if we get interrupted we should send</span><span>
+</span><span id="line-158"></span><span>      </span><span class="hs-comment">-- the end notification</span><span>
+</span><span id="line-159"></span><span>      </span><span class="annot"><a href="#local-6989586621679212627"><span class="hs-identifier hs-type">update</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212624"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`UE.finally`</span></span><span> </span><span class="annot"><a href="#local-6989586621679212629"><span class="hs-identifier hs-type">end</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212624"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-160"></span><span>     </span><span class="hs-keyword">where</span><span>
+</span><span id="line-161"></span><span>      </span><span id="local-6989586621679212630"><span class="annot"><span class="annottext">cancellable' :: Maybe Bool
+</span><a href="#local-6989586621679212630"><span class="hs-identifier hs-var hs-var">cancellable'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212570"><span class="hs-identifier hs-var">cancellable</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-162"></span><span>        </span><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="Language.LSP.Server.Progress.html#Cancellable"><span class="hs-identifier hs-var">Cancellable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-163"></span><span>        </span><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="Language.LSP.Server.Progress.html#NotCancellable"><span class="hs-identifier hs-var">NotCancellable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-164"></span><span>      </span><span id="local-6989586621679212626"><span class="annot"><span class="annottext">begin :: ProgressToken -&gt; m ()
+</span><a href="#local-6989586621679212626"><span class="hs-identifier hs-var hs-var">begin</span></a></span></span><span> </span><span id="local-6989586621679212641"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212641"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>        </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-type">ProgressAmount</span></a></span><span> </span><span id="local-6989586621679212642"><span class="annot"><a href="#local-6989586621679212642"><span class="hs-identifier hs-var">pct</span></a></span></span><span> </span><span id="local-6989586621679212643"><span class="annot"><a href="#local-6989586621679212643"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ProgressAmount -&gt; m ProgressAmount
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ProgressAmount -&gt; m ProgressAmount)
+-&gt; IO ProgressAmount -&gt; m ProgressAmount
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM ProgressAmount -&gt; IO ProgressAmount
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM ProgressAmount -&gt; IO ProgressAmount)
+-&gt; STM ProgressAmount -&gt; IO ProgressAmount
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount -&gt; STM ProgressAmount
+forall a. TMVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">takeTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount
+</span><a href="#local-6989586621679212584"><span class="hs-identifier hs-var">reportVar</span></a></span><span>
+</span><span id="line-166"></span><span>        </span><span class="annot"><a href="#local-6989586621679212645"><span class="hs-identifier hs-type">sendProgressReport</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212641"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WorkDoneProgressBegin</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.AString</span></span><span> </span><span class="annot"><a href="#local-6989586621679212568"><span class="hs-identifier hs-type">title</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212630"><span class="hs-identifier hs-type">cancellable'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212643"><span class="hs-identifier hs-type">msg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212642"><span class="hs-identifier hs-type">pct</span></a></span><span>
+</span><span id="line-167"></span><span>      </span><span id="local-6989586621679212627"><span class="annot"><span class="annottext">update :: ProgressToken -&gt; m b
+</span><a href="#local-6989586621679212627"><span class="hs-identifier hs-var hs-var">update</span></a></span></span><span> </span><span id="local-6989586621679212662"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212662"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-168"></span><span>        </span><span class="annot"><span class="annottext">m () -&gt; m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">forever</span></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; m b) -&gt; m () -&gt; m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>          </span><span class="hs-comment">-- See Note [Delayed progress reporting]</span><span>
+</span><span id="line-170"></span><span>          </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; m ()) -&gt; IO () -&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">threadDelay</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679212579"><span class="hs-identifier hs-var">updateDelay</span></a></span><span>
+</span><span id="line-171"></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-type">ProgressAmount</span></a></span><span> </span><span id="local-6989586621679212664"><span class="annot"><a href="#local-6989586621679212664"><span class="hs-identifier hs-var">pct</span></a></span></span><span> </span><span id="local-6989586621679212665"><span class="annot"><a href="#local-6989586621679212665"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ProgressAmount -&gt; m ProgressAmount
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO ProgressAmount -&gt; m ProgressAmount)
+-&gt; IO ProgressAmount -&gt; m ProgressAmount
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM ProgressAmount -&gt; IO ProgressAmount
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM ProgressAmount -&gt; IO ProgressAmount)
+-&gt; STM ProgressAmount -&gt; IO ProgressAmount
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount -&gt; STM ProgressAmount
+forall a. TMVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">takeTMVar</span></span><span> </span><span class="annot"><span class="annottext">TMVar ProgressAmount
+</span><a href="#local-6989586621679212584"><span class="hs-identifier hs-var">reportVar</span></a></span><span>
+</span><span id="line-172"></span><span>          </span><span class="annot"><a href="#local-6989586621679212645"><span class="hs-identifier hs-type">sendProgressReport</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212662"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WorkDoneProgressReport</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.AString</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span> </span><span class="annot"><a href="#local-6989586621679212665"><span class="hs-identifier hs-type">msg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212664"><span class="hs-identifier hs-type">pct</span></a></span><span>
+</span><span id="line-173"></span><span>      </span><span id="local-6989586621679212629"><span class="annot"><span class="annottext">end :: ProgressToken -&gt; m ()
+</span><a href="#local-6989586621679212629"><span class="hs-identifier hs-var hs-var">end</span></a></span></span><span> </span><span id="local-6989586621679212670"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212670"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ProgressToken -&gt; WorkDoneProgressEnd -&gt; m ()
+forall r. ToJSON r =&gt; ProgressToken -&gt; r -&gt; m ()
+</span><a href="#local-6989586621679212645"><span class="hs-identifier hs-var">sendProgressReport</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212670"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AString &quot;end&quot; -&gt; Maybe Text -&gt; WorkDoneProgressEnd
+</span><span class="hs-identifier hs-var">WorkDoneProgressEnd</span></span><span> </span><span class="annot"><span class="annottext">AString &quot;end&quot;
+forall (s :: Symbol). KnownSymbol s =&gt; AString s
+</span><span class="hs-identifier hs-var">L.AString</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-comment">-- Create the token and then start sending reports; all of which races with the check for the</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-comment">-- progress having ended. In all cases, make sure to unregister the token at the end.</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><a href="#local-6989586621679212672"><span class="hs-identifier hs-type">progressThreads</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>    </span><span id="local-6989586621679212672"><span class="annot"><a href="#local-6989586621679212672"><span class="hs-identifier hs-var hs-var">progressThreads</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-179"></span><span>      </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679212611"><span class="hs-identifier hs-var">createToken</span></a></span><span> </span><span class="annot"><span class="annottext">m () -&gt; m () -&gt; m ()
+forall a b. m a -&gt; m b -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679212623"><span class="hs-identifier hs-var">sendReports</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m () -&gt; m () -&gt; m ()
+forall (m :: * -&gt; *) a b. MonadUnliftIO m =&gt; m a -&gt; m b -&gt; m a
+</span><span class="hs-operator hs-var">`UE.finally`</span></span><span> </span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679212604"><span class="hs-identifier hs-var">unregisterToken</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m () -&gt; m () -&gt; m ()
+forall (m :: * -&gt; *) a b. MonadUnliftIO m =&gt; m a -&gt; m b -&gt; m ()
+</span><span class="hs-operator hs-var">`U.race_`</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679212593"><span class="hs-identifier hs-var">progressEnded</span></a></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">withRunInIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679212675"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679212675"><span class="hs-identifier hs-var">runInBase</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-182"></span><span>    </span><span class="annot"><span class="annottext">IO a -&gt; (Async a -&gt; IO a) -&gt; IO a
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679212675"><span class="hs-identifier hs-var">runInBase</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; IO a) -&gt; m a -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(ProgressAmount -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212571"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressAmount -&gt; m ()
+</span><a href="#local-6989586621679212588"><span class="hs-identifier hs-var">updater</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Async a -&gt; IO a) -&gt; IO a) -&gt; (Async a -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679212677"><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679212677"><span class="hs-identifier hs-var">mainAct</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-183"></span><span>      </span><span class="hs-comment">-- If the progress gets cancelled then we need to get cancelled too</span><span>
+</span><span id="line-184"></span><span>      </span><span class="annot"><span class="annottext">IO () -&gt; (Async () -&gt; IO a) -&gt; IO a
+forall a b. IO a -&gt; (Async a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m () -&gt; IO ()
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679212675"><span class="hs-identifier hs-var">runInBase</span></a></span><span> </span><span class="annot"><span class="annottext">m ()
+</span><a href="#local-6989586621679212672"><span class="hs-identifier hs-var">progressThreads</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Async () -&gt; IO a) -&gt; IO a) -&gt; (Async () -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679212678"><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679212678"><span class="hs-identifier hs-var">pthreads</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-185"></span><span>        </span><span id="local-6989586621679212679"><span class="annot"><a href="#local-6989586621679212679"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Async a -&gt; Async () -&gt; IO (Either a ())
+forall a b. Async a -&gt; Async b -&gt; IO (Either a b)
+</span><span class="hs-identifier hs-var">waitEither</span></span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679212677"><span class="hs-identifier hs-var">mainAct</span></a></span><span> </span><span class="annot"><span class="annottext">Async ()
+</span><a href="#local-6989586621679212678"><span class="hs-identifier hs-var">pthreads</span></a></span><span>
+</span><span id="line-186"></span><span>        </span><span class="hs-comment">-- TODO: is this weird? I can't see how else to gracefully use the ending barrier</span><span>
+</span><span id="line-187"></span><span>        </span><span class="hs-comment">-- as a guard to cancel the other async</span><span>
+</span><span id="line-188"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679212679"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-189"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679212681"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212681"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212681"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-190"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Async a -&gt; ProgressCancelledException -&gt; IO ()
+forall e a. Exception e =&gt; Async a -&gt; e -&gt; IO ()
+</span><span class="hs-identifier hs-var">cancelWith</span></span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679212677"><span class="hs-identifier hs-var">mainAct</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressCancelledException
+</span><a href="Language.LSP.Server.Progress.html#ProgressCancelledException"><span class="hs-identifier hs-var">ProgressCancelledException</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a -&gt; IO a
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Async a -&gt; IO a
+forall a. Async a -&gt; IO a
+</span><span class="hs-identifier hs-var">wait</span></span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679212677"><span class="hs-identifier hs-var">mainAct</span></a></span><span>
+</span><span id="line-191"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>  </span><span id="local-6989586621679212374"><span class="annot"><a href="#local-6989586621679212645"><span class="hs-identifier hs-type">sendProgressReport</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">J.ToJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679212374"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212374"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-193"></span><span>  </span><span id="local-6989586621679212645"><span class="annot"><span class="annottext">sendProgressReport :: forall r. ToJSON r =&gt; ProgressToken -&gt; r -&gt; m ()
+</span><a href="#local-6989586621679212645"><span class="hs-identifier hs-var hs-var">sendProgressReport</span></a></span></span><span> </span><span id="local-6989586621679212687"><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212687"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span id="local-6989586621679212688"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679212688"><span class="hs-identifier hs-var">report</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SServerMethod @'Notification ('Method_Progress @'ServerToClient)
+-&gt; MessageParams
+     @'ServerToClient @'Notification ('Method_Progress @'ServerToClient)
+-&gt; m ()
+forall (m :: Method 'ServerToClient 'Notification) (f :: * -&gt; *)
+       config.
+MonadLsp config f =&gt;
+SServerMethod @'Notification m
+-&gt; MessageParams @'ServerToClient @'Notification m -&gt; f ()
+</span><a href="Language.LSP.Server.Core.html#sendNotification"><span class="hs-identifier hs-var">sendNotification</span></a></span><span> </span><span class="annot"><span class="annottext">SServerMethod @'Notification ('Method_Progress @'ServerToClient)
+forall {f :: MessageDirection}.
+SMethod @f @'Notification ('Method_Progress @f)
+</span><span class="hs-identifier hs-var">SMethod_Progress</span></span><span> </span><span class="annot"><span class="annottext">(MessageParams
+   @'ServerToClient @'Notification ('Method_Progress @'ServerToClient)
+ -&gt; m ())
+-&gt; MessageParams
+     @'ServerToClient @'Notification ('Method_Progress @'ServerToClient)
+-&gt; m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ProgressToken -&gt; Value -&gt; ProgressParams
+</span><span class="hs-identifier hs-var">ProgressParams</span></span><span> </span><span class="annot"><span class="annottext">ProgressToken
+</span><a href="#local-6989586621679212687"><span class="hs-identifier hs-var">token</span></a></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; ProgressParams) -&gt; Value -&gt; ProgressParams
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; Value
+forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">J.toJSON</span></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679212688"><span class="hs-identifier hs-var">report</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>  </span><span class="annot"><a href="#local-6989586621679212601"><span class="hs-identifier hs-type">getProgressCancellationHandlers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212307"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>  </span><span id="local-6989586621679212601"><span class="annot"><span class="annottext">getProgressCancellationHandlers :: m (TVar (Map ProgressToken (IO ())))
+</span><a href="#local-6989586621679212601"><span class="hs-identifier hs-var hs-var">getProgressCancellationHandlers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(LanguageContextState c -&gt; TVar (Map ProgressToken (IO ())))
+-&gt; m (TVar (Map ProgressToken (IO ())))
+forall config (m :: * -&gt; *) a.
+MonadLsp config m =&gt;
+(LanguageContextState config -&gt; TVar a) -&gt; m (TVar a)
+</span><a href="Language.LSP.Server.Core.html#getStateVar"><span class="hs-identifier hs-var">getStateVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProgressData -&gt; TVar (Map ProgressToken (IO ()))
+</span><a href="Language.LSP.Server.Core.html#progressCancel"><span class="hs-identifier hs-var">progressCancel</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgressData -&gt; TVar (Map ProgressToken (IO ())))
+-&gt; (LanguageContextState c -&gt; ProgressData)
+-&gt; LanguageContextState c
+-&gt; TVar (Map ProgressToken (IO ()))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LanguageContextState c -&gt; ProgressData
+forall config. LanguageContextState config -&gt; ProgressData
+</span><a href="Language.LSP.Server.Core.html#resProgressData"><span class="hs-identifier hs-var">resProgressData</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="annot"><a href="Language.LSP.Server.Progress.html#clientSupportsServerInitiatedProgress"><span class="hs-identifier hs-type">clientSupportsServerInitiatedProgress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">L.ClientCapabilities</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-199"></span><span id="clientSupportsServerInitiatedProgress"><span class="annot"><span class="annottext">clientSupportsServerInitiatedProgress :: ClientCapabilities -&gt; Bool
+</span><a href="Language.LSP.Server.Progress.html#clientSupportsServerInitiatedProgress"><span class="hs-identifier hs-var hs-var">clientSupportsServerInitiatedProgress</span></a></span></span><span> </span><span id="local-6989586621679212695"><span class="annot"><span class="annottext">ClientCapabilities
+</span><a href="#local-6989586621679212695"><span class="hs-identifier hs-var">caps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool -&gt; Bool
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Bool -&gt; Bool) -&gt; Maybe Bool -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ClientCapabilities
+</span><a href="#local-6989586621679212695"><span class="hs-identifier hs-var">caps</span></a></span><span> </span><span class="annot"><span class="annottext">ClientCapabilities
+-&gt; Getting (First Bool) ClientCapabilities Bool -&gt; Maybe Bool
+forall s a. s -&gt; Getting (First a) s a -&gt; Maybe a
+</span><span class="hs-operator hs-var">^?</span></span><span> </span><span class="annot"><span class="annottext">(Maybe WindowClientCapabilities
+ -&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities))
+-&gt; ClientCapabilities -&gt; Const @(*) (First Bool) ClientCapabilities
+forall s a. HasWindow s a =&gt; Lens' s a
+Lens' ClientCapabilities (Maybe WindowClientCapabilities)
+</span><span class="hs-identifier hs-var">L.window</span></span><span> </span><span class="annot"><span class="annottext">((Maybe WindowClientCapabilities
+  -&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities))
+ -&gt; ClientCapabilities
+ -&gt; Const @(*) (First Bool) ClientCapabilities)
+-&gt; ((Bool -&gt; Const @(*) (First Bool) Bool)
+    -&gt; Maybe WindowClientCapabilities
+    -&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities))
+-&gt; Getting (First Bool) ClientCapabilities Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(WindowClientCapabilities
+ -&gt; Const @(*) (First Bool) WindowClientCapabilities)
+-&gt; Maybe WindowClientCapabilities
+-&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities)
+forall a b (p :: * -&gt; * -&gt; *) (f :: * -&gt; *).
+(Choice p, Applicative f) =&gt;
+p a (f b) -&gt; p (Maybe a) (f (Maybe b))
+</span><span class="hs-identifier hs-var">_Just</span></span><span> </span><span class="annot"><span class="annottext">((WindowClientCapabilities
+  -&gt; Const @(*) (First Bool) WindowClientCapabilities)
+ -&gt; Maybe WindowClientCapabilities
+ -&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities))
+-&gt; ((Bool -&gt; Const @(*) (First Bool) Bool)
+    -&gt; WindowClientCapabilities
+    -&gt; Const @(*) (First Bool) WindowClientCapabilities)
+-&gt; (Bool -&gt; Const @(*) (First Bool) Bool)
+-&gt; Maybe WindowClientCapabilities
+-&gt; Const @(*) (First Bool) (Maybe WindowClientCapabilities)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Bool -&gt; Const @(*) (First Bool) (Maybe Bool))
+-&gt; WindowClientCapabilities
+-&gt; Const @(*) (First Bool) WindowClientCapabilities
+forall s a. HasWorkDoneProgress s a =&gt; Lens' s a
+Lens' WindowClientCapabilities (Maybe Bool)
+</span><span class="hs-identifier hs-var">L.workDoneProgress</span></span><span> </span><span class="annot"><span class="annottext">((Maybe Bool -&gt; Const @(*) (First Bool) (Maybe Bool))
+ -&gt; WindowClientCapabilities
+ -&gt; Const @(*) (First Bool) WindowClientCapabilities)
+-&gt; ((Bool -&gt; Const @(*) (First Bool) Bool)
+    -&gt; Maybe Bool -&gt; Const @(*) (First Bool) (Maybe Bool))
+-&gt; (Bool -&gt; Const @(*) (First Bool) Bool)
+-&gt; WindowClientCapabilities
+-&gt; Const @(*) (First Bool) WindowClientCapabilities
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Const @(*) (First Bool) Bool)
+-&gt; Maybe Bool -&gt; Const @(*) (First Bool) (Maybe Bool)
+forall a b (p :: * -&gt; * -&gt; *) (f :: * -&gt; *).
+(Choice p, Applicative f) =&gt;
+p a (f b) -&gt; p (Maybe a) (f (Maybe b))
+</span><span class="hs-identifier hs-var">_Just</span></span><span>
+</span><span id="line-200"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Language.LSP.Server.Progress.html#clientSupportsServerInitiatedProgress"><span class="hs-pragma hs-type">clientSupportsServerInitiatedProgress</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="annot"><span class="hs-comment">{- |
+Wrapper for reporting progress to the client during a long running task.
+-}</span></span><span>
+</span><span id="line-205"></span><span id="local-6989586621679212425"><span id="local-6989586621679212426"><span id="local-6989586621679212427"><span class="annot"><a href="Language.LSP.Server.Progress.html#withProgress"><span class="hs-identifier hs-type">withProgress</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-206"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Core.html#MonadLsp"><span class="hs-identifier hs-type">MonadLsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212425"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-207"></span><span>  </span><span class="annot"><span class="hs-comment">-- | The title of the progress operation</span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>  </span><span class="annot"><span class="hs-comment">-- | The progress token provided by the client in the method params, if any</span></span><span>
+</span><span id="line-210"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-comment">-- | Whether or not this operation is cancellable. If true, the user will be</span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-comment">-- shown a button to allow cancellation. Note that requests can still be cancelled</span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-comment">-- even if this is not set.</span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancellable"><span class="hs-identifier hs-type">ProgressCancellable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><span class="hs-comment">-- | An update function to pass progress updates to</span></span><span>
+</span><span id="line-216"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-type">ProgressAmount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212427"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-217"></span><span>  </span><span class="annot"><a href="#local-6989586621679212426"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212427"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-218"></span><span id="withProgress"><span class="annot"><span class="annottext">withProgress :: forall c (m :: * -&gt; *) a.
+MonadLsp c m =&gt;
+Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+</span><a href="Language.LSP.Server.Progress.html#withProgress"><span class="hs-identifier hs-var hs-var">withProgress</span></a></span></span><span> </span><span id="local-6989586621679212703"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212703"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621679212704"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212704"><span class="hs-identifier hs-var">clientToken</span></a></span></span><span> </span><span id="local-6989586621679212705"><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212705"><span class="hs-identifier hs-var">cancellable</span></a></span></span><span> </span><span id="local-6989586621679212706"><span class="annot"><span class="annottext">(ProgressAmount -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212706"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+forall c (m :: * -&gt; *) a.
+MonadLsp c m =&gt;
+Bool
+-&gt; Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+</span><a href="Language.LSP.Server.Progress.html#withProgressBase"><span class="hs-identifier hs-var">withProgressBase</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212703"><span class="hs-identifier hs-var">title</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212704"><span class="hs-identifier hs-var">clientToken</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212705"><span class="hs-identifier hs-var">cancellable</span></a></span><span> </span><span class="annot"><span class="annottext">(ProgressAmount -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212706"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="annot"><span class="hs-comment">{- |
+Same as 'withProgress', but for processes that do not report the precentage complete.
+-}</span></span><span>
+</span><span id="line-223"></span><span id="local-6989586621679212431"><span id="local-6989586621679212432"><span id="local-6989586621679212433"><span class="annot"><a href="Language.LSP.Server.Progress.html#withIndefiniteProgress"><span class="hs-identifier hs-type">withIndefiniteProgress</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-224"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Core.html#MonadLsp"><span class="hs-identifier hs-type">MonadLsp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212431"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212432"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-225"></span><span>  </span><span class="annot"><span class="hs-comment">-- | The title of the progress operation</span></span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-227"></span><span>  </span><span class="annot"><span class="hs-comment">-- | The progress token provided by the client in the method params, if any</span></span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProgressToken</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-comment">-- | Whether or not this operation is cancellable. If true, the user will be</span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-comment">-- shown a button to allow cancellation. Note that requests can still be cancelled</span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-comment">-- even if this is not set.</span><span>
+</span><span id="line-232"></span><span>  </span><span class="annot"><a href="Language.LSP.Server.Progress.html#ProgressCancellable"><span class="hs-identifier hs-type">ProgressCancellable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-233"></span><span>  </span><span class="annot"><span class="hs-comment">-- | An update function to pass progress updates to</span></span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212432"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212432"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212433"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-235"></span><span>  </span><span class="annot"><a href="#local-6989586621679212432"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212433"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-236"></span><span id="withIndefiniteProgress"><span class="annot"><span class="annottext">withIndefiniteProgress :: forall c (m :: * -&gt; *) a.
+MonadLsp c m =&gt;
+Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((Text -&gt; m ()) -&gt; m a)
+-&gt; m a
+</span><a href="Language.LSP.Server.Progress.html#withIndefiniteProgress"><span class="hs-identifier hs-var hs-var">withIndefiniteProgress</span></a></span></span><span> </span><span id="local-6989586621679212709"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212709"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621679212710"><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212710"><span class="hs-identifier hs-var">clientToken</span></a></span></span><span> </span><span id="local-6989586621679212711"><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212711"><span class="hs-identifier hs-var">cancellable</span></a></span></span><span> </span><span id="local-6989586621679212712"><span class="annot"><span class="annottext">(Text -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212712"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-237"></span><span>  </span><span class="annot"><span class="annottext">Bool
+-&gt; Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+forall c (m :: * -&gt; *) a.
+MonadLsp c m =&gt;
+Bool
+-&gt; Text
+-&gt; Maybe ProgressToken
+-&gt; ProgressCancellable
+-&gt; ((ProgressAmount -&gt; m ()) -&gt; m a)
+-&gt; m a
+</span><a href="Language.LSP.Server.Progress.html#withProgressBase"><span class="hs-identifier hs-var">withProgressBase</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212709"><span class="hs-identifier hs-var">title</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ProgressToken
+</span><a href="#local-6989586621679212710"><span class="hs-identifier hs-var">clientToken</span></a></span><span> </span><span class="annot"><span class="annottext">ProgressCancellable
+</span><a href="#local-6989586621679212711"><span class="hs-identifier hs-var">cancellable</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679212713"><span class="annot"><span class="annottext">ProgressAmount -&gt; m ()
+</span><a href="#local-6989586621679212713"><span class="hs-identifier hs-var">update</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; m ()) -&gt; m a
+</span><a href="#local-6989586621679212712"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679212714"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212714"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ProgressAmount -&gt; m ()
+</span><a href="#local-6989586621679212713"><span class="hs-identifier hs-var">update</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe UInt -&gt; Maybe Text -&gt; ProgressAmount
+</span><a href="Language.LSP.Server.Progress.html#ProgressAmount"><span class="hs-identifier hs-var">ProgressAmount</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe UInt
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679212714"><span class="hs-identifier hs-var">msg</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span></pre></body></html>

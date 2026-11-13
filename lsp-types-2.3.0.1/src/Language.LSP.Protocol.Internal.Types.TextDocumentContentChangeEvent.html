@@ -1,0 +1,226 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeEvent.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeEvent</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangePartial.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentContentChangePartial</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeWholeDocument.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeWholeDocument</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">{-|
+An event describing a change to a text document. If only a text is provided
+it is considered to be the full content of the document.
+-}</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">newtype</span><span> </span><span id="TextDocumentContentChangeEvent"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeEvent.html#TextDocumentContentChangeEvent"><span class="hs-identifier hs-var">TextDocumentContentChangeEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TextDocumentContentChangeEvent"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeEvent.html#TextDocumentContentChangeEvent"><span class="hs-identifier hs-var">TextDocumentContentChangeEvent</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangePartial.html#TextDocumentContentChangePartial"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextDocumentContentChangePartial.TextDocumentContentChangePartial</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html#%7C%3F"><span class="hs-operator hs-type">Language.LSP.Protocol.Types.Common.|?</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeWholeDocument.html#TextDocumentContentChangeWholeDocument"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeWholeDocument.TextDocumentContentChangeWholeDocument</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682524667"><span id="local-6989586621682524674"><span id="local-6989586621682524680"><span id="local-6989586621682524686"><span id="local-6989586621682524692"><span class="annot"><span class="annottext">[TextDocumentContentChangeEvent] -&gt; Value
+[TextDocumentContentChangeEvent] -&gt; Encoding
+TextDocumentContentChangeEvent -&gt; Bool
+TextDocumentContentChangeEvent -&gt; Value
+TextDocumentContentChangeEvent -&gt; Encoding
+(TextDocumentContentChangeEvent -&gt; Value)
+-&gt; (TextDocumentContentChangeEvent -&gt; Encoding)
+-&gt; ([TextDocumentContentChangeEvent] -&gt; Value)
+-&gt; ([TextDocumentContentChangeEvent] -&gt; Encoding)
+-&gt; (TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; ToJSON TextDocumentContentChangeEvent
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: TextDocumentContentChangeEvent -&gt; Value
+toJSON :: TextDocumentContentChangeEvent -&gt; Value
+$ctoEncoding :: TextDocumentContentChangeEvent -&gt; Encoding
+toEncoding :: TextDocumentContentChangeEvent -&gt; Encoding
+$ctoJSONList :: [TextDocumentContentChangeEvent] -&gt; Value
+toJSONList :: [TextDocumentContentChangeEvent] -&gt; Value
+$ctoEncodingList :: [TextDocumentContentChangeEvent] -&gt; Encoding
+toEncodingList :: [TextDocumentContentChangeEvent] -&gt; Encoding
+$comitField :: TextDocumentContentChangeEvent -&gt; Bool
+omitField :: TextDocumentContentChangeEvent -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682524707"><span id="local-6989586621682524716"><span id="local-6989586621682524724"><span class="annot"><span class="annottext">Maybe TextDocumentContentChangeEvent
+Value -&gt; Parser [TextDocumentContentChangeEvent]
+Value -&gt; Parser TextDocumentContentChangeEvent
+(Value -&gt; Parser TextDocumentContentChangeEvent)
+-&gt; (Value -&gt; Parser [TextDocumentContentChangeEvent])
+-&gt; Maybe TextDocumentContentChangeEvent
+-&gt; FromJSON TextDocumentContentChangeEvent
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: Value -&gt; Parser TextDocumentContentChangeEvent
+parseJSON :: Value -&gt; Parser TextDocumentContentChangeEvent
+$cparseJSONList :: Value -&gt; Parser [TextDocumentContentChangeEvent]
+parseJSONList :: Value -&gt; Parser [TextDocumentContentChangeEvent]
+$comittedField :: Maybe TextDocumentContentChangeEvent
+omittedField :: Maybe TextDocumentContentChangeEvent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682524739"><span id="local-6989586621682524747"><span id="local-6989586621682524751"><span class="annot"><span class="annottext">Int -&gt; TextDocumentContentChangeEvent -&gt; ShowS
+[TextDocumentContentChangeEvent] -&gt; ShowS
+TextDocumentContentChangeEvent -&gt; String
+(Int -&gt; TextDocumentContentChangeEvent -&gt; ShowS)
+-&gt; (TextDocumentContentChangeEvent -&gt; String)
+-&gt; ([TextDocumentContentChangeEvent] -&gt; ShowS)
+-&gt; Show TextDocumentContentChangeEvent
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TextDocumentContentChangeEvent -&gt; ShowS
+showsPrec :: Int -&gt; TextDocumentContentChangeEvent -&gt; ShowS
+$cshow :: TextDocumentContentChangeEvent -&gt; String
+show :: TextDocumentContentChangeEvent -&gt; String
+$cshowList :: [TextDocumentContentChangeEvent] -&gt; ShowS
+showList :: [TextDocumentContentChangeEvent] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682524758"><span id="local-6989586621682524764"><span class="annot"><span class="annottext">TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+(TextDocumentContentChangeEvent
+ -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; Eq TextDocumentContentChangeEvent
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+== :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+$c/= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+/= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682524773"><span id="local-6989586621682524779"><span id="local-6989586621682524784"><span id="local-6989586621682524788"><span id="local-6989586621682524791"><span id="local-6989586621682524794"><span id="local-6989586621682524797"><span class="annot"><span class="annottext">Eq TextDocumentContentChangeEvent
+Eq TextDocumentContentChangeEvent =&gt;
+(TextDocumentContentChangeEvent
+ -&gt; TextDocumentContentChangeEvent -&gt; Ordering)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent -&gt; Bool)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent)
+-&gt; (TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent
+    -&gt; TextDocumentContentChangeEvent)
+-&gt; Ord TextDocumentContentChangeEvent
+TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Ordering
+TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; TextDocumentContentChangeEvent
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Ordering
+compare :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Ordering
+$c&lt; :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+&lt; :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+$c&lt;= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+&lt;= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+$c&gt; :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+&gt; :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+$c&gt;= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+&gt;= :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; Bool
+$cmax :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; TextDocumentContentChangeEvent
+max :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; TextDocumentContentChangeEvent
+$cmin :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; TextDocumentContentChangeEvent
+min :: TextDocumentContentChangeEvent
+-&gt; TextDocumentContentChangeEvent -&gt; TextDocumentContentChangeEvent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682524807"><span id="local-6989586621682524809"><span class="annot"><span class="annottext">(forall x.
+ TextDocumentContentChangeEvent
+ -&gt; Rep TextDocumentContentChangeEvent x)
+-&gt; (forall x.
+    Rep TextDocumentContentChangeEvent x
+    -&gt; TextDocumentContentChangeEvent)
+-&gt; Generic TextDocumentContentChangeEvent
+forall x.
+Rep TextDocumentContentChangeEvent x
+-&gt; TextDocumentContentChangeEvent
+forall x.
+TextDocumentContentChangeEvent
+-&gt; Rep TextDocumentContentChangeEvent x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+TextDocumentContentChangeEvent
+-&gt; Rep TextDocumentContentChangeEvent x
+from :: forall x.
+TextDocumentContentChangeEvent
+-&gt; Rep TextDocumentContentChangeEvent x
+$cto :: forall x.
+Rep TextDocumentContentChangeEvent x
+-&gt; TextDocumentContentChangeEvent
+to :: forall x.
+Rep TextDocumentContentChangeEvent x
+-&gt; TextDocumentContentChangeEvent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682524815"><span class="annot"><span class="annottext">TextDocumentContentChangeEvent -&gt; ()
+(TextDocumentContentChangeEvent -&gt; ())
+-&gt; NFData TextDocumentContentChangeEvent
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: TextDocumentContentChangeEvent -&gt; ()
+rnf :: TextDocumentContentChangeEvent -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682524836"><span id="local-6989586621682524843"><span class="annot"><span class="annottext">Eq TextDocumentContentChangeEvent
+Eq TextDocumentContentChangeEvent =&gt;
+(Int -&gt; TextDocumentContentChangeEvent -&gt; Int)
+-&gt; (TextDocumentContentChangeEvent -&gt; Int)
+-&gt; Hashable TextDocumentContentChangeEvent
+Int -&gt; TextDocumentContentChangeEvent -&gt; Int
+TextDocumentContentChangeEvent -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; TextDocumentContentChangeEvent -&gt; Int
+hashWithSalt :: Int -&gt; TextDocumentContentChangeEvent -&gt; Int
+$chash :: TextDocumentContentChangeEvent -&gt; Int
+hash :: TextDocumentContentChangeEvent -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682524858"><span id="local-6989586621682524864"><span class="annot"><span class="annottext">(forall ann. TextDocumentContentChangeEvent -&gt; Doc ann)
+-&gt; (forall ann. [TextDocumentContentChangeEvent] -&gt; Doc ann)
+-&gt; Pretty TextDocumentContentChangeEvent
+forall ann. [TextDocumentContentChangeEvent] -&gt; Doc ann
+forall ann. TextDocumentContentChangeEvent -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. TextDocumentContentChangeEvent -&gt; Doc ann
+pretty :: forall ann. TextDocumentContentChangeEvent -&gt; Doc ann
+$cprettyList :: forall ann. [TextDocumentContentChangeEvent] -&gt; Doc ann
+prettyList :: forall ann. [TextDocumentContentChangeEvent] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TextDocumentContentChangeEvent.html#TextDocumentContentChangeEvent"><span class="hs-identifier hs-type">TextDocumentContentChangeEvent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span></pre></body></html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | References to things on Unison Share, as written in the @share.*@ commands.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html"><span class="hs-identifier">Unison.Cli.Share.Ref</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareBranch"><span class="hs-identifier">ShareBranch</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier">ShareRef</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#parseShareRef"><span class="hs-identifier">parseShareRef</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier">SearchFilter</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#parseSearchWords"><span class="hs-identifier">parseSearchWords</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="annot"><span class="hs-comment">-- | Which branch (or release) of a project to look at.</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="ShareBranch"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareBranch"><span class="hs-identifier hs-var">ShareBranch</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | The latest release, or the default branch if there are no releases.</span></span><span>
+</span><span id="line-17"></span><span>    </span><span id="ShareLatest"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareLatest"><span class="hs-identifier hs-var">ShareLatest</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | A release, by version, e.g. @2.1.2@ for @\@user/project/releases/2.1.2@.</span></span><span>
+</span><span id="line-19"></span><span>    </span><span id="ShareRelease"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRelease"><span class="hs-identifier hs-var">ShareRelease</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ShareBranchNamed"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareBranchNamed"><span class="hs-identifier hs-var">ShareBranchNamed</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681582730"><span id="local-6989586621681582737"><span class="annot"><span class="annottext">ShareBranch -&gt; ShareBranch -&gt; Bool
+(ShareBranch -&gt; ShareBranch -&gt; Bool)
+-&gt; (ShareBranch -&gt; ShareBranch -&gt; Bool) -&gt; Eq ShareBranch
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ShareBranch -&gt; ShareBranch -&gt; Bool
+== :: ShareBranch -&gt; ShareBranch -&gt; Bool
+$c/= :: ShareBranch -&gt; ShareBranch -&gt; Bool
+/= :: ShareBranch -&gt; ShareBranch -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582742"><span id="local-6989586621681582750"><span id="local-6989586621681582754"><span class="annot"><span class="annottext">Int -&gt; ShareBranch -&gt; ShowS
+[ShareBranch] -&gt; ShowS
+ShareBranch -&gt; String
+(Int -&gt; ShareBranch -&gt; ShowS)
+-&gt; (ShareBranch -&gt; String)
+-&gt; ([ShareBranch] -&gt; ShowS)
+-&gt; Show ShareBranch
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ShareBranch -&gt; ShowS
+showsPrec :: Int -&gt; ShareBranch -&gt; ShowS
+$cshow :: ShareBranch -&gt; String
+show :: ShareBranch -&gt; String
+$cshowList :: [ShareBranch] -&gt; ShowS
+showList :: [ShareBranch] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">-- | @\@user/project[/branch]:path.to.definition@</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="ShareRef"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-var">ShareRef</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShareRef"><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-var">ShareRef</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">-- | The owner's handle, without the leading @\@@.</span></span><span>
+</span><span id="line-26"></span><span>    </span><span id="handle"><span class="annot"><span class="annottext">ShareRef -&gt; Text
+</span><a href="Unison.Cli.Share.Ref.html#handle"><span class="hs-identifier hs-var hs-var">handle</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="slug"><span class="annot"><span class="annottext">ShareRef -&gt; Text
+</span><a href="Unison.Cli.Share.Ref.html#slug"><span class="hs-identifier hs-var hs-var">slug</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span id="branch"><span class="annot"><span class="annottext">ShareRef -&gt; ShareBranch
+</span><a href="Unison.Cli.Share.Ref.html#branch"><span class="hs-identifier hs-var hs-var">branch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareBranch"><span class="hs-identifier hs-type">ShareBranch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span id="path"><span class="annot"><span class="annottext">ShareRef -&gt; Maybe Text
+</span><a href="Unison.Cli.Share.Ref.html#path"><span class="hs-identifier hs-var hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681582764"><span id="local-6989586621681582771"><span class="annot"><span class="annottext">ShareRef -&gt; ShareRef -&gt; Bool
+(ShareRef -&gt; ShareRef -&gt; Bool)
+-&gt; (ShareRef -&gt; ShareRef -&gt; Bool) -&gt; Eq ShareRef
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ShareRef -&gt; ShareRef -&gt; Bool
+== :: ShareRef -&gt; ShareRef -&gt; Bool
+$c/= :: ShareRef -&gt; ShareRef -&gt; Bool
+/= :: ShareRef -&gt; ShareRef -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582775"><span id="local-6989586621681582783"><span id="local-6989586621681582787"><span class="annot"><span class="annottext">Int -&gt; ShareRef -&gt; ShowS
+[ShareRef] -&gt; ShowS
+ShareRef -&gt; String
+(Int -&gt; ShareRef -&gt; ShowS)
+-&gt; (ShareRef -&gt; String) -&gt; ([ShareRef] -&gt; ShowS) -&gt; Show ShareRef
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ShareRef -&gt; ShowS
+showsPrec :: Int -&gt; ShareRef -&gt; ShowS
+$cshow :: ShareRef -&gt; String
+show :: ShareRef -&gt; String
+$cshowList :: [ShareRef] -&gt; ShowS
+showList :: [ShareRef] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | Parse @\@user/project[/branch]:path@, where the branch may be @releases/&lt;version&gt;@.</span></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Unison.Cli.Share.Ref.html#parseShareRef"><span class="hs-identifier hs-type">parseShareRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span>
+</span><span id="line-35"></span><span id="parseShareRef"><span class="annot"><span class="annottext">parseShareRef :: Text -&gt; Either Text ShareRef
+</span><a href="Unison.Cli.Share.Ref.html#parseShareRef"><span class="hs-identifier hs-var hs-var">parseShareRef</span></a></span></span><span> </span><span id="local-6989586621681582789"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582789"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681582790"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582790"><span class="hs-identifier hs-var hs-var">projectPart</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582791"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582791"><span class="hs-identifier hs-var hs-var">pathPart</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; (Text, Text)
+Text -&gt; Text -&gt; (Text, Text)
+</span><span class="hs-identifier hs-var">Text.breakOn</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;:&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582789"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621681582793"><span class="annot"><a href="#local-6989586621681582793"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Text
+</span><span class="hs-identifier hs-var">Text.stripPrefix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;:&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582791"><span class="hs-identifier hs-var">pathPart</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Either Text (Maybe Text)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text (Maybe Text)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Expected a name after the `:` in &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582789"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681582795"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582795"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Either Text (Maybe Text)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582795"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.splitOn</span></span><span> </span><span class="annot"><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><a href="#local-6989586621681582790"><span class="hs-identifier hs-type">projectPart</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Text
+</span><span class="hs-identifier hs-var">Text.stripPrefix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681582797"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582797"><span class="hs-identifier hs-var">handle</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681582798"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582798"><span class="hs-identifier hs-var">slug</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681582799"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582799"><span class="hs-identifier hs-var">rest</span></a></span></span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582797"><span class="hs-identifier hs-var">handle</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582798"><span class="hs-identifier hs-var">slug</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>          </span><span id="local-6989586621681582803"><span class="annot"><a href="#local-6989586621681582803"><span class="hs-identifier hs-var">branch</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-46"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582799"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-47"></span><span>              </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShareBranch -&gt; Either Text ShareBranch
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ShareBranch
+</span><a href="Unison.Cli.Share.Ref.html#ShareLatest"><span class="hs-identifier hs-var">ShareLatest</span></a></span><span>
+</span><span id="line-48"></span><span>              </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;releases&quot;</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582804"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582804"><span class="hs-identifier hs-var">version</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582804"><span class="hs-identifier hs-var">version</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShareBranch -&gt; Either Text ShareBranch
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; ShareBranch
+</span><a href="Unison.Cli.Share.Ref.html#ShareRelease"><span class="hs-identifier hs-var">ShareRelease</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582804"><span class="hs-identifier hs-var">version</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>              </span><span class="hs-special">[</span><span id="local-6989586621681582805"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582805"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582805"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582805"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;releases&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShareBranch -&gt; Either Text ShareBranch
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; ShareBranch
+</span><a href="Unison.Cli.Share.Ref.html#ShareBranchNamed"><span class="hs-identifier hs-var">ShareBranchNamed</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582805"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>              </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text ShareBranch
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;I don't understand the branch in &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582789"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;. Use @user/project/branch or @user/project/releases/1.2.3&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#handle"><span class="hs-identifier hs-var hs-type">handle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#slug"><span class="hs-identifier hs-var hs-type">slug</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#branch"><span class="hs-identifier hs-var hs-type">branch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#path"><span class="hs-identifier hs-var hs-type">path</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text ShareRef
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Expected a reference like @user/project, @user/project/releases/1.2.3 or @user/project:some.name, but got &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582789"><span class="hs-identifier hs-var">input</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- | Narrows a definition search to one user's projects, or to one project.</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="SearchFilter"><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier hs-var">SearchFilter</span></a></span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | @\@user@</span></span><span>
+</span><span id="line-57"></span><span>    </span><span id="FilterUser"><span class="annot"><a href="Unison.Cli.Share.Ref.html#FilterUser"><span class="hs-identifier hs-var">FilterUser</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | @\@user/project@</span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="FilterProject"><span class="annot"><a href="Unison.Cli.Share.Ref.html#FilterProject"><span class="hs-identifier hs-var">FilterProject</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621681582810"><span id="local-6989586621681582816"><span class="annot"><span class="annottext">SearchFilter -&gt; SearchFilter -&gt; Bool
+(SearchFilter -&gt; SearchFilter -&gt; Bool)
+-&gt; (SearchFilter -&gt; SearchFilter -&gt; Bool) -&gt; Eq SearchFilter
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SearchFilter -&gt; SearchFilter -&gt; Bool
+== :: SearchFilter -&gt; SearchFilter -&gt; Bool
+$c/= :: SearchFilter -&gt; SearchFilter -&gt; Bool
+/= :: SearchFilter -&gt; SearchFilter -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582820"><span id="local-6989586621681582826"><span id="local-6989586621681582830"><span class="annot"><span class="annottext">Int -&gt; SearchFilter -&gt; ShowS
+[SearchFilter] -&gt; ShowS
+SearchFilter -&gt; String
+(Int -&gt; SearchFilter -&gt; ShowS)
+-&gt; (SearchFilter -&gt; String)
+-&gt; ([SearchFilter] -&gt; ShowS)
+-&gt; Show SearchFilter
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SearchFilter -&gt; ShowS
+showsPrec :: Int -&gt; SearchFilter -&gt; ShowS
+$cshow :: SearchFilter -&gt; String
+show :: SearchFilter -&gt; String
+$cshowList :: [SearchFilter] -&gt; ShowS
+showList :: [SearchFilter] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><span class="hs-comment">-- | Split the words of a search into the query and an optional trailing @in \@user@ or @in \@user/project@.</span></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Unison.Cli.Share.Ref.html#parseSearchWords"><span class="hs-identifier hs-type">parseSearchWords</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier hs-type">SearchFilter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span id="parseSearchWords"><span class="annot"><span class="annottext">parseSearchWords :: [Text] -&gt; Either Text (Text, Maybe SearchFilter)
+</span><a href="Unison.Cli.Share.Ref.html#parseSearchWords"><span class="hs-identifier hs-var hs-var">parseSearchWords</span></a></span></span><span> </span><span id="local-6989586621681582832"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582832"><span class="hs-identifier hs-var">words_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; [Text]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582832"><span class="hs-identifier hs-var">words_</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621681582834"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582834"><span class="hs-identifier hs-var">target</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;in&quot;</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621681582835"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582835"><span class="hs-identifier hs-var">queryBackwards</span></a></span></span><span>
+</span><span id="line-67"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681582836"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582836"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Text
+</span><span class="hs-identifier hs-var">Text.stripPrefix</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582834"><span class="hs-identifier hs-var">target</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-68"></span><span>          </span><span id="local-6989586621681582837"><span class="annot"><a href="#local-6989586621681582837"><span class="hs-identifier hs-var">filter_</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-69"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; Text -&gt; Text -&gt; [Text]
+Text -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.splitOn</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;/&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582836"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-70"></span><span>              </span><span class="hs-special">[</span><span id="local-6989586621681582838"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582838"><span class="hs-identifier hs-var">user</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582838"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SearchFilter -&gt; Either Text SearchFilter
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; SearchFilter
+</span><a href="Unison.Cli.Share.Ref.html#FilterUser"><span class="hs-identifier hs-var">FilterUser</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582834"><span class="hs-identifier hs-var">target</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>              </span><span class="hs-special">[</span><span id="local-6989586621681582839"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582839"><span class="hs-identifier hs-var">user</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681582840"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582840"><span class="hs-identifier hs-var">project</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582839"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.null</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582840"><span class="hs-identifier hs-var">project</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SearchFilter -&gt; Either Text SearchFilter
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; SearchFilter
+</span><a href="Unison.Cli.Share.Ref.html#FilterProject"><span class="hs-identifier hs-var">FilterProject</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582834"><span class="hs-identifier hs-var">target</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>              </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text SearchFilter
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Expected @user or @user/project after `in`, but got &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681582834"><span class="hs-identifier hs-var">target</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">null</span></span><span> </span><span class="annot"><a href="#local-6989586621681582835"><span class="hs-identifier hs-type">queryBackwards</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="hs-string">&quot;Expected something to search for before `in`&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text.unwords</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">reverse</span></span><span> </span><span class="annot"><a href="#local-6989586621681582835"><span class="hs-identifier hs-type">queryBackwards</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621681582837"><span class="hs-identifier hs-type">filter_</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Text, Maybe SearchFilter)
+-&gt; Either Text (Text, Maybe SearchFilter)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">Text.unwords</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621681582832"><span class="hs-identifier hs-var">words_</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span></pre></body></html>

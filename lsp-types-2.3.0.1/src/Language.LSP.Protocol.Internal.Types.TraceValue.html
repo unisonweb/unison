@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.TraceValue</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html"><span class="hs-identifier">Language.LSP.Protocol.Types.LspEnum</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><span class="hs-comment">{-|
+
+-}</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">data</span><span> </span><span id="TraceValue"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue"><span class="hs-identifier hs-var">TraceValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">{-|
+  Turn tracing off.
+  -}</span></span><span>
+</span><span id="line-30"></span><span>  </span><span id="TraceValue_Off"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Off"><span class="hs-identifier hs-var">TraceValue_Off</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Trace messages only.
+  -}</span></span><span>
+</span><span id="line-34"></span><span>  </span><span id="TraceValue_Messages"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Messages"><span class="hs-identifier hs-var">TraceValue_Messages</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Verbose message tracing.
+  -}</span></span><span>
+</span><span id="line-38"></span><span>  </span><span id="TraceValue_Verbose"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Verbose"><span class="hs-identifier hs-var">TraceValue_Verbose</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682501590"><span id="local-6989586621682501592"><span id="local-6989586621682501596"><span class="annot"><span class="annottext">Int -&gt; TraceValue -&gt; ShowS
+[TraceValue] -&gt; ShowS
+TraceValue -&gt; String
+(Int -&gt; TraceValue -&gt; ShowS)
+-&gt; (TraceValue -&gt; String)
+-&gt; ([TraceValue] -&gt; ShowS)
+-&gt; Show TraceValue
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TraceValue -&gt; ShowS
+showsPrec :: Int -&gt; TraceValue -&gt; ShowS
+$cshow :: TraceValue -&gt; String
+show :: TraceValue -&gt; String
+$cshowList :: [TraceValue] -&gt; ShowS
+showList :: [TraceValue] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682501601"><span id="local-6989586621682501606"><span class="annot"><span class="annottext">TraceValue -&gt; TraceValue -&gt; Bool
+(TraceValue -&gt; TraceValue -&gt; Bool)
+-&gt; (TraceValue -&gt; TraceValue -&gt; Bool) -&gt; Eq TraceValue
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TraceValue -&gt; TraceValue -&gt; Bool
+== :: TraceValue -&gt; TraceValue -&gt; Bool
+$c/= :: TraceValue -&gt; TraceValue -&gt; Bool
+/= :: TraceValue -&gt; TraceValue -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682501613"><span id="local-6989586621682501617"><span id="local-6989586621682501621"><span id="local-6989586621682501625"><span id="local-6989586621682501628"><span id="local-6989586621682501631"><span id="local-6989586621682501634"><span class="annot"><span class="annottext">Eq TraceValue
+Eq TraceValue =&gt;
+(TraceValue -&gt; TraceValue -&gt; Ordering)
+-&gt; (TraceValue -&gt; TraceValue -&gt; Bool)
+-&gt; (TraceValue -&gt; TraceValue -&gt; Bool)
+-&gt; (TraceValue -&gt; TraceValue -&gt; Bool)
+-&gt; (TraceValue -&gt; TraceValue -&gt; Bool)
+-&gt; (TraceValue -&gt; TraceValue -&gt; TraceValue)
+-&gt; (TraceValue -&gt; TraceValue -&gt; TraceValue)
+-&gt; Ord TraceValue
+TraceValue -&gt; TraceValue -&gt; Bool
+TraceValue -&gt; TraceValue -&gt; Ordering
+TraceValue -&gt; TraceValue -&gt; TraceValue
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: TraceValue -&gt; TraceValue -&gt; Ordering
+compare :: TraceValue -&gt; TraceValue -&gt; Ordering
+$c&lt; :: TraceValue -&gt; TraceValue -&gt; Bool
+&lt; :: TraceValue -&gt; TraceValue -&gt; Bool
+$c&lt;= :: TraceValue -&gt; TraceValue -&gt; Bool
+&lt;= :: TraceValue -&gt; TraceValue -&gt; Bool
+$c&gt; :: TraceValue -&gt; TraceValue -&gt; Bool
+&gt; :: TraceValue -&gt; TraceValue -&gt; Bool
+$c&gt;= :: TraceValue -&gt; TraceValue -&gt; Bool
+&gt;= :: TraceValue -&gt; TraceValue -&gt; Bool
+$cmax :: TraceValue -&gt; TraceValue -&gt; TraceValue
+max :: TraceValue -&gt; TraceValue -&gt; TraceValue
+$cmin :: TraceValue -&gt; TraceValue -&gt; TraceValue
+min :: TraceValue -&gt; TraceValue -&gt; TraceValue
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682501642"><span id="local-6989586621682501644"><span class="annot"><span class="annottext">(forall x. TraceValue -&gt; Rep TraceValue x)
+-&gt; (forall x. Rep TraceValue x -&gt; TraceValue) -&gt; Generic TraceValue
+forall x. Rep TraceValue x -&gt; TraceValue
+forall x. TraceValue -&gt; Rep TraceValue x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. TraceValue -&gt; Rep TraceValue x
+from :: forall x. TraceValue -&gt; Rep TraceValue x
+$cto :: forall x. Rep TraceValue x -&gt; TraceValue
+to :: forall x. Rep TraceValue x -&gt; TraceValue
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682501650"><span class="annot"><span class="annottext">TraceValue -&gt; ()
+(TraceValue -&gt; ()) -&gt; NFData TraceValue
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: TraceValue -&gt; ()
+rnf :: TraceValue -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682501669"><span id="local-6989586621682501676"><span class="annot"><span class="annottext">Eq TraceValue
+Eq TraceValue =&gt;
+(Int -&gt; TraceValue -&gt; Int)
+-&gt; (TraceValue -&gt; Int) -&gt; Hashable TraceValue
+Int -&gt; TraceValue -&gt; Int
+TraceValue -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; TraceValue -&gt; Int
+hashWithSalt :: Int -&gt; TraceValue -&gt; Int
+$chash :: TraceValue -&gt; Int
+hash :: TraceValue -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621682501691"><span id="local-6989586621682501699"><span id="local-6989586621682501706"><span id="local-6989586621682501713"><span id="local-6989586621682501720"><span class="annot"><span class="annottext">[TraceValue] -&gt; Value
+[TraceValue] -&gt; Encoding
+TraceValue -&gt; Bool
+TraceValue -&gt; Value
+TraceValue -&gt; Encoding
+(TraceValue -&gt; Value)
+-&gt; (TraceValue -&gt; Encoding)
+-&gt; ([TraceValue] -&gt; Value)
+-&gt; ([TraceValue] -&gt; Encoding)
+-&gt; (TraceValue -&gt; Bool)
+-&gt; ToJSON TraceValue
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: TraceValue -&gt; Value
+toJSON :: TraceValue -&gt; Value
+$ctoEncoding :: TraceValue -&gt; Encoding
+toEncoding :: TraceValue -&gt; Encoding
+$ctoJSONList :: [TraceValue] -&gt; Value
+toJSONList :: [TraceValue] -&gt; Value
+$ctoEncodingList :: [TraceValue] -&gt; Encoding
+toEncodingList :: [TraceValue] -&gt; Encoding
+$comitField :: TraceValue -&gt; Bool
+omitField :: TraceValue -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.ToJSON</span></span></span></span></span></span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682501741"><span id="local-6989586621682501750"><span id="local-6989586621682501758"><span class="annot"><span class="annottext">Maybe TraceValue
+Value -&gt; Parser [TraceValue]
+Value -&gt; Parser TraceValue
+(Value -&gt; Parser TraceValue)
+-&gt; (Value -&gt; Parser [TraceValue])
+-&gt; Maybe TraceValue
+-&gt; FromJSON TraceValue
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: Value -&gt; Parser TraceValue
+parseJSON :: Value -&gt; Parser TraceValue
+$cparseJSONList :: Value -&gt; Parser [TraceValue]
+parseJSONList :: Value -&gt; Parser [TraceValue]
+$comittedField :: Maybe TraceValue
+omittedField :: Maybe TraceValue
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Aeson.FromJSON</span></span></span></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#AsLspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.AsLspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue"><span class="hs-identifier hs-type">TraceValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682501776"><span id="local-6989586621682501782"><span class="annot"><span class="annottext">(forall ann. TraceValue -&gt; Doc ann)
+-&gt; (forall ann. [TraceValue] -&gt; Doc ann) -&gt; Pretty TraceValue
+forall ann. [TraceValue] -&gt; Doc ann
+forall ann. TraceValue -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. TraceValue -&gt; Doc ann
+pretty :: forall ann. TraceValue -&gt; Doc ann
+$cprettyList :: forall ann. [TraceValue] -&gt; Doc ann
+prettyList :: forall ann. [TraceValue] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue"><span class="hs-identifier hs-type">TraceValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#LspEnum"><span class="hs-identifier hs-type">Language.LSP.Protocol.Types.LspEnum.LspEnum</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue"><span class="hs-identifier hs-type">TraceValue</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621682501795"><span class="annot"><span class="annottext">knownValues :: Set TraceValue
+</span><a href="#local-6989586621682501795"><span class="hs-identifier hs-var hs-var hs-var">knownValues</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[TraceValue] -&gt; Set TraceValue
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Data.Set.fromList</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Off"><span class="hs-identifier hs-var">TraceValue_Off</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Messages"><span class="hs-identifier hs-var">TraceValue_Messages</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Verbose"><span class="hs-identifier hs-var">TraceValue_Verbose</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="EnumBaseType"><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#EnumBaseType"><span class="hs-identifier hs-var">EnumBaseType</span></a></span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue"><span class="hs-identifier hs-type">TraceValue</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621682501802"><span class="annot"><span class="annottext">toEnumBaseType :: TraceValue -&gt; EnumBaseType TraceValue
+</span><a href="#local-6989586621682501802"><span class="hs-identifier hs-var hs-var hs-var">toEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Off"><span class="hs-identifier hs-var">TraceValue_Off</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType TraceValue
+</span><span class="hs-string">&quot;off&quot;</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Messages"><span class="hs-identifier hs-var">TraceValue_Messages</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType TraceValue
+</span><span class="hs-string">&quot;messages&quot;</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#toEnumBaseType"><span class="hs-identifier hs-var">toEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Verbose"><span class="hs-identifier hs-var">TraceValue_Verbose</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+EnumBaseType TraceValue
+</span><span class="hs-string">&quot;verbose&quot;</span></span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621682501815"><span class="annot"><span class="annottext">fromEnumBaseType :: EnumBaseType TraceValue -&gt; Maybe TraceValue
+</span><a href="#local-6989586621682501815"><span class="hs-identifier hs-var hs-var hs-var">fromEnumBaseType</span></a></span></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TraceValue
+</span><span class="hs-string">&quot;off&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TraceValue -&gt; Maybe TraceValue
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Off"><span class="hs-identifier hs-var">TraceValue_Off</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TraceValue
+</span><span class="hs-string">&quot;messages&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TraceValue -&gt; Maybe TraceValue
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Messages"><span class="hs-identifier hs-var">TraceValue_Messages</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TraceValue
+</span><span class="hs-string">&quot;verbose&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TraceValue -&gt; Maybe TraceValue
+forall a. a -&gt; Maybe a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TraceValue
+</span><a href="Language.LSP.Protocol.Internal.Types.TraceValue.html#TraceValue_Verbose"><span class="hs-identifier hs-var">TraceValue_Verbose</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Language.LSP.Protocol.Types.LspEnum.html#fromEnumBaseType"><span class="hs-identifier hs-var">fromEnumBaseType</span></a></span><span> </span><span class="annot"><span class="annottext">EnumBaseType TraceValue
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe TraceValue
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span></pre></body></html>

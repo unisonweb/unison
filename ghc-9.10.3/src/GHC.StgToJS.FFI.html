@@ -1,0 +1,797 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MultiWayIf #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.StgToJS.FFI.html"><span class="hs-identifier">GHC.StgToJS.FFI</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.StgToJS.FFI.html#genPrimCall"><span class="hs-identifier">genPrimCall</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.FFI.html#genForeignCall"><span class="hs-identifier">genForeignCall</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html"><span class="hs-identifier">GHC.JS.JStg.Syntax</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html"><span class="hs-identifier">GHC.JS.Ident</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Make.html"><span class="hs-identifier">GHC.JS.Make</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Arg.html"><span class="hs-identifier">GHC.StgToJS.Arg</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.ExprCtx.html"><span class="hs-identifier">GHC.StgToJS.ExprCtx</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Monad.html"><span class="hs-identifier">GHC.StgToJS.Monad</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html"><span class="hs-identifier">GHC.StgToJS.Types</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Literal.html"><span class="hs-identifier">GHC.StgToJS.Literal</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Regs.html"><span class="hs-identifier">GHC.StgToJS.Regs</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Utils.html"><span class="hs-identifier">GHC.StgToJS.Utils</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.StgToJS.Ids.html"><span class="hs-identifier">GHC.StgToJS.Ids</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.RepType.html"><span class="hs-identifier">GHC.Types.RepType</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.ForeignCall.html"><span class="hs-identifier">GHC.Types.ForeignCall</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html"><span class="hs-identifier">GHC.Types.Unique.Map</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html"><span class="hs-identifier">GHC.Stg.Syntax</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html"><span class="hs-identifier">GHC.Builtin.PrimOps</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Builtin.Types.Prim.html"><span class="hs-identifier">GHC.Builtin.Types.Prim</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#typeSize"><span class="hs-identifier">typeSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#renderWithContext"><span class="hs-identifier">renderWithContext</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#defaultSDocContext"><span class="hs-identifier">defaultSDocContext</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier">ppr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Char.html"><span class="hs-identifier">Data.Char</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Monoid.html"><span class="hs-identifier">Data.Monoid</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">L</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#genPrimCall"><span class="hs-identifier hs-type">genPrimCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.StgToJS.ExprCtx.html#ExprCtx"><span class="hs-identifier hs-type">ExprCtx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-type">PrimCall</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#ExprResult"><span class="hs-identifier hs-type">ExprResult</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span id="genPrimCall"><span class="annot"><span class="annottext">genPrimCall :: ExprCtx -&gt; PrimCall -&gt; [StgArg] -&gt; Type -&gt; G (JStgStat, ExprResult)
+</span><a href="GHC.StgToJS.FFI.html#genPrimCall"><span class="hs-identifier hs-var hs-var">genPrimCall</span></a></span></span><span> </span><span id="local-6989586621682534407"><span class="annot"><span class="annottext">ExprCtx
+</span><a href="#local-6989586621682534407"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Builtin.PrimOps.html#PrimCall"><span class="hs-identifier hs-type">PrimCall</span></a></span><span> </span><span id="local-6989586621682534409"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534409"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Unit
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682534410"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534410"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span id="local-6989586621682534411"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534411"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621682534412"><span class="annot"><a href="#local-6989586621682534412"><span class="hs-identifier hs-var">j</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Bool
+-&gt; Bool
+-&gt; String
+-&gt; Type
+-&gt; [JStgExpr]
+-&gt; [StgArg]
+-&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPattern"><span class="hs-identifier hs-var">parseFFIPattern</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;h$&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; String
+</span><a href="GHC.Data.FastString.html#unpackFS"><span class="hs-identifier hs-var">unpackFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534409"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534411"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TypedExpr -&gt; [JStgExpr]) -&gt; [TypedExpr] -&gt; [JStgExpr]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">TypedExpr -&gt; [JStgExpr]
+</span><a href="GHC.StgToJS.Types.html#typex_expr"><span class="hs-identifier hs-var">typex_expr</span></a></span><span> </span><span class="annot"><span class="annottext">([TypedExpr] -&gt; [JStgExpr]) -&gt; [TypedExpr] -&gt; [JStgExpr]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ExprCtx -&gt; [TypedExpr]
+</span><a href="GHC.StgToJS.ExprCtx.html#ctxTarget"><span class="hs-identifier hs-var">ctxTarget</span></a></span><span> </span><span class="annot"><span class="annottext">ExprCtx
+</span><a href="#local-6989586621682534407"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534410"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682534412"><span class="hs-identifier hs-type">j</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#ExprInline"><span class="hs-identifier hs-type">ExprInline</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | generate the actual call</span></span><span>
+</span><span id="line-51"></span><span class="hs-comment">{-
+  parse FFI patterns:
+   &quot;&amp;value         -&gt; value
+  1. &quot;function&quot;      -&gt; ret = function(...)
+  2. &quot;$r = $1.f($2)  -&gt; r1 = a1.f(a2)
+
+  arguments, $1, $2, $3 unary arguments
+     $1_1, $1_2, for a binary argument
+
+  return type examples
+  1. $r                      unary return
+  2. $r1, $r2                binary return
+  3. $r1, $r2, $r3_1, $r3_2  unboxed tuple return
+ -}</span><span>
+</span><span id="line-65"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#parseFFIPattern"><span class="hs-identifier hs-type">parseFFIPattern</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ catch exception and convert them to haskell exceptions</span></span><span>
+</span><span id="line-66"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ async (only valid with javascript calling conv)</span></span><span>
+</span><span id="line-67"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ using javascript calling convention</span></span><span>
+</span><span id="line-68"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-69"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-70"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-71"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-72"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>
+</span><span id="line-73"></span><span id="parseFFIPattern"><span class="annot"><span class="annottext">parseFFIPattern :: Bool
+-&gt; Bool
+-&gt; Bool
+-&gt; String
+-&gt; Type
+-&gt; [JStgExpr]
+-&gt; [StgArg]
+-&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPattern"><span class="hs-identifier hs-var hs-var">parseFFIPattern</span></a></span></span><span> </span><span id="local-6989586621682534419"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534419"><span class="hs-identifier hs-var">catchExcep</span></a></span></span><span> </span><span id="local-6989586621682534420"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534420"><span class="hs-identifier hs-var">async</span></a></span></span><span> </span><span id="local-6989586621682534421"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534421"><span class="hs-identifier hs-var">jscc</span></a></span></span><span> </span><span id="local-6989586621682534422"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534422"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682534423"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534423"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534424"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534424"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span id="local-6989586621682534425"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534425"><span class="hs-keyword hs-var">as</span></a></span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534419"><span class="hs-identifier hs-var">catchExcep</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-75"></span><span>      </span><span id="local-6989586621682534426"><span class="annot"><a href="#local-6989586621682534426"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Bool -&gt; String -&gt; Type -&gt; [JStgExpr] -&gt; [StgArg] -&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPatternA"><span class="hs-identifier hs-var">parseFFIPatternA</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534420"><span class="hs-identifier hs-var">async</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534421"><span class="hs-identifier hs-var">jscc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534422"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534423"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534424"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534425"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-comment">-- Generate:</span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-comment">--  try {</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-comment">--    `c`;</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-comment">--  } catch(except) {</span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-comment">--    return h$throwJSException(except);</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-comment">--  }</span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682534429"><span class="annot"><a href="#local-6989586621682534429"><span class="hs-identifier hs-var hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Ident
+</span><a href="GHC.JS.Ident.html#global"><span class="hs-identifier hs-var">global</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-string">&quot;except&quot;</span></span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#TryStat"><span class="hs-identifier hs-type">TryStat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534426"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534429"><span class="hs-identifier hs-type">ex</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ReturnStat"><span class="hs-identifier hs-type">ReturnStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;h$throwJSException&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534429"><span class="hs-identifier hs-type">ex</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Bool -&gt; String -&gt; Type -&gt; [JStgExpr] -&gt; [StgArg] -&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPatternA"><span class="hs-identifier hs-var">parseFFIPatternA</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534420"><span class="hs-identifier hs-var">async</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534421"><span class="hs-identifier hs-var">jscc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534422"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534423"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534424"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534425"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#parseFFIPatternA"><span class="hs-identifier hs-type">parseFFIPatternA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ async</span></span><span>
+</span><span id="line-87"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ using JavaScript calling conv</span></span><span>
+</span><span id="line-88"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-89"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-90"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-91"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- async calls get an extra callback argument</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- call it with the result</span><span>
+</span><span id="line-95"></span><span id="parseFFIPatternA"><span class="annot"><span class="annottext">parseFFIPatternA :: Bool
+-&gt; Bool -&gt; String -&gt; Type -&gt; [JStgExpr] -&gt; [StgArg] -&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPatternA"><span class="hs-identifier hs-var hs-var">parseFFIPatternA</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span id="local-6989586621682534436"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534436"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682534437"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534437"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534438"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534438"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span id="local-6989586621682534439"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534439"><span class="hs-keyword hs-var">as</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621682534440"><span class="annot"><a href="#local-6989586621682534440"><span class="hs-identifier hs-var">cb</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">G Ident
+</span><a href="GHC.StgToJS.Ids.html#freshIdent"><span class="hs-identifier hs-var">freshIdent</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621682534442"><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Ids.html#freshIdent"><span class="hs-identifier hs-type">freshIdent</span></a></span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621682534443"><span class="annot"><a href="#local-6989586621682534443"><span class="hs-identifier hs-var">d</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Ids.html#freshIdent"><span class="hs-identifier hs-type">freshIdent</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621682534444"><span class="annot"><a href="#local-6989586621682534444"><span class="hs-identifier hs-var">stat</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.FFI.html#parseFFIPattern%27"><span class="hs-identifier hs-type">parseFFIPattern'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534440"><span class="hs-identifier hs-type">cb</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span> </span><span class="annot"><a href="#local-6989586621682534436"><span class="hs-identifier hs-type">pat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534437"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534438"><span class="hs-identifier hs-type">es</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534439"><span class="hs-keyword hs-type">as</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span>  </span><span class="annot"><a href="GHC.JS.Make.html#%7C%7C%3D"><span class="hs-operator hs-type">||=</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Make.html#jhFromList"><span class="hs-identifier hs-type">jhFromList</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;mv&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Make.html#null_"><span class="hs-identifier hs-type">null_</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682534440"><span class="hs-identifier hs-type">cb</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%7C%3D"><span class="hs-operator hs-type">||=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;h$mkForeignCallback&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682534444"><span class="hs-identifier hs-type">stat</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IfStat"><span class="hs-identifier hs-type">IfStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#StrictEqOp"><span class="hs-identifier hs-type">StrictEqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#.%5E"><span class="hs-operator hs-type">.^</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;mv&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.JS.Make.html#null_"><span class="hs-identifier hs-type">null_</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span>
+</span><span id="line-106"></span><span>            </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#.%5E"><span class="hs-operator hs-type">.^</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;mv&quot;</span></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-type">|=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NewOp"><span class="hs-identifier hs-type">NewOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;h$MVar&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Regs.html#sp"><span class="hs-identifier hs-type">sp</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-type">|=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Add"><span class="hs-identifier hs-type">Add</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Regs.html#sp"><span class="hs-identifier hs-type">sp</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#one_"><span class="hs-identifier hs-type">one_</span></a></span><span>
+</span><span id="line-108"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IdxExpr"><span class="hs-identifier hs-type">IdxExpr</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Regs.html#stack"><span class="hs-identifier hs-type">stack</span></a></span><span> </span><span class="annot"><a href="GHC.StgToJS.Regs.html#sp"><span class="hs-identifier hs-type">sp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-type">|=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;h$unboxFFIResult&quot;</span></span><span>
+</span><span id="line-109"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ReturnStat"><span class="hs-identifier hs-type">ReturnStat</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;h$takeMVar&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#.%5E"><span class="hs-operator hs-type">.^</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;mv&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span>            </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span>
+</span><span id="line-112"></span><span>            </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="#local-6989586621682534443"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%7C%3D"><span class="hs-operator hs-type">||=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534442"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#.%5E"><span class="hs-operator hs-type">.^</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;mv&quot;</span></span><span>
+</span><span id="line-113"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682534461"><span class="hs-identifier hs-type">copyResult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-type">toJExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534443"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>            </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682534462"><span class="annot"><span class="annottext">nrst :: Int
+</span><a href="#local-6989586621682534462"><span class="hs-identifier hs-var hs-var">nrst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Int
+</span><a href="GHC.StgToJS.Utils.html#typeSize"><span class="hs-identifier hs-var">typeSize</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534437"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-117"></span><span>          </span><span id="local-6989586621682534461"><span class="annot"><span class="annottext">copyResult :: JStgExpr -&gt; JStgStat
+</span><a href="#local-6989586621682534461"><span class="hs-identifier hs-var hs-var">copyResult</span></a></span></span><span> </span><span id="local-6989586621682534464"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534464"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[JStgExpr] -&gt; [JStgExpr] -&gt; JStgStat
+HasDebugCallStack =&gt; [JStgExpr] -&gt; [JStgExpr] -&gt; JStgStat
+</span><a href="GHC.JS.Make.html#assignAllEqual"><span class="hs-identifier hs-var">assignAllEqual</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534438"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; JStgExpr) -&gt; [Int] -&gt; [JStgExpr]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#IdxExpr"><span class="hs-identifier hs-var">IdxExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534464"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">(JStgExpr -&gt; JStgExpr) -&gt; (Int -&gt; JStgExpr) -&gt; Int -&gt; JStgExpr
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682534462"><span class="hs-identifier hs-var">nrst</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#parseFFIPatternA"><span class="hs-identifier hs-var">parseFFIPatternA</span></a></span><span> </span><span id="local-6989586621682534467"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534467"><span class="hs-identifier hs-var">_async</span></a></span></span><span> </span><span id="local-6989586621682534468"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534468"><span class="hs-identifier hs-var">javascriptCc</span></a></span></span><span> </span><span id="local-6989586621682534469"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534469"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682534470"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534470"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534471"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534471"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span id="local-6989586621682534472"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534472"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="annottext">Maybe JStgExpr
+-&gt; Bool -&gt; String -&gt; Type -&gt; [JStgExpr] -&gt; [StgArg] -&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPattern%27"><span class="hs-identifier hs-var">parseFFIPattern'</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe JStgExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534468"><span class="hs-identifier hs-var">javascriptCc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534469"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534470"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534471"><span class="hs-identifier hs-var">es</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534472"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- parseFFIPatternA _ _ _ _ _ _ = error &quot;parseFFIPattern: non-JavaScript pattern must be synchronous&quot;</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#parseFFIPattern%27"><span class="hs-identifier hs-type">parseFFIPattern'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Nothing for sync, Just callback for async</span></span><span>
+</span><span id="line-124"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ javascript calling convention used</span></span><span>
+</span><span id="line-125"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ pattern called</span></span><span>
+</span><span id="line-126"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ return type</span></span><span>
+</span><span id="line-127"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>     </span><span class="annot"><span class="hs-comment">-- ^ expressions to return in (may be more than necessary)</span></span><span>
+</span><span id="line-128"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span>       </span><span class="annot"><span class="hs-comment">-- ^ arguments</span></span><span>
+</span><span id="line-129"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>
+</span><span id="line-130"></span><span id="parseFFIPattern%27"><span class="annot"><span class="annottext">parseFFIPattern' :: Maybe JStgExpr
+-&gt; Bool -&gt; String -&gt; Type -&gt; [JStgExpr] -&gt; [StgArg] -&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPattern%27"><span class="hs-identifier hs-var hs-var">parseFFIPattern'</span></a></span></span><span> </span><span id="local-6989586621682534473"><span class="annot"><span class="annottext">Maybe JStgExpr
+</span><a href="#local-6989586621682534473"><span class="hs-identifier hs-var">callback</span></a></span></span><span> </span><span id="local-6989586621682534474"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534474"><span class="hs-identifier hs-var">javascriptCc</span></a></span></span><span> </span><span id="local-6989586621682534475"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534475"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682534476"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534476"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534477"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534477"><span class="hs-identifier hs-var">ret</span></a></span></span><span> </span><span id="local-6989586621682534478"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534478"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534474"><span class="hs-identifier hs-var">javascriptCc</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; G JStgStat
+</span><a href="#local-6989586621682534480"><span class="hs-identifier hs-var">mkApply</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534475"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; G JStgStat
+</span><a href="#local-6989586621682534480"><span class="hs-identifier hs-var">mkApply</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534475"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621682534481"><span class="annot"><span class="annottext">tgt :: [JStgExpr]
+</span><a href="#local-6989586621682534481"><span class="hs-identifier hs-var hs-var">tgt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [JStgExpr] -&gt; [JStgExpr]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Type -&gt; Int
+</span><a href="GHC.StgToJS.Utils.html#typeSize"><span class="hs-identifier hs-var">typeSize</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534476"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534477"><span class="hs-identifier hs-var">ret</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-comment">-- automatic apply, build call and result copy</span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621682534480"><span class="annot"><span class="annottext">mkApply :: String -&gt; G JStgStat
+</span><a href="#local-6989586621682534480"><span class="hs-identifier hs-var hs-var">mkApply</span></a></span></span><span> </span><span id="local-6989586621682534483"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534483"><span class="hs-identifier hs-var">f</span></a></span></span><span>
+</span><span id="line-137"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682534484"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534484"><span class="hs-identifier hs-var">cb</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe JStgExpr
+</span><a href="#local-6989586621682534473"><span class="hs-identifier hs-var">callback</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-138"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621682534485"><span class="annot"><a href="#local-6989586621682534485"><span class="hs-identifier hs-var">stats</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682534486"><span class="annot"><a href="#local-6989586621682534486"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]])
+forall a b. [(a, b)] -&gt; ([a], [b])
+</span><span class="hs-identifier hs-var">unzip</span></span><span> </span><span class="annot"><span class="annottext">([(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]]))
+-&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+-&gt; StateT GenState IO ([JStgStat], [[JStgExpr]])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr]))
+-&gt; [StgArg] -&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr])
+</span><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-var">genFFIArg</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534474"><span class="hs-identifier hs-var">javascriptCc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534478"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-139"></span><span>         </span><span id="local-6989586621682534491"><span class="annot"><a href="#local-6989586621682534491"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Monad.html#getSettings"><span class="hs-identifier hs-type">getSettings</span></a></span><span>
+</span><span id="line-140"></span><span>         </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621682534493"><span class="hs-identifier hs-type">traceCall</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534491"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534486"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534485"><span class="hs-identifier hs-type">stats</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplStat"><span class="hs-identifier hs-type">ApplStat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534495"><span class="hs-identifier hs-type">f'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">concat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534486"><span class="hs-keyword hs-type">as</span></a></span><span class="annot"><span class="hs-operator hs-type">++</span></span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682534484"><span class="hs-identifier hs-type">cb</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">{-ts@-}</span><span>
+</span><span id="line-142"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621682534497"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534497"><span class="hs-identifier hs-var">t</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682534498"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534498"><span class="hs-identifier hs-var">ts'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534481"><span class="hs-identifier hs-var">tgt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621682534499"><span class="annot"><a href="#local-6989586621682534499"><span class="hs-identifier hs-var">stats</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682534500"><span class="annot"><a href="#local-6989586621682534500"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]])
+forall a b. [(a, b)] -&gt; ([a], [b])
+</span><span class="hs-identifier hs-var">unzip</span></span><span> </span><span class="annot"><span class="annottext">([(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]]))
+-&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+-&gt; StateT GenState IO ([JStgStat], [[JStgExpr]])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr]))
+-&gt; [StgArg] -&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr])
+</span><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-var">genFFIArg</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534474"><span class="hs-identifier hs-var">javascriptCc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534478"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-144"></span><span>         </span><span id="local-6989586621682534501"><span class="annot"><a href="#local-6989586621682534501"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Monad.html#getSettings"><span class="hs-identifier hs-type">getSettings</span></a></span><span>
+</span><span id="line-145"></span><span>         </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621682534493"><span class="hs-identifier hs-type">traceCall</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534501"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534500"><span class="hs-keyword hs-type">as</span></a></span><span>
+</span><span id="line-146"></span><span>                </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534499"><span class="hs-identifier hs-type">stats</span></a></span><span>
+</span><span id="line-147"></span><span>                </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682534497"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-type">|=</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534495"><span class="hs-identifier hs-type">f'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">concat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534500"><span class="hs-keyword hs-type">as</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>                </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621682534502"><span class="hs-identifier hs-type">copyResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534498"><span class="hs-identifier hs-type">ts'</span></a></span><span>
+</span><span id="line-149"></span><span>           </span><span class="hs-comment">-- _ -&gt; error &quot;mkApply: empty list&quot;</span><span>
+</span><span id="line-150"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>         </span><span class="hs-special">(</span><span id="local-6989586621682534503"><span class="annot"><a href="#local-6989586621682534503"><span class="hs-identifier hs-var">stats</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682534504"><span class="annot"><a href="#local-6989586621682534504"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]])
+forall a b. [(a, b)] -&gt; ([a], [b])
+</span><span class="hs-identifier hs-var">unzip</span></span><span> </span><span class="annot"><span class="annottext">([(JStgStat, [JStgExpr])] -&gt; ([JStgStat], [[JStgExpr]]))
+-&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+-&gt; StateT GenState IO ([JStgStat], [[JStgExpr]])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr]))
+-&gt; [StgArg] -&gt; StateT GenState IO [(JStgStat, [JStgExpr])]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr])
+</span><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-var">genFFIArg</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534474"><span class="hs-identifier hs-var">javascriptCc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534478"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-152"></span><span>         </span><span id="local-6989586621682534505"><span class="annot"><a href="#local-6989586621682534505"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.StgToJS.Monad.html#getSettings"><span class="hs-identifier hs-type">getSettings</span></a></span><span>
+</span><span id="line-153"></span><span>         </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621682534493"><span class="hs-identifier hs-type">traceCall</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534505"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534504"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">mconcat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534503"><span class="hs-identifier hs-type">stats</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplStat"><span class="hs-identifier hs-type">ApplStat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534495"><span class="hs-identifier hs-type">f'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">concat</span></span><span> </span><span class="annot"><a href="#local-6989586621682534504"><span class="hs-keyword hs-type">as</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>        </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621682534495"><span class="annot"><span class="annottext">f' :: JStgExpr
+</span><a href="#local-6989586621682534495"><span class="hs-identifier hs-var hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ident -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; Ident
+</span><a href="GHC.JS.Ident.html#global"><span class="hs-identifier hs-var">global</span></a></span><span> </span><span class="annot"><span class="annottext">(FastString -&gt; Ident) -&gt; FastString -&gt; Ident
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#mkFastString"><span class="hs-identifier hs-var">mkFastString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534483"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621682534502"><span class="annot"><span class="annottext">copyResult :: [a] -&gt; JStgStat
+</span><a href="#local-6989586621682534502"><span class="hs-identifier hs-var hs-var">copyResult</span></a></span></span><span> </span><span id="local-6989586621682534514"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682534514"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">([JStgStat] -&gt; JStgStat) -&gt; [JStgStat] -&gt; JStgStat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(StgRet -&gt; a -&gt; JStgStat) -&gt; [StgRet] -&gt; [a] -&gt; [JStgStat]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682534516"><span class="annot"><span class="annottext">StgRet
+</span><a href="#local-6989586621682534516"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534517"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682534517"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682534517"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr -&gt; JStgExpr -&gt; JStgStat
+</span><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-var">|=</span></a></span><span> </span><span class="annot"><span class="annottext">StgRet -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span> </span><span class="annot"><span class="annottext">StgRet
+</span><a href="#local-6989586621682534516"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StgRet -&gt; [StgRet]
+forall a. Enum a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">enumFrom</span></span><span> </span><span class="annot"><span class="annottext">StgRet
+</span><a href="GHC.StgToJS.Regs.html#Ret1"><span class="hs-identifier hs-var">Ret1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682534514"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621682534493"><span class="annot"><span class="annottext">traceCall :: StgToJSConfig -&gt; [[JStgExpr]] -&gt; JStgStat
+</span><a href="#local-6989586621682534493"><span class="hs-identifier hs-var hs-var">traceCall</span></a></span></span><span> </span><span id="local-6989586621682534519"><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682534519"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span id="local-6989586621682534520"><span class="annot"><span class="annottext">[[JStgExpr]]
+</span><a href="#local-6989586621682534520"><span class="hs-keyword hs-var">as</span></a></span></span><span>
+</span><span id="line-158"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">StgToJSConfig -&gt; Bool
+</span><a href="GHC.StgToJS.Types.html#csTraceForeign"><span class="hs-identifier hs-var">csTraceForeign</span></a></span><span> </span><span class="annot"><span class="annottext">StgToJSConfig
+</span><a href="#local-6989586621682534519"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStgExpr -&gt; [JStgExpr] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#ApplStat"><span class="hs-identifier hs-var">ApplStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-string">&quot;h$traceForeign&quot;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534475"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[[JStgExpr]] -&gt; JStgExpr
+forall a. ToJExpr a =&gt; a -&gt; JStgExpr
+</span><a href="GHC.JS.Make.html#toJExpr"><span class="hs-identifier hs-var">toJExpr</span></a></span><span> </span><span class="annot"><span class="annottext">[[JStgExpr]]
+</span><a href="#local-6989586621682534520"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-159"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- generate arg to be passed to FFI call, with marshalling JStgStat to be run</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- before the call</span><span>
+</span><span id="line-163"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-type">genFFIArg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span id="genFFIArg"><span class="annot"><span class="annottext">genFFIArg :: Bool -&gt; StgArg -&gt; StateT GenState IO (JStgStat, [JStgExpr])
+</span><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-var hs-var">genFFIArg</span></a></span></span><span> </span><span id="local-6989586621682534522"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534522"><span class="hs-identifier hs-var">_isJavaScriptCc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgLitArg"><span class="hs-identifier hs-type">StgLitArg</span></a></span><span> </span><span id="local-6989586621682534524"><span class="annot"><span class="annottext">Literal
+</span><a href="#local-6989586621682534524"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([JStgExpr] -&gt; (JStgStat, [JStgExpr]))
+-&gt; StateT GenState IO [JStgExpr]
+-&gt; StateT GenState IO (JStgStat, [JStgExpr])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Literal -&gt; StateT GenState IO [JStgExpr]
+Literal -&gt; StateT GenState IO [JStgExpr]
+</span><a href="GHC.StgToJS.Literal.html#genLit"><span class="hs-identifier hs-var">genLit</span></a></span><span> </span><span class="annot"><span class="annottext">Literal
+</span><a href="#local-6989586621682534524"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-165"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#genFFIArg"><span class="hs-identifier hs-var">genFFIArg</span></a></span><span> </span><span id="local-6989586621682534526"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534526"><span class="hs-identifier hs-var">isJavaScriptCc</span></a></span></span><span> </span><span id="local-6989586621682534527"><span class="annot"><span class="annottext">a :: StgArg
+</span><a href="#local-6989586621682534527"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgVarArg"><span class="hs-identifier hs-type">StgVarArg</span></a></span><span> </span><span id="local-6989586621682534529"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682534529"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534526"><span class="hs-identifier hs-var">isJavaScriptCc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-167"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682534531"><span class="hs-identifier hs-var">tycon</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon -&gt; TyCon -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="GHC.Builtin.Types.Prim.html#byteArrayPrimTyCon"><span class="hs-identifier hs-var">byteArrayPrimTyCon</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682534531"><span class="hs-identifier hs-var">tycon</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon -&gt; TyCon -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="GHC.Builtin.Types.Prim.html#mutableByteArrayPrimTyCon"><span class="hs-identifier hs-var">mutableByteArrayPrimTyCon</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-168"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682534535"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534535"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534535"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="GHC.JS.Make.html#zero_"><span class="hs-identifier hs-var">zero_</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(JStgExpr -&gt; (JStgStat, [JStgExpr]))
+-&gt; StateT GenState IO JStgExpr
+-&gt; StateT GenState IO (JStgStat, [JStgExpr])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Id -&gt; StateT GenState IO JStgExpr
+</span><a href="GHC.StgToJS.Ids.html#varForId"><span class="hs-identifier hs-var">varForId</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682534529"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">JSRep -&gt; Bool
+</span><a href="GHC.StgToJS.Utils.html#isVoid"><span class="hs-identifier hs-var">isVoid</span></a></span><span> </span><span class="annot"><span class="annottext">JSRep
+</span><a href="#local-6989586621682534539"><span class="hs-identifier hs-var">r</span></a></span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(JStgStat, [JStgExpr]) -&gt; StateT GenState IO (JStgStat, [JStgExpr])
+forall a. a -&gt; StateT GenState IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--    | Just x &lt;- marshalFFIArg a = x</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">JSRep -&gt; Bool
+</span><a href="GHC.StgToJS.Utils.html#isMultiVar"><span class="hs-identifier hs-var">isMultiVar</span></a></span><span> </span><span class="annot"><span class="annottext">JSRep
+</span><a href="#local-6989586621682534539"><span class="hs-identifier hs-var">r</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([JStgExpr] -&gt; (JStgStat, [JStgExpr]))
+-&gt; StateT GenState IO [JStgExpr]
+-&gt; StateT GenState IO (JStgStat, [JStgExpr])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; StateT GenState IO JStgExpr)
+-&gt; [Int] -&gt; StateT GenState IO [JStgExpr]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; Int -&gt; StateT GenState IO JStgExpr
+</span><a href="GHC.StgToJS.Ids.html#varForIdN"><span class="hs-identifier hs-var">varForIdN</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682534529"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">JSRep -&gt; Int
+</span><a href="GHC.StgToJS.Utils.html#varSize"><span class="hs-identifier hs-var">varSize</span></a></span><span> </span><span class="annot"><span class="annottext">JSRep
+</span><a href="#local-6989586621682534539"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682534543"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534543"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534543"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(JStgExpr -&gt; (JStgStat, [JStgExpr]))
+-&gt; StateT GenState IO JStgExpr
+-&gt; StateT GenState IO (JStgStat, [JStgExpr])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Id -&gt; StateT GenState IO JStgExpr
+</span><a href="GHC.StgToJS.Ids.html#varForId"><span class="hs-identifier hs-var">varForId</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682534529"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-173"></span><span>   </span><span class="hs-keyword">where</span><span>
+</span><span id="line-174"></span><span>     </span><span id="local-6989586621682534531"><span class="annot"><span class="annottext">tycon :: TyCon
+</span><a href="#local-6989586621682534531"><span class="hs-identifier hs-var hs-var">tycon</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Type -&gt; TyCon
+Type -&gt; TyCon
+</span><a href="GHC.Core.Type.html#tyConAppTyCon"><span class="hs-identifier hs-var">tyConAppTyCon</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="GHC.Types.RepType.html#unwrapType"><span class="hs-identifier hs-var">unwrapType</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534546"><span class="hs-identifier hs-var">arg_ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>     </span><span id="local-6989586621682534546"><span class="annot"><span class="annottext">arg_ty :: Type
+</span><a href="#local-6989586621682534546"><span class="hs-identifier hs-var hs-var">arg_ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StgArg -&gt; Type
+</span><a href="GHC.Stg.Syntax.html#stgArgType"><span class="hs-identifier hs-var">stgArgType</span></a></span><span> </span><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534527"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-176"></span><span>     </span><span id="local-6989586621682534539"><span class="annot"><span class="annottext">r :: JSRep
+</span><a href="#local-6989586621682534539"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; Type -&gt; JSRep
+Type -&gt; JSRep
+</span><a href="GHC.StgToJS.Utils.html#unaryTypeJSRep"><span class="hs-identifier hs-var">unaryTypeJSRep</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534546"><span class="hs-identifier hs-var">arg_ty</span></a></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#genForeignCall"><span class="hs-identifier hs-type">genForeignCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html#HasDebugCallStack"><span class="hs-identifier hs-type">HasDebugCallStack</span></a></span><span>
+</span><span id="line-179"></span><span>               </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.ExprCtx.html#ExprCtx"><span class="hs-identifier hs-type">ExprCtx</span></a></span><span>
+</span><span id="line-180"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.ForeignCall.html#ForeignCall"><span class="hs-identifier hs-type">ForeignCall</span></a></span><span>
+</span><span id="line-181"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span>
+</span><span id="line-182"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-183"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-184"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#G"><span class="hs-identifier hs-type">G</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#ExprResult"><span class="hs-identifier hs-type">ExprResult</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span id="genForeignCall"><span class="annot"><span class="annottext">genForeignCall :: HasDebugCallStack =&gt;
+ExprCtx
+-&gt; ForeignCall
+-&gt; Type
+-&gt; [JStgExpr]
+-&gt; [StgArg]
+-&gt; G (JStgStat, ExprResult)
+</span><a href="GHC.StgToJS.FFI.html#genForeignCall"><span class="hs-identifier hs-var hs-var">genForeignCall</span></a></span></span><span> </span><span id="local-6989586621682534575"><span class="annot"><span class="annottext">ExprCtx
+</span><a href="#local-6989586621682534575"><span class="hs-identifier hs-var">_ctx</span></a></span></span><span>
+</span><span id="line-186"></span><span>               </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#CCall"><span class="hs-identifier hs-type">CCall</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#CCallSpec"><span class="hs-identifier hs-type">CCallSpec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#StaticTarget"><span class="hs-identifier hs-type">StaticTarget</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682534579"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534579"><span class="hs-identifier hs-var">tgt</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Unit
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>                                   </span><span class="annot"><span class="annottext">CCallConv
+</span><a href="GHC.Types.ForeignCall.html#JavaScriptCallConv"><span class="hs-identifier hs-var">JavaScriptCallConv</span></a></span><span>
+</span><span id="line-188"></span><span>                                   </span><span class="annot"><span class="annottext">Safety
+</span><a href="GHC.Types.ForeignCall.html#PlayRisky"><span class="hs-identifier hs-var">PlayRisky</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>               </span><span id="local-6989586621682534582"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534582"><span class="hs-identifier hs-var">_t</span></a></span></span><span>
+</span><span id="line-190"></span><span>               </span><span class="hs-special">[</span><span id="local-6989586621682534583"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682534583"><span class="hs-identifier hs-var">obj</span></a></span></span><span class="hs-special">]</span><span>
+</span><span id="line-191"></span><span>               </span><span id="local-6989586621682534584"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534584"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534579"><span class="hs-identifier hs-var">tgt</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#fsLit"><span class="hs-identifier hs-var">fsLit</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;h$buildObject&quot;</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682534586"><span class="annot"><span class="annottext">[(FastString, StgArg)]
+</span><a href="#local-6989586621682534586"><span class="hs-identifier hs-var">pairs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[StgArg] -&gt; Maybe [(FastString, StgArg)]
+</span><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-var">getObjectKeyValuePairs</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534584"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-194"></span><span>      </span><span id="local-6989586621682534588"><span class="annot"><a href="#local-6989586621682534588"><span class="hs-identifier hs-var">pairs'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">((FastString, StgArg) -&gt; StateT GenState IO (FastString, JStgExpr))
+-&gt; [(FastString, StgArg)]
+-&gt; StateT GenState IO [(FastString, JStgExpr)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682534589"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534589"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621682534590"><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534590"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HasDebugCallStack =&gt; StgArg -&gt; StateT GenState IO [JStgExpr]
+StgArg -&gt; StateT GenState IO [JStgExpr]
+</span><a href="GHC.StgToJS.Arg.html#genArg"><span class="hs-identifier hs-var">genArg</span></a></span><span> </span><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534590"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">StateT GenState IO [JStgExpr]
+-&gt; ([JStgExpr] -&gt; StateT GenState IO (FastString, JStgExpr))
+-&gt; StateT GenState IO (FastString, JStgExpr)
+forall a b.
+StateT GenState IO a
+-&gt; (a -&gt; StateT GenState IO b) -&gt; StateT GenState IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682534592"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534592"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(FastString, JStgExpr) -&gt; StateT GenState IO (FastString, JStgExpr)
+forall a. a -&gt; StateT GenState IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534589"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[JStgExpr] -&gt; JStgExpr
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><a href="GHC.Prelude.Basic.html#head"><span class="hs-identifier hs-var">head</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534592"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(FastString, StgArg)]
+</span><a href="#local-6989586621682534586"><span class="hs-identifier hs-var">pairs</span></a></span><span>
+</span><span id="line-195"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.JS.Make.html#%7C%3D"><span class="hs-operator hs-type">(|=)</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534583"><span class="hs-identifier hs-type">obj</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JHash"><span class="hs-identifier hs-type">JHash</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html#listToUniqMap"><span class="hs-identifier hs-type">listToUniqMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682534588"><span class="hs-identifier hs-type">pairs'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.StgToJS.Types.html#ExprInline"><span class="hs-identifier hs-type">ExprInline</span></a></span><span>
+</span><span id="line-197"></span><span>             </span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#genForeignCall"><span class="hs-identifier hs-var">genForeignCall</span></a></span><span> </span><span id="local-6989586621682534597"><span class="annot"><span class="annottext">ExprCtx
+</span><a href="#local-6989586621682534597"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#CCall"><span class="hs-identifier hs-type">CCall</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#CCallSpec"><span class="hs-identifier hs-type">CCallSpec</span></a></span><span> </span><span id="local-6989586621682534598"><span class="annot"><span class="annottext">CCallTarget
+</span><a href="#local-6989586621682534598"><span class="hs-identifier hs-var">ccTarget</span></a></span></span><span> </span><span id="local-6989586621682534599"><span class="annot"><span class="annottext">CCallConv
+</span><a href="#local-6989586621682534599"><span class="hs-identifier hs-var">cconv</span></a></span></span><span> </span><span id="local-6989586621682534600"><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span id="local-6989586621682534601"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534601"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682534602"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534602"><span class="hs-identifier hs-var">tgt</span></a></span></span><span> </span><span id="local-6989586621682534603"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534603"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-200"></span><span>  </span><span class="annot"><span class="annottext">Maybe RealSrcSpan
+-&gt; FastString
+-&gt; Safety
+-&gt; CCallConv
+-&gt; [FastString]
+-&gt; FastString
+-&gt; G ()
+</span><a href="GHC.StgToJS.Monad.html#emitForeign"><span class="hs-identifier hs-var">emitForeign</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExprCtx -&gt; Maybe RealSrcSpan
+</span><a href="GHC.StgToJS.ExprCtx.html#ctxSrcSpan"><span class="hs-identifier hs-var">ctxSrcSpan</span></a></span><span> </span><span class="annot"><span class="annottext">ExprCtx
+</span><a href="#local-6989586621682534597"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#mkFastString"><span class="hs-identifier hs-var">mkFastString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534606"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span> </span><span class="annot"><span class="annottext">CCallConv
+</span><a href="#local-6989586621682534599"><span class="hs-identifier hs-var">cconv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(StgArg -&gt; FastString) -&gt; [StgArg] -&gt; [FastString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">StgArg -&gt; FastString
+</span><a href="GHC.StgToJS.FFI.html#showArgType"><span class="hs-identifier hs-var">showArgType</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534603"><span class="hs-identifier hs-var">args</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Type -&gt; FastString
+</span><a href="GHC.StgToJS.FFI.html#showType"><span class="hs-identifier hs-var">showType</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534601"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="annot"><span class="annottext">ExprResult
+</span><a href="#local-6989586621682534609"><span class="hs-identifier hs-var">exprResult</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(JStgStat -&gt; (JStgStat, ExprResult))
+-&gt; G JStgStat -&gt; G (JStgStat, ExprResult)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; Bool
+-&gt; Bool
+-&gt; String
+-&gt; Type
+-&gt; [JStgExpr]
+-&gt; [StgArg]
+-&gt; G JStgStat
+</span><a href="GHC.StgToJS.FFI.html#parseFFIPattern"><span class="hs-identifier hs-var">parseFFIPattern</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534610"><span class="hs-identifier hs-var">catchExcep</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534611"><span class="hs-identifier hs-var">async</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534612"><span class="hs-identifier hs-var">isJsCc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534606"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534601"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534613"><span class="hs-identifier hs-var">tgt'</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534603"><span class="hs-identifier hs-var">args</span></a></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621682534612"><span class="annot"><span class="annottext">isJsCc :: Bool
+</span><a href="#local-6989586621682534612"><span class="hs-identifier hs-var hs-var">isJsCc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CCallConv
+</span><a href="#local-6989586621682534599"><span class="hs-identifier hs-var">cconv</span></a></span><span> </span><span class="annot"><span class="annottext">CCallConv -&gt; CCallConv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CCallConv
+</span><a href="GHC.Types.ForeignCall.html#JavaScriptCallConv"><span class="hs-identifier hs-var">JavaScriptCallConv</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span>    </span><span id="local-6989586621682534606"><span class="annot"><span class="annottext">lbl :: String
+</span><a href="#local-6989586621682534606"><span class="hs-identifier hs-var hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.ForeignCall.html#StaticTarget"><span class="hs-identifier hs-type">StaticTarget</span></a></span><span> </span><span class="annot"><span class="annottext">SourceText
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682534614"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534614"><span class="hs-identifier hs-var">clbl</span></a></span></span><span> </span><span id="local-6989586621682534615"><span class="annot"><span class="annottext">Maybe Unit
+</span><a href="#local-6989586621682534615"><span class="hs-identifier hs-var">_mpkg</span></a></span></span><span> </span><span id="local-6989586621682534616"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534616"><span class="hs-identifier hs-var">_isFunPtr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CCallTarget
+</span><a href="#local-6989586621682534598"><span class="hs-identifier hs-var">ccTarget</span></a></span><span>
+</span><span id="line-206"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682534617"><span class="annot"><span class="annottext">clbl' :: String
+</span><a href="#local-6989586621682534617"><span class="hs-identifier hs-var hs-var">clbl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; String
+</span><a href="GHC.Data.FastString.html#unpackFS"><span class="hs-identifier hs-var">unpackFS</span></a></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534614"><span class="hs-identifier hs-var">clbl</span></a></span><span>
+</span><span id="line-207"></span><span>              </span><span class="hs-keyword">in</span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534612"><span class="hs-identifier hs-var">isJsCc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534617"><span class="hs-identifier hs-var">clbl'</span></a></span><span>
+</span><span id="line-208"></span><span>                     </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534618"><span class="hs-identifier hs-var">wrapperPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; Bool
+</span><span class="hs-operator hs-var">`L.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534617"><span class="hs-identifier hs-var">clbl'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-209"></span><span>                         </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;h$&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; String -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; String
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; String -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534618"><span class="hs-identifier hs-var">wrapperPrefix</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534617"><span class="hs-identifier hs-var">clbl'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>                     </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;h$&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682534617"><span class="hs-identifier hs-var">clbl'</span></a></span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;h$callDynamic&quot;</span></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span>    </span><span id="local-6989586621682534609"><span class="annot"><span class="annottext">exprResult :: ExprResult
+</span><a href="#local-6989586621682534609"><span class="hs-identifier hs-var hs-var">exprResult</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534611"><span class="hs-identifier hs-var">async</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExprResult
+</span><a href="GHC.StgToJS.Types.html#ExprCont"><span class="hs-identifier hs-var">ExprCont</span></a></span><span>
+</span><span id="line-214"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExprResult
+</span><a href="GHC.StgToJS.Types.html#ExprInline"><span class="hs-identifier hs-var">ExprInline</span></a></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span>    </span><span id="local-6989586621682534610"><span class="annot"><span class="annottext">catchExcep :: Bool
+</span><a href="#local-6989586621682534610"><span class="hs-identifier hs-var hs-var">catchExcep</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CCallConv
+</span><a href="#local-6989586621682534599"><span class="hs-identifier hs-var">cconv</span></a></span><span> </span><span class="annot"><span class="annottext">CCallConv -&gt; CCallConv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CCallConv
+</span><a href="GHC.Types.ForeignCall.html#JavaScriptCallConv"><span class="hs-identifier hs-var">JavaScriptCallConv</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-217"></span><span>                 </span><span class="annot"><span class="annottext">Safety -&gt; Bool
+</span><a href="GHC.Types.ForeignCall.html#playSafe"><span class="hs-identifier hs-var">playSafe</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Safety -&gt; Bool
+</span><a href="GHC.Types.ForeignCall.html#playInterruptible"><span class="hs-identifier hs-var">playInterruptible</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span>    </span><span id="local-6989586621682534611"><span class="annot"><span class="annottext">async :: Bool
+</span><a href="#local-6989586621682534611"><span class="hs-identifier hs-var hs-var">async</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534612"><span class="hs-identifier hs-var">isJsCc</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Safety -&gt; Bool
+</span><a href="GHC.Types.ForeignCall.html#playInterruptible"><span class="hs-identifier hs-var">playInterruptible</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span>
+</span><span id="line-220"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Safety -&gt; Bool
+</span><a href="GHC.Types.ForeignCall.html#playInterruptible"><span class="hs-identifier hs-var">playInterruptible</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Safety -&gt; Bool
+</span><a href="GHC.Types.ForeignCall.html#playSafe"><span class="hs-identifier hs-var">playSafe</span></a></span><span> </span><span class="annot"><span class="annottext">Safety
+</span><a href="#local-6989586621682534600"><span class="hs-identifier hs-var">safety</span></a></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span>    </span><span id="local-6989586621682534613"><span class="annot"><span class="annottext">tgt' :: [JStgExpr]
+</span><a href="#local-6989586621682534613"><span class="hs-identifier hs-var hs-var">tgt'</span></a></span></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682534611"><span class="hs-identifier hs-var">async</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [JStgExpr] -&gt; [JStgExpr]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[JStgExpr] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534602"><span class="hs-identifier hs-var">tgt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="GHC.StgToJS.Regs.html#jsRegsFromR1"><span class="hs-identifier hs-var">jsRegsFromR1</span></a></span><span>
+</span><span id="line-223"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682534602"><span class="hs-identifier hs-var">tgt</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span>    </span><span id="local-6989586621682534618"><span class="annot"><span class="annottext">wrapperPrefix :: String
+</span><a href="#local-6989586621682534618"><span class="hs-identifier hs-var hs-var">wrapperPrefix</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ghczuwrapperZC&quot;</span></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-type">getObjectKeyValuePairs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-228"></span><span id="getObjectKeyValuePairs"><span class="annot"><span class="annottext">getObjectKeyValuePairs :: [StgArg] -&gt; Maybe [(FastString, StgArg)]
+</span><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-var hs-var">getObjectKeyValuePairs</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(FastString, StgArg)] -&gt; Maybe [(FastString, StgArg)]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-229"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-var">getObjectKeyValuePairs</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682534629"><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534629"><span class="hs-identifier hs-var">k</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682534630"><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534630"><span class="hs-identifier hs-var">v</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621682534631"><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534631"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682534632"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534632"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StgArg -&gt; Maybe FastString
+</span><a href="GHC.StgToJS.FFI.html#argJSStringLitUnfolding"><span class="hs-identifier hs-var">argJSStringLitUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534629"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-231"></span><span>      </span><span class="annot"><span class="annottext">([(FastString, StgArg)] -&gt; [(FastString, StgArg)])
+-&gt; Maybe [(FastString, StgArg)] -&gt; Maybe [(FastString, StgArg)]
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682534632"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534630"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span class="annot"><span class="annottext">(FastString, StgArg)
+-&gt; [(FastString, StgArg)] -&gt; [(FastString, StgArg)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[StgArg] -&gt; Maybe [(FastString, StgArg)]
+</span><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-var">getObjectKeyValuePairs</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><a href="#local-6989586621682534631"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#getObjectKeyValuePairs"><span class="hs-identifier hs-var">getObjectKeyValuePairs</span></a></span><span> </span><span class="annot"><span class="annottext">[StgArg]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [(FastString, StgArg)]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#argJSStringLitUnfolding"><span class="hs-identifier hs-type">argJSStringLitUnfolding</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-235"></span><span id="argJSStringLitUnfolding"><span class="annot"><span class="annottext">argJSStringLitUnfolding :: StgArg -&gt; Maybe FastString
+</span><a href="GHC.StgToJS.FFI.html#argJSStringLitUnfolding"><span class="hs-identifier hs-var hs-var">argJSStringLitUnfolding</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Syntax.html#StgVarArg"><span class="hs-identifier hs-type">StgVarArg</span></a></span><span> </span><span id="local-6989586621682534634"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682534634"><span class="hs-identifier hs-var">_v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe FastString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- fixme</span><span>
+</span><span id="line-236"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#argJSStringLitUnfolding"><span class="hs-identifier hs-var">argJSStringLitUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">StgArg
+</span><span class="hs-identifier">_</span></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe FastString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#showArgType"><span class="hs-identifier hs-type">showArgType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Syntax.html#StgArg"><span class="hs-identifier hs-type">StgArg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-239"></span><span id="showArgType"><span class="annot"><span class="annottext">showArgType :: StgArg -&gt; FastString
+</span><a href="GHC.StgToJS.FFI.html#showArgType"><span class="hs-identifier hs-var hs-var">showArgType</span></a></span></span><span> </span><span id="local-6989586621682534635"><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534635"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Type -&gt; FastString
+</span><a href="GHC.StgToJS.FFI.html#showType"><span class="hs-identifier hs-var">showType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StgArg -&gt; Type
+</span><a href="GHC.Stg.Syntax.html#stgArgType"><span class="hs-identifier hs-var">stgArgType</span></a></span><span> </span><span class="annot"><span class="annottext">StgArg
+</span><a href="#local-6989586621682534635"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="annot"><a href="GHC.StgToJS.FFI.html#showType"><span class="hs-identifier hs-type">showType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>
+</span><span id="line-242"></span><span id="showType"><span class="annot"><span class="annottext">showType :: Type -&gt; FastString
+</span><a href="GHC.StgToJS.FFI.html#showType"><span class="hs-identifier hs-var hs-var">showType</span></a></span></span><span> </span><span id="local-6989586621682534636"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534636"><span class="hs-identifier hs-var">t</span></a></span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682534637"><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682534637"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Maybe TyCon
+</span><a href="GHC.Core.Type.html#tyConAppTyCon_maybe"><span class="hs-identifier hs-var">tyConAppTyCon_maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Type -&gt; Type
+</span><a href="GHC.Types.RepType.html#unwrapType"><span class="hs-identifier hs-var">unwrapType</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621682534636"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-244"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; FastString
+</span><a href="GHC.Data.FastString.html#mkFastString"><span class="hs-identifier hs-var">mkFastString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SDocContext -&gt; SDoc -&gt; String
+</span><a href="GHC.Utils.Outputable.html#renderWithContext"><span class="hs-identifier hs-var">renderWithContext</span></a></span><span> </span><span class="annot"><span class="annottext">SDocContext
+</span><a href="GHC.Utils.Outputable.html#defaultSDocContext"><span class="hs-identifier hs-var">defaultSDocContext</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TyCon -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">TyCon
+</span><a href="#local-6989586621682534637"><span class="hs-identifier hs-var">tc</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><span class="hs-string">&quot;&lt;unknown&gt;&quot;</span></span><span>
+</span><span id="line-246"></span></pre></body></html>

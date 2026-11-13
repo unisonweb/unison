@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Ki.Internal.Thread.html"><span class="hs-identifier">Ki.Internal.Thread</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier">Thread</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Ki.Internal.Thread.html#makeThread"><span class="hs-identifier">makeThread</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Ki.Internal.Thread.html#await"><span class="hs-identifier">await</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ThreadId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BlockedIndefinitelyOnSTM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">STM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Ki.Internal.IO.html"><span class="hs-identifier">Ki.Internal.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.IO.html#tryEitherSTM"><span class="hs-identifier">tryEitherSTM</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | A thread.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- ==== __&#128073; Details__</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- * A thread's lifetime is delimited by the scope in which it was created.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- * The thread that creates a scope is considered the parent of all threads created within it.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- * If an exception is raised in a child thread, the child either propagates the exception to its parent (see</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--   'Ki.fork'), or returns the exception as a value (see 'Ki.forkTry').</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- * All threads created within a scope are terminated when the scope closes.</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="Thread"><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-var">Thread</span></a></span></span><span> </span><span id="local-6989586621679053112"><span class="annot"><a href="#local-6989586621679053112"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Thread"><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-var">Thread</span></a></span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="threadId"><span class="annot"><span class="annottext">forall a. Thread a -&gt; ThreadId
+</span><a href="Ki.Internal.Thread.html#threadId"><span class="hs-identifier hs-var hs-var">threadId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-pragma">{-# UNPACK</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="await_"><span class="annot"><span class="annottext">forall a. Thread a -&gt; STM a
+</span><a href="Ki.Internal.Thread.html#await_"><span class="hs-identifier hs-var hs-var">await_</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679053112"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679053146"><span id="local-6989586621679053150"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Thread a -&gt; Thread b)
+-&gt; (forall a b. a -&gt; Thread b -&gt; Thread a) -&gt; Functor Thread
+forall a b. a -&gt; Thread b -&gt; Thread a
+forall a b. (a -&gt; b) -&gt; Thread a -&gt; Thread b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; Thread a -&gt; Thread b
+fmap :: forall a b. (a -&gt; b) -&gt; Thread a -&gt; Thread b
+$c&lt;$ :: forall a b. a -&gt; Thread b -&gt; Thread a
+&lt;$ :: forall a b. a -&gt; Thread b -&gt; Thread a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679053125"><span id="local-6989586621679053157"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053125"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span id="local-6989586621679053163"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053163"><span class="hs-identifier hs-var">ix</span></a></span></span><span> </span><span class="annot"><span class="annottext">STM a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679053164"><span class="annot"><span class="annottext">== :: Thread a -&gt; Thread a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span id="local-6989586621679053165"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053165"><span class="hs-identifier hs-var">iy</span></a></span></span><span> </span><span class="annot"><span class="annottext">STM a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053163"><span class="hs-identifier hs-var">ix</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadId -&gt; ThreadId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053165"><span class="hs-identifier hs-var">iy</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679053128"><span id="local-6989586621679053170"><span id="local-6989586621679053174"><span id="local-6989586621679053177"><span id="local-6989586621679053180"><span id="local-6989586621679053183"><span id="local-6989586621679053186"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053128"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679053191"><span class="annot"><span class="annottext">compare :: Thread a -&gt; Thread a -&gt; Ordering
+</span><a href="#local-6989586621679053191"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span id="local-6989586621679053193"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053193"><span class="hs-identifier hs-var">ix</span></a></span></span><span> </span><span class="annot"><span class="annottext">STM a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span id="local-6989586621679053194"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053194"><span class="hs-identifier hs-var">iy</span></a></span></span><span> </span><span class="annot"><span class="annottext">STM a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="annottext">ThreadId -&gt; ThreadId -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053193"><span class="hs-identifier hs-var">ix</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053194"><span class="hs-identifier hs-var">iy</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679053129"><span class="annot"><a href="Ki.Internal.Thread.html#makeThread"><span class="hs-identifier hs-type">makeThread</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679053129"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053129"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-40"></span><span id="makeThread"><span class="annot"><span class="annottext">makeThread :: forall a. ThreadId -&gt; STM a -&gt; Thread a
+</span><a href="Ki.Internal.Thread.html#makeThread"><span class="hs-identifier hs-var hs-var">makeThread</span></a></span></span><span> </span><span id="local-6989586621679053199"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679053199"><span class="hs-identifier hs-var">threadId</span></a></span></span><span> </span><span id="local-6989586621679053200"><span class="annot"><span class="annottext">STM a
+</span><a href="#local-6989586621679053200"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ThreadId
+threadId :: ThreadId
+threadId :: ThreadId
+</span><a href="Ki.Internal.Thread.html#threadId"><span class="hs-identifier hs-var hs-var">threadId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-comment">-- If *they* are deadlocked, we will *both* will be delivered a wakeup from the RTS. We want to shrug this</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-comment">-- exception off, because afterwards they'll have put to the result var. But don't shield indefinitely, once will</span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-comment">-- cover this use case and prevent any accidental infinite loops.</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">await_ :: STM a
+</span><a href="Ki.Internal.Thread.html#await_"><span class="hs-identifier hs-var">await_</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(BlockedIndefinitelyOnSTM -&gt; STM a)
+-&gt; (a -&gt; STM a) -&gt; STM a -&gt; STM a
+forall e b a.
+Exception e =&gt;
+(e -&gt; STM b) -&gt; (a -&gt; STM b) -&gt; STM a -&gt; STM b
+</span><a href="Ki.Internal.IO.html#tryEitherSTM"><span class="hs-identifier hs-var">tryEitherSTM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">BlockedIndefinitelyOnSTM
+</span><span class="hs-identifier hs-var">BlockedIndefinitelyOnSTM</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">STM a
+</span><a href="#local-6989586621679053200"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; STM a
+forall a. a -&gt; STM a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">STM a
+</span><a href="#local-6989586621679053200"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | Wait for a thread to terminate.</span></span><span>
+</span><span id="line-50"></span><span id="local-6989586621679053202"><span class="annot"><a href="Ki.Internal.Thread.html#await"><span class="hs-identifier hs-type">await</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Ki.Internal.Thread.html#Thread"><span class="hs-identifier hs-type">Thread</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679053202"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><a href="#local-6989586621679053202"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-51"></span><span id="await"><span class="annot"><span class="annottext">await :: forall a. Thread a -&gt; STM a
+</span><a href="Ki.Internal.Thread.html#await"><span class="hs-identifier hs-var hs-var">await</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="annottext">Thread a -&gt; STM a
+forall a. Thread a -&gt; STM a
+</span><a href="Ki.Internal.Thread.html#await_"><span class="hs-identifier hs-var">await_</span></a></span><span>
+</span><span id="line-53"></span></pre></body></html>

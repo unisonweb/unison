@@ -1,0 +1,1114 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  Data.Foldable</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  Ross Paterson 2005</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file in the distribution)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Class of data structures that can be folded to a summary value.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Foldable.html"><span class="hs-identifier">Data.Foldable</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#Foldable"><span class="hs-identifier">Foldable</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Special biased folds</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#foldrM"><span class="hs-identifier">foldrM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#foldlM"><span class="hs-identifier">foldlM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Folding actions</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Applicative actions</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#traverse_"><span class="hs-identifier">traverse_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#for_"><span class="hs-identifier">for_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#sequenceA_"><span class="hs-identifier">sequenceA_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#asum"><span class="hs-identifier">asum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Monadic actions</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#mapM_"><span class="hs-identifier">mapM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#forM_"><span class="hs-identifier">forM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#sequence_"><span class="hs-identifier">sequence_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#msum"><span class="hs-identifier">msum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Specialized folds</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#concat"><span class="hs-identifier">concat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#concatMap"><span class="hs-identifier">concatMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#and"><span class="hs-identifier">and</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#or"><span class="hs-identifier">or</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#any"><span class="hs-identifier">any</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#all"><span class="hs-identifier">all</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#maximumBy"><span class="hs-identifier">maximumBy</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#minimumBy"><span class="hs-identifier">minimumBy</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Searches</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#notElem"><span class="hs-identifier">notElem</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html#find"><span class="hs-identifier">find</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Overview</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- $overview</span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Expectation of efficient left-to-right iteration</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-comment">-- $chirality</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Recursive and corecursive reduction</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- $reduction</span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Strict recursive folds</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="hs-comment">-- $strict</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="hs-comment">-- **** List of strict functions</span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="hs-comment">-- $strictlist</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Lazy corecursive folds</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-comment">-- $lazy</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="hs-comment">-- **** List of lazy functions</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-comment">-- $lazylist</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Short-circuit folds</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="hs-comment">-- $shortcircuit</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="hs-comment">-- **** List of short-circuit functions</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><span class="hs-comment">-- $shortlist</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Hybrid folds</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="hs-comment">-- $hybrid</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Generative Recursion</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="hs-comment">-- $generative</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Avoiding multi-pass folds</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="hs-comment">-- $multipass</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Defining instances</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="hs-comment">-- $instances</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="hs-comment">-- *** Being strict by being lazy</span></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-comment">-- $strictlazy</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Laws</span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="hs-comment">-- $laws</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Notes</span></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="hs-comment">-- $notes</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Generally linear-time `elem`</span></span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="hs-comment">-- $linear</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-comment">-- * See also</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-comment">-- $also</span></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Foldable.html"><span class="hs-identifier">GHC.Internal.Data.Foldable</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- $overview</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- #overview#</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- The Foldable class generalises some common &quot;Data.List&quot; functions to</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- structures that can be reduced to a summary value one element at a time.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- == Left and right folds</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- #leftright#</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- The contribution of each element to the final result is combined with an</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- accumulator via a suitable /operator/.  The operator may be explicitly</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- provided by the caller as with `foldr` or may be implicit as in `length`.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- In the case of `foldMap`, the caller provides a function mapping each</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- element into a suitable 'Monoid', which makes it possible to merge the</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- per-element contributions via that monoid's `mappend` function.</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- A key distinction is between left-associative and right-associative</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- folds:</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- * In left-associative folds the accumulator is a partial fold over the</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--   elements that __precede__ the current element, and is passed to the</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--   operator as its first (left) argument.  The outermost application of the</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--   operator merges the contribution of the last element of the structure with</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--   the contributions of all its predecessors.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- * In right-associative folds the accumulator is a partial fold over the</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--   elements that __follow__ the current element, and is passed to the</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--   operator as its second (right) argument.  The outermost application of</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--   the operator merges the contribution of the first element of the structure</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--   with the contributions of all its successors.</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- These two types of folds are typified by the left-associative strict</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- 'foldl'' and the right-associative lazy `foldr`.</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- 'foldl'' :: Foldable t =&gt; (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- `foldr`  :: Foldable t =&gt; (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- Example usage:</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- &gt;&gt;&gt; foldl' (+) 0 [1..100]</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- 5050</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- &gt;&gt;&gt; foldr (&amp;&amp;) True (repeat False)</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- False</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- The first argument of both is an explicit /operator/ that merges the</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- contribution of an element of the structure with a partial fold over,</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- respectively, either the preceding or following elements of the structure.</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- The second argument of both is an initial accumulator value @z@ of type</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- @b@.  This is the result of the fold when the structure is empty.</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- When the structure is non-empty, this is the accumulator value merged with</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- the first element in left-associative folds, or with the last element in</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- right-associative folds.</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- The third and final argument is a @Foldable@ structure containing elements</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- @(a, b, c, &amp;#x2026;)@.</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- * __'foldl''__ takes an operator argument of the form:</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-163"></span><span class="hs-comment">--     f :: b -- accumulated fold of the initial elements</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--       -&gt; a -- current element</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--       -&gt; b -- updated fold, inclusive of current element</span><span>
+</span><span id="line-166"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-167"></span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span class="hs-comment">--     If the structure's last element is @y@, the result of the fold is:</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--     g y . &amp;#x2026; . g c . g b . g a $ z</span><span>
+</span><span id="line-172"></span><span class="hs-comment">--       where g element !acc = f acc element</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--     Since 'foldl'' is strict in the accumulator, this is always</span><span>
+</span><span id="line-176"></span><span class="hs-comment">--     a [strict](#strict) reduction with no opportunity for early return or</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--     intermediate results.  The structure must be finite, since no result is</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--     returned until the last element is processed.  The advantage of</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--     strictness is space efficiency: the final result can be computed without</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--     storing a potentially deep stack of lazy intermediate results.</span><span>
+</span><span id="line-181"></span><span class="hs-comment">--</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- * __`foldr`__ takes an operator argument of the form:</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--     f :: a -- current element</span><span>
+</span><span id="line-186"></span><span class="hs-comment">--       -&gt; b -- accumulated fold of the remaining elements</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--       -&gt; b -- updated fold, inclusive of current element</span><span>
+</span><span id="line-188"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--</span><span>
+</span><span id="line-190"></span><span class="hs-comment">--     the result of the fold is:</span><span>
+</span><span id="line-191"></span><span class="hs-comment">--</span><span>
+</span><span id="line-192"></span><span class="hs-comment">--     @f a . f b . f c . &amp;#x2026; $ z@</span><span>
+</span><span id="line-193"></span><span class="hs-comment">--</span><span>
+</span><span id="line-194"></span><span class="hs-comment">--     If each call of @f@ on the current element @e@, (referenced as @(f e)@</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--     below) returns a structure in which its second argument is captured in a</span><span>
+</span><span id="line-196"></span><span class="hs-comment">--     lazily-evaluated component, then the fold of the remaining elements is</span><span>
+</span><span id="line-197"></span><span class="hs-comment">--     available to the caller of `foldr` as a pending computation (thunk) that</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--     is computed only when that component is evaluated.</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--     Alternatively, if any of the @(f e)@ ignore their second argument, the</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--     fold stops there, with the remaining elements unused.  As a result,</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--     `foldr` is well suited to define both [corecursive](#corec)</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--     and [short-circuit](#short) reductions.</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--     When the operator is always strict in its second argument, 'foldl'' is</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--     generally a better choice than `foldr`.  When `foldr` is called with a</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--     strict operator, evaluation cannot begin until the last element is</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--     reached, by which point a deep stack of pending function applications</span><span>
+</span><span id="line-209"></span><span class="hs-comment">--     may have been built up in memory.</span><span>
+</span><span id="line-210"></span><span class="hs-comment">--</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- $chirality</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- #chirality#</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- Foldable structures are generally expected to be efficiently iterable from</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- left to right. Right-to-left iteration may be substantially more costly, or</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- even impossible (as with, for example, infinite lists).  The text in the</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- sections that follow that suggests performance differences between</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- left-associative and right-associative folds assumes /left-handed/</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- structures in which left-to-right iteration is cheaper than right-to-left</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- iteration.</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- In finite structures for which right-to-left sequencing no less efficient</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- than left-to-right sequencing, there is no inherent performance distinction</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- between left-associative and right-associative folds.  If the structure's</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- @Foldable@ instance takes advantage of this symmetry to also make strict</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- right folds space-efficient and lazy left folds corecursive, one need only</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- take care to choose either a strict or lazy method for the task at hand.</span><span>
+</span><span id="line-229"></span><span class="hs-comment">--</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- Foldable instances for symmetric structures should strive to provide equally</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- performant left-associative and right-associative interfaces. The main</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- limitations are:</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- * The lazy 'fold', 'foldMap' and 'toList' methods have no right-associative</span><span>
+</span><span id="line-235"></span><span class="hs-comment">--   counterparts.</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- * The strict 'foldMap'' method has no left-associative counterpart.</span><span>
+</span><span id="line-237"></span><span class="hs-comment">--</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- Thus, for some foldable structures 'foldr'' is just as efficient as 'foldl''</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- for strict reduction, and 'foldl' may be just as appropriate for corecursive</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- folds as 'foldr'.</span><span>
+</span><span id="line-241"></span><span class="hs-comment">--</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- Finally, in some less common structures (e.g. /snoc/ lists) right to left</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- iterations are cheaper than left to right.  Such structures are poor</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- candidates for a @Foldable@ instance, and are perhaps best handled via their</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- type-specific interfaces.  If nevertheless a @Foldable@ instance is</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- provided, the material in the sections that follow applies to these also, by</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- replacing each method with one with the opposite associativity (when</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- available) and switching the order of arguments in the fold's /operator/.</span><span>
+</span><span id="line-249"></span><span class="hs-comment">--</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- You may need to pay careful attention to strictness of the fold's /operator/</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- when its strictness is different between its first and second argument.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- For example, while @('+')@ is expected to be commutative and strict in both</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- arguments, the list concatenation operator @('++')@ is not commutative and</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- is only strict in the initial constructor of its first argument.  The fold:</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- &gt; myconcat xs = foldr (\a b -&gt; a ++ b) [] xs</span><span>
+</span><span id="line-257"></span><span class="hs-comment">--</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- is substantially cheaper (linear in the length of the consumed portion of</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- the final list, thus e.g. constant time/space for just the first element)</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- than:</span><span>
+</span><span id="line-261"></span><span class="hs-comment">--</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- &gt; revconcat xs = foldr (\a b -&gt; b ++ a) [] xs</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- In which the total cost scales up with both the number of lists combined and</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- the number of elements ultimately consumed.  A more efficient way to combine</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- lists in reverse order, is to use:</span><span>
+</span><span id="line-267"></span><span class="hs-comment">--</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- &gt; revconcat = foldr (++) [] . reverse</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- $reduction</span><span>
+</span><span id="line-273"></span><span class="hs-comment">--</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- As observed in the [above description](#leftright) of left and right folds,</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- there are three general ways in which a structure can be reduced to a</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- summary value:</span><span>
+</span><span id="line-277"></span><span class="hs-comment">--</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- * __Recursive__ reduction, which is strict in all the elements of the</span><span>
+</span><span id="line-279"></span><span class="hs-comment">--   structure.  This produces a single final result only after processing the</span><span>
+</span><span id="line-280"></span><span class="hs-comment">--   entire input structure, and so the input must be finite.</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- * __Corecursion__, which yields intermediate results as it encounters</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--   additional input elements.  Lazy processing of the remaining elements</span><span>
+</span><span id="line-284"></span><span class="hs-comment">--   makes the intermediate results available even before the rest of the</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--   input is processed.  The input may be unbounded, and the caller can</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--   stop processing intermediate results early.</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- * __Short-circuit__ reduction, which examines some initial sequence of the</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--   input elements, but stops once a termination condition is met, returning a</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--   final result based only on the elements considered up to that point.  The</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--   remaining elements are not considered.  The input should generally be</span><span>
+</span><span id="line-292"></span><span class="hs-comment">--   finite, because the termination condition might otherwise never be met.</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- Whether a fold is recursive, corecursive or short-circuiting can depend on</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- both the method chosen to perform the fold and on the operator passed to</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- that method (which may be implicit, as with the `mappend` method of a monoid</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- instance).</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- There are also hybrid cases, where the method and/or operator are not well</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- suited to the task at hand, resulting in a fold that fails to yield</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- incremental results until the entire input is processed, or fails to</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- strictly evaluate results as it goes, deferring all the work to the</span><span>
+</span><span id="line-303"></span><span class="hs-comment">-- evaluation of a large final thunk.  Such cases should be avoided, either by</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- selecting a more appropriate @Foldable@ method, or by tailoring the operator</span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- to the chosen method.</span><span>
+</span><span id="line-306"></span><span class="hs-comment">--</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- The distinction between these types of folds is critical, both in deciding</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- which @Foldable@ method to use to perform the reduction efficiently, and in</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- writing @Foldable@ instances for new structures.  Below is a more detailed</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- overview of each type.</span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-313"></span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- $strict</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- #strict#</span><span>
+</span><span id="line-316"></span><span class="hs-comment">--</span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- Common examples of strict recursive reduction are the various /aggregate/</span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- functions, like 'sum', 'product', 'length', as well as more complex</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- summaries such as frequency counts.  These functions return only a single</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- value after processing the entire input structure.  In such cases, lazy</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- processing of the tail of the input structure is generally not only</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- unnecessary, but also inefficient.  Thus, these and similar folds should be</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- implemented in terms of strict left-associative @Foldable@ methods (typically</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- 'foldl'') to perform an efficient reduction in constant space.</span><span>
+</span><span id="line-325"></span><span class="hs-comment">--</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- Conversely, an implementation of @Foldable@ for a new structure should</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- ensure that 'foldl'' actually performs a strict left-associative reduction.</span><span>
+</span><span id="line-328"></span><span class="hs-comment">--</span><span>
+</span><span id="line-329"></span><span class="hs-comment">-- The 'foldMap'' method is a special case of 'foldl'', in which the initial</span><span>
+</span><span id="line-330"></span><span class="hs-comment">-- accumulator is `mempty` and the operator is @mappend . f@, where @f@ maps</span><span>
+</span><span id="line-331"></span><span class="hs-comment">-- each input element into the 'Monoid' in question.  Therefore, 'foldMap'' is</span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- an appropriate choice under essentially the same conditions as 'foldl'', and</span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- its implementation for a given @Foldable@ structure should also be a strict</span><span>
+</span><span id="line-334"></span><span class="hs-comment">-- left-associative reduction.</span><span>
+</span><span id="line-335"></span><span class="hs-comment">--</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- While the examples below are not necessarily the most optimal definitions of</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- the intended functions, they are all cases in which 'foldMap'' is far more</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- appropriate (as well as more efficient) than the lazy `foldMap`.</span><span>
+</span><span id="line-339"></span><span class="hs-comment">--</span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- &gt; length  = getSum     . foldMap' (const (Sum 1))</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-- &gt; sum     = getSum     . foldMap' Sum</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- &gt; product = getProduct . foldMap' Product</span><span>
+</span><span id="line-343"></span><span class="hs-comment">--</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- [ The actual default definitions employ coercions to optimise out</span><span>
+</span><span id="line-345"></span><span class="hs-comment">--   'getSum' and 'getProduct'. ]</span><span>
+</span><span id="line-346"></span><span>
+</span><span id="line-347"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- $strictlist</span><span>
+</span><span id="line-350"></span><span class="hs-comment">--</span><span>
+</span><span id="line-351"></span><span class="hs-comment">-- The full list of strict recursive functions in this module is:</span><span>
+</span><span id="line-352"></span><span class="hs-comment">--</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-- * Provided the operator is strict in its left argument:</span><span>
+</span><span id="line-354"></span><span class="hs-comment">--</span><span>
+</span><span id="line-355"></span><span class="hs-comment">--     @'foldl'' :: Foldable t =&gt; (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b@</span><span>
+</span><span id="line-356"></span><span class="hs-comment">--</span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- * Provided `mappend` is strict in its left argument:</span><span>
+</span><span id="line-358"></span><span class="hs-comment">--</span><span>
+</span><span id="line-359"></span><span class="hs-comment">--     @'foldMap'' :: (Foldable t, Monoid m) =&gt; (a -&gt; m) -&gt; t a -&gt; m@</span><span>
+</span><span id="line-360"></span><span class="hs-comment">--</span><span>
+</span><span id="line-361"></span><span class="hs-comment">-- * Provided the instance is correctly defined:</span><span>
+</span><span id="line-362"></span><span class="hs-comment">--</span><span>
+</span><span id="line-363"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-364"></span><span class="hs-comment">--     `length`    :: Foldable t =&gt; t a -&gt; Int</span><span>
+</span><span id="line-365"></span><span class="hs-comment">--     `sum`       :: (Foldable t, Num a) =&gt; t a -&gt; a</span><span>
+</span><span id="line-366"></span><span class="hs-comment">--     `product`   :: (Foldable t, Num a) =&gt; t a -&gt; a</span><span>
+</span><span id="line-367"></span><span class="hs-comment">--     `maximum`   :: (Foldable t, Ord a) =&gt; t a -&gt; a</span><span>
+</span><span id="line-368"></span><span class="hs-comment">--     `minimum`   :: (Foldable t, Ord a) =&gt; t a -&gt; a</span><span>
+</span><span id="line-369"></span><span class="hs-comment">--     `maximumBy` :: Foldable t =&gt; (a -&gt; a -&gt; Ordering) -&gt; t a -&gt; a</span><span>
+</span><span id="line-370"></span><span class="hs-comment">--     `minimumBy` :: Foldable t =&gt; (a -&gt; a -&gt; Ordering) -&gt; t a -&gt; a</span><span>
+</span><span id="line-371"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-372"></span><span>
+</span><span id="line-373"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-374"></span><span>
+</span><span id="line-375"></span><span class="hs-comment">-- $lazy</span><span>
+</span><span id="line-376"></span><span class="hs-comment">--</span><span>
+</span><span id="line-377"></span><span class="hs-comment">-- #corec#</span><span>
+</span><span id="line-378"></span><span class="hs-comment">-- Common examples of lazy corecursive reduction are functions that map and</span><span>
+</span><span id="line-379"></span><span class="hs-comment">-- flatten a structure to a lazy stream of result values, i.e.  an iterator</span><span>
+</span><span id="line-380"></span><span class="hs-comment">-- over the transformed input elements.  In such cases, it is important to</span><span>
+</span><span id="line-381"></span><span class="hs-comment">-- choose a @Foldable@ method that is lazy in the tail of the structure, such</span><span>
+</span><span id="line-382"></span><span class="hs-comment">-- as `foldr` (or `foldMap`, if the result @Monoid@ has a lazy `mappend` as</span><span>
+</span><span id="line-383"></span><span class="hs-comment">-- with e.g. ByteString Builders).</span><span>
+</span><span id="line-384"></span><span class="hs-comment">--</span><span>
+</span><span id="line-385"></span><span class="hs-comment">-- Conversely, an implementation of `foldr` for a structure that can</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- accommodate a large (and possibly unbounded) number of elements is expected</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- to be lazy in the tail of the input, allowing operators that are lazy in the</span><span>
+</span><span id="line-388"></span><span class="hs-comment">-- accumulator to yield intermediate results incrementally.  Such folds are</span><span>
+</span><span id="line-389"></span><span class="hs-comment">-- right-associative, with the tail of the stream returned as a lazily</span><span>
+</span><span id="line-390"></span><span class="hs-comment">-- evaluated component of the result (an element of a tuple or some other</span><span>
+</span><span id="line-391"></span><span class="hs-comment">-- non-strict constructor, e.g. the @(:)@ constructor for lists).</span><span>
+</span><span id="line-392"></span><span class="hs-comment">--</span><span>
+</span><span id="line-393"></span><span class="hs-comment">-- The @toList@ function below lazily transforms a @Foldable@ structure to a</span><span>
+</span><span id="line-394"></span><span class="hs-comment">-- List.  Note that this transformation may be lossy, e.g.  for a keyed</span><span>
+</span><span id="line-395"></span><span class="hs-comment">-- container (@Map@, @HashMap@, &amp;#x2026;) the output stream holds only the</span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- values, not the keys.  Lossless transformations to\/from lists of @(key,</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- value)@ pairs are typically available in the modules for the specific</span><span>
+</span><span id="line-398"></span><span class="hs-comment">-- container types.</span><span>
+</span><span id="line-399"></span><span class="hs-comment">--</span><span>
+</span><span id="line-400"></span><span class="hs-comment">-- &gt; toList = foldr (:) []</span><span>
+</span><span id="line-401"></span><span class="hs-comment">--</span><span>
+</span><span id="line-402"></span><span class="hs-comment">-- A more complex example is concatenation of a list of lists expressed as a</span><span>
+</span><span id="line-403"></span><span class="hs-comment">-- nested right fold (bypassing @('++')@).  We can check that the definition is</span><span>
+</span><span id="line-404"></span><span class="hs-comment">-- indeed lazy by folding an infinite list of lists, and taking an initial</span><span>
+</span><span id="line-405"></span><span class="hs-comment">-- segment.</span><span>
+</span><span id="line-406"></span><span class="hs-comment">--</span><span>
+</span><span id="line-407"></span><span class="hs-comment">-- &gt;&gt;&gt; myconcat = foldr (\x z -&gt; foldr (:) z x) []</span><span>
+</span><span id="line-408"></span><span class="hs-comment">-- &gt;&gt;&gt; take 15 $ myconcat $ map (\i -&gt; [0..i]) [0..]</span><span>
+</span><span id="line-409"></span><span class="hs-comment">-- [0,0,1,0,1,2,0,1,2,3,0,1,2,3,4]</span><span>
+</span><span id="line-410"></span><span class="hs-comment">--</span><span>
+</span><span id="line-411"></span><span class="hs-comment">-- Of course in this case another way to achieve the same result is via a</span><span>
+</span><span id="line-412"></span><span class="hs-comment">-- list comprehension:</span><span>
+</span><span id="line-413"></span><span class="hs-comment">--</span><span>
+</span><span id="line-414"></span><span class="hs-comment">-- &gt; myconcat xss = [x | xs &lt;- xss, x &lt;- xs]</span><span>
+</span><span id="line-415"></span><span>
+</span><span id="line-416"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-417"></span><span>
+</span><span id="line-418"></span><span class="hs-comment">-- $lazylist</span><span>
+</span><span id="line-419"></span><span class="hs-comment">--</span><span>
+</span><span id="line-420"></span><span class="hs-comment">-- The full list of lazy corecursive functions in this module is:</span><span>
+</span><span id="line-421"></span><span class="hs-comment">--</span><span>
+</span><span id="line-422"></span><span class="hs-comment">-- * Provided the reduction function is lazy in its second argument,</span><span>
+</span><span id="line-423"></span><span class="hs-comment">--   (otherwise best to use a strict recursive reduction):</span><span>
+</span><span id="line-424"></span><span class="hs-comment">--</span><span>
+</span><span id="line-425"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-426"></span><span class="hs-comment">--     `foldr`  :: Foldable t =&gt; (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b</span><span>
+</span><span id="line-427"></span><span class="hs-comment">--     `foldr1` :: Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a</span><span>
+</span><span id="line-428"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-429"></span><span class="hs-comment">--</span><span>
+</span><span id="line-430"></span><span class="hs-comment">-- * Provided the 'Monoid' `mappend` is lazy in its second argument</span><span>
+</span><span id="line-431"></span><span class="hs-comment">--   (otherwise best to use a strict recursive reduction):</span><span>
+</span><span id="line-432"></span><span class="hs-comment">--</span><span>
+</span><span id="line-433"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-434"></span><span class="hs-comment">--     `fold`    :: Foldable t =&gt; Monoid m =&gt; t m -&gt; m</span><span>
+</span><span id="line-435"></span><span class="hs-comment">--     `foldMap` :: Foldable t =&gt; Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m</span><span>
+</span><span id="line-436"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-437"></span><span class="hs-comment">--</span><span>
+</span><span id="line-438"></span><span class="hs-comment">-- * Provided the instance is correctly defined:</span><span>
+</span><span id="line-439"></span><span class="hs-comment">--</span><span>
+</span><span id="line-440"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-441"></span><span class="hs-comment">--     `toList`    :: Foldable t =&gt; t a -&gt; [a]</span><span>
+</span><span id="line-442"></span><span class="hs-comment">--     `concat`    :: Foldable t =&gt; t [a] -&gt; [a]</span><span>
+</span><span id="line-443"></span><span class="hs-comment">--     `concatMap` :: Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]</span><span>
+</span><span id="line-444"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-445"></span><span>
+</span><span id="line-446"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-447"></span><span>
+</span><span id="line-448"></span><span class="hs-comment">-- $shortcircuit</span><span>
+</span><span id="line-449"></span><span class="hs-comment">--</span><span>
+</span><span id="line-450"></span><span class="hs-comment">-- #short#</span><span>
+</span><span id="line-451"></span><span class="hs-comment">-- Examples of short-circuit reduction include various boolean predicates that</span><span>
+</span><span id="line-452"></span><span class="hs-comment">-- test whether some or all the elements of a structure satisfy a given</span><span>
+</span><span id="line-453"></span><span class="hs-comment">-- condition.  Because these don't necessarily consume the entire list, they</span><span>
+</span><span id="line-454"></span><span class="hs-comment">-- typically employ `foldr` with an operator that is conditionally strict in</span><span>
+</span><span id="line-455"></span><span class="hs-comment">-- its second argument.  Once the termination condition is met the second</span><span>
+</span><span id="line-456"></span><span class="hs-comment">-- argument (tail of the input structure) is ignored.  No result is returned</span><span>
+</span><span id="line-457"></span><span class="hs-comment">-- until that happens.</span><span>
+</span><span id="line-458"></span><span class="hs-comment">--</span><span>
+</span><span id="line-459"></span><span class="hs-comment">-- The key distinguishing feature of these folds is /conditional/ strictness</span><span>
+</span><span id="line-460"></span><span class="hs-comment">-- in the second argument, it is sometimes evaluated and sometimes not.</span><span>
+</span><span id="line-461"></span><span class="hs-comment">--</span><span>
+</span><span id="line-462"></span><span class="hs-comment">-- The simplest (degenerate case) of these is 'null', which determines whether</span><span>
+</span><span id="line-463"></span><span class="hs-comment">-- a structure is empty or not.  This only needs to look at the first element,</span><span>
+</span><span id="line-464"></span><span class="hs-comment">-- and only to the extent of whether it exists or not, and not its value.  In</span><span>
+</span><span id="line-465"></span><span class="hs-comment">-- this case termination is guaranteed, and infinite input structures are fine.</span><span>
+</span><span id="line-466"></span><span class="hs-comment">-- Its default definition is of course in terms of the lazy 'foldr':</span><span>
+</span><span id="line-467"></span><span class="hs-comment">--</span><span>
+</span><span id="line-468"></span><span class="hs-comment">-- &gt; null = foldr (\_ _ -&gt; False) True</span><span>
+</span><span id="line-469"></span><span class="hs-comment">--</span><span>
+</span><span id="line-470"></span><span class="hs-comment">-- A more general example is `any`, which applies a predicate to each input</span><span>
+</span><span id="line-471"></span><span class="hs-comment">-- element in turn until it finds the first one for which the predicate is</span><span>
+</span><span id="line-472"></span><span class="hs-comment">-- true, at which point it returns success.  If, in an infinite input stream</span><span>
+</span><span id="line-473"></span><span class="hs-comment">-- the predicate is false for all the elements, `any` will not terminate,</span><span>
+</span><span id="line-474"></span><span class="hs-comment">-- but since it runs in constant space, it typically won't run out of memory,</span><span>
+</span><span id="line-475"></span><span class="hs-comment">-- it'll just loop forever.</span><span>
+</span><span id="line-476"></span><span>
+</span><span id="line-477"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-478"></span><span>
+</span><span id="line-479"></span><span class="hs-comment">-- $shortlist</span><span>
+</span><span id="line-480"></span><span class="hs-comment">--</span><span>
+</span><span id="line-481"></span><span class="hs-comment">-- The full list of short-circuit folds in this module is:</span><span>
+</span><span id="line-482"></span><span class="hs-comment">--</span><span>
+</span><span id="line-483"></span><span class="hs-comment">-- * Boolean predicate folds.</span><span>
+</span><span id="line-484"></span><span class="hs-comment">--   These functions examine elements strictly until a condition is met,</span><span>
+</span><span id="line-485"></span><span class="hs-comment">--   but then return a result ignoring the rest (lazy in the tail).  These</span><span>
+</span><span id="line-486"></span><span class="hs-comment">--   may loop forever given an unbounded input where no elements satisfy the</span><span>
+</span><span id="line-487"></span><span class="hs-comment">--   termination condition.</span><span>
+</span><span id="line-488"></span><span class="hs-comment">--</span><span>
+</span><span id="line-489"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-490"></span><span class="hs-comment">--     `null`    :: Foldable t =&gt; t a -&gt; Bool</span><span>
+</span><span id="line-491"></span><span class="hs-comment">--     `elem`    :: Foldable t =&gt; Eq a =&gt; a -&gt; t a -&gt; Bool</span><span>
+</span><span id="line-492"></span><span class="hs-comment">--     `notElem` :: (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool</span><span>
+</span><span id="line-493"></span><span class="hs-comment">--     `and`     :: Foldable t =&gt; t Bool -&gt; Bool</span><span>
+</span><span id="line-494"></span><span class="hs-comment">--     `or`      :: Foldable t =&gt; t Bool -&gt; Bool</span><span>
+</span><span id="line-495"></span><span class="hs-comment">--     `find`    :: Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Maybe a</span><span>
+</span><span id="line-496"></span><span class="hs-comment">--     `any`     :: Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool</span><span>
+</span><span id="line-497"></span><span class="hs-comment">--     `all`     :: Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool</span><span>
+</span><span id="line-498"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-499"></span><span class="hs-comment">--</span><span>
+</span><span id="line-500"></span><span class="hs-comment">-- * Many instances of @('&lt;|&gt;')@ (e.g. the 'Maybe' instance) are conditionally</span><span>
+</span><span id="line-501"></span><span class="hs-comment">--   lazy, and use or don't use their second argument depending on the value</span><span>
+</span><span id="line-502"></span><span class="hs-comment">--   of the first.  These are used with the folds below, which terminate as</span><span>
+</span><span id="line-503"></span><span class="hs-comment">--   early as possible, but otherwise generally keep going.  Some instances</span><span>
+</span><span id="line-504"></span><span class="hs-comment">--   (e.g. for List) are always strict, but the result is lazy in the tail</span><span>
+</span><span id="line-505"></span><span class="hs-comment">--   of the output, so that `asum` for a list of lists is in fact corecursive.</span><span>
+</span><span id="line-506"></span><span class="hs-comment">--   These folds are defined in terms of `foldr`.</span><span>
+</span><span id="line-507"></span><span class="hs-comment">--</span><span>
+</span><span id="line-508"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-509"></span><span class="hs-comment">--     `asum` :: (Foldable t, Alternative f) =&gt; t (f a) -&gt; f a</span><span>
+</span><span id="line-510"></span><span class="hs-comment">--     `msum` :: (Foldable t, MonadPlus m) =&gt; t (m a) -&gt; m a</span><span>
+</span><span id="line-511"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-512"></span><span class="hs-comment">--</span><span>
+</span><span id="line-513"></span><span class="hs-comment">-- * Likewise, the @('*&gt;')@ operator in some `Applicative` functors, and @('&gt;&gt;')@</span><span>
+</span><span id="line-514"></span><span class="hs-comment">--   in some monads are conditionally lazy and can /short-circuit/ a chain of</span><span>
+</span><span id="line-515"></span><span class="hs-comment">--   computations.  The below folds will terminate as early as possible, but</span><span>
+</span><span id="line-516"></span><span class="hs-comment">--   even infinite loops can be productive here, when evaluated solely for</span><span>
+</span><span id="line-517"></span><span class="hs-comment">--   their stream of IO side-effects.  See &quot;Data.Traversable#effectful&quot;</span><span>
+</span><span id="line-518"></span><span class="hs-comment">--   for discussion of related functions.</span><span>
+</span><span id="line-519"></span><span class="hs-comment">--</span><span>
+</span><span id="line-520"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-521"></span><span class="hs-comment">--     `traverse_`  :: (Foldable t, Applicative f) =&gt; (a -&gt; f b) -&gt; t a -&gt; f ()</span><span>
+</span><span id="line-522"></span><span class="hs-comment">--     `for_`       :: (Foldable t, Applicative f) =&gt; t a -&gt; (a -&gt; f b) -&gt; f ()</span><span>
+</span><span id="line-523"></span><span class="hs-comment">--     `sequenceA_` :: (Foldable t, Applicative f) =&gt; t (f a) -&gt; f ()</span><span>
+</span><span id="line-524"></span><span class="hs-comment">--     `mapM_`      :: (Foldable t, Monad m) =&gt; (a -&gt; m b) -&gt; t a -&gt; m ()</span><span>
+</span><span id="line-525"></span><span class="hs-comment">--     `forM_`      :: (Foldable t, Monad m) =&gt; t a -&gt; (a -&gt; m b) -&gt; m ()</span><span>
+</span><span id="line-526"></span><span class="hs-comment">--     `sequence_`  :: (Foldable t, Monad m) =&gt; t (m a) -&gt; m ()</span><span>
+</span><span id="line-527"></span><span class="hs-comment">--     @</span><span>
+</span><span id="line-528"></span><span class="hs-comment">--</span><span>
+</span><span id="line-529"></span><span class="hs-comment">-- * Finally, there's one more special case, `foldlM`:</span><span>
+</span><span id="line-530"></span><span class="hs-comment">--</span><span>
+</span><span id="line-531"></span><span class="hs-comment">--     @`foldlM` :: (Foldable t, Monad m) =&gt; (b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b@</span><span>
+</span><span id="line-532"></span><span class="hs-comment">--</span><span>
+</span><span id="line-533"></span><span class="hs-comment">--     The sequencing of monadic effects proceeds from left to right.  If at</span><span>
+</span><span id="line-534"></span><span class="hs-comment">--     some step the bind operator @('&gt;&gt;=')@ short-circuits (as with, e.g.,</span><span>
+</span><span id="line-535"></span><span class="hs-comment">--     'mzero' with a 'MonadPlus', or an exception with a 'MonadThrow', etc.),</span><span>
+</span><span id="line-536"></span><span class="hs-comment">--     then the evaluated effects will be from an initial portion of the</span><span>
+</span><span id="line-537"></span><span class="hs-comment">--     element sequence.</span><span>
+</span><span id="line-538"></span><span class="hs-comment">--</span><span>
+</span><span id="line-539"></span><span class="hs-comment">--     &gt;&gt;&gt; :set -XBangPatterns</span><span>
+</span><span id="line-540"></span><span class="hs-comment">--     &gt;&gt;&gt; import Control.Monad</span><span>
+</span><span id="line-541"></span><span class="hs-comment">--     &gt;&gt;&gt; import Control.Monad.Trans.Class</span><span>
+</span><span id="line-542"></span><span class="hs-comment">--     &gt;&gt;&gt; import Control.Monad.Trans.Maybe</span><span>
+</span><span id="line-543"></span><span class="hs-comment">--     &gt;&gt;&gt; import Data.Foldable</span><span>
+</span><span id="line-544"></span><span class="hs-comment">--     &gt;&gt;&gt; let f !_ e = when (e &gt; 3) mzero &gt;&gt; lift (print e)</span><span>
+</span><span id="line-545"></span><span class="hs-comment">--     &gt;&gt;&gt; runMaybeT $ foldlM f () [0..]</span><span>
+</span><span id="line-546"></span><span class="hs-comment">--     0</span><span>
+</span><span id="line-547"></span><span class="hs-comment">--     1</span><span>
+</span><span id="line-548"></span><span class="hs-comment">--     2</span><span>
+</span><span id="line-549"></span><span class="hs-comment">--     3</span><span>
+</span><span id="line-550"></span><span class="hs-comment">--     Nothing</span><span>
+</span><span id="line-551"></span><span class="hs-comment">--</span><span>
+</span><span id="line-552"></span><span class="hs-comment">--     Contrast this with `foldrM`, which sequences monadic effects from right</span><span>
+</span><span id="line-553"></span><span class="hs-comment">--     to left, and therefore diverges when folding an unbounded input</span><span>
+</span><span id="line-554"></span><span class="hs-comment">--     structure without ever having the opportunity to short-circuit.</span><span>
+</span><span id="line-555"></span><span class="hs-comment">--</span><span>
+</span><span id="line-556"></span><span class="hs-comment">--     &gt;&gt;&gt; let f e _ = when (e &gt; 3) mzero &gt;&gt; lift (print e)</span><span>
+</span><span id="line-557"></span><span class="hs-comment">--     &gt;&gt;&gt; runMaybeT $ foldrM f () [0..]</span><span>
+</span><span id="line-558"></span><span class="hs-comment">--     ...hangs...</span><span>
+</span><span id="line-559"></span><span class="hs-comment">--</span><span>
+</span><span id="line-560"></span><span class="hs-comment">--     When the structure is finite `foldrM` performs the monadic effects from</span><span>
+</span><span id="line-561"></span><span class="hs-comment">--     right to left, possibly short-circuiting after processing a tail portion</span><span>
+</span><span id="line-562"></span><span class="hs-comment">--     of the element sequence.</span><span>
+</span><span id="line-563"></span><span class="hs-comment">--</span><span>
+</span><span id="line-564"></span><span class="hs-comment">--     &gt;&gt;&gt; let f e _ = when (e &lt; 3) mzero &gt;&gt; lift (print e)</span><span>
+</span><span id="line-565"></span><span class="hs-comment">--     &gt;&gt;&gt; runMaybeT $ foldrM f () [0..5]</span><span>
+</span><span id="line-566"></span><span class="hs-comment">--     5</span><span>
+</span><span id="line-567"></span><span class="hs-comment">--     4</span><span>
+</span><span id="line-568"></span><span class="hs-comment">--     3</span><span>
+</span><span id="line-569"></span><span class="hs-comment">--     Nothing</span><span>
+</span><span id="line-570"></span><span>
+</span><span id="line-571"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-572"></span><span>
+</span><span id="line-573"></span><span class="hs-comment">-- $hybrid</span><span>
+</span><span id="line-574"></span><span class="hs-comment">--</span><span>
+</span><span id="line-575"></span><span class="hs-comment">-- The below folds, are neither strict reductions that produce a final answer</span><span>
+</span><span id="line-576"></span><span class="hs-comment">-- in constant space, nor lazy corecursions, and so have limited applicability.</span><span>
+</span><span id="line-577"></span><span class="hs-comment">-- They do have specialised uses, but are best avoided when in doubt.</span><span>
+</span><span id="line-578"></span><span class="hs-comment">--</span><span>
+</span><span id="line-579"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-580"></span><span class="hs-comment">-- 'foldr'' :: Foldable t =&gt; (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b</span><span>
+</span><span id="line-581"></span><span class="hs-comment">-- 'foldl'  :: Foldable t =&gt; (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b</span><span>
+</span><span id="line-582"></span><span class="hs-comment">-- 'foldl1' :: Foldable t =&gt; (a -&gt; a -&gt; a) -&gt; t a -&gt; a</span><span>
+</span><span id="line-583"></span><span class="hs-comment">-- 'foldrM' :: (Foldable t, Monad m) =&gt; (a -&gt; b -&gt; m b) -&gt; b -&gt; t a -&gt; m b</span><span>
+</span><span id="line-584"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-585"></span><span class="hs-comment">--</span><span>
+</span><span id="line-586"></span><span class="hs-comment">-- The lazy left-folds (used corecursively) and 'foldrM' (used to sequence</span><span>
+</span><span id="line-587"></span><span class="hs-comment">-- actions right-to-left) can be performant in structures whose @Foldable@</span><span>
+</span><span id="line-588"></span><span class="hs-comment">-- instances take advantage of efficient right-to-left iteration to compute</span><span>
+</span><span id="line-589"></span><span class="hs-comment">-- lazy left folds outside-in from the rightmost element.</span><span>
+</span><span id="line-590"></span><span class="hs-comment">--</span><span>
+</span><span id="line-591"></span><span class="hs-comment">-- The strict 'foldr'' is the least likely to be useful, structures that</span><span>
+</span><span id="line-592"></span><span class="hs-comment">-- support efficient sequencing /only/ right-to-left are not common.</span><span>
+</span><span id="line-593"></span><span>
+</span><span id="line-594"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-595"></span><span>
+</span><span id="line-596"></span><span class="hs-comment">-- $instances</span><span>
+</span><span id="line-597"></span><span class="hs-comment">--</span><span>
+</span><span id="line-598"></span><span class="hs-comment">-- #instances#</span><span>
+</span><span id="line-599"></span><span class="hs-comment">-- For many structures reasonably efficient @Foldable@ instances can be derived</span><span>
+</span><span id="line-600"></span><span class="hs-comment">-- automatically, by enabling the @DeriveFoldable@ GHC extension.  When this</span><span>
+</span><span id="line-601"></span><span class="hs-comment">-- works, it is generally not necessary to define a custom instance by hand.</span><span>
+</span><span id="line-602"></span><span class="hs-comment">-- Though in some cases one may be able to get slightly faster hand-tuned code,</span><span>
+</span><span id="line-603"></span><span class="hs-comment">-- care is required to avoid producing slower code, or code that is not</span><span>
+</span><span id="line-604"></span><span class="hs-comment">-- sufficiently lazy, strict or /lawful/.</span><span>
+</span><span id="line-605"></span><span class="hs-comment">--</span><span>
+</span><span id="line-606"></span><span class="hs-comment">-- The hand-crafted instances can get away with only defining one of 'foldr' or</span><span>
+</span><span id="line-607"></span><span class="hs-comment">-- 'foldMap'.  All the other methods have default definitions in terms of one</span><span>
+</span><span id="line-608"></span><span class="hs-comment">-- of these.  The default definitions have the expected strictness and the</span><span>
+</span><span id="line-609"></span><span class="hs-comment">-- expected asymptotic runtime and space costs, modulo small constant factors.</span><span>
+</span><span id="line-610"></span><span class="hs-comment">-- If you choose to hand-tune, benchmarking is advised to see whether you're</span><span>
+</span><span id="line-611"></span><span class="hs-comment">-- doing better than the default derived implementations, plus careful tests to</span><span>
+</span><span id="line-612"></span><span class="hs-comment">-- ensure that the custom methods are correct.</span><span>
+</span><span id="line-613"></span><span class="hs-comment">--</span><span>
+</span><span id="line-614"></span><span class="hs-comment">-- Below we construct a @Foldable@ instance for a data type representing a</span><span>
+</span><span id="line-615"></span><span class="hs-comment">-- (finite) binary tree with depth-first traversal.</span><span>
+</span><span id="line-616"></span><span class="hs-comment">--</span><span>
+</span><span id="line-617"></span><span class="hs-comment">-- &gt; data Tree a = Empty | Leaf a | Node (Tree a) a (Tree a)</span><span>
+</span><span id="line-618"></span><span class="hs-comment">--</span><span>
+</span><span id="line-619"></span><span class="hs-comment">-- a suitable instance would be:</span><span>
+</span><span id="line-620"></span><span class="hs-comment">--</span><span>
+</span><span id="line-621"></span><span class="hs-comment">-- &gt; instance Foldable Tree where</span><span>
+</span><span id="line-622"></span><span class="hs-comment">-- &gt;    foldr f z Empty = z</span><span>
+</span><span id="line-623"></span><span class="hs-comment">-- &gt;    foldr f z (Leaf x) = f x z</span><span>
+</span><span id="line-624"></span><span class="hs-comment">-- &gt;    foldr f z (Node l k r) = foldr f (f k (foldr f z r)) l</span><span>
+</span><span id="line-625"></span><span class="hs-comment">--</span><span>
+</span><span id="line-626"></span><span class="hs-comment">-- The 'Node' case is a right fold of the left subtree whose initial</span><span>
+</span><span id="line-627"></span><span class="hs-comment">-- value is a right fold of the rest of the tree.</span><span>
+</span><span id="line-628"></span><span class="hs-comment">--</span><span>
+</span><span id="line-629"></span><span class="hs-comment">-- For example, when @f@ is @(':')@, all three cases return an immediate value,</span><span>
+</span><span id="line-630"></span><span class="hs-comment">-- respectively @z@ or a /cons cell/ holding @x@ or @l@, with the remainder the</span><span>
+</span><span id="line-631"></span><span class="hs-comment">-- structure, if any, encapsulated in a lazy thunk.  This meets the expected</span><span>
+</span><span id="line-632"></span><span class="hs-comment">-- efficient [corecursive](#corec) behaviour of 'foldr'.</span><span>
+</span><span id="line-633"></span><span class="hs-comment">--</span><span>
+</span><span id="line-634"></span><span class="hs-comment">-- Alternatively, one could define @foldMap@:</span><span>
+</span><span id="line-635"></span><span class="hs-comment">--</span><span>
+</span><span id="line-636"></span><span class="hs-comment">-- &gt; instance Foldable Tree where</span><span>
+</span><span id="line-637"></span><span class="hs-comment">-- &gt;    foldMap f Empty = mempty</span><span>
+</span><span id="line-638"></span><span class="hs-comment">-- &gt;    foldMap f (Leaf x) = f x</span><span>
+</span><span id="line-639"></span><span class="hs-comment">-- &gt;    foldMap f (Node l k r) = foldMap f l &lt;&gt; f k &lt;&gt; foldMap f r</span><span>
+</span><span id="line-640"></span><span class="hs-comment">--</span><span>
+</span><span id="line-641"></span><span class="hs-comment">-- And indeed some efficiency may be gained by directly defining both,</span><span>
+</span><span id="line-642"></span><span class="hs-comment">-- avoiding some indirection in the default definitions that express</span><span>
+</span><span id="line-643"></span><span class="hs-comment">-- one in terms of the other.  If you implement just one, likely 'foldr'</span><span>
+</span><span id="line-644"></span><span class="hs-comment">-- is the better choice.</span><span>
+</span><span id="line-645"></span><span class="hs-comment">--</span><span>
+</span><span id="line-646"></span><span class="hs-comment">-- A binary tree typically (when balanced, or randomly biased) provides equally</span><span>
+</span><span id="line-647"></span><span class="hs-comment">-- efficient access to its left and right subtrees.  This makes it possible to</span><span>
+</span><span id="line-648"></span><span class="hs-comment">-- define a `foldl` optimised for [corecursive](#corec) folds with operators</span><span>
+</span><span id="line-649"></span><span class="hs-comment">-- that are lazy in their first (left) argument.</span><span>
+</span><span id="line-650"></span><span class="hs-comment">--</span><span>
+</span><span id="line-651"></span><span class="hs-comment">-- &gt; instance Foldable Tree where</span><span>
+</span><span id="line-652"></span><span class="hs-comment">-- &gt;    foldr f z Empty = z</span><span>
+</span><span id="line-653"></span><span class="hs-comment">-- &gt;    foldr f z (Leaf x) = f x z</span><span>
+</span><span id="line-654"></span><span class="hs-comment">-- &gt;    foldr f z (Node l k r) = foldr f (f k (foldr f z r)) l</span><span>
+</span><span id="line-655"></span><span class="hs-comment">-- &gt;    --</span><span>
+</span><span id="line-656"></span><span class="hs-comment">-- &gt;    foldMap f Empty = mempty</span><span>
+</span><span id="line-657"></span><span class="hs-comment">-- &gt;    foldMap f (Leaf x) = f x</span><span>
+</span><span id="line-658"></span><span class="hs-comment">-- &gt;    foldMap f (Node l k r) = foldMap f l &lt;&gt; f k &lt;&gt; foldMap f r</span><span>
+</span><span id="line-659"></span><span class="hs-comment">-- &gt;    --</span><span>
+</span><span id="line-660"></span><span class="hs-comment">-- &gt;    foldl f z Empty = z</span><span>
+</span><span id="line-661"></span><span class="hs-comment">-- &gt;    foldl f z (Leaf x) = f z x</span><span>
+</span><span id="line-662"></span><span class="hs-comment">-- &gt;    foldl f z (Node l k r) = foldl f (f (foldl f z l) k) r</span><span>
+</span><span id="line-663"></span><span class="hs-comment">--</span><span>
+</span><span id="line-664"></span><span class="hs-comment">-- Now left-to-right and right-to-left iteration over the structure</span><span>
+</span><span id="line-665"></span><span class="hs-comment">-- elements are equally efficient (note the mirror-order output when</span><span>
+</span><span id="line-666"></span><span class="hs-comment">-- using `foldl`):</span><span>
+</span><span id="line-667"></span><span class="hs-comment">--</span><span>
+</span><span id="line-668"></span><span class="hs-comment">-- &gt;&gt;&gt; foldr (\e acc -&gt; e : acc) [] (Node (Leaf 1) 2 (Leaf 3))</span><span>
+</span><span id="line-669"></span><span class="hs-comment">-- [1,2,3]</span><span>
+</span><span id="line-670"></span><span class="hs-comment">-- &gt;&gt;&gt; foldl (\acc e -&gt; e : acc) [] (Node (Leaf 1) 2 (Leaf 3))</span><span>
+</span><span id="line-671"></span><span class="hs-comment">-- [3,2,1]</span><span>
+</span><span id="line-672"></span><span class="hs-comment">--</span><span>
+</span><span id="line-673"></span><span class="hs-comment">-- We can carry this further, and define more non-default methods...</span><span>
+</span><span id="line-674"></span><span class="hs-comment">--</span><span>
+</span><span id="line-675"></span><span class="hs-comment">-- The structure definition actually admits trees that are unbounded on either</span><span>
+</span><span id="line-676"></span><span class="hs-comment">-- or both sides.  The only fold that can plausibly terminate for a tree</span><span>
+</span><span id="line-677"></span><span class="hs-comment">-- unbounded on both left and right is `null`, when defined as shown below.</span><span>
+</span><span id="line-678"></span><span class="hs-comment">-- The default definition in terms of `foldr` diverges if the tree is unbounded</span><span>
+</span><span id="line-679"></span><span class="hs-comment">-- on the left.  Here we define a variant that avoids travelling down the tree</span><span>
+</span><span id="line-680"></span><span class="hs-comment">-- to find the leftmost element and just examines the root node.</span><span>
+</span><span id="line-681"></span><span class="hs-comment">--</span><span>
+</span><span id="line-682"></span><span class="hs-comment">-- &gt;    null Empty = True</span><span>
+</span><span id="line-683"></span><span class="hs-comment">-- &gt;    null _     = False</span><span>
+</span><span id="line-684"></span><span class="hs-comment">--</span><span>
+</span><span id="line-685"></span><span class="hs-comment">-- This is a sound choice also for finite trees.</span><span>
+</span><span id="line-686"></span><span class="hs-comment">--</span><span>
+</span><span id="line-687"></span><span class="hs-comment">-- In practice, unbounded trees are quite uncommon, and can barely be said to</span><span>
+</span><span id="line-688"></span><span class="hs-comment">-- be @Foldable@.  They would typically employ breadth first traversal, and</span><span>
+</span><span id="line-689"></span><span class="hs-comment">-- would support only corecursive and short-circuit folds (diverge under strict</span><span>
+</span><span id="line-690"></span><span class="hs-comment">-- reduction).</span><span>
+</span><span id="line-691"></span><span class="hs-comment">--</span><span>
+</span><span id="line-692"></span><span class="hs-comment">-- Returning to simpler instances, defined just in terms of `foldr`, it is</span><span>
+</span><span id="line-693"></span><span class="hs-comment">-- somewhat surprising that a fairly efficient /default/ implementation of the</span><span>
+</span><span id="line-694"></span><span class="hs-comment">-- strict 'foldl'' is defined in terms of lazy `foldr` when only the latter is</span><span>
+</span><span id="line-695"></span><span class="hs-comment">-- explicitly provided by the instance.  It may be instructive to take a look</span><span>
+</span><span id="line-696"></span><span class="hs-comment">-- at how this works.</span><span>
+</span><span id="line-697"></span><span>
+</span><span id="line-698"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-699"></span><span>
+</span><span id="line-700"></span><span class="hs-comment">-- $strictlazy</span><span>
+</span><span id="line-701"></span><span class="hs-comment">--</span><span>
+</span><span id="line-702"></span><span class="hs-comment">-- #strictlazy#</span><span>
+</span><span id="line-703"></span><span class="hs-comment">--</span><span>
+</span><span id="line-704"></span><span class="hs-comment">-- Sometimes, it is useful for the result of applying 'foldr' to be a</span><span>
+</span><span id="line-705"></span><span class="hs-comment">-- /function/.  This is done by mapping the structure elements to functions</span><span>
+</span><span id="line-706"></span><span class="hs-comment">-- with the same argument and result types.  The per-element functions are then</span><span>
+</span><span id="line-707"></span><span class="hs-comment">-- composed to give the final result.</span><span>
+</span><span id="line-708"></span><span class="hs-comment">--</span><span>
+</span><span id="line-709"></span><span class="hs-comment">-- For example, we can /flip/ the strict left fold 'foldl'' by writing:</span><span>
+</span><span id="line-710"></span><span class="hs-comment">--</span><span>
+</span><span id="line-711"></span><span class="hs-comment">-- &gt; foldl' f z xs = flippedFoldl' f xs z</span><span>
+</span><span id="line-712"></span><span class="hs-comment">--</span><span>
+</span><span id="line-713"></span><span class="hs-comment">-- with the function 'flippedFoldl'' defined as below, with 'seq' used to</span><span>
+</span><span id="line-714"></span><span class="hs-comment">-- ensure the strictness in the accumulator:</span><span>
+</span><span id="line-715"></span><span class="hs-comment">--</span><span>
+</span><span id="line-716"></span><span class="hs-comment">-- &gt; flippedFoldl' f [] z = z</span><span>
+</span><span id="line-717"></span><span class="hs-comment">-- &gt; flippedFoldl' f (x : xs) z = z `seq` flippedFoldl' f xs (f z x)</span><span>
+</span><span id="line-718"></span><span class="hs-comment">--</span><span>
+</span><span id="line-719"></span><span class="hs-comment">-- Rewriting to use lambdas, this is:</span><span>
+</span><span id="line-720"></span><span class="hs-comment">--</span><span>
+</span><span id="line-721"></span><span class="hs-comment">-- &gt; flippedFoldl' f [] = \ b -&gt; b</span><span>
+</span><span id="line-722"></span><span class="hs-comment">-- &gt; flippedFoldl' f (x : xs) = \ b -&gt; b `seq` r (f b x)</span><span>
+</span><span id="line-723"></span><span class="hs-comment">-- &gt;     where r = flippedFoldl' f xs</span><span>
+</span><span id="line-724"></span><span class="hs-comment">--</span><span>
+</span><span id="line-725"></span><span class="hs-comment">-- The above has the form of a right fold, enabling a rewrite to:</span><span>
+</span><span id="line-726"></span><span class="hs-comment">--</span><span>
+</span><span id="line-727"></span><span class="hs-comment">-- &gt; flippedFoldl' f = \ xs -&gt; foldr f' id xs</span><span>
+</span><span id="line-728"></span><span class="hs-comment">-- &gt;     where f' x r = \ b -&gt; b `seq` r (f b x)</span><span>
+</span><span id="line-729"></span><span class="hs-comment">--</span><span>
+</span><span id="line-730"></span><span class="hs-comment">-- We can now unflip this to get 'foldl'':</span><span>
+</span><span id="line-731"></span><span class="hs-comment">--</span><span>
+</span><span id="line-732"></span><span class="hs-comment">-- &gt; foldl' f z = \ xs -&gt; foldr f' id xs z</span><span>
+</span><span id="line-733"></span><span class="hs-comment">-- &gt;           -- \ xs -&gt; flippedFoldl' f xs z</span><span>
+</span><span id="line-734"></span><span class="hs-comment">-- &gt;   where f' x r = \ b -&gt; b `seq` r (f b x)</span><span>
+</span><span id="line-735"></span><span class="hs-comment">--</span><span>
+</span><span id="line-736"></span><span class="hs-comment">-- The function __@foldr f' id xs@__ applied to @z@ is built corecursively, and</span><span>
+</span><span id="line-737"></span><span class="hs-comment">-- its terms are applied to an eagerly evaluated accumulator before further</span><span>
+</span><span id="line-738"></span><span class="hs-comment">-- terms are applied to the result.  As required, this runs in constant space,</span><span>
+</span><span id="line-739"></span><span class="hs-comment">-- and can be optimised to an efficient loop.</span><span>
+</span><span id="line-740"></span><span class="hs-comment">--</span><span>
+</span><span id="line-741"></span><span class="hs-comment">-- (The actual definition of 'foldl'' labels the lambdas in the definition of</span><span>
+</span><span id="line-742"></span><span class="hs-comment">-- __@f'@__ above as /oneShot/, which enables further optimisations).</span><span>
+</span><span id="line-743"></span><span>
+</span><span id="line-744"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-745"></span><span>
+</span><span id="line-746"></span><span class="hs-comment">-- $generative</span><span>
+</span><span id="line-747"></span><span class="hs-comment">--</span><span>
+</span><span id="line-748"></span><span class="hs-comment">-- #generative#</span><span>
+</span><span id="line-749"></span><span class="hs-comment">-- So far, we have not discussed /generative recursion/.  Unlike recursive</span><span>
+</span><span id="line-750"></span><span class="hs-comment">-- reduction or corecursion, instead of processing a sequence of elements</span><span>
+</span><span id="line-751"></span><span class="hs-comment">-- already in memory, generative recursion involves producing a possibly</span><span>
+</span><span id="line-752"></span><span class="hs-comment">-- unbounded sequence of values from an initial seed value.  The canonical</span><span>
+</span><span id="line-753"></span><span class="hs-comment">-- example of this is 'Data.List.unfoldr' for Lists, with variants available</span><span>
+</span><span id="line-754"></span><span class="hs-comment">-- for Vectors and various other structures.</span><span>
+</span><span id="line-755"></span><span class="hs-comment">--</span><span>
+</span><span id="line-756"></span><span class="hs-comment">-- A key issue with lists, when used generatively as /iterators/, rather than as</span><span>
+</span><span id="line-757"></span><span class="hs-comment">-- poor-man's containers (see [[1\]](#uselistsnot)), is that such iterators</span><span>
+</span><span id="line-758"></span><span class="hs-comment">-- tend to consume memory when used more than once.  A single traversal of a</span><span>
+</span><span id="line-759"></span><span class="hs-comment">-- list-as-iterator will run in constant space, but as soon as the list is</span><span>
+</span><span id="line-760"></span><span class="hs-comment">-- retained for reuse, its entire element sequence is stored in memory, and the</span><span>
+</span><span id="line-761"></span><span class="hs-comment">-- second traversal reads the copy, rather than regenerates the elements.  It</span><span>
+</span><span id="line-762"></span><span class="hs-comment">-- is sometimes better to recompute the elements rather than memoise the list.</span><span>
+</span><span id="line-763"></span><span class="hs-comment">--</span><span>
+</span><span id="line-764"></span><span class="hs-comment">-- Memoisation happens because the built-in Haskell list __@[]@__ is</span><span>
+</span><span id="line-765"></span><span class="hs-comment">-- represented as __data__, either empty or a /cons-cell/ holding the first</span><span>
+</span><span id="line-766"></span><span class="hs-comment">-- element and the tail of the list.  The @Foldable@ class enables a variant</span><span>
+</span><span id="line-767"></span><span class="hs-comment">-- representation of iterators as /functions/, which take an operator and a</span><span>
+</span><span id="line-768"></span><span class="hs-comment">-- starting accumulator and output a summary result.</span><span>
+</span><span id="line-769"></span><span class="hs-comment">--</span><span>
+</span><span id="line-770"></span><span class="hs-comment">-- The [@fmlist@](https://hackage.haskell.org/package/fmlist) package takes</span><span>
+</span><span id="line-771"></span><span class="hs-comment">-- this approach, by representing a list via its `foldMap` action.</span><span>
+</span><span id="line-772"></span><span class="hs-comment">--</span><span>
+</span><span id="line-773"></span><span class="hs-comment">-- Below we implement an analogous data structure using a representation</span><span>
+</span><span id="line-774"></span><span class="hs-comment">-- based on `foldr`.  This is an example of /Church encoding/</span><span>
+</span><span id="line-775"></span><span class="hs-comment">-- (named after Alonzo Church, inventor of the lambda calculus).</span><span>
+</span><span id="line-776"></span><span class="hs-comment">--</span><span>
+</span><span id="line-777"></span><span class="hs-comment">-- &gt; {-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-778"></span><span class="hs-comment">-- &gt; newtype FRList a = FR { unFR :: forall b. (a -&gt; b -&gt; b) -&gt; b -&gt; b }</span><span>
+</span><span id="line-779"></span><span class="hs-comment">--</span><span>
+</span><span id="line-780"></span><span class="hs-comment">-- The __@unFR@__ field of this type is essentially its `foldr` method</span><span>
+</span><span id="line-781"></span><span class="hs-comment">-- with the list as its first rather than last argument.  Thus we</span><span>
+</span><span id="line-782"></span><span class="hs-comment">-- immediately get a @Foldable@ instance (and a 'toList' function</span><span>
+</span><span id="line-783"></span><span class="hs-comment">-- mapping an __@FRList@__ to a regular list).</span><span>
+</span><span id="line-784"></span><span class="hs-comment">--</span><span>
+</span><span id="line-785"></span><span class="hs-comment">-- &gt; instance Foldable FRList where</span><span>
+</span><span id="line-786"></span><span class="hs-comment">-- &gt;     foldr f z l = unFR l f z</span><span>
+</span><span id="line-787"></span><span class="hs-comment">-- &gt;     -- With older versions of @base@, also define sum, product, ...</span><span>
+</span><span id="line-788"></span><span class="hs-comment">-- &gt;     -- to ensure use of the strict 'foldl''.</span><span>
+</span><span id="line-789"></span><span class="hs-comment">-- &gt;     -- sum = foldl' (+) 0</span><span>
+</span><span id="line-790"></span><span class="hs-comment">-- &gt;     -- ...</span><span>
+</span><span id="line-791"></span><span class="hs-comment">--</span><span>
+</span><span id="line-792"></span><span class="hs-comment">-- We can convert a regular list to an __@FRList@__ with:</span><span>
+</span><span id="line-793"></span><span class="hs-comment">--</span><span>
+</span><span id="line-794"></span><span class="hs-comment">-- &gt; fromList :: [a] -&gt; FRList a</span><span>
+</span><span id="line-795"></span><span class="hs-comment">-- &gt; fromList as = FRList $ \ f z -&gt; foldr f z as</span><span>
+</span><span id="line-796"></span><span class="hs-comment">--</span><span>
+</span><span id="line-797"></span><span class="hs-comment">-- However, reuse of an __@FRList@__ obtained in this way will typically</span><span>
+</span><span id="line-798"></span><span class="hs-comment">-- memoise the underlying element sequence.  Instead, we can define</span><span>
+</span><span id="line-799"></span><span class="hs-comment">-- __@FRList@__ terms directly:</span><span>
+</span><span id="line-800"></span><span class="hs-comment">--</span><span>
+</span><span id="line-801"></span><span class="hs-comment">-- &gt; -- | Immediately return the initial accumulator</span><span>
+</span><span id="line-802"></span><span class="hs-comment">-- &gt; nil :: FRList a</span><span>
+</span><span id="line-803"></span><span class="hs-comment">-- &gt; nil = FRList $ \ _ z -&gt; z</span><span>
+</span><span id="line-804"></span><span class="hs-comment">-- &gt; {-# INLINE nil #-}</span><span>
+</span><span id="line-805"></span><span class="hs-comment">--</span><span>
+</span><span id="line-806"></span><span class="hs-comment">-- &gt; -- | Fold the tail to use as an accumulator with the new initial element</span><span>
+</span><span id="line-807"></span><span class="hs-comment">-- &gt; cons :: a -&gt; FRList a -&gt; FRList a</span><span>
+</span><span id="line-808"></span><span class="hs-comment">-- &gt; cons a l = FRList $ \ f z -&gt; f a (unFR l f z)</span><span>
+</span><span id="line-809"></span><span class="hs-comment">-- &gt; {-# INLINE cons #-}</span><span>
+</span><span id="line-810"></span><span class="hs-comment">--</span><span>
+</span><span id="line-811"></span><span class="hs-comment">-- More crucially, we can also directly define the key building block for</span><span>
+</span><span id="line-812"></span><span class="hs-comment">-- generative recursion:</span><span>
+</span><span id="line-813"></span><span class="hs-comment">--</span><span>
+</span><span id="line-814"></span><span class="hs-comment">-- &gt; -- | Generative recursion, dual to `foldr`.</span><span>
+</span><span id="line-815"></span><span class="hs-comment">-- &gt; unfoldr :: (s -&gt; Maybe (a, s)) -&gt; s -&gt; FRList a</span><span>
+</span><span id="line-816"></span><span class="hs-comment">-- &gt; unfoldr g s0 = FR generate</span><span>
+</span><span id="line-817"></span><span class="hs-comment">-- &gt;   where generate f z = loop s0</span><span>
+</span><span id="line-818"></span><span class="hs-comment">-- &gt;           where loop s | Just (a, t) &lt;- g s = f a (loop t)</span><span>
+</span><span id="line-819"></span><span class="hs-comment">-- &gt;                        | otherwise = z</span><span>
+</span><span id="line-820"></span><span class="hs-comment">-- &gt; {-# INLINE unfoldr #-}</span><span>
+</span><span id="line-821"></span><span class="hs-comment">--</span><span>
+</span><span id="line-822"></span><span class="hs-comment">-- Which can, for example, be specialised to number ranges:</span><span>
+</span><span id="line-823"></span><span class="hs-comment">--</span><span>
+</span><span id="line-824"></span><span class="hs-comment">-- &gt; -- | Generate a range of consecutive integral values.</span><span>
+</span><span id="line-825"></span><span class="hs-comment">-- &gt; range :: (Ord a, Integral a) =&gt; a -&gt; a -&gt; FRList a</span><span>
+</span><span id="line-826"></span><span class="hs-comment">-- &gt; range lo hi =</span><span>
+</span><span id="line-827"></span><span class="hs-comment">-- &gt;     unfoldr (\s -&gt; if s &gt; hi then Nothing else Just (s, s+1)) lo</span><span>
+</span><span id="line-828"></span><span class="hs-comment">-- &gt; {-# INLINE range #-}</span><span>
+</span><span id="line-829"></span><span class="hs-comment">--</span><span>
+</span><span id="line-830"></span><span class="hs-comment">-- The program below, when compiled with optimisation:</span><span>
+</span><span id="line-831"></span><span class="hs-comment">--</span><span>
+</span><span id="line-832"></span><span class="hs-comment">-- &gt; main :: IO ()</span><span>
+</span><span id="line-833"></span><span class="hs-comment">-- &gt; main = do</span><span>
+</span><span id="line-834"></span><span class="hs-comment">-- &gt;     let r :: FRList Int</span><span>
+</span><span id="line-835"></span><span class="hs-comment">-- &gt;         r = range 1 10000000</span><span>
+</span><span id="line-836"></span><span class="hs-comment">-- &gt;      in print (sum r, length r)</span><span>
+</span><span id="line-837"></span><span class="hs-comment">--</span><span>
+</span><span id="line-838"></span><span class="hs-comment">-- produces the expected output with no noticeable garbage-collection, despite</span><span>
+</span><span id="line-839"></span><span class="hs-comment">-- reuse of the __@FRList@__ term __@r@__.</span><span>
+</span><span id="line-840"></span><span class="hs-comment">--</span><span>
+</span><span id="line-841"></span><span class="hs-comment">-- &gt; (50000005000000,10000000)</span><span>
+</span><span id="line-842"></span><span class="hs-comment">-- &gt;     52,120 bytes allocated in the heap</span><span>
+</span><span id="line-843"></span><span class="hs-comment">-- &gt;      3,320 bytes copied during GC</span><span>
+</span><span id="line-844"></span><span class="hs-comment">-- &gt;     44,376 bytes maximum residency (1 sample(s))</span><span>
+</span><span id="line-845"></span><span class="hs-comment">-- &gt;     25,256 bytes maximum slop</span><span>
+</span><span id="line-846"></span><span class="hs-comment">-- &gt;          3 MiB total memory in use (0 MB lost due to fragmentation)</span><span>
+</span><span id="line-847"></span><span class="hs-comment">--</span><span>
+</span><span id="line-848"></span><span class="hs-comment">-- The Weak Head Normal Form of an __@FRList@__ is a lambda abstraction not a</span><span>
+</span><span id="line-849"></span><span class="hs-comment">-- data value, and reuse does not lead to memoisation.  Reuse of the iterator</span><span>
+</span><span id="line-850"></span><span class="hs-comment">-- above is somewhat contrived, when computing multiple folds over a common</span><span>
+</span><span id="line-851"></span><span class="hs-comment">-- list, you should generally traverse a  list only [once](#multipass).  The</span><span>
+</span><span id="line-852"></span><span class="hs-comment">-- goal is to demonstrate that the separate computations of the 'sum' and</span><span>
+</span><span id="line-853"></span><span class="hs-comment">-- 'length' run efficiently in constant space, despite reuse.  This would not</span><span>
+</span><span id="line-854"></span><span class="hs-comment">-- be the case with the list @[1..10000000]@.</span><span>
+</span><span id="line-855"></span><span class="hs-comment">--</span><span>
+</span><span id="line-856"></span><span class="hs-comment">-- This is, however, an artificially simple reduction.  More typically, there</span><span>
+</span><span id="line-857"></span><span class="hs-comment">-- are likely to be some allocations in the inner loop, but the temporary</span><span>
+</span><span id="line-858"></span><span class="hs-comment">-- storage used will be garbage-collected as needed, and overall memory</span><span>
+</span><span id="line-859"></span><span class="hs-comment">-- utilisation will remain modest and will not scale with the size of the list.</span><span>
+</span><span id="line-860"></span><span class="hs-comment">--</span><span>
+</span><span id="line-861"></span><span class="hs-comment">-- If we go back to built-in lists (i.e. __@[]@__), but avoid reuse by</span><span>
+</span><span id="line-862"></span><span class="hs-comment">-- performing reduction in a single pass, as below:</span><span>
+</span><span id="line-863"></span><span class="hs-comment">--</span><span>
+</span><span id="line-864"></span><span class="hs-comment">-- &gt; data PairS a b = P !a !b -- We define a strict pair datatype</span><span>
+</span><span id="line-865"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-866"></span><span class="hs-comment">-- &gt; main :: IO ()</span><span>
+</span><span id="line-867"></span><span class="hs-comment">-- &gt; main = do</span><span>
+</span><span id="line-868"></span><span class="hs-comment">-- &gt;     let l :: [Int]</span><span>
+</span><span id="line-869"></span><span class="hs-comment">-- &gt;         l = [1..10000000]</span><span>
+</span><span id="line-870"></span><span class="hs-comment">-- &gt;      in print $ average l</span><span>
+</span><span id="line-871"></span><span class="hs-comment">-- &gt;   where</span><span>
+</span><span id="line-872"></span><span class="hs-comment">-- &gt;     sumlen :: PairS Int Int -&gt; Int -&gt; PairS Int Int</span><span>
+</span><span id="line-873"></span><span class="hs-comment">-- &gt;     sumlen (P s l) a = P (s + a) (l + 1)</span><span>
+</span><span id="line-874"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-875"></span><span class="hs-comment">-- &gt;     average is =</span><span>
+</span><span id="line-876"></span><span class="hs-comment">-- &gt;         let (P s l) = foldl' sumlen (P 0 0) is</span><span>
+</span><span id="line-877"></span><span class="hs-comment">-- &gt;          in (fromIntegral s :: Double) / fromIntegral l</span><span>
+</span><span id="line-878"></span><span class="hs-comment">--</span><span>
+</span><span id="line-879"></span><span class="hs-comment">-- the result is again obtained in constant space:</span><span>
+</span><span id="line-880"></span><span class="hs-comment">--</span><span>
+</span><span id="line-881"></span><span class="hs-comment">-- &gt; 5000000.5</span><span>
+</span><span id="line-882"></span><span class="hs-comment">-- &gt;          102,176 bytes allocated in the heap</span><span>
+</span><span id="line-883"></span><span class="hs-comment">-- &gt;            3,320 bytes copied during GC</span><span>
+</span><span id="line-884"></span><span class="hs-comment">-- &gt;           44,376 bytes maximum residency (1 sample(s))</span><span>
+</span><span id="line-885"></span><span class="hs-comment">-- &gt;           25,256 bytes maximum slop</span><span>
+</span><span id="line-886"></span><span class="hs-comment">-- &gt;                3 MiB total memory in use (0 MB lost due to fragmentation)</span><span>
+</span><span id="line-887"></span><span class="hs-comment">--</span><span>
+</span><span id="line-888"></span><span class="hs-comment">-- (and, in fact, faster than with __@FRList@__ by a small factor).</span><span>
+</span><span id="line-889"></span><span class="hs-comment">--</span><span>
+</span><span id="line-890"></span><span class="hs-comment">-- The __@[]@__ list structure works as an efficient iterator when used</span><span>
+</span><span id="line-891"></span><span class="hs-comment">-- just once.  When space-leaks via list reuse are not a concern, and/or</span><span>
+</span><span id="line-892"></span><span class="hs-comment">-- memoisation is actually desirable, the regular list implementation is</span><span>
+</span><span id="line-893"></span><span class="hs-comment">-- likely to be faster.  This is not a suggestion to replace all your uses of</span><span>
+</span><span id="line-894"></span><span class="hs-comment">-- __@[]@__ with a generative alternative.</span><span>
+</span><span id="line-895"></span><span class="hs-comment">--</span><span>
+</span><span id="line-896"></span><span class="hs-comment">-- The __@FRList@__ type could be further extended with instances of 'Functor',</span><span>
+</span><span id="line-897"></span><span class="hs-comment">-- 'Applicative', 'Monad', 'Alternative', etc., and could then provide a</span><span>
+</span><span id="line-898"></span><span class="hs-comment">-- fully-featured list type, optimised for reuse without space-leaks.  If,</span><span>
+</span><span id="line-899"></span><span class="hs-comment">-- however, all that's required is space-efficient, re-use friendly iteration,</span><span>
+</span><span id="line-900"></span><span class="hs-comment">-- less is perhaps more, and just @Foldable@ may be sufficient.</span><span>
+</span><span id="line-901"></span><span>
+</span><span id="line-902"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-903"></span><span>
+</span><span id="line-904"></span><span class="hs-comment">-- $multipass</span><span>
+</span><span id="line-905"></span><span class="hs-comment">--</span><span>
+</span><span id="line-906"></span><span class="hs-comment">-- #multipass#</span><span>
+</span><span id="line-907"></span><span class="hs-comment">-- In applications where you want to compute a composite function of a</span><span>
+</span><span id="line-908"></span><span class="hs-comment">-- structure, which requires more than one aggregate as an input, it is</span><span>
+</span><span id="line-909"></span><span class="hs-comment">-- generally best to compute all the aggregates in a single pass, rather</span><span>
+</span><span id="line-910"></span><span class="hs-comment">-- than to traverse the same structure repeatedly.</span><span>
+</span><span id="line-911"></span><span class="hs-comment">--</span><span>
+</span><span id="line-912"></span><span class="hs-comment">-- The [@foldl@](http://hackage.haskell.org/package/foldl) package implements a</span><span>
+</span><span id="line-913"></span><span class="hs-comment">-- robust general framework for dealing with this situation.  If you choose to</span><span>
+</span><span id="line-914"></span><span class="hs-comment">-- to do it yourself, with a bit of care, the simplest cases are not difficult</span><span>
+</span><span id="line-915"></span><span class="hs-comment">-- to handle directly.  You just need to accumulate the individual aggregates</span><span>
+</span><span id="line-916"></span><span class="hs-comment">-- as __strict__ components of a single data type, and then apply a final</span><span>
+</span><span id="line-917"></span><span class="hs-comment">-- transformation to it to extract the composite result.  For example,</span><span>
+</span><span id="line-918"></span><span class="hs-comment">-- computing an average requires computing both the 'sum' and the 'length' of a</span><span>
+</span><span id="line-919"></span><span class="hs-comment">-- (non-empty) structure and dividing the sum by the length:</span><span>
+</span><span id="line-920"></span><span class="hs-comment">--</span><span>
+</span><span id="line-921"></span><span class="hs-comment">-- &gt; import Data.Foldable (foldl')</span><span>
+</span><span id="line-922"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-923"></span><span class="hs-comment">-- &gt; data PairS a b = P !a !b -- We define a strict pair datatype</span><span>
+</span><span id="line-924"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-925"></span><span class="hs-comment">-- &gt; -- | Compute sum and length in a single pass, then reduce to the average.</span><span>
+</span><span id="line-926"></span><span class="hs-comment">-- &gt; average :: (Foldable f, Fractional a) =&gt; f a -&gt; a</span><span>
+</span><span id="line-927"></span><span class="hs-comment">-- &gt; average xs =</span><span>
+</span><span id="line-928"></span><span class="hs-comment">-- &gt;     let sumlen (P s l) a = P (s + a) (l + 1 :: Int)</span><span>
+</span><span id="line-929"></span><span class="hs-comment">-- &gt;         (P s l) = foldl' sumlen (P 0 0) xs</span><span>
+</span><span id="line-930"></span><span class="hs-comment">-- &gt;      in s / fromIntegral l</span><span>
+</span><span id="line-931"></span><span class="hs-comment">--</span><span>
+</span><span id="line-932"></span><span class="hs-comment">-- The above example is somewhat contrived, some structures keep track of their</span><span>
+</span><span id="line-933"></span><span class="hs-comment">-- length internally, and can return it in /O(1)/ time, so this particular</span><span>
+</span><span id="line-934"></span><span class="hs-comment">-- recipe for averages is not always the most efficient.  In general, composite</span><span>
+</span><span id="line-935"></span><span class="hs-comment">-- aggregate functions of large structures benefit from single-pass reduction.</span><span>
+</span><span id="line-936"></span><span class="hs-comment">-- This is especially the case when reuse of a list and memoisation of its</span><span>
+</span><span id="line-937"></span><span class="hs-comment">-- elements is thereby avoided.</span><span>
+</span><span id="line-938"></span><span>
+</span><span id="line-939"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-940"></span><span>
+</span><span id="line-941"></span><span class="hs-comment">-- $laws</span><span>
+</span><span id="line-942"></span><span class="hs-comment">-- #laws#</span><span>
+</span><span id="line-943"></span><span class="hs-comment">--</span><span>
+</span><span id="line-944"></span><span class="hs-comment">-- The type constructor 'Endo' from &quot;Data.Monoid&quot;, associates with each type</span><span>
+</span><span id="line-945"></span><span class="hs-comment">-- __@b@__ the __@newtype@__-encapsulated type of functions mapping __@b@__ to</span><span>
+</span><span id="line-946"></span><span class="hs-comment">-- itself.  Functions from a type to itself are called /endomorphisms/, hence</span><span>
+</span><span id="line-947"></span><span class="hs-comment">-- the name /Endo/.  The type __@Endo b@__ is a 'Monoid' under function</span><span>
+</span><span id="line-948"></span><span class="hs-comment">-- composition:</span><span>
+</span><span id="line-949"></span><span class="hs-comment">--</span><span>
+</span><span id="line-950"></span><span class="hs-comment">-- &gt; newtype Endo b = Endo { appEndo :: b -&gt; b }</span><span>
+</span><span id="line-951"></span><span class="hs-comment">-- &gt; instance Semigroup Endo b where</span><span>
+</span><span id="line-952"></span><span class="hs-comment">-- &gt;     Endo f &lt;&gt; Endo g = Endo (f . g)</span><span>
+</span><span id="line-953"></span><span class="hs-comment">-- &gt; instance Monoid Endo b where</span><span>
+</span><span id="line-954"></span><span class="hs-comment">-- &gt;     mempty = Endo id</span><span>
+</span><span id="line-955"></span><span class="hs-comment">--</span><span>
+</span><span id="line-956"></span><span class="hs-comment">-- For every 'Monoid' m, we also have a 'Dual' monoid __@Dual m@__ which</span><span>
+</span><span id="line-957"></span><span class="hs-comment">-- combines elements in the opposite order:</span><span>
+</span><span id="line-958"></span><span class="hs-comment">--</span><span>
+</span><span id="line-959"></span><span class="hs-comment">-- &gt; newtype Dual m = Dual { getDual :: m }</span><span>
+</span><span id="line-960"></span><span class="hs-comment">-- &gt; instance Semigroup m =&gt; Semigroup Dual m where</span><span>
+</span><span id="line-961"></span><span class="hs-comment">-- &gt;     Dual a &lt;&gt; Dual b = Dual (b &lt;&gt; a)</span><span>
+</span><span id="line-962"></span><span class="hs-comment">-- &gt; instance Monoid m =&gt; Monoid Dual m where</span><span>
+</span><span id="line-963"></span><span class="hs-comment">-- &gt;     mempty = Dual mempty</span><span>
+</span><span id="line-964"></span><span class="hs-comment">--</span><span>
+</span><span id="line-965"></span><span class="hs-comment">-- With the above preliminaries out of the way, 'Foldable' instances are</span><span>
+</span><span id="line-966"></span><span class="hs-comment">-- expected to satisfy the following laws:</span><span>
+</span><span id="line-967"></span><span class="hs-comment">--</span><span>
+</span><span id="line-968"></span><span class="hs-comment">-- The 'foldr' method must be equivalent in value and strictness to replacing</span><span>
+</span><span id="line-969"></span><span class="hs-comment">-- each element __@a@__ of a 'Foldable' structure with __@Endo (f a)@__,</span><span>
+</span><span id="line-970"></span><span class="hs-comment">-- composing these via 'foldMap' and applying the result to the base case</span><span>
+</span><span id="line-971"></span><span class="hs-comment">-- __@z@__:</span><span>
+</span><span id="line-972"></span><span class="hs-comment">--</span><span>
+</span><span id="line-973"></span><span class="hs-comment">-- &gt; foldr f z t = appEndo (foldMap (Endo . f) t ) z</span><span>
+</span><span id="line-974"></span><span class="hs-comment">--</span><span>
+</span><span id="line-975"></span><span class="hs-comment">-- Likewise, the 'foldl' method must be equivalent in value and strictness</span><span>
+</span><span id="line-976"></span><span class="hs-comment">-- to composing the functions __@flip f a@__ in reverse order and applying</span><span>
+</span><span id="line-977"></span><span class="hs-comment">-- the result to the base case:</span><span>
+</span><span id="line-978"></span><span class="hs-comment">--</span><span>
+</span><span id="line-979"></span><span class="hs-comment">-- &gt; foldl f z t = appEndo (getDual (foldMap (Dual . Endo . flip f) t)) z</span><span>
+</span><span id="line-980"></span><span class="hs-comment">--</span><span>
+</span><span id="line-981"></span><span class="hs-comment">-- When the elements of the structure are taken from a 'Monoid', the</span><span>
+</span><span id="line-982"></span><span class="hs-comment">-- definition of 'fold' must agree with __@foldMap id@__:</span><span>
+</span><span id="line-983"></span><span class="hs-comment">--</span><span>
+</span><span id="line-984"></span><span class="hs-comment">-- &gt; fold = foldMap id</span><span>
+</span><span id="line-985"></span><span class="hs-comment">--</span><span>
+</span><span id="line-986"></span><span class="hs-comment">-- The 'length' method must agree with a 'foldMap' mapping each element to</span><span>
+</span><span id="line-987"></span><span class="hs-comment">-- __@Sum 1@__ (The 'Sum' type abstracts numbers as a monoid under addition).</span><span>
+</span><span id="line-988"></span><span class="hs-comment">--</span><span>
+</span><span id="line-989"></span><span class="hs-comment">-- &gt; length = getSum . foldMap (Sum . const 1)</span><span>
+</span><span id="line-990"></span><span class="hs-comment">--</span><span>
+</span><span id="line-991"></span><span class="hs-comment">-- @sum@, @product@, @maximum@, and @minimum@ should all be essentially</span><span>
+</span><span id="line-992"></span><span class="hs-comment">-- equivalent to @foldMap@ forms, such as</span><span>
+</span><span id="line-993"></span><span class="hs-comment">--</span><span>
+</span><span id="line-994"></span><span class="hs-comment">-- &gt; sum     = getSum     . foldMap' Sum</span><span>
+</span><span id="line-995"></span><span class="hs-comment">-- &gt; product = getProduct . foldMap' Product</span><span>
+</span><span id="line-996"></span><span class="hs-comment">--</span><span>
+</span><span id="line-997"></span><span class="hs-comment">-- but are generally more efficient when defined more directly as:</span><span>
+</span><span id="line-998"></span><span class="hs-comment">--</span><span>
+</span><span id="line-999"></span><span class="hs-comment">-- &gt; sum = foldl' (+) 0</span><span>
+</span><span id="line-1000"></span><span class="hs-comment">-- &gt; product = foldl' (*) 1</span><span>
+</span><span id="line-1001"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1002"></span><span class="hs-comment">-- If the 'Foldable' structure has a 'Functor' instance, then for every</span><span>
+</span><span id="line-1003"></span><span class="hs-comment">-- function __@f@__ mapping the elements into a 'Monoid', it should satisfy:</span><span>
+</span><span id="line-1004"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1005"></span><span class="hs-comment">-- &gt; foldMap f = fold . fmap f</span><span>
+</span><span id="line-1006"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1007"></span><span class="hs-comment">-- which implies that</span><span>
+</span><span id="line-1008"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1009"></span><span class="hs-comment">-- &gt; foldMap f . fmap g = foldMap (f . g)</span><span>
+</span><span id="line-1010"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1011"></span><span>
+</span><span id="line-1012"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-1013"></span><span>
+</span><span id="line-1014"></span><span class="hs-comment">-- $notes</span><span>
+</span><span id="line-1015"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1016"></span><span class="hs-comment">-- #notes#</span><span>
+</span><span id="line-1017"></span><span class="hs-comment">-- Since 'Foldable' does not have 'Functor' as a superclass, it is possible to</span><span>
+</span><span id="line-1018"></span><span class="hs-comment">-- define 'Foldable' instances for structures that constrain their element</span><span>
+</span><span id="line-1019"></span><span class="hs-comment">-- types.  Therefore, __@Set@__ can be 'Foldable', even though sets keep their</span><span>
+</span><span id="line-1020"></span><span class="hs-comment">-- elements in ascending order.  This requires the elements to be comparable,</span><span>
+</span><span id="line-1021"></span><span class="hs-comment">-- which precludes defining a 'Functor' instance for @Set@.</span><span>
+</span><span id="line-1022"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1023"></span><span class="hs-comment">-- The 'Foldable' class makes it possible to use idioms familiar from the @List@</span><span>
+</span><span id="line-1024"></span><span class="hs-comment">-- type with container structures that are better suited to the task at hand.</span><span>
+</span><span id="line-1025"></span><span class="hs-comment">-- This supports use of more appropriate 'Foldable' data types, such as @Seq@,</span><span>
+</span><span id="line-1026"></span><span class="hs-comment">-- @Set@, @NonEmpty@, etc., without requiring new idioms (see</span><span>
+</span><span id="line-1027"></span><span class="hs-comment">-- [[1\]](#uselistsnot) for when not to use lists).</span><span>
+</span><span id="line-1028"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1029"></span><span class="hs-comment">-- The more general methods of the 'Foldable' class are now exported by the</span><span>
+</span><span id="line-1030"></span><span class="hs-comment">-- &quot;Prelude&quot; in place of the original List-specific methods (see the</span><span>
+</span><span id="line-1031"></span><span class="hs-comment">-- [FTP Proposal](https://wiki.haskell.org/Foldable_Traversable_In_Prelude)).</span><span>
+</span><span id="line-1032"></span><span class="hs-comment">-- The List-specific variants are for now still available in &quot;GHC.OldList&quot;, but</span><span>
+</span><span id="line-1033"></span><span class="hs-comment">-- that module is intended only as a transitional aid, and may be removed in</span><span>
+</span><span id="line-1034"></span><span class="hs-comment">-- the future.</span><span>
+</span><span id="line-1035"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1036"></span><span class="hs-comment">-- Surprises can arise from the @Foldable@ instance of the 2-tuple @(a,)@ which</span><span>
+</span><span id="line-1037"></span><span class="hs-comment">-- now behaves as a 1-element @Foldable@ container in its second slot.  In</span><span>
+</span><span id="line-1038"></span><span class="hs-comment">-- contexts where a specific monomorphic type is expected, and you want to be</span><span>
+</span><span id="line-1039"></span><span class="hs-comment">-- able to rely on type errors to guide refactoring, it may make sense to</span><span>
+</span><span id="line-1040"></span><span class="hs-comment">-- define and use less-polymorphic variants of some of the @Foldable@ methods.</span><span>
+</span><span id="line-1041"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1042"></span><span class="hs-comment">-- Below are two examples showing a definition of a reusable less-polymorphic</span><span>
+</span><span id="line-1043"></span><span class="hs-comment">-- 'sum' and a one-off in-line specialisation of 'length':</span><span>
+</span><span id="line-1044"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1045"></span><span class="hs-comment">-- &gt; {-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-1046"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-1047"></span><span class="hs-comment">-- &gt; mySum :: Num a =&gt; [a] -&gt; a</span><span>
+</span><span id="line-1048"></span><span class="hs-comment">-- &gt; mySum = sum</span><span>
+</span><span id="line-1049"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-1050"></span><span class="hs-comment">-- &gt; type SlowVector a = [a]</span><span>
+</span><span id="line-1051"></span><span class="hs-comment">-- &gt; slowLength :: SlowVector -&gt; Int</span><span>
+</span><span id="line-1052"></span><span class="hs-comment">-- &gt; slowLength v = length @[] v</span><span>
+</span><span id="line-1053"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1054"></span><span class="hs-comment">-- In both cases, if the data type to which the function is applied changes</span><span>
+</span><span id="line-1055"></span><span class="hs-comment">-- to something other than a list, the call-site will no longer compile until</span><span>
+</span><span id="line-1056"></span><span class="hs-comment">-- appropriate changes are made.</span><span>
+</span><span id="line-1057"></span><span>
+</span><span id="line-1058"></span><span class="hs-comment">-- $linear</span><span>
+</span><span id="line-1059"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1060"></span><span class="hs-comment">-- It is perhaps worth noting that since the __`elem`__ function in the</span><span>
+</span><span id="line-1061"></span><span class="hs-comment">-- 'Foldable' class carries only an __`Eq`__ constraint on the element type,</span><span>
+</span><span id="line-1062"></span><span class="hs-comment">-- search for the presence or absence of an element in the structure generally</span><span>
+</span><span id="line-1063"></span><span class="hs-comment">-- takes /O(n)/ time, even for ordered structures like __@Set@__ that are</span><span>
+</span><span id="line-1064"></span><span class="hs-comment">-- potentially capable of performing the search faster.  (The @member@ function</span><span>
+</span><span id="line-1065"></span><span class="hs-comment">-- of the @Set@ module carries an `Ord` constraint, and can perform the search</span><span>
+</span><span id="line-1066"></span><span class="hs-comment">-- in /O(log n)/ time).</span><span>
+</span><span id="line-1067"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1068"></span><span class="hs-comment">-- An alternative to Foldable's __`elem`__ method is required in order to</span><span>
+</span><span id="line-1069"></span><span class="hs-comment">-- abstract potentially faster than linear search over general container</span><span>
+</span><span id="line-1070"></span><span class="hs-comment">-- structures.  This can be achieved by defining an additional type class (e.g.</span><span>
+</span><span id="line-1071"></span><span class="hs-comment">-- @HasMember@ below).  Instances of such a type class (that are also</span><span>
+</span><span id="line-1072"></span><span class="hs-comment">-- `Foldable') can employ the `elem` linear search as a last resort, when</span><span>
+</span><span id="line-1073"></span><span class="hs-comment">-- faster search is not supported.</span><span>
+</span><span id="line-1074"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1075"></span><span class="hs-comment">-- &gt; {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}</span><span>
+</span><span id="line-1076"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-1077"></span><span class="hs-comment">-- &gt; import qualified Data.Set as Set</span><span>
+</span><span id="line-1078"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-1079"></span><span class="hs-comment">-- &gt; class Eq a =&gt; HasMember t a where</span><span>
+</span><span id="line-1080"></span><span class="hs-comment">-- &gt;     member :: a -&gt; t a -&gt; Bool</span><span>
+</span><span id="line-1081"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-1082"></span><span class="hs-comment">-- &gt; instance Eq a =&gt; HasMember [] a where</span><span>
+</span><span id="line-1083"></span><span class="hs-comment">-- &gt;     member = elem</span><span>
+</span><span id="line-1084"></span><span class="hs-comment">-- &gt; [...]</span><span>
+</span><span id="line-1085"></span><span class="hs-comment">-- &gt; instance Ord a =&gt; HasMember Set.Set a where</span><span>
+</span><span id="line-1086"></span><span class="hs-comment">-- &gt;     member = Set.member</span><span>
+</span><span id="line-1087"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1088"></span><span class="hs-comment">-- The above suggests that 'elem' may be a misfit in the 'Foldable' class.</span><span>
+</span><span id="line-1089"></span><span class="hs-comment">-- Alternative design ideas are solicited on GHC's bug tracker via issue</span><span>
+</span><span id="line-1090"></span><span class="hs-comment">-- [\#20421](https://gitlab.haskell.org/ghc/ghc/-/issues/20421).</span><span>
+</span><span id="line-1091"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1092"></span><span class="hs-comment">-- Note that some structure-specific optimisations may of course be possible</span><span>
+</span><span id="line-1093"></span><span class="hs-comment">-- directly in the corresponding @Foldable@ instance, e.g. with @Set@ the size</span><span>
+</span><span id="line-1094"></span><span class="hs-comment">-- of the set is known in advance, without iterating to count the elements, and</span><span>
+</span><span id="line-1095"></span><span class="hs-comment">-- its `length` instance takes advantage of this to return the size directly.</span><span>
+</span><span id="line-1096"></span><span>
+</span><span id="line-1097"></span><span class="hs-comment">--------------</span><span>
+</span><span id="line-1098"></span><span>
+</span><span id="line-1099"></span><span class="hs-comment">-- $also</span><span>
+</span><span id="line-1100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1101"></span><span class="hs-comment">--  * [1] #uselistsnot# \&quot;When You Should Use Lists in Haskell (Mostly, You Should Not)\&quot;,</span><span>
+</span><span id="line-1102"></span><span class="hs-comment">--    by Johannes Waldmann,</span><span>
+</span><span id="line-1103"></span><span class="hs-comment">--    in arxiv.org, Programming Languages (cs.PL), at</span><span>
+</span><span id="line-1104"></span><span class="hs-comment">--    &lt;https://arxiv.org/abs/1808.08329&gt;.</span><span>
+</span><span id="line-1105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1106"></span><span class="hs-comment">--  * [2] \&quot;The Essence of the Iterator Pattern\&quot;,</span><span>
+</span><span id="line-1107"></span><span class="hs-comment">--    by Jeremy Gibbons and Bruno Oliveira,</span><span>
+</span><span id="line-1108"></span><span class="hs-comment">--    in /Mathematically-Structured Functional Programming/, 2006, online at</span><span>
+</span><span id="line-1109"></span><span class="hs-comment">--    &lt;http://www.cs.ox.ac.uk/people/jeremy.gibbons/publications/#iterator&gt;.</span><span>
+</span><span id="line-1110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-1111"></span><span class="hs-comment">--  * [3] \&quot;A tutorial on the universality and expressiveness of fold\&quot;,</span><span>
+</span><span id="line-1112"></span><span class="hs-comment">--    by Graham Hutton, J\. Functional Programming 9 (4): 355&#8211;372, July 1999,</span><span>
+</span><span id="line-1113"></span><span class="hs-comment">--    online at &lt;http://www.cs.nott.ac.uk/~pszgmh/fold.pdf&gt;.</span><span>
+</span><span id="line-1114"></span></pre></body></html>

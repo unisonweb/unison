@@ -1,0 +1,600 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- | The Share API calls behind the @share.*@ commands: project search, READMEs, and definitions by name.</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html"><span class="hs-identifier">Unison.Cli.Share.Definitions</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * API calls</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHit"><span class="hs-identifier">SearchHit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#searchEntities"><span class="hs-identifier">searchEntities</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#searchDefinitions"><span class="hs-identifier">searchDefinitions</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier">ReleaseInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#listReleases"><span class="hs-identifier">listReleases</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#getReadme"><span class="hs-identifier">getReadme</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#getDefinitions"><span class="hs-identifier">getDefinitions</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.:)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.:?)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(:&lt;|&gt;)</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(:&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.API</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Servant.Client</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Servant</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Auth.HTTPClient.html"><span class="hs-identifier">Unison.Auth.HTTPClient</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier">AuthenticatedHttpClient</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier">Cli</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html"><span class="hs-identifier">Unison.Cli.Monad</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Cli</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Projects.html"><span class="hs-identifier">Unison.Cli.Share.Projects</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Projects.html#hardCodedBaseUrl"><span class="hs-identifier">hardCodedBaseUrl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html"><span class="hs-identifier">Unison.Cli.Share.Ref</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Orphans</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Server.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DefinitionDisplayResults</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefinitionSearchResult</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefinitionSearchResults</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Pretty</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Pretty</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><span class="hs-comment">-- | One match of an entity search: a project, or a user or organization.</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="SearchHit"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHit"><span class="hs-identifier hs-var">SearchHit</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | The project, like @\@unison/base@, and its summary.</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="ProjectHit"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectHit"><span class="hs-identifier hs-var">ProjectHit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | The handle, with the @\@@, and the name.</span></span><span>
+</span><span id="line-40"></span><span>    </span><span id="UserHit"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#UserHit"><span class="hs-identifier hs-var">UserHit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="OrgHit"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#OrgHit"><span class="hs-identifier hs-var">OrgHit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629776"><span id="local-6989586621681629780"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHit"><span class="hs-identifier hs-type">SearchHit</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621681629836"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SearchHit
+</span><a href="#local-6989586621681629836"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser SearchHit) -&gt; Value -&gt; Parser SearchHit
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SearchHit&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629839"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tag&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser Text -&gt; (Text -&gt; Parser SearchHit) -&gt; Parser SearchHit
+forall a b. Parser a -&gt; (a -&gt; Parser b) -&gt; Parser b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;project&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text -&gt; SearchHit
+</span><a href="Unison.Cli.Share.Definitions.html#ProjectHit"><span class="hs-identifier hs-var">ProjectHit</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe Text -&gt; SearchHit)
+-&gt; Parser Text -&gt; Parser (Maybe Text -&gt; SearchHit)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;projectRef&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; SearchHit)
+-&gt; Parser (Maybe Text) -&gt; Parser SearchHit
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;summary&quot;</span></span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text -&gt; SearchHit
+</span><a href="Unison.Cli.Share.Definitions.html#UserHit"><span class="hs-identifier hs-var">UserHit</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe Text -&gt; SearchHit)
+-&gt; (Text -&gt; Text) -&gt; Text -&gt; Maybe Text -&gt; SearchHit
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe Text -&gt; SearchHit)
+-&gt; Parser Text -&gt; Parser (Maybe Text -&gt; SearchHit)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;handle&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; SearchHit)
+-&gt; Parser (Maybe Text) -&gt; Parser SearchHit
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;org&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>        </span><span id="local-6989586621681629842"><span class="annot"><a href="#local-6989586621681629842"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629839"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Object
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#OrgHit"><span class="hs-identifier hs-type">OrgHit</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;@&quot;</span></span><span> </span><span class="annot"><span class="hs-operator">&lt;&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681629842"><span class="hs-identifier hs-type">user</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;handle&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681629842"><span class="hs-identifier hs-type">user</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:?</span></span><span> </span><span class="annot"><span class="hs-string">&quot;name&quot;</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681629843"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681629843"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser SearchHit
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unknown kind of search hit: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681629843"><span class="hs-identifier hs-var">tag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- | The hits we understand; Share may well add kinds we don't.</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">newtype</span><span> </span><span id="SearchHits"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-var">SearchHits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SearchHits"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-var">SearchHits</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHit"><span class="hs-identifier hs-type">SearchHit</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629848"><span id="local-6989586621681629852"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-type">SearchHits</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621681629865"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser SearchHits
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Array -&gt; Parser SearchHits) -&gt; Value -&gt; Parser SearchHits
+forall a. String -&gt; (Array -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withArray</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SearchHits&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629867"><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621681629867"><span class="hs-identifier hs-var">hits</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">[SearchHit] -&gt; SearchHits
+</span><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-var">SearchHits</span></a></span><span> </span><span class="annot"><span class="annottext">([SearchHit] -&gt; SearchHits)
+-&gt; (Vector (Maybe SearchHit) -&gt; [SearchHit])
+-&gt; Vector (Maybe SearchHit)
+-&gt; SearchHits
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Maybe SearchHit] -&gt; [SearchHit]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="annot"><span class="annottext">([Maybe SearchHit] -&gt; [SearchHit])
+-&gt; (Vector (Maybe SearchHit) -&gt; [Maybe SearchHit])
+-&gt; Vector (Maybe SearchHit)
+-&gt; [SearchHit]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Vector (Maybe SearchHit) -&gt; [Maybe SearchHit]
+forall a. Vector a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">(Vector (Maybe SearchHit) -&gt; SearchHits)
+-&gt; Parser (Vector (Maybe SearchHit)) -&gt; Parser SearchHits
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Parser (Maybe SearchHit))
+-&gt; Array -&gt; Parser (Vector (Maybe SearchHit))
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Vector a -&gt; f (Vector b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681629871"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621681629871"><span class="hs-identifier hs-var">hit</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SearchHit -&gt; Maybe SearchHit
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(SearchHit -&gt; Maybe SearchHit)
+-&gt; Parser SearchHit -&gt; Parser (Maybe SearchHit)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser SearchHit
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621681629871"><span class="hs-identifier hs-var">hit</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Parser (Maybe SearchHit)
+-&gt; Parser (Maybe SearchHit) -&gt; Parser (Maybe SearchHit)
+forall a. Parser a -&gt; Parser a -&gt; Parser a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe SearchHit -&gt; Parser (Maybe SearchHit)
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe SearchHit
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Array
+</span><a href="#local-6989586621681629867"><span class="hs-identifier hs-var">hits</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">newtype</span><span> </span><span id="ReadmeResponse"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-var">ReadmeResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReadmeResponse"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-var">ReadmeResponse</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629876"><span id="local-6989586621681629880"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621681629885"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReadmeResponse
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ReadmeResponse)
+-&gt; Value
+-&gt; Parser ReadmeResponse
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReadmeResponse&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629886"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629886"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ReadmeResponse
+</span><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-var">ReadmeResponse</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ReadmeResponse) -&gt; Parser Text -&gt; Parser ReadmeResponse
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629886"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;markdownReadMe&quot;</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">data</span><span> </span><span id="ProjectInfo"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-var">ProjectInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProjectInfo"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-var">ProjectInfo</span></a></span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="latestRelease"><span class="annot"><span class="annottext">ProjectInfo -&gt; Maybe Text
+</span><a href="Unison.Cli.Share.Definitions.html#latestRelease"><span class="hs-identifier hs-var hs-var">latestRelease</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>    </span><span id="defaultBranch"><span class="annot"><span class="annottext">ProjectInfo -&gt; Text
+</span><a href="Unison.Cli.Share.Definitions.html#defaultBranch"><span class="hs-identifier hs-var hs-var">defaultBranch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629892"><span id="local-6989586621681629896"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-type">ProjectInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621681629904"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ProjectInfo
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ProjectInfo) -&gt; Value -&gt; Parser ProjectInfo
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ProjectInfo&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629905"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629905"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Text -&gt; ProjectInfo
+</span><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-var">ProjectInfo</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Text -&gt; Text -&gt; ProjectInfo)
+-&gt; Parser (Maybe Text) -&gt; Parser (Text -&gt; ProjectInfo)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629905"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;latestRelease&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Text -&gt; ProjectInfo) -&gt; Parser Text -&gt; Parser ProjectInfo
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629905"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;defaultBranch&quot;</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- | One release of a project: its version, when it was published, and its status if it isn't published.</span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">data</span><span> </span><span id="ReleaseInfo"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-var">ReleaseInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReleaseInfo"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-var">ReleaseInfo</span></a></span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="version"><span class="annot"><span class="annottext">ReleaseInfo -&gt; Text
+</span><a href="Unison.Cli.Share.Definitions.html#version"><span class="hs-identifier hs-var hs-var">version</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>    </span><span id="date"><span class="annot"><span class="annottext">ReleaseInfo -&gt; Text
+</span><a href="Unison.Cli.Share.Definitions.html#date"><span class="hs-identifier hs-var hs-var">date</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>    </span><span id="status"><span class="annot"><span class="annottext">ReleaseInfo -&gt; Text
+</span><a href="Unison.Cli.Share.Definitions.html#status"><span class="hs-identifier hs-var hs-var">status</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629912"><span id="local-6989586621681629916"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621681629937"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReleaseInfo
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ReleaseInfo) -&gt; Value -&gt; Parser ReleaseInfo
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReleaseInfo&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629938"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629938"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621681629939"><span class="annot"><a href="#local-6989586621681629939"><span class="hs-identifier hs-var">version</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629938"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;version&quot;</span></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621681629940"><span class="annot"><a href="#local-6989586621681629940"><span class="hs-identifier hs-var">created</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681629938"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;createdAt&quot;</span></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621681629941"><span class="annot"><a href="#local-6989586621681629941"><span class="hs-identifier hs-var">status</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681629938"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;status&quot;</span></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621681629942"><span class="annot"><a href="#local-6989586621681629942"><span class="hs-identifier hs-var">statusName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681629941"><span class="hs-identifier hs-type">status</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:</span></span><span> </span><span class="annot"><span class="hs-string">&quot;status&quot;</span></span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621681629943"><span class="annot"><a href="#local-6989586621681629943"><span class="hs-identifier hs-var">published</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621681629941"><span class="hs-identifier hs-type">status</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.:?</span></span><span> </span><span class="annot"><span class="hs-string">&quot;publishedAt&quot;</span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#version"><span class="hs-identifier hs-var hs-type">version</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#date"><span class="hs-identifier hs-var">date</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.takeWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">/=</span></span><span> </span><span class="annot"><span class="hs-char">'T'</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><a href="#local-6989586621681629940"><span class="hs-identifier hs-type">created</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681629943"><span class="hs-identifier hs-type">published</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#status"><span class="hs-identifier hs-var">status</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681629942"><span class="hs-identifier hs-type">statusName</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">newtype</span><span> </span><span id="ReleasesResponse"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-var">ReleasesResponse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ReleasesResponse"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-var">ReleasesResponse</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681629950"><span id="local-6989586621681629954"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-type">ReleasesResponse</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621681629961"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReleasesResponse
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ReleasesResponse)
+-&gt; Value
+-&gt; Parser ReleasesResponse
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReleasesResponse&quot;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681629962"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629962"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo] -&gt; ReleasesResponse
+</span><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-var">ReleasesResponse</span></a></span><span> </span><span class="annot"><span class="annottext">([ReleaseInfo] -&gt; ReleasesResponse)
+-&gt; Parser [ReleaseInfo] -&gt; Parser ReleasesResponse
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621681629962"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [ReleaseInfo]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;items&quot;</span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">type</span><span> </span><span id="ShareAPI"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ShareAPI"><span class="hs-identifier hs-var">ShareAPI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;search&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;query&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-type">SearchHits</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-string">&quot;search-definitions&quot;</span></span><span>
+</span><span id="line-97"></span><span>             </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;query&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-98"></span><span>             </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;project-filter&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-99"></span><span>             </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;user-filter&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-100"></span><span>             </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResults</span></span><span>
+</span><span id="line-101"></span><span>         </span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-type">Project</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-type">ProjectInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-type">Project</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;releases&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;limit&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-type">ReleasesResponse</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-type">Project</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;readme&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-type">Project</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;branches&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;branch&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#DefinitionByName"><span class="hs-identifier hs-type">DefinitionByName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-type">Project</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;releases&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;version&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#DefinitionByName"><span class="hs-identifier hs-type">DefinitionByName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-keyword">type</span><span> </span><span id="Project"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#Project"><span class="hs-identifier hs-var">Project</span></a></span></span><span> </span><span id="local-6989586621681629963"><span class="annot"><a href="#local-6989586621681629963"><span class="hs-identifier hs-type">api</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><span class="hs-string">&quot;users&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;handle&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot;projects&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;slug&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621681629963"><span class="hs-identifier hs-type">api</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">type</span><span> </span><span id="DefinitionByName"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#DefinitionByName"><span class="hs-identifier hs-var">DefinitionByName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="hs-string">&quot;definitions&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot;by-name&quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Capture</span></span><span> </span><span class="annot"><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.QueryParam</span></span><span> </span><span class="annot"><span class="hs-string">&quot;renderWidth&quot;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty.Width</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.Get</span></span><span> </span><span class="hs-special">'</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Servant.JSON</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpSearch"><span class="hs-identifier hs-type">httpSearch</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-type">SearchHits</span></a></span><span>
+</span><span id="line-115"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpSearchDefinitions"><span class="hs-identifier hs-type">httpSearchDefinitions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResults</span></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpProjectInfo"><span class="hs-identifier hs-type">httpProjectInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-type">ProjectInfo</span></a></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpReleases"><span class="hs-identifier hs-type">httpReleases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-type">ReleasesResponse</span></a></span><span>
+</span><span id="line-118"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpReadme"><span class="hs-identifier hs-type">httpReadme</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span>
+</span><span id="line-119"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpBranchDefinition"><span class="hs-identifier hs-type">httpBranchDefinition</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty.Width</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#httpReleaseDefinition"><span class="hs-identifier hs-type">httpReleaseDefinition</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pretty.Width</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span>
+</span><span id="line-121"></span><span class="hs-special">(</span><span> </span><span id="httpSearch"><span class="annot"><span class="annottext">Maybe Text -&gt; ClientM SearchHits
+</span><a href="Unison.Cli.Share.Definitions.html#httpSearch"><span class="hs-identifier hs-var">httpSearch</span></a></span></span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpSearchDefinitions"><span class="annot"><span class="annottext">Maybe Text
+-&gt; Maybe Text -&gt; Maybe Text -&gt; ClientM DefinitionSearchResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpSearchDefinitions"><span class="hs-identifier hs-var">httpSearchDefinitions</span></a></span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpProjectInfo"><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ProjectInfo
+</span><a href="Unison.Cli.Share.Definitions.html#httpProjectInfo"><span class="hs-identifier hs-var">httpProjectInfo</span></a></span></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpReleases"><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Int -&gt; ClientM ReleasesResponse
+</span><a href="Unison.Cli.Share.Definitions.html#httpReleases"><span class="hs-identifier hs-var">httpReleases</span></a></span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpReadme"><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ReadmeResponse
+</span><a href="Unison.Cli.Share.Definitions.html#httpReadme"><span class="hs-identifier hs-var">httpReadme</span></a></span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpBranchDefinition"><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpBranchDefinition"><span class="hs-identifier hs-var">httpBranchDefinition</span></a></span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="hs-operator hs-type">:&lt;|&gt;</span></span><span> </span><span id="httpReleaseDefinition"><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpReleaseDefinition"><span class="hs-identifier hs-var">httpReleaseDefinition</span></a></span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy ShareAPI -&gt; Client ClientM ShareAPI
+forall api.
+HasClient ClientM api =&gt;
+Proxy api -&gt; Client ClientM api
+</span><span class="hs-identifier hs-var">Servant.client</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall t. Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ShareAPI"><span class="hs-identifier hs-type">ShareAPI</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span id="local-6989586621681629711"><span class="annot"><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-type">run</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientM</span></span><span> </span><span class="annot"><a href="#local-6989586621681629711"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><a href="#local-6989586621681629711"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-131"></span><span id="run"><span class="annot"><span class="annottext">run :: forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span id="local-6989586621681630086"><span class="annot"><span class="annottext">ClientM a
+</span><a href="#local-6989586621681630086"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#Env"><span class="hs-identifier hs-type">Cli.Env</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Cli.Monad.html#authHTTPClient"><span class="hs-identifier hs-var">authHTTPClient</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Unison.Auth.HTTPClient.html#AuthenticatedHttpClient"><span class="hs-identifier hs-type">AuthenticatedHttpClient</span></a></span><span> </span><span id="local-6989586621681630090"><span class="annot"><a href="#local-6989586621681630090"><span class="hs-identifier hs-var">httpManager</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.runClientM</span></span><span> </span><span class="annot"><a href="#local-6989586621681630086"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Servant.mkClientEnv</span></span><span> </span><span class="annot"><a href="#local-6989586621681630090"><span class="hs-identifier hs-type">httpManager</span></a></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Projects.html#hardCodedBaseUrl"><span class="hs-identifier hs-type">hardCodedBaseUrl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">-- | Search for projects (and, for a query that starts with an @\@@, users and organizations).</span></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#searchEntities"><span class="hs-identifier hs-type">searchEntities</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHit"><span class="hs-identifier hs-type">SearchHit</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span id="searchEntities"><span class="annot"><span class="annottext">searchEntities :: Text -&gt; Cli (Either ClientError [SearchHit])
+</span><a href="Unison.Cli.Share.Definitions.html#searchEntities"><span class="hs-identifier hs-var hs-var">searchEntities</span></a></span></span><span> </span><span id="local-6989586621681630094"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630094"><span class="hs-identifier hs-var">query</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ClientM SearchHits -&gt; Cli (Either ClientError SearchHits)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text -&gt; ClientM SearchHits
+</span><a href="Unison.Cli.Share.Definitions.html#httpSearch"><span class="hs-identifier hs-var">httpSearch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630094"><span class="hs-identifier hs-var">query</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError SearchHits)
+-&gt; (Either ClientError SearchHits
+    -&gt; Either ClientError [SearchHit])
+-&gt; Cli (Either ClientError [SearchHit])
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(SearchHits -&gt; [SearchHit])
+-&gt; Either ClientError SearchHits -&gt; Either ClientError [SearchHit]
+forall a b.
+(a -&gt; b) -&gt; Either ClientError a -&gt; Either ClientError b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#SearchHits"><span class="hs-identifier hs-type">SearchHits</span></a></span><span> </span><span id="local-6989586621681630096"><span class="annot"><span class="annottext">[SearchHit]
+</span><a href="#local-6989586621681630096"><span class="hs-identifier hs-var">hits</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SearchHit]
+</span><a href="#local-6989586621681630096"><span class="hs-identifier hs-var">hits</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><span class="hs-comment">-- | Search for terms and types, by name or by type, in all of Share or in part of it.</span></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#searchDefinitions"><span class="hs-identifier hs-type">searchDefinitions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#SearchFilter"><span class="hs-identifier hs-type">SearchFilter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResult</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span id="searchDefinitions"><span class="annot"><span class="annottext">searchDefinitions :: Text
+-&gt; Maybe SearchFilter
+-&gt; Cli (Either ClientError [DefinitionSearchResult])
+</span><a href="Unison.Cli.Share.Definitions.html#searchDefinitions"><span class="hs-identifier hs-var hs-var">searchDefinitions</span></a></span></span><span> </span><span id="local-6989586621681630097"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630097"><span class="hs-identifier hs-var">query</span></a></span></span><span> </span><span id="local-6989586621681630098"><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><a href="#local-6989586621681630098"><span class="hs-identifier hs-var">filter_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><span class="annottext">ClientM DefinitionSearchResults
+-&gt; Cli (Either ClientError DefinitionSearchResults)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Text
+-&gt; Maybe Text -&gt; Maybe Text -&gt; ClientM DefinitionSearchResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpSearchDefinitions"><span class="hs-identifier hs-var">httpSearchDefinitions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630097"><span class="hs-identifier hs-var">query</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681630099"><span class="hs-identifier hs-var">projectFilter</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681630100"><span class="hs-identifier hs-var">userFilter</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError DefinitionSearchResults)
+-&gt; (Either ClientError DefinitionSearchResults
+    -&gt; Either ClientError [DefinitionSearchResult])
+-&gt; Cli (Either ClientError [DefinitionSearchResult])
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(DefinitionSearchResults -&gt; [DefinitionSearchResult])
+-&gt; Either ClientError DefinitionSearchResults
+-&gt; Either ClientError [DefinitionSearchResult]
+forall a b.
+(a -&gt; b) -&gt; Either ClientError a -&gt; Either ClientError b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefinitionSearchResults</span></span><span> </span><span id="local-6989586621681630102"><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><a href="#local-6989586621681630102"><span class="hs-identifier hs-var">results</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[DefinitionSearchResult]
+</span><a href="#local-6989586621681630102"><span class="hs-identifier hs-var">results</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621681630099"><span class="annot"><span class="annottext">projectFilter :: Maybe Text
+</span><a href="#local-6989586621681630099"><span class="hs-identifier hs-var hs-var">projectFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><a href="#local-6989586621681630098"><span class="hs-identifier hs-var">filter_</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#FilterProject"><span class="hs-identifier hs-type">FilterProject</span></a></span><span> </span><span id="local-6989586621681630104"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630104"><span class="hs-identifier hs-var">project</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630104"><span class="hs-identifier hs-var">project</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621681630100"><span class="annot"><span class="annottext">userFilter :: Maybe Text
+</span><a href="#local-6989586621681630100"><span class="hs-identifier hs-var hs-var">userFilter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><a href="#local-6989586621681630098"><span class="hs-identifier hs-var">filter_</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Ref.html#FilterUser"><span class="hs-identifier hs-type">FilterUser</span></a></span><span> </span><span id="local-6989586621681630106"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630106"><span class="hs-identifier hs-var">user</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630106"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">;</span><span> </span><span class="annot"><span class="annottext">Maybe SearchFilter
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><span class="hs-comment">-- | The releases of a project, newest first (at most 100).</span></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#listReleases"><span class="hs-identifier hs-type">listReleases</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleaseInfo"><span class="hs-identifier hs-type">ReleaseInfo</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span id="listReleases"><span class="annot"><span class="annottext">listReleases :: Text -&gt; Text -&gt; Cli (Either ClientError [ReleaseInfo])
+</span><a href="Unison.Cli.Share.Definitions.html#listReleases"><span class="hs-identifier hs-var hs-var">listReleases</span></a></span></span><span> </span><span id="local-6989586621681630107"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630107"><span class="hs-identifier hs-var">handle</span></a></span></span><span> </span><span id="local-6989586621681630108"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630108"><span class="hs-identifier hs-var">slug</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-150"></span><span>  </span><span class="annot"><span class="annottext">ClientM ReleasesResponse
+-&gt; Cli (Either ClientError ReleasesResponse)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Maybe Int -&gt; ClientM ReleasesResponse
+</span><a href="Unison.Cli.Share.Definitions.html#httpReleases"><span class="hs-identifier hs-var">httpReleases</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630107"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630108"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">100</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError ReleasesResponse)
+-&gt; (Either ClientError ReleasesResponse
+    -&gt; Either ClientError [ReleaseInfo])
+-&gt; Cli (Either ClientError [ReleaseInfo])
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(ReleasesResponse -&gt; [ReleaseInfo])
+-&gt; Either ClientError ReleasesResponse
+-&gt; Either ClientError [ReleaseInfo]
+forall a b.
+(a -&gt; b) -&gt; Either ClientError a -&gt; Either ClientError b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReleasesResponse"><span class="hs-identifier hs-type">ReleasesResponse</span></a></span><span> </span><span id="local-6989586621681630109"><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><a href="#local-6989586621681630109"><span class="hs-identifier hs-var">releases</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ReleaseInfo]
+</span><a href="#local-6989586621681630109"><span class="hs-identifier hs-var">releases</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><span class="hs-comment">-- | The project's README, as markdown.</span></span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#getReadme"><span class="hs-identifier hs-type">getReadme</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span id="getReadme"><span class="annot"><span class="annottext">getReadme :: ShareRef -&gt; Cli (Either ClientError Text)
+</span><a href="Unison.Cli.Share.Definitions.html#getReadme"><span class="hs-identifier hs-var hs-var">getReadme</span></a></span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681630111"><span class="annot"><span class="annottext">Text
+handle :: Text
+handle :: ShareRef -&gt; Text
+</span><a href="#local-6989586621681630111"><span class="hs-identifier hs-var hs-var">handle</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681630113"><span class="annot"><span class="annottext">Text
+slug :: Text
+slug :: ShareRef -&gt; Text
+</span><a href="#local-6989586621681630113"><span class="hs-identifier hs-var hs-var">slug</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><span class="annottext">ClientM ReadmeResponse -&gt; Cli (Either ClientError ReadmeResponse)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ReadmeResponse
+</span><a href="Unison.Cli.Share.Definitions.html#httpReadme"><span class="hs-identifier hs-var">httpReadme</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630111"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630113"><span class="hs-identifier hs-var">slug</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError ReadmeResponse)
+-&gt; (Either ClientError ReadmeResponse -&gt; Either ClientError Text)
+-&gt; Cli (Either ClientError Text)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(ReadmeResponse -&gt; Text)
+-&gt; Either ClientError ReadmeResponse -&gt; Either ClientError Text
+forall a b.
+(a -&gt; b) -&gt; Either ClientError a -&gt; Either ClientError b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ReadmeResponse"><span class="hs-identifier hs-type">ReadmeResponse</span></a></span><span> </span><span id="local-6989586621681630115"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630115"><span class="hs-identifier hs-var">md</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630115"><span class="hs-identifier hs-var">md</span></a></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="annot"><span class="hs-comment">-- | Look up a definition by name. Names that don't exist are in `missingDefinitions`, not an error.</span></span><span>
+</span><span id="line-158"></span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#getDefinitions"><span class="hs-identifier hs-type">getDefinitions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Cli.Monad.html#Cli"><span class="hs-identifier hs-type">Cli</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Servant.ClientError</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DefinitionDisplayResults</span></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span id="getDefinitions"><span class="annot"><span class="annottext">getDefinitions :: ShareRef
+-&gt; Text -&gt; Cli (Either ClientError DefinitionDisplayResults)
+</span><a href="Unison.Cli.Share.Definitions.html#getDefinitions"><span class="hs-identifier hs-var hs-var">getDefinitions</span></a></span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRef"><span class="hs-identifier hs-type">ShareRef</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681630116"><span class="annot"><span class="annottext">Text
+handle :: ShareRef -&gt; Text
+handle :: Text
+</span><a href="Unison.Cli.Share.Ref.html#handle"><span class="hs-identifier hs-var hs-var">handle</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681630117"><span class="annot"><span class="annottext">Text
+slug :: ShareRef -&gt; Text
+slug :: Text
+</span><a href="Unison.Cli.Share.Ref.html#slug"><span class="hs-identifier hs-var hs-var">slug</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681630118"><span class="annot"><span class="annottext">ShareBranch
+branch :: ShareBranch
+branch :: ShareRef -&gt; ShareBranch
+</span><a href="#local-6989586621681630118"><span class="hs-identifier hs-var hs-var">branch</span></a></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621681630120"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630120"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><a href="Unison.Cli.Monad.html#Env"><span class="hs-identifier hs-type">Cli.Env</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681630121"><span class="annot"><a href="#local-6989586621681630121"><span class="hs-identifier hs-var hs-var">getTerminalWidth</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cli Env
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-161"></span><span>  </span><span id="local-6989586621681630123"><span class="annot"><a href="#local-6989586621681630123"><span class="hs-identifier hs-var">width</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621681630121"><span class="hs-identifier hs-type">getTerminalWidth</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621681630118"><span class="hs-identifier hs-type">branch</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-163"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareRelease"><span class="hs-identifier hs-type">ShareRelease</span></a></span><span> </span><span id="local-6989586621681630125"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630125"><span class="hs-identifier hs-var">version</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ClientM DefinitionDisplayResults
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpReleaseDefinition"><span class="hs-identifier hs-var">httpReleaseDefinition</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630116"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630117"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630125"><span class="hs-identifier hs-var">version</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630120"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Width
+</span><a href="#local-6989586621681630123"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>    </span><span class="annot"><a href="Unison.Cli.Share.Ref.html#ShareBranchNamed"><span class="hs-identifier hs-type">ShareBranchNamed</span></a></span><span> </span><span id="local-6989586621681630127"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630127"><span class="hs-identifier hs-var">branchName</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ClientM DefinitionDisplayResults
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpBranchDefinition"><span class="hs-identifier hs-var">httpBranchDefinition</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630116"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630117"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630127"><span class="hs-identifier hs-var">branchName</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630120"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Width
+</span><a href="#local-6989586621681630123"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="annottext">ShareBranch
+</span><a href="Unison.Cli.Share.Ref.html#ShareLatest"><span class="hs-identifier hs-var">ShareLatest</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-166"></span><span>      </span><span class="annot"><span class="annottext">ClientM ProjectInfo -&gt; Cli (Either ClientError ProjectInfo)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; ClientM ProjectInfo
+</span><a href="Unison.Cli.Share.Definitions.html#httpProjectInfo"><span class="hs-identifier hs-var">httpProjectInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630116"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630117"><span class="hs-identifier hs-var">slug</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Cli (Either ClientError ProjectInfo)
+-&gt; (Either ClientError ProjectInfo
+    -&gt; Cli (Either ClientError DefinitionDisplayResults))
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a b. Cli a -&gt; (a -&gt; Cli b) -&gt; Cli b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-167"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681630129"><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681630129"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either ClientError DefinitionDisplayResults
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a. a -&gt; Cli a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientError -&gt; Either ClientError DefinitionDisplayResults
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">ClientError
+</span><a href="#local-6989586621681630129"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><a href="Unison.Cli.Share.Definitions.html#ProjectInfo"><span class="hs-identifier hs-type">ProjectInfo</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621681630130"><span class="annot"><span class="annottext">Maybe Text
+latestRelease :: ProjectInfo -&gt; Maybe Text
+latestRelease :: Maybe Text
+</span><a href="Unison.Cli.Share.Definitions.html#latestRelease"><span class="hs-identifier hs-var hs-var">latestRelease</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681630131"><span class="annot"><span class="annottext">Text
+defaultBranch :: ProjectInfo -&gt; Text
+defaultBranch :: Text
+</span><a href="Unison.Cli.Share.Definitions.html#defaultBranch"><span class="hs-identifier hs-var hs-var">defaultBranch</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-169"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621681630130"><span class="hs-identifier hs-var">latestRelease</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-170"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681630132"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630132"><span class="hs-identifier hs-var">version</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ClientM DefinitionDisplayResults
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpReleaseDefinition"><span class="hs-identifier hs-var">httpReleaseDefinition</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630116"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630117"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630132"><span class="hs-identifier hs-var">version</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630120"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Width
+</span><a href="#local-6989586621681630123"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span>            </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ClientM DefinitionDisplayResults
+-&gt; Cli (Either ClientError DefinitionDisplayResults)
+forall a. ClientM a -&gt; Cli (Either ClientError a)
+</span><a href="Unison.Cli.Share.Definitions.html#run"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+-&gt; Text
+-&gt; Text
+-&gt; Text
+-&gt; Maybe Width
+-&gt; ClientM DefinitionDisplayResults
+</span><a href="Unison.Cli.Share.Definitions.html#httpBranchDefinition"><span class="hs-identifier hs-var">httpBranchDefinition</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630116"><span class="hs-identifier hs-var">handle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630117"><span class="hs-identifier hs-var">slug</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630131"><span class="hs-identifier hs-var">defaultBranch</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681630120"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Width
+</span><a href="#local-6989586621681630123"><span class="hs-identifier hs-var">width</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span></pre></body></html>

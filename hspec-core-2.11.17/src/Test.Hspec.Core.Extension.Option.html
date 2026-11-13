@@ -1,0 +1,109 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Option</span></a></span><span> </span><span class="hs-pragma">{-# WARNING</span><span> </span><span class="hs-pragma">&quot;This API is experimental.&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier">Option</span></a></span><span>
+</span><span id="line-3"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#flag"><span class="hs-identifier">flag</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#argument"><span class="hs-identifier">argument</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#noArgument"><span class="hs-identifier">noArgument</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#optionalArgument"><span class="hs-identifier">optionalArgument</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GetOpt.Declarative.html"><span class="hs-identifier">GetOpt.Declarative</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Declarative</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html"><span class="hs-identifier">Test.Hspec.Core.Config.Definition</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Core</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Config.Type</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier">Option</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier">Config</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#flag"><span class="hs-identifier hs-type">flag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span>
+</span><span id="line-18"></span><span id="flag"><span class="annot"><span class="annottext">flag :: String -&gt; (Bool -&gt; Config -&gt; Config) -&gt; String -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Option.html#flag"><span class="hs-identifier hs-var hs-var">flag</span></a></span></span><span> </span><span id="local-6989586621679147545"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147545"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679147546"><span class="annot"><span class="annottext">Bool -&gt; Config -&gt; Config
+</span><a href="#local-6989586621679147546"><span class="hs-identifier hs-var">setter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Option Config -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="annot"><span class="annottext">(Option Config -&gt; Option)
+-&gt; (String -&gt; Option Config) -&gt; String -&gt; Option
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; (Bool -&gt; Config -&gt; Config) -&gt; String -&gt; Option Config
+forall config.
+String -&gt; (Bool -&gt; config -&gt; config) -&gt; String -&gt; Option config
+</span><a href="Test.Hspec.Core.Config.Definition.html#flag"><span class="hs-identifier hs-var">Core.flag</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147545"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Config -&gt; Config
+</span><a href="#local-6989586621679147546"><span class="hs-identifier hs-var">setter</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#argument"><span class="hs-identifier hs-type">argument</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span>
+</span><span id="line-21"></span><span id="argument"><span class="annot"><span class="annottext">argument :: String
+-&gt; String -&gt; (String -&gt; Config -&gt; Maybe Config) -&gt; String -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Option.html#argument"><span class="hs-identifier hs-var hs-var">argument</span></a></span></span><span> </span><span id="local-6989586621679147550"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147550"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679147551"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147551"><span class="hs-identifier hs-var">argumentName</span></a></span></span><span> </span><span id="local-6989586621679147552"><span class="annot"><span class="annottext">String -&gt; Config -&gt; Maybe Config
+</span><a href="#local-6989586621679147552"><span class="hs-identifier hs-var">setter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Option Config -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="annot"><span class="annottext">(Option Config -&gt; Option)
+-&gt; (String -&gt; Option Config) -&gt; String -&gt; Option
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; OptionSetter Config -&gt; String -&gt; Option Config
+forall config.
+String -&gt; OptionSetter config -&gt; String -&gt; Option config
+</span><a href="Test.Hspec.Core.Config.Definition.html#option"><span class="hs-identifier hs-var">Core.option</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147550"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; (String -&gt; Config -&gt; Maybe Config) -&gt; OptionSetter Config
+forall config.
+String -&gt; (String -&gt; config -&gt; Maybe config) -&gt; OptionSetter config
+</span><a href="GetOpt.Declarative.Types.html#Arg"><span class="hs-identifier hs-var">Declarative.Arg</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147551"><span class="hs-identifier hs-var">argumentName</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Config -&gt; Maybe Config
+</span><a href="#local-6989586621679147552"><span class="hs-identifier hs-var">setter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#optionalArgument"><span class="hs-identifier hs-type">optionalArgument</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span>
+</span><span id="line-24"></span><span id="optionalArgument"><span class="annot"><span class="annottext">optionalArgument :: String
+-&gt; String
+-&gt; (Maybe String -&gt; Config -&gt; Maybe Config)
+-&gt; String
+-&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Option.html#optionalArgument"><span class="hs-identifier hs-var hs-var">optionalArgument</span></a></span></span><span> </span><span id="local-6989586621679147555"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147555"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679147556"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147556"><span class="hs-identifier hs-var">argumentName</span></a></span></span><span> </span><span id="local-6989586621679147557"><span class="annot"><span class="annottext">Maybe String -&gt; Config -&gt; Maybe Config
+</span><a href="#local-6989586621679147557"><span class="hs-identifier hs-var">setter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Option Config -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="annot"><span class="annottext">(Option Config -&gt; Option)
+-&gt; (String -&gt; Option Config) -&gt; String -&gt; Option
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; OptionSetter Config -&gt; String -&gt; Option Config
+forall config.
+String -&gt; OptionSetter config -&gt; String -&gt; Option config
+</span><a href="Test.Hspec.Core.Config.Definition.html#option"><span class="hs-identifier hs-var">Core.option</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147555"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+-&gt; (Maybe String -&gt; Config -&gt; Maybe Config) -&gt; OptionSetter Config
+forall config.
+String
+-&gt; (Maybe String -&gt; config -&gt; Maybe config) -&gt; OptionSetter config
+</span><a href="GetOpt.Declarative.Types.html#OptArg"><span class="hs-identifier hs-var">Declarative.OptArg</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147556"><span class="hs-identifier hs-var">argumentName</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String -&gt; Config -&gt; Maybe Config
+</span><a href="#local-6989586621679147557"><span class="hs-identifier hs-var">setter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html#noArgument"><span class="hs-identifier hs-type">noArgument</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span>
+</span><span id="line-27"></span><span id="noArgument"><span class="annot"><span class="annottext">noArgument :: String -&gt; (Config -&gt; Config) -&gt; String -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Option.html#noArgument"><span class="hs-identifier hs-var hs-var">noArgument</span></a></span></span><span> </span><span id="local-6989586621679147559"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147559"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679147560"><span class="annot"><span class="annottext">Config -&gt; Config
+</span><a href="#local-6989586621679147560"><span class="hs-identifier hs-var">setter</span></a></span></span><span> </span><span id="local-6989586621679147561"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147561"><span class="hs-identifier hs-var">help</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Option Config -&gt; Option
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="annot"><span class="annottext">(Option Config -&gt; Option) -&gt; Option Config -&gt; Option
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+-&gt; Maybe Char
+-&gt; OptionSetter Config
+-&gt; String
+-&gt; Bool
+-&gt; Option Config
+forall config.
+String
+-&gt; Maybe Char
+-&gt; OptionSetter config
+-&gt; String
+-&gt; Bool
+-&gt; Option config
+</span><a href="GetOpt.Declarative.Types.html#Option"><span class="hs-identifier hs-var">Declarative.Option</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147559"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Char
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Config -&gt; Config) -&gt; OptionSetter Config
+forall config. (config -&gt; config) -&gt; OptionSetter config
+</span><a href="GetOpt.Declarative.Types.html#NoArg"><span class="hs-identifier hs-var">Declarative.NoArg</span></a></span><span> </span><span class="annot"><span class="annottext">Config -&gt; Config
+</span><a href="#local-6989586621679147560"><span class="hs-identifier hs-var">setter</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147561"><span class="hs-identifier hs-var">help</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-28"></span></pre></body></html>

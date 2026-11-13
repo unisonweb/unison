@@ -1,0 +1,813 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  Data.Bifunctor.Flip</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (C) 2008-2016 Edward Kmett</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Bifunctor.Flip.html"><span class="hs-identifier">Data.Bifunctor.Flip</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier">Flip</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Biapplicative.html"><span class="hs-identifier">Data.Biapplicative</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifoldable1</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Bifunctor.Functor.html"><span class="hs-identifier">Data.Bifunctor.Functor</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor.Swap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Swap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor.Assoc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Assoc</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Classes</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><span class="hs-comment">-- | Make a 'Bifunctor' flipping the arguments of a 'Bifunctor'.</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">newtype</span><span> </span><span id="Flip"><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span></span><span> </span><span id="local-6989586621679112092"><span class="annot"><a href="#local-6989586621679112092"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679112093"><span class="annot"><a href="#local-6989586621679112093"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679112094"><span class="annot"><a href="#local-6989586621679112094"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Flip"><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runFlip"><span class="annot"><span class="annottext">forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var hs-var">runFlip</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679112092"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112094"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112093"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679112480"><span id="local-6989586621679112484"><span class="annot"><span class="annottext">Flip p a b -&gt; Flip p a b -&gt; Bool
+(Flip p a b -&gt; Flip p a b -&gt; Bool)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Bool) -&gt; Eq (Flip p a b)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Eq (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+$c== :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Eq (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+== :: Flip p a b -&gt; Flip p a b -&gt; Bool
+$c/= :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Eq (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+/= :: Flip p a b -&gt; Flip p a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679112495"><span id="local-6989586621679112499"><span id="local-6989586621679112503"><span id="local-6989586621679112507"><span id="local-6989586621679112511"><span id="local-6989586621679112515"><span id="local-6989586621679112519"><span class="annot"><span class="annottext">Eq (Flip p a b)
+Eq (Flip p a b) =&gt;
+(Flip p a b -&gt; Flip p a b -&gt; Ordering)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Bool)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Bool)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Bool)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Bool)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Flip p a b)
+-&gt; (Flip p a b -&gt; Flip p a b -&gt; Flip p a b)
+-&gt; Ord (Flip p a b)
+Flip p a b -&gt; Flip p a b -&gt; Bool
+Flip p a b -&gt; Flip p a b -&gt; Ordering
+Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Eq (Flip p a b)
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Ordering
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+$ccompare :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Ordering
+compare :: Flip p a b -&gt; Flip p a b -&gt; Ordering
+$c&lt; :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+&lt; :: Flip p a b -&gt; Flip p a b -&gt; Bool
+$c&lt;= :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+&lt;= :: Flip p a b -&gt; Flip p a b -&gt; Bool
+$c&gt; :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+&gt; :: Flip p a b -&gt; Flip p a b -&gt; Bool
+$c&gt;= :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Bool
+&gt;= :: Flip p a b -&gt; Flip p a b -&gt; Bool
+$cmax :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+max :: Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+$cmin :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Ord (p b a) =&gt;
+Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+min :: Flip p a b -&gt; Flip p a b -&gt; Flip p a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679112533"><span id="local-6989586621679112538"><span id="local-6989586621679112542"><span class="annot"><span class="annottext">Int -&gt; Flip p a b -&gt; ShowS
+[Flip p a b] -&gt; ShowS
+Flip p a b -&gt; String
+(Int -&gt; Flip p a b -&gt; ShowS)
+-&gt; (Flip p a b -&gt; String)
+-&gt; ([Flip p a b] -&gt; ShowS)
+-&gt; Show (Flip p a b)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+Int -&gt; Flip p a b -&gt; ShowS
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+[Flip p a b] -&gt; ShowS
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+Flip p a b -&gt; String
+$cshowsPrec :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+Int -&gt; Flip p a b -&gt; ShowS
+showsPrec :: Int -&gt; Flip p a b -&gt; ShowS
+$cshow :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+Flip p a b -&gt; String
+show :: Flip p a b -&gt; String
+$cshowList :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Show (p b a) =&gt;
+[Flip p a b] -&gt; ShowS
+showList :: [Flip p a b] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679112548"><span id="local-6989586621679112552"><span id="local-6989586621679112555"><span id="local-6989586621679112564"><span class="annot"><span class="annottext">ReadPrec [Flip p a b]
+ReadPrec (Flip p a b)
+Int -&gt; ReadS (Flip p a b)
+ReadS [Flip p a b]
+(Int -&gt; ReadS (Flip p a b))
+-&gt; ReadS [Flip p a b]
+-&gt; ReadPrec (Flip p a b)
+-&gt; ReadPrec [Flip p a b]
+-&gt; Read (Flip p a b)
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadPrec [Flip p a b]
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadPrec (Flip p a b)
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+Int -&gt; ReadS (Flip p a b)
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadS [Flip p a b]
+$creadsPrec :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+Int -&gt; ReadS (Flip p a b)
+readsPrec :: Int -&gt; ReadS (Flip p a b)
+$creadList :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadS [Flip p a b]
+readList :: ReadS [Flip p a b]
+$creadPrec :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadPrec (Flip p a b)
+readPrec :: ReadPrec (Flip p a b)
+$creadListPrec :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Read (p b a) =&gt;
+ReadPrec [Flip p a b]
+readListPrec :: ReadPrec [Flip p a b]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679112571"><span id="local-6989586621679112573"><span class="annot"><span class="annottext">(forall x. Flip p a b -&gt; Rep (Flip p a b) x)
+-&gt; (forall x. Rep (Flip p a b) x -&gt; Flip p a b)
+-&gt; Generic (Flip p a b)
+forall x. Rep (Flip p a b) x -&gt; Flip p a b
+forall x. Flip p a b -&gt; Rep (Flip p a b) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k) x.
+Rep (Flip p a b) x -&gt; Flip p a b
+forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k) x.
+Flip p a b -&gt; Rep (Flip p a b) x
+$cfrom :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k) x.
+Flip p a b -&gt; Rep (Flip p a b) x
+from :: forall x. Flip p a b -&gt; Rep (Flip p a b) x
+$cto :: forall k k (p :: k -&gt; k -&gt; *) (a :: k) (b :: k) x.
+Rep (Flip p a b) x -&gt; Flip p a b
+to :: forall x. Rep (Flip p a b) x -&gt; Flip p a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112174"><span id="local-6989586621679112175"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112174"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679112175"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112174"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112175"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679112592"><span class="annot"><span class="annottext">liftEq :: forall a b. (a -&gt; b -&gt; Bool) -&gt; Flip p a a -&gt; Flip p a b -&gt; Bool
+</span><a href="#local-6989586621679112592"><span class="hs-identifier hs-var hs-var hs-var">liftEq</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; b -&gt; Bool) -&gt; Flip p a a -&gt; Flip p a b -&gt; Bool
+forall a b c d.
+(a -&gt; b -&gt; Bool)
+-&gt; (c -&gt; d -&gt; Bool) -&gt; Flip p a c -&gt; Flip p b d -&gt; Bool
+forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112176"><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112176"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112176"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>  </span><span id="local-6989586621679112601"><span class="annot"><span class="annottext">liftEq2 :: forall a b c d.
+(a -&gt; b -&gt; Bool)
+-&gt; (c -&gt; d -&gt; Bool) -&gt; Flip p a c -&gt; Flip p b d -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var">liftEq2</span></span></span><span> </span><span id="local-6989586621679112602"><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679112602"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112603"><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679112603"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112604"><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112604"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112605"><span class="annot"><span class="annottext">p d b
+</span><a href="#local-6989586621679112605"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; d -&gt; Bool) -&gt; (a -&gt; b -&gt; Bool) -&gt; p c a -&gt; p d b -&gt; Bool
+forall a b c d.
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; p a c -&gt; p b d -&gt; Bool
+forall (f :: * -&gt; * -&gt; *) a b c d.
+Eq2 f =&gt;
+(a -&gt; b -&gt; Bool) -&gt; (c -&gt; d -&gt; Bool) -&gt; f a c -&gt; f b d -&gt; Bool
+</span><span class="hs-identifier hs-var">liftEq2</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Bool
+</span><a href="#local-6989586621679112603"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Bool
+</span><a href="#local-6989586621679112602"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112604"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">p d b
+</span><a href="#local-6989586621679112605"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112198"><span id="local-6989586621679112199"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112198"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679112199"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112198"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112199"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679112625"><span class="annot"><span class="annottext">liftCompare :: forall a b.
+(a -&gt; b -&gt; Ordering) -&gt; Flip p a a -&gt; Flip p a b -&gt; Ordering
+</span><a href="#local-6989586621679112625"><span class="hs-identifier hs-var hs-var hs-var">liftCompare</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; b -&gt; Ordering) -&gt; Flip p a a -&gt; Flip p a b -&gt; Ordering
+forall a b c d.
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; Flip p a c -&gt; Flip p b d -&gt; Ordering
+forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112200"><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112200"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112200"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679112637"><span class="annot"><span class="annottext">liftCompare2 :: forall a b c d.
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; Flip p a c -&gt; Flip p b d -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">liftCompare2</span></span></span><span> </span><span id="local-6989586621679112638"><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679112638"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112639"><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679112639"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112640"><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112640"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112641"><span class="annot"><span class="annottext">p d b
+</span><a href="#local-6989586621679112641"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; d -&gt; Ordering)
+-&gt; (a -&gt; b -&gt; Ordering) -&gt; p c a -&gt; p d b -&gt; Ordering
+forall a b c d.
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; p a c -&gt; p b d -&gt; Ordering
+forall (f :: * -&gt; * -&gt; *) a b c d.
+Ord2 f =&gt;
+(a -&gt; b -&gt; Ordering)
+-&gt; (c -&gt; d -&gt; Ordering) -&gt; f a c -&gt; f b d -&gt; Ordering
+</span><span class="hs-identifier hs-var">liftCompare2</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Ordering
+</span><a href="#local-6989586621679112639"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; Ordering
+</span><a href="#local-6989586621679112638"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112640"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">p d b
+</span><a href="#local-6989586621679112641"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112224"><span id="local-6989586621679112225"><span id="local-6989586621679112648"><span id="local-6989586621679112652"><span id="local-6989586621679112655"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112224"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="#local-6989586621679112225"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112224"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112225"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679112666"><span class="annot"><span class="annottext">liftReadsPrec :: forall a.
+(Int -&gt; ReadS a) -&gt; ReadS [a] -&gt; Int -&gt; ReadS (Flip p a a)
+</span><a href="#local-6989586621679112666"><span class="hs-identifier hs-var hs-var hs-var">liftReadsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; Int
+-&gt; ReadS (Flip p a a)
+forall a b.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (Flip p a b)
+forall (f :: * -&gt; * -&gt; *) a b.
+Read2 f =&gt;
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (f a b)
+</span><span class="hs-identifier hs-var">liftReadsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+forall a. Read a =&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">ReadS [a]
+forall a. Read a =&gt; ReadS [a]
+</span><span class="hs-identifier hs-var">readList</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112226"><span id="local-6989586621679112675"><span id="local-6989586621679112678"><span id="local-6989586621679112681"><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112226"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Read2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112226"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679112700"><span class="annot"><span class="annottext">liftReadsPrec2 :: forall a b.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a]
+-&gt; (Int -&gt; ReadS b)
+-&gt; ReadS [b]
+-&gt; Int
+-&gt; ReadS (Flip p a b)
+</span><span class="hs-identifier hs-var hs-var hs-var">liftReadsPrec2</span></span></span><span> </span><span id="local-6989586621679112701"><span class="annot"><span class="annottext">Int -&gt; ReadS a
+</span><a href="#local-6989586621679112701"><span class="hs-identifier hs-var">rp1</span></a></span></span><span> </span><span id="local-6989586621679112702"><span class="annot"><span class="annottext">ReadS [a]
+</span><a href="#local-6989586621679112702"><span class="hs-identifier hs-var">rl1</span></a></span></span><span> </span><span id="local-6989586621679112703"><span class="annot"><span class="annottext">Int -&gt; ReadS b
+</span><a href="#local-6989586621679112703"><span class="hs-identifier hs-var">rp2</span></a></span></span><span> </span><span id="local-6989586621679112704"><span class="annot"><span class="annottext">ReadS [b]
+</span><a href="#local-6989586621679112704"><span class="hs-identifier hs-var">rl2</span></a></span></span><span> </span><span id="local-6989586621679112705"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679112705"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ReadS (Flip p a b) -&gt; ReadS (Flip p a b)
+forall a. Bool -&gt; ReadS a -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679112705"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReadS (Flip p a b) -&gt; ReadS (Flip p a b))
+-&gt; ReadS (Flip p a b) -&gt; ReadS (Flip p a b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679112707"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679112707"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;Flip&quot;</span></span><span class="hs-special">,</span><span>    </span><span id="local-6989586621679112708"><span class="annot"><a href="#local-6989586621679112708"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><span class="hs-identifier hs-var">lex</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679112707"><span class="hs-identifier hs-var">s0</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;{&quot;</span></span><span class="hs-special">,</span><span>       </span><span id="local-6989586621679112710"><span class="annot"><a href="#local-6989586621679112710"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lex</span></span><span> </span><span class="annot"><a href="#local-6989586621679112708"><span class="hs-identifier hs-type">s1</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;runFlip&quot;</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679112711"><span class="annot"><a href="#local-6989586621679112711"><span class="hs-identifier hs-var">s3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lex</span></span><span> </span><span class="annot"><a href="#local-6989586621679112710"><span class="hs-identifier hs-type">s2</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679112712"><span class="annot"><a href="#local-6989586621679112712"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span>         </span><span id="local-6989586621679112713"><span class="annot"><a href="#local-6989586621679112713"><span class="hs-identifier hs-var">s4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">liftReadsPrec2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112703"><span class="hs-identifier hs-type">rp2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112704"><span class="hs-identifier hs-type">rl2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112701"><span class="hs-identifier hs-type">rp1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112702"><span class="hs-identifier hs-type">rl1</span></a></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="annot"><a href="#local-6989586621679112711"><span class="hs-identifier hs-type">s3</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-string">&quot;}&quot;</span></span><span class="hs-special">,</span><span>       </span><span id="local-6989586621679112714"><span class="annot"><a href="#local-6989586621679112714"><span class="hs-identifier hs-var">s5</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">lex</span></span><span> </span><span class="annot"><a href="#local-6989586621679112713"><span class="hs-identifier hs-type">s4</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112712"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679112714"><span class="hs-identifier hs-type">s5</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112257"><span id="local-6989586621679112258"><span id="local-6989586621679112721"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112257"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679112258"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112257"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112258"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679112733"><span class="annot"><span class="annottext">liftShowsPrec :: forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; ([a] -&gt; ShowS) -&gt; Int -&gt; Flip p a a -&gt; ShowS
+</span><a href="#local-6989586621679112733"><span class="hs-identifier hs-var hs-var hs-var">liftShowsPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; Int
+-&gt; Flip p a a
+-&gt; ShowS
+forall a b.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; Flip p a b
+-&gt; ShowS
+forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+forall a. Show a =&gt; [a] -&gt; ShowS
+</span><span class="hs-identifier hs-var">showList</span></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112259"><span id="local-6989586621679112742"><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="annot"><a href="#local-6989586621679112259"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112259"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679112748"><span class="annot"><span class="annottext">liftShowsPrec2 :: forall a b.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; Flip p a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">liftShowsPrec2</span></span></span><span> </span><span id="local-6989586621679112749"><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679112749"><span class="hs-identifier hs-var">sp1</span></a></span></span><span> </span><span id="local-6989586621679112750"><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679112750"><span class="hs-identifier hs-var">sl1</span></a></span></span><span> </span><span id="local-6989586621679112751"><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679112751"><span class="hs-identifier hs-var">sp2</span></a></span></span><span> </span><span id="local-6989586621679112752"><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679112752"><span class="hs-identifier hs-var">sl2</span></a></span></span><span> </span><span id="local-6989586621679112753"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679112753"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112754"><span class="annot"><span class="annottext">p b a
+</span><a href="#local-6989586621679112754"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679112753"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Flip {runFlip = &quot;</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; (Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; Int
+-&gt; p b a
+-&gt; ShowS
+forall a b.
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; p a b
+-&gt; ShowS
+forall (f :: * -&gt; * -&gt; *) a b.
+Show2 f =&gt;
+(Int -&gt; a -&gt; ShowS)
+-&gt; ([a] -&gt; ShowS)
+-&gt; (Int -&gt; b -&gt; ShowS)
+-&gt; ([b] -&gt; ShowS)
+-&gt; Int
+-&gt; f a b
+-&gt; ShowS
+</span><span class="hs-identifier hs-var">liftShowsPrec2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; b -&gt; ShowS
+</span><a href="#local-6989586621679112751"><span class="hs-identifier hs-var">sp2</span></a></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; ShowS
+</span><a href="#local-6989586621679112752"><span class="hs-identifier hs-var">sl2</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+</span><a href="#local-6989586621679112749"><span class="hs-identifier hs-var">sp1</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; ShowS
+</span><a href="#local-6989586621679112750"><span class="hs-identifier hs-var">sl1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">p b a
+</span><a href="#local-6989586621679112754"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'}'</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112285"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112285"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112285"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679112768"><span class="annot"><span class="annottext">first :: forall a b c. (a -&gt; b) -&gt; Flip p a c -&gt; Flip p b c
+</span><a href="#local-6989586621679112768"><span class="hs-identifier hs-var hs-var hs-var">first</span></a></span></span><span> </span><span id="local-6989586621679112770"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112770"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p c b -&gt; Flip p b c
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p c b -&gt; Flip p b c)
+-&gt; (Flip p a c -&gt; p c b) -&gt; Flip p a c -&gt; Flip p b c
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; p c a -&gt; p c b
+forall b c a. (b -&gt; c) -&gt; p a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112770"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p c a -&gt; p c b) -&gt; (Flip p a c -&gt; p c a) -&gt; Flip p a c -&gt; p c b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a c -&gt; p c a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">first</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679112773"><span class="annot"><span class="annottext">second :: forall b c a. (b -&gt; c) -&gt; Flip p a b -&gt; Flip p a c
+</span><span class="hs-identifier hs-var hs-var hs-var">second</span></span></span><span> </span><span id="local-6989586621679112774"><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679112774"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p c a -&gt; Flip p a c
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p c a -&gt; Flip p a c)
+-&gt; (Flip p a b -&gt; p c a) -&gt; Flip p a b -&gt; Flip p a c
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; c) -&gt; p b a -&gt; p c a
+forall a b c. (a -&gt; b) -&gt; p a c -&gt; p b c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679112774"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; p c a) -&gt; (Flip p a b -&gt; p b a) -&gt; Flip p a b -&gt; p c a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">second</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679112776"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Flip p a c -&gt; Flip p b d
+</span><a href="#local-6989586621679112776"><span class="hs-identifier hs-var hs-var hs-var">bimap</span></a></span></span><span> </span><span id="local-6989586621679112778"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112778"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112779"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679112779"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p d b -&gt; Flip p b d
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p d b -&gt; Flip p b d)
+-&gt; (Flip p a c -&gt; p d b) -&gt; Flip p a c -&gt; Flip p b d
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; (a -&gt; b) -&gt; p c a -&gt; p d b
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679112779"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112778"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p c a -&gt; p d b) -&gt; (Flip p a c -&gt; p c a) -&gt; Flip p a c -&gt; p d b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a c -&gt; p c a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bimap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112303"><span id="local-6989586621679112304"><span id="local-6989586621679112783"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112303"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112303"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112304"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679112788"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Flip p a a -&gt; Flip p a b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679112789"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112789"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p b a -&gt; Flip p a b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; Flip p a b)
+-&gt; (Flip p a a -&gt; p b a) -&gt; Flip p a a -&gt; Flip p a b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; p a a -&gt; p b a
+forall a b c. (a -&gt; b) -&gt; p a c -&gt; p b c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112789"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p a a -&gt; p b a) -&gt; (Flip p a a -&gt; p a a) -&gt; Flip p a a -&gt; p b a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a a -&gt; p a a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">fmap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112330"><span id="local-6989586621679112797"><span id="local-6989586621679112801"><span id="local-6989586621679112804"><span class="annot"><a href="Data.Biapplicative.html#Biapplicative"><span class="hs-identifier hs-type">Biapplicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112330"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Biapplicative.html#Biapplicative"><span class="hs-identifier hs-type">Biapplicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112330"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679112809"><span class="annot"><span class="annottext">bipure :: forall a b. a -&gt; b -&gt; Flip p a b
+</span><a href="#local-6989586621679112809"><span class="hs-identifier hs-var hs-var hs-var">bipure</span></a></span></span><span> </span><span id="local-6989586621679112811"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679112811"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679112812"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679112812"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p b a -&gt; Flip p a b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; a -&gt; p b a
+forall a b. a -&gt; b -&gt; p a b
+forall (p :: * -&gt; * -&gt; *) a b. Biapplicative p =&gt; a -&gt; b -&gt; p a b
+</span><a href="Data.Biapplicative.html#bipure"><span class="hs-identifier hs-var">bipure</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679112812"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679112811"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Biapplicative.html#bipure"><span class="hs-pragma hs-type">bipure</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112814"><span class="annot"><span class="annottext">p (c -&gt; d) (a -&gt; b)
+</span><a href="#local-6989586621679112814"><span class="hs-identifier hs-var">fg</span></a></span></span><span> </span><span id="local-6989586621679112815"><span class="annot"><span class="annottext">&lt;&lt;*&gt;&gt; :: forall a b c d.
+Flip p (a -&gt; b) (c -&gt; d) -&gt; Flip p a c -&gt; Flip p b d
+</span><a href="#local-6989586621679112815"><span class="hs-operator hs-var hs-var hs-var">&lt;&lt;*&gt;&gt;</span></a></span></span><span> </span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112817"><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112817"><span class="hs-identifier hs-var">xy</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p d b -&gt; Flip p b d
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p (c -&gt; d) (a -&gt; b)
+</span><a href="#local-6989586621679112814"><span class="hs-identifier hs-var">fg</span></a></span><span> </span><span class="annot"><span class="annottext">p (c -&gt; d) (a -&gt; b) -&gt; p c a -&gt; p d b
+forall a b c d. p (a -&gt; b) (c -&gt; d) -&gt; p a c -&gt; p b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Biapplicative p =&gt;
+p (a -&gt; b) (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><a href="Data.Biapplicative.html#%3C%3C%2A%3E%3E"><span class="hs-operator hs-var">&lt;&lt;*&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">p c a
+</span><a href="#local-6989586621679112817"><span class="hs-identifier hs-var">xy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">&lt;&lt;*&gt;&gt;</span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112351"><span id="local-6989586621679112820"><span id="local-6989586621679112827"><span id="local-6989586621679112830"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679112351"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112351"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679112836"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Flip p a b -&gt; m
+</span><a href="#local-6989586621679112836"><span class="hs-identifier hs-var hs-var hs-var">bifoldMap</span></a></span></span><span> </span><span id="local-6989586621679112838"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112838"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112839"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679112839"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; m) -&gt; (a -&gt; m) -&gt; p b a -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679112839"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112838"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; m) -&gt; (Flip p a b -&gt; p b a) -&gt; Flip p a b -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bifoldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112363"><span id="local-6989586621679112845"><span class="annot"><span class="hs-identifier hs-type">Bifoldable1</span></span><span> </span><span class="annot"><a href="#local-6989586621679112363"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112363"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621679112856"><span class="annot"><span class="annottext">bifoldMap1 :: forall m a b.
+Semigroup m =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; Flip p a b -&gt; m
+</span><a href="#local-6989586621679112856"><span class="hs-identifier hs-var hs-var hs-var">bifoldMap1</span></a></span></span><span> </span><span id="local-6989586621679112858"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112858"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112859"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679112859"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; m) -&gt; (a -&gt; m) -&gt; p b a -&gt; m
+forall m a b. Semigroup m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+forall (t :: * -&gt; * -&gt; *) m a b.
+(Bifoldable1 t, Semigroup m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; t a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap1</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679112859"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112858"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; m) -&gt; (Flip p a b -&gt; p b a) -&gt; Flip p a b -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bifoldMap1</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112391"><span id="local-6989586621679112392"><span id="local-6989586621679112862"><span id="local-6989586621679112869"><span id="local-6989586621679112874"><span id="local-6989586621679112877"><span id="local-6989586621679112880"><span id="local-6989586621679112883"><span id="local-6989586621679112886"><span id="local-6989586621679112889"><span id="local-6989586621679112892"><span id="local-6989586621679112895"><span id="local-6989586621679112898"><span id="local-6989586621679112901"><span id="local-6989586621679112906"><span id="local-6989586621679112911"><span id="local-6989586621679112916"><span id="local-6989586621679112921"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679112391"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112391"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112392"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621679112930"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Flip p a a -&gt; m
+</span><a href="#local-6989586621679112930"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679112932"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112932"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (a -&gt; m) -&gt; p a a -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679112932"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m -&gt; a -&gt; m
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(p a a -&gt; m) -&gt; (Flip p a a -&gt; p a a) -&gt; Flip p a a -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a a -&gt; p a a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">foldMap</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112406"><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679112406"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112406"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621679112952"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Flip p a b -&gt; f (Flip p c d)
+</span><a href="#local-6989586621679112952"><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></a></span></span><span> </span><span id="local-6989586621679112954"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679112954"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679112955"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679112955"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(p d c -&gt; Flip p c d) -&gt; f (p d c) -&gt; f (Flip p c d)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">p d c -&gt; Flip p c d
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(f (p d c) -&gt; f (Flip p c d))
+-&gt; (Flip p a b -&gt; f (p d c)) -&gt; Flip p a b -&gt; f (Flip p c d)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f d) -&gt; (a -&gt; f c) -&gt; p b a -&gt; f (p d c)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; p a b -&gt; f (p c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679112955"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679112954"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; f (p d c))
+-&gt; (Flip p a b -&gt; p b a) -&gt; Flip p a b -&gt; f (p d c)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">bitraverse</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112429"><span id="local-6989586621679112430"><span id="local-6989586621679112965"><span id="local-6989586621679112971"><span id="local-6989586621679112976"><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679112429"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112429"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112430"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621679112987"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Flip p a a -&gt; f (Flip p a b)
+</span><a href="#local-6989586621679112987"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679112989"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679112989"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; Flip p a b) -&gt; f (p b a) -&gt; f (Flip p a b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">p b a -&gt; Flip p a b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(f (p b a) -&gt; f (Flip p a b))
+-&gt; (Flip p a a -&gt; f (p b a)) -&gt; Flip p a a -&gt; f (Flip p a b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; (a -&gt; f a) -&gt; p a a -&gt; f (p b a)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; p a b -&gt; f (p c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679112989"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(p a a -&gt; f (p b a))
+-&gt; (Flip p a a -&gt; p a a) -&gt; Flip p a a -&gt; f (p b a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a a -&gt; p a a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><span class="hs-pragma hs-type">traverse</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Bifunctor.Functor.html#BifunctorFunctor"><span class="hs-identifier hs-type">BifunctorFunctor</span></a></span><span> </span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679112993"><span class="annot"><span class="annottext">bifmap :: forall (p :: k3 -&gt; k2 -&gt; *) (q :: k3 -&gt; k2 -&gt; *).
+(p :-&gt; q) -&gt; Flip p :-&gt; Flip q
+</span><a href="#local-6989586621679112993"><span class="hs-identifier hs-var hs-var hs-var">bifmap</span></a></span></span><span> </span><span id="local-6989586621679112995"><span class="annot"><span class="annottext">p :-&gt; q
+</span><a href="#local-6989586621679112995"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span id="local-6989586621679112996"><span class="annot"><span class="annottext">p b a
+</span><a href="#local-6989586621679112996"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">q b a -&gt; Flip q a b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p b a -&gt; q b a
+p :-&gt; q
+</span><a href="#local-6989586621679112995"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p b a
+</span><a href="#local-6989586621679112996"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><span class="hs-comment">-- | @since 5.6.1</span></span><span>
+</span><span id="line-106"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112461"><span class="annot"><span class="hs-identifier hs-type">Assoc</span></span><span> </span><span class="annot"><a href="#local-6989586621679112461"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Assoc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112461"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679113009"><span class="annot"><span class="annottext">assoc :: forall a b c. Flip p (Flip p a b) c -&gt; Flip p a (Flip p b c)
+</span><a href="#local-6989586621679113009"><span class="hs-identifier hs-var hs-var hs-var">assoc</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p (Flip p b c) a -&gt; Flip p a (Flip p b c)
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p (Flip p b c) a -&gt; Flip p a (Flip p b c))
+-&gt; (Flip p (Flip p a b) c -&gt; p (Flip p b c) a)
+-&gt; Flip p (Flip p a b) c
+-&gt; Flip p a (Flip p b c)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(p c b -&gt; Flip p b c) -&gt; p (p c b) a -&gt; p (Flip p b c) a
+forall a b c. (a -&gt; b) -&gt; p a c -&gt; p b c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">p c b -&gt; Flip p b c
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p (p c b) a -&gt; p (Flip p b c) a)
+-&gt; (Flip p (Flip p a b) c -&gt; p (p c b) a)
+-&gt; Flip p (Flip p a b) c
+-&gt; p (Flip p b c) a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p c (p b a) -&gt; p (p c b) a
+forall a b c. p a (p b c) -&gt; p (p a b) c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Assoc p =&gt;
+p a (p b c) -&gt; p (p a b) c
+</span><span class="hs-identifier hs-var">unassoc</span></span><span> </span><span class="annot"><span class="annottext">(p c (p b a) -&gt; p (p c b) a)
+-&gt; (Flip p (Flip p a b) c -&gt; p c (p b a))
+-&gt; Flip p (Flip p a b) c
+-&gt; p (p c b) a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Flip p a b -&gt; p b a) -&gt; p c (Flip p a b) -&gt; p c (p b a)
+forall b c a. (b -&gt; c) -&gt; p a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span> </span><span class="annot"><span class="annottext">(p c (Flip p a b) -&gt; p c (p b a))
+-&gt; (Flip p (Flip p a b) c -&gt; p c (Flip p a b))
+-&gt; Flip p (Flip p a b) c
+-&gt; p c (p b a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p (Flip p a b) c -&gt; p c (Flip p a b)
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679113015"><span class="annot"><span class="annottext">unassoc :: forall a b c. Flip p a (Flip p b c) -&gt; Flip p (Flip p a b) c
+</span><span class="hs-identifier hs-var hs-var hs-var">unassoc</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p c (Flip p a b) -&gt; Flip p (Flip p a b) c
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p c (Flip p a b) -&gt; Flip p (Flip p a b) c)
+-&gt; (Flip p a (Flip p b c) -&gt; p c (Flip p a b))
+-&gt; Flip p a (Flip p b c)
+-&gt; Flip p (Flip p a b) c
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; Flip p a b) -&gt; p c (p b a) -&gt; p c (Flip p a b)
+forall b c a. (b -&gt; c) -&gt; p a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><span class="hs-identifier hs-var">second</span></span><span> </span><span class="annot"><span class="annottext">p b a -&gt; Flip p a b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p c (p b a) -&gt; p c (Flip p a b))
+-&gt; (Flip p a (Flip p b c) -&gt; p c (p b a))
+-&gt; Flip p a (Flip p b c)
+-&gt; p c (Flip p a b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p (p c b) a -&gt; p c (p b a)
+forall a b c. p (p a b) c -&gt; p a (p b c)
+forall (p :: * -&gt; * -&gt; *) a b c.
+Assoc p =&gt;
+p (p a b) c -&gt; p a (p b c)
+</span><span class="hs-identifier hs-var">assoc</span></span><span> </span><span class="annot"><span class="annottext">(p (p c b) a -&gt; p c (p b a))
+-&gt; (Flip p a (Flip p b c) -&gt; p (p c b) a)
+-&gt; Flip p a (Flip p b c)
+-&gt; p c (p b a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Flip p b c -&gt; p c b) -&gt; p (Flip p b c) a -&gt; p (p c b) a
+forall a b c. (a -&gt; b) -&gt; p a c -&gt; p b c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">Flip p b c -&gt; p c b
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span> </span><span class="annot"><span class="annottext">(p (Flip p b c) a -&gt; p (p c b) a)
+-&gt; (Flip p a (Flip p b c) -&gt; p (Flip p b c) a)
+-&gt; Flip p a (Flip p b c)
+-&gt; p (p c b) a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a (Flip p b c) -&gt; p (Flip p b c) a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><span class="hs-comment">-- | @since 5.6.1</span></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112473"><span class="annot"><span class="hs-identifier hs-type">Swap</span></span><span> </span><span class="annot"><a href="#local-6989586621679112473"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Swap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-type">Flip</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112473"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679113021"><span class="annot"><span class="annottext">swap :: forall a b. Flip p a b -&gt; Flip p b a
+</span><a href="#local-6989586621679113021"><span class="hs-identifier hs-var hs-var hs-var">swap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p a b -&gt; Flip p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+p b a -&gt; Flip p a b
+</span><a href="Data.Bifunctor.Flip.html#Flip"><span class="hs-identifier hs-var">Flip</span></a></span><span> </span><span class="annot"><span class="annottext">(p a b -&gt; Flip p b a)
+-&gt; (Flip p a b -&gt; p a b) -&gt; Flip p a b -&gt; Flip p b a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p b a -&gt; p a b
+forall a b. p a b -&gt; p b a
+forall (p :: * -&gt; * -&gt; *) a b. Swap p =&gt; p a b -&gt; p b a
+</span><span class="hs-identifier hs-var">swap</span></span><span> </span><span class="annot"><span class="annottext">(p b a -&gt; p a b) -&gt; (Flip p a b -&gt; p b a) -&gt; Flip p a b -&gt; p a b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Flip p a b -&gt; p b a
+forall {k} {k} (p :: k -&gt; k -&gt; *) (a :: k) (b :: k).
+Flip p a b -&gt; p b a
+</span><a href="Data.Bifunctor.Flip.html#runFlip"><span class="hs-identifier hs-var">runFlip</span></a></span><span>
+</span><span id="line-113"></span></pre></body></html>

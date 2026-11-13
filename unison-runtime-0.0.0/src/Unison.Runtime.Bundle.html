@@ -1,0 +1,513 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Bundles: a self-contained executable that is unisonrt and a compiled</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- program (unisonrt/README.md, &quot;Bundles&quot;). ucm's `bundle` command and</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- `unisonrt bundle` write them; unisonrt, finding a program in its own</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- executable, runs it.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- The program goes where the executable's format allows:</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- * Mach-O (macOS): in the section @__UNISON,__uc@, inside the image, so</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--   that the code signature covers it (&quot;Unison.Runtime.Bundle.MachO&quot;). The</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--   section holds 'bundleMagic', the program's length (8 bytes,</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--   little-endian) and the program; in a plain unisonrt it holds 16 zero</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--   bytes (unisonrt/bundle-section).</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- * Anything else (ELF, PE): after the end of the executable, followed by a</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--   16-byte trailer, the program's offset (8 bytes, little-endian) and</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--   'bundleMagic'. The loaders ignore bytes after the end of the file's</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--   contents.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- unisonrt's main.c tells a bundle apart the same way, to pass every</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- argument to the program.</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Bundle.html"><span class="hs-identifier">Unison.Runtime.Bundle</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Bundle.html#readBundle"><span class="hs-identifier">readBundle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Bundle.html#bundledProgram"><span class="hs-identifier">bundledProgram</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Bundle.html#writeBundle"><span class="hs-identifier">writeBundle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Bundle.html#signExecutable"><span class="hs-identifier">signExecutable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Bundle.html#makeExecutable"><span class="hs-identifier">makeExecutable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Bundle.MachO.html"><span class="hs-identifier">Unison.Runtime.Bundle.MachO</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MachO</span></span><span class="hs-cpp">
+#if defined(darwin_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.ByteString.Unsafe</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">BU</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Word8</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C.Types</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CSize</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Marshal.Alloc</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">alloca</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">castPtr</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">nullPtr</span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.Storable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">peek</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Exit</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ExitCode</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Process</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">readProcessWithExitCode</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IOMode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ReadMode</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SeekMode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AbsoluteSeek</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hFileSize</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hSeek</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withBinaryFile</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.FilePath</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">takeExtension</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-operator">&lt;.&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Files</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">setFileMode</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-type">bundleMagic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-54"></span><span id="bundleMagic"><span class="annot"><span class="annottext">bundleMagic :: ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var hs-var">bundleMagic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;UNISONRT&quot;</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | The size of the trailer, and of the head of the Mach-O section</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-type">trailerSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-58"></span><span id="trailerSize"><span class="annot"><span class="annottext">trailerSize :: Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var hs-var">trailerSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- | The program in the bytes of an executable, if it is a bundle</span></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#bundledProgram"><span class="hs-identifier hs-type">bundledProgram</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-62"></span><span id="bundledProgram"><span class="annot"><span class="annottext">bundledProgram :: ByteString -&gt; Maybe ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundledProgram"><span class="hs-identifier hs-var hs-var">bundledProgram</span></a></span></span><span> </span><span id="local-6989586621681937411"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937411"><span class="hs-identifier hs-var">bytes</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Unison.Runtime.Bundle.MachO.html#isMachO"><span class="hs-identifier hs-var">MachO.isMachO</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937411"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+</span><a href="Unison.Runtime.Bundle.MachO.html#programSection"><span class="hs-identifier hs-var">MachO.programSection</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937411"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+-&gt; (ByteString -&gt; Maybe ByteString) -&gt; Maybe ByteString
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+</span><a href="Unison.Runtime.Bundle.html#fromSection"><span class="hs-identifier hs-var">fromSection</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, ByteString) -&gt; ByteString
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((Int, ByteString) -&gt; ByteString)
+-&gt; Maybe (Int, ByteString) -&gt; Maybe ByteString
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int, ByteString)
+</span><a href="Unison.Runtime.Bundle.html#fromTrailer"><span class="hs-identifier hs-var">fromTrailer</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937411"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- | The bytes of a bundle of the program, from the bytes of a unisonrt (a</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- bundle or not). A Mach-O result has to be signed again</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- ('signExecutable').</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#bundleBytes"><span class="hs-identifier hs-type">bundleBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-70"></span><span id="bundleBytes"><span class="annot"><span class="annottext">bundleBytes :: ByteString -&gt; ByteString -&gt; Either String ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleBytes"><span class="hs-identifier hs-var hs-var">bundleBytes</span></a></span></span><span> </span><span id="local-6989586621681937419"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span id="local-6989586621681937420"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937420"><span class="hs-identifier hs-var">program</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><a href="Unison.Runtime.Bundle.MachO.html#isMachO"><span class="hs-identifier hs-var">MachO.isMachO</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Either String ByteString
+</span><a href="Unison.Runtime.Bundle.MachO.html#setProgramSection"><span class="hs-identifier hs-var">MachO.setProgramSection</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="Unison.Runtime.Bundle.html#toSection"><span class="hs-identifier hs-var">toSection</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937420"><span class="hs-identifier hs-var">program</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either String ByteString
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937423"><span class="hs-identifier hs-var">plain</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937420"><span class="hs-identifier hs-var">program</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString
+</span><a href="Unison.Runtime.Bundle.html#toLittleEndian"><span class="hs-identifier hs-var">toLittleEndian</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937423"><span class="hs-identifier hs-var">plain</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var">bundleMagic</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-comment">-- without the program of its own, if it is a bundle</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621681937423"><span class="annot"><span class="annottext">plain :: ByteString
+</span><a href="#local-6989586621681937423"><span class="hs-identifier hs-var hs-var">plain</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+-&gt; ((Int, ByteString) -&gt; ByteString)
+-&gt; Maybe (Int, ByteString)
+-&gt; ByteString
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-operator hs-var">`B.take`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ByteString)
+-&gt; ((Int, ByteString) -&gt; Int) -&gt; (Int, ByteString) -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int, ByteString) -&gt; Int
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int, ByteString)
+</span><a href="Unison.Runtime.Bundle.html#fromTrailer"><span class="hs-identifier hs-var">fromTrailer</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937419"><span class="hs-identifier hs-var">runtime</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | The Mach-O section's contents for a program</span></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#toSection"><span class="hs-identifier hs-type">toSection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-79"></span><span id="toSection"><span class="annot"><span class="annottext">toSection :: ByteString -&gt; ByteString
+</span><a href="Unison.Runtime.Bundle.html#toSection"><span class="hs-identifier hs-var hs-var">toSection</span></a></span></span><span> </span><span id="local-6989586621681937430"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937430"><span class="hs-identifier hs-var">program</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var">bundleMagic</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString
+</span><a href="Unison.Runtime.Bundle.html#toLittleEndian"><span class="hs-identifier hs-var">toLittleEndian</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937430"><span class="hs-identifier hs-var">program</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937430"><span class="hs-identifier hs-var">program</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><span class="hs-comment">-- | A bundle's program, from the Mach-O section's contents</span></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#fromSection"><span class="hs-identifier hs-type">fromSection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-83"></span><span id="fromSection"><span class="annot"><span class="annottext">fromSection :: ByteString -&gt; Maybe ByteString
+</span><a href="Unison.Runtime.Bundle.html#fromSection"><span class="hs-identifier hs-var hs-var">fromSection</span></a></span></span><span> </span><span id="local-6989586621681937431"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937431"><span class="hs-identifier hs-var">section</span></a></span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937432"><span class="hs-identifier hs-var">magic</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var">bundleMagic</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937433"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937435"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937433"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937435"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681937432"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937432"><span class="hs-identifier hs-var">magic</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681937435"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937435"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937431"><span class="hs-identifier hs-var">section</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621681937433"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621681937433"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word64
+</span><a href="Unison.Runtime.Bundle.html#fromLittleEndian"><span class="hs-identifier hs-var">fromLittleEndian</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937435"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- | Where the program starts and the program, from the trailer at the end</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- of the bytes</span><span>
+</span><span id="line-92"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#fromTrailer"><span class="hs-identifier hs-type">fromTrailer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span id="fromTrailer"><span class="annot"><span class="annottext">fromTrailer :: ByteString -&gt; Maybe (Int, ByteString)
+</span><a href="Unison.Runtime.Bundle.html#fromTrailer"><span class="hs-identifier hs-var hs-var">fromTrailer</span></a></span></span><span> </span><span id="local-6989586621681937439"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621681937440"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937440"><span class="hs-identifier hs-var">off</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681937441"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937441"><span class="hs-identifier hs-var">magic</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937441"><span class="hs-identifier hs-var">magic</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var">bundleMagic</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621681937442"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937442"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word64
+</span><a href="Unison.Runtime.Bundle.html#fromLittleEndian"><span class="hs-identifier hs-var">fromLittleEndian</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937440"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937442"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><span class="annottext">(Int, ByteString) -&gt; Maybe (Int, ByteString)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937442"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937442"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937442"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937439"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Int, ByteString)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | Writes a bundle of the program, from the file of a unisonrt (a bundle</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- or not), as an executable that anyone can run, and says where it wrote</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- it: on Windows a name without an extension gets @.exe@.</span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#writeBundle"><span class="hs-identifier hs-type">writeBundle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span id="writeBundle"><span class="annot"><span class="annottext">writeBundle :: String -&gt; ByteString -&gt; String -&gt; IO (Either String String)
+</span><a href="Unison.Runtime.Bundle.html#writeBundle"><span class="hs-identifier hs-var hs-var">writeBundle</span></a></span></span><span> </span><span id="local-6989586621681937444"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937444"><span class="hs-identifier hs-var">runtime</span></a></span></span><span> </span><span id="local-6989586621681937445"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937445"><span class="hs-identifier hs-var">program</span></a></span></span><span> </span><span id="local-6989586621681937446"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937446"><span class="hs-identifier hs-var">out0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621681937447"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937447"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">B.readFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937444"><span class="hs-identifier hs-var">runtime</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Either String ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleBytes"><span class="hs-identifier hs-var">bundleBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937447"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937445"><span class="hs-identifier hs-var">program</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621681937449"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937449"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either String String -&gt; IO (Either String String)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Either String String
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937449"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621681937450"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937450"><span class="hs-identifier hs-var">bundle</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ByteString -&gt; IO ()
+</span><span class="hs-identifier hs-var">B.writeFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937452"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937450"><span class="hs-identifier hs-var">bundle</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="Unison.Runtime.Bundle.html#makeExecutable"><span class="hs-identifier hs-var">makeExecutable</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937452"><span class="hs-identifier hs-var">out</span></a></span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><span class="annottext">(() -&gt; String) -&gt; Either String () -&gt; Either String String
+forall a b. (a -&gt; b) -&gt; Either String a -&gt; Either String b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; () -&gt; String
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937452"><span class="hs-identifier hs-var">out</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Either String () -&gt; Either String String)
+-&gt; IO (Either String ()) -&gt; IO (Either String String)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Either String ())
+</span><a href="Unison.Runtime.Bundle.html#signExecutable"><span class="hs-identifier hs-var">signExecutable</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937452"><span class="hs-identifier hs-var">out</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">where</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span>    </span><span class="hs-identifier">out</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">null</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">takeExtension</span><span> </span><span class="hs-identifier">out0</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">out0</span><span> </span><span class="hs-operator">&lt;.&gt;</span><span> </span><span class="hs-string">&quot;exe&quot;</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">out0</span><span class="hs-cpp">
+#else
+</span><span>    </span><span id="local-6989586621681937452"><span class="annot"><span class="annottext">out :: String
+</span><a href="#local-6989586621681937452"><span class="hs-identifier hs-var hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937446"><span class="hs-identifier hs-var">out0</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-121"></span><span class="annot"><span class="hs-comment">-- | Lets everyone run it, as the linker leaves an executable</span></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#makeExecutable"><span class="hs-identifier hs-type">makeExecutable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#if defined(mingw32_HOST_OS)
+</span><span class="hs-identifier">makeExecutable</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="makeExecutable"><span class="annot"><span class="annottext">makeExecutable :: String -&gt; IO ()
+</span><a href="Unison.Runtime.Bundle.html#makeExecutable"><span class="hs-identifier hs-var hs-var">makeExecutable</span></a></span></span><span> </span><span id="local-6989586621681937454"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937454"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; FileMode -&gt; IO ()
+</span><span class="hs-identifier hs-var">setFileMode</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937454"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="annot"><span class="annottext">FileMode
+</span><span class="hs-number">0o755</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Signs a rewritten executable again, ad hoc: macOS on arm64 runs</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- nothing whose signature doesn't match it. It can be signed again with a</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- real identity afterwards. Elsewhere there is no signature.</span><span>
+</span><span id="line-132"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#signExecutable"><span class="hs-identifier hs-type">signExecutable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#if defined(darwin_HOST_OS)
+</span><span class="hs-identifier">signExecutable</span><span> </span><span class="hs-identifier">out</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">code</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">_</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">err</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">readProcessWithExitCode</span><span> </span><span class="hs-string">&quot;codesign&quot;</span><span> </span><span class="hs-special">[</span><span class="hs-string">&quot;--sign&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;-&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-string">&quot;--force&quot;</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">out</span><span class="hs-special">]</span><span> </span><span class="hs-string">&quot;&quot;</span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">code</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-identifier">ExitSuccess</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Right</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-identifier">ExitFailure</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Left</span><span> </span><span class="hs-special">(</span><span class="hs-string">&quot;codesign failed: &quot;</span><span> </span><span class="hs-operator">++</span><span> </span><span class="hs-identifier">err</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="signExecutable"><span class="annot"><span class="annottext">signExecutable :: String -&gt; IO (Either String ())
+</span><a href="Unison.Runtime.Bundle.html#signExecutable"><span class="hs-identifier hs-var hs-var">signExecutable</span></a></span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either String () -&gt; IO (Either String ())
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; Either String ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- | The program this running executable carries, if it is a bundle. On</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- macOS the section is in memory already (cbits/bundle.c); elsewhere only</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- the trailer and the program are read from the file at this path.</span><span>
+</span><span id="line-146"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#readBundle"><span class="hs-identifier hs-type">readBundle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if defined(darwin_HOST_OS)
+</span><span class="hs-identifier">readBundle</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alloca</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">sizePtr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-identifier">p</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_bundleSection</span><span> </span><span class="hs-identifier">sizePtr</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-identifier">size</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">sizePtr</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">nullPtr</span><span> </span><span class="hs-operator">||</span><span> </span><span class="hs-identifier">size</span><span> </span><span class="hs-operator">&lt;</span><span> </span><span class="hs-identifier">trailerSize</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">pure</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-comment">-- copied, so that nothing points into the image</span><span>
+</span><span id="line-154"></span><span>      </span><span class="hs-identifier">fromSection</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">B.copy</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">BU.unsafePackCStringLen</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">castPtr</span><span> </span><span class="hs-identifier">p</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">size</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;unisonrt_bundle_section&quot;</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-identifier">c_bundleSection</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">Word8</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="readBundle"><span class="annot"><span class="annottext">readBundle :: String -&gt; IO (Maybe ByteString)
+</span><a href="Unison.Runtime.Bundle.html#readBundle"><span class="hs-identifier hs-var hs-var">readBundle</span></a></span></span><span> </span><span id="local-6989586621681937455"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937455"><span class="hs-identifier hs-var">self</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; IOMode
+-&gt; (Handle -&gt; IO (Maybe ByteString))
+-&gt; IO (Maybe ByteString)
+forall r. String -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><span class="hs-identifier hs-var">withBinaryFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681937455"><span class="hs-identifier hs-var">self</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">ReadMode</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681937456"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621681937457"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937457"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO Integer
+</span><span class="hs-identifier hs-var">hFileSize</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937457"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-164"></span><span>      </span><span class="annot"><span class="annottext">Handle -&gt; SeekMode -&gt; Integer -&gt; IO ()
+</span><span class="hs-identifier hs-var">hSeek</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">SeekMode
+</span><span class="hs-identifier hs-var">AbsoluteSeek</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937457"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681937459"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937459"><span class="hs-identifier hs-var">off</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681937460"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937460"><span class="hs-identifier hs-var">magic</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; (ByteString, ByteString))
+-&gt; IO ByteString -&gt; IO (ByteString, ByteString)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Int -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">B.hGet</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span>
+</span><span id="line-166"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681937462"><span class="annot"><span class="annottext">start :: Integer
+</span><a href="#local-6989586621681937462"><span class="hs-identifier hs-var hs-var">start</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Word64
+</span><a href="Unison.Runtime.Bundle.html#fromLittleEndian"><span class="hs-identifier hs-var">fromLittleEndian</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937459"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621681937460"><span class="hs-identifier hs-var">magic</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Unison.Runtime.Bundle.html#bundleMagic"><span class="hs-identifier hs-var">bundleMagic</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937462"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937457"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span>
+</span><span id="line-168"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-169"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>          </span><span class="annot"><span class="annottext">Handle -&gt; SeekMode -&gt; Integer -&gt; IO ()
+</span><span class="hs-identifier hs-var">hSeek</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">SeekMode
+</span><span class="hs-identifier hs-var">AbsoluteSeek</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937462"><span class="hs-identifier hs-var">start</span></a></span><span>
+</span><span id="line-171"></span><span>          </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString)
+-&gt; IO ByteString -&gt; IO (Maybe ByteString)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Int -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">B.hGet</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621681937456"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937457"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.Bundle.html#trailerSize"><span class="hs-identifier hs-var">trailerSize</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621681937462"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#toLittleEndian"><span class="hs-identifier hs-type">toLittleEndian</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-175"></span><span id="toLittleEndian"><span class="annot"><span class="annottext">toLittleEndian :: Word64 -&gt; ByteString
+</span><a href="Unison.Runtime.Bundle.html#toLittleEndian"><span class="hs-identifier hs-var hs-var">toLittleEndian</span></a></span></span><span> </span><span id="local-6989586621681937466"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681937466"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.pack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word64 -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681937466"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Word64
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937469"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681937469"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681937469"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><a href="Unison.Runtime.Bundle.html#fromLittleEndian"><span class="hs-identifier hs-type">fromLittleEndian</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-178"></span><span id="fromLittleEndian"><span class="annot"><span class="annottext">fromLittleEndian :: ByteString -&gt; Word64
+</span><a href="Unison.Runtime.Bundle.html#fromLittleEndian"><span class="hs-identifier hs-var hs-var">fromLittleEndian</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Word64 -&gt; Word64) -&gt; Word64 -&gt; ByteString -&gt; Word64
+forall a. (Word8 -&gt; a -&gt; a) -&gt; a -&gt; ByteString -&gt; a
+</span><span class="hs-identifier hs-var">B.foldr'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681937471"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681937471"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681937472"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681937472"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681937472"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Word64
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621681937471"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-179"></span></pre></body></html>

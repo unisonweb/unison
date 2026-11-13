@@ -1,0 +1,76 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Module      :  GHC.Internal.InfoProv</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2011</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Access to GHC's info-table provenance metadata.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- /The API of this module is unstable and not meant to be consumed by the general public./</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- If you absolutely must depend on it, make sure to use a tight upper</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- bound, e.g., @base &lt; 4.X@ rather than @base &lt; 5@, because the interface can</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- change rapidly without much warning.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- @since base-4.18.0.0</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.html"><span class="hs-identifier">GHC.Internal.InfoProv</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#InfoProv"><span class="hs-identifier">InfoProv</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#ipLoc"><span class="hs-identifier">ipLoc</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.html#whereFrom"><span class="hs-identifier">whereFrom</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Internals</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#InfoProvEnt"><span class="hs-identifier">InfoProvEnt</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#ipeProv"><span class="hs-identifier">ipeProv</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#peekInfoProv"><span class="hs-identifier">peekInfoProv</span></a></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html"><span class="hs-identifier">GHC.Internal.InfoProv.Types</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Get information about where a value originated from.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- This information is stored statically in a binary when @-finfo-table-map@ is</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- enabled.  The source positions will be greatly improved by also enabled debug</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- information with @-g3@. Finally you can enable @-fdistinct-constructor-tables@ to</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- get more precise information about data constructor allocations.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- The information is collect by looking at the info table address of a specific closure and</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- then consulting a specially generated map (by @-finfo-table-map@) to find out where we think</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- the best source position to describe that info table arose from.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- @since base-4.16.0.0</span><span>
+</span><span id="line-51"></span><span id="local-6989586621679662539"><span class="annot"><a href="GHC.Internal.InfoProv.html#whereFrom"><span class="hs-identifier hs-type">whereFrom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679662539"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.InfoProv.Types.html#InfoProv"><span class="hs-identifier hs-type">InfoProv</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-52"></span><span id="whereFrom"><span class="annot"><span class="annottext">whereFrom :: forall a. a -&gt; IO (Maybe InfoProv)
+</span><a href="GHC.Internal.InfoProv.html#whereFrom"><span class="hs-identifier hs-var hs-var">whereFrom</span></a></span></span><span> </span><span id="local-6989586621679662559"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679662559"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+-&gt; Maybe InfoProv
+-&gt; (Ptr InfoProvEnt -&gt; IO (Maybe InfoProv))
+-&gt; IO (Maybe InfoProv)
+forall a r. a -&gt; r -&gt; (Ptr InfoProvEnt -&gt; IO r) -&gt; IO r
+</span><a href="GHC.Internal.InfoProv.Types.html#getIPE"><span class="hs-identifier hs-var">getIPE</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679662559"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe InfoProv
+forall a. Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr InfoProvEnt -&gt; IO (Maybe InfoProv)) -&gt; IO (Maybe InfoProv))
+-&gt; (Ptr InfoProvEnt -&gt; IO (Maybe InfoProv)) -&gt; IO (Maybe InfoProv)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679662561"><span class="annot"><span class="annottext">Ptr InfoProvEnt
+</span><a href="#local-6989586621679662561"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">InfoProv -&gt; Maybe InfoProv
+forall a. a -&gt; Maybe a
+</span><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">(InfoProv -&gt; Maybe InfoProv) -&gt; IO InfoProv -&gt; IO (Maybe InfoProv)
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-operator hs-var">`fmap`</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr InfoProv -&gt; IO InfoProv
+</span><a href="GHC.Internal.InfoProv.Types.html#peekInfoProv"><span class="hs-identifier hs-var">peekInfoProv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr InfoProvEnt -&gt; Ptr InfoProv
+</span><a href="GHC.Internal.InfoProv.Types.html#ipeProv"><span class="hs-identifier hs-var">ipeProv</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr InfoProvEnt
+</span><a href="#local-6989586621679662561"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span></pre></body></html>

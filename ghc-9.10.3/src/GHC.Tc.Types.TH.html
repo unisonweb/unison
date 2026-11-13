@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html"><span class="hs-identifier">GHC.Tc.Types.TH</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><a href="GHC.Tc.Types.TH.html#SpliceType"><span class="hs-identifier">SpliceType</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#SpliceOrBracket"><span class="hs-identifier">SpliceOrBracket</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier">ThStage</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#PendingStuff"><span class="hs-identifier">PendingStuff</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThLevel"><span class="hs-identifier">ThLevel</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#topStage"><span class="hs-identifier">topStage</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#topAnnStage"><span class="hs-identifier">topAnnStage</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#topSpliceStage"><span class="hs-identifier">topSpliceStage</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier">thLevel</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#impLevel"><span class="hs-identifier">impLevel</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#outerLevel"><span class="hs-identifier">outerLevel</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html"><span class="hs-identifier">GHCi.RemoteTypes</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../template-haskell-2.22.0.0-d1cb/src/Language.Haskell.TH.html"><span class="hs-identifier">Language.Haskell.TH</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TH</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Evidence.html"><span class="hs-identifier">GHC.Tc.Types.Evidence</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TcRef.html"><span class="hs-identifier">GHC.Tc.Types.TcRef</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html"><span class="hs-identifier">GHC.Tc.Types.Constraint</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html"><span class="hs-identifier">GHC.Hs.Expr</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#PendingTcSplice"><span class="hs-identifier">PendingTcSplice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#PendingRnSplice"><span class="hs-identifier">PendingRnSplice</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Template Haskell stages and levels</span><span>
+</span><span id="line-26"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="SpliceType"><span class="annot"><a href="GHC.Tc.Types.TH.html#SpliceType"><span class="hs-identifier hs-var">SpliceType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Typed"><span class="annot"><a href="GHC.Tc.Types.TH.html#Typed"><span class="hs-identifier hs-var">Typed</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Untyped"><span class="annot"><a href="GHC.Tc.Types.TH.html#Untyped"><span class="hs-identifier hs-var">Untyped</span></a></span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">data</span><span> </span><span id="SpliceOrBracket"><span class="annot"><a href="GHC.Tc.Types.TH.html#SpliceOrBracket"><span class="hs-identifier hs-var">SpliceOrBracket</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IsSplice"><span class="annot"><a href="GHC.Tc.Types.TH.html#IsSplice"><span class="hs-identifier hs-var">IsSplice</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="IsBracket"><span class="annot"><a href="GHC.Tc.Types.TH.html#IsBracket"><span class="hs-identifier hs-var">IsBracket</span></a></span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="ThStage"><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier hs-var">ThStage</span></a></span></span><span>    </span><span class="hs-comment">-- See Note [Template Haskell state diagram]</span><span>
+</span><span id="line-32"></span><span>                </span><span class="hs-comment">-- and Note [Template Haskell levels] in GHC.Tc.Gen.Splice</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- Start at:   Comp</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- At bracket: wrap current stage in Brack</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">-- At splice:  currently Brack: return to previous stage</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">--             currently Comp/Splice: compile and run</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Splice"><span class="annot"><a href="GHC.Tc.Types.TH.html#Splice"><span class="hs-identifier hs-var">Splice</span></a></span></span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#SpliceType"><span class="hs-identifier hs-type">SpliceType</span></a></span><span> </span><span class="hs-comment">-- Inside a top-level splice</span><span>
+</span><span id="line-38"></span><span>                      </span><span class="hs-comment">-- This code will be run *at compile time*;</span><span>
+</span><span id="line-39"></span><span>                      </span><span class="hs-comment">--   the result replaces the splice</span><span>
+</span><span id="line-40"></span><span>                      </span><span class="hs-comment">-- Binding level = 0</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RunSplice"><span class="annot"><a href="GHC.Tc.Types.TH.html#RunSplice"><span class="hs-identifier hs-var">RunSplice</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TcRef.html#TcRef"><span class="hs-identifier hs-type">TcRef</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="../../ghci-9.10.3-2400/src/GHCi.RemoteTypes.html#ForeignRef"><span class="hs-identifier hs-type">ForeignRef</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../template-haskell-2.22.0.0-d1cb/src/Language.Haskell.TH.Syntax.html#Q"><span class="hs-identifier hs-type">TH.Q</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-comment">-- Set when running a splice, i.e. NOT when renaming or typechecking the</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-comment">-- Haskell code for the splice. See Note [RunSplice ThLevel].</span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-comment">-- Contains a list of mod finalizers collected while executing the splice.</span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-comment">-- 'addModFinalizer' inserts finalizers here, and from here they are taken</span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-comment">-- to construct an @HsSpliced@ annotation for untyped splices. See Note</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-comment">-- [Delaying modFinalizers in untyped splices] in GHC.Rename.Splice.</span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-comment">-- For typed splices, the typechecker takes finalizers from here and</span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-comment">-- inserts them in the list of finalizers in the global environment.</span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-comment">-- See Note [Collecting modFinalizers in typed splices] in &quot;GHC.Tc.Gen.Splice&quot;.</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Comp"><span class="annot"><a href="GHC.Tc.Types.TH.html#Comp"><span class="hs-identifier hs-var">Comp</span></a></span></span><span>        </span><span class="hs-comment">-- Ordinary Haskell code</span><span>
+</span><span id="line-58"></span><span>                </span><span class="hs-comment">-- Binding level = 1</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Brack"><span class="annot"><a href="GHC.Tc.Types.TH.html#Brack"><span class="hs-identifier hs-var">Brack</span></a></span></span><span>                       </span><span class="hs-comment">-- Inside brackets</span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier hs-type">ThStage</span></a></span><span>                   </span><span class="hs-comment">--   Enclosing stage</span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><a href="GHC.Tc.Types.TH.html#PendingStuff"><span class="hs-identifier hs-type">PendingStuff</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">data</span><span> </span><span id="PendingStuff"><span class="annot"><a href="GHC.Tc.Types.TH.html#PendingStuff"><span class="hs-identifier hs-var">PendingStuff</span></a></span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="RnPendingUntyped"><span class="annot"><a href="GHC.Tc.Types.TH.html#RnPendingUntyped"><span class="hs-identifier hs-var">RnPendingUntyped</span></a></span></span><span>              </span><span class="hs-comment">-- Renaming the inside of an *untyped* bracket</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TcRef.html#TcRef"><span class="hs-identifier hs-type">TcRef</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Hs.Expr.html#PendingRnSplice"><span class="hs-identifier hs-type">PendingRnSplice</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>   </span><span class="hs-comment">-- Pending splices in here</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RnPendingTyped"><span class="annot"><a href="GHC.Tc.Types.TH.html#RnPendingTyped"><span class="hs-identifier hs-var">RnPendingTyped</span></a></span></span><span>                </span><span class="hs-comment">-- Renaming the inside of a *typed* bracket</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TcPending"><span class="annot"><a href="GHC.Tc.Types.TH.html#TcPending"><span class="hs-identifier hs-var">TcPending</span></a></span></span><span>                     </span><span class="hs-comment">-- Typechecking the inside of a typed bracket</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TcRef.html#TcRef"><span class="hs-identifier hs-type">TcRef</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Hs.Expr.html#PendingTcSplice"><span class="hs-identifier hs-type">PendingTcSplice</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>   </span><span class="hs-comment">--   Accumulate pending splices here</span><span>
+</span><span id="line-72"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TcRef.html#TcRef"><span class="hs-identifier hs-type">TcRef</span></a></span><span> </span><span class="annot"><a href="GHC.Tc.Types.Constraint.html#WantedConstraints"><span class="hs-identifier hs-type">WantedConstraints</span></a></span><span class="hs-special">)</span><span>   </span><span class="hs-comment">--     and type constraints here</span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><a href="GHC.Tc.Types.Evidence.html#QuoteWrapper"><span class="hs-identifier hs-type">QuoteWrapper</span></a></span><span>                </span><span class="hs-comment">-- A type variable and evidence variable</span><span>
+</span><span id="line-74"></span><span>                                  </span><span class="hs-comment">-- for the overall monad of</span><span>
+</span><span id="line-75"></span><span>                                  </span><span class="hs-comment">-- the bracket. Splices are checked</span><span>
+</span><span id="line-76"></span><span>                                  </span><span class="hs-comment">-- against this monad. The evidence</span><span>
+</span><span id="line-77"></span><span>                                  </span><span class="hs-comment">-- variable is used for desugaring</span><span>
+</span><span id="line-78"></span><span>                                  </span><span class="hs-comment">-- `lift`.</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#topStage"><span class="hs-identifier hs-type">topStage</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#topAnnStage"><span class="hs-identifier hs-type">topAnnStage</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#topSpliceStage"><span class="hs-identifier hs-type">topSpliceStage</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier hs-type">ThStage</span></a></span><span>
+</span><span id="line-82"></span><span id="topStage"><span class="annot"><span class="annottext">topStage :: ThStage
+</span><a href="GHC.Tc.Types.TH.html#topStage"><span class="hs-identifier hs-var hs-var">topStage</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThStage
+</span><a href="GHC.Tc.Types.TH.html#Comp"><span class="hs-identifier hs-var">Comp</span></a></span><span>
+</span><span id="line-83"></span><span id="topAnnStage"><span class="annot"><span class="annottext">topAnnStage :: ThStage
+</span><a href="GHC.Tc.Types.TH.html#topAnnStage"><span class="hs-identifier hs-var hs-var">topAnnStage</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SpliceType -&gt; ThStage
+</span><a href="GHC.Tc.Types.TH.html#Splice"><span class="hs-identifier hs-var">Splice</span></a></span><span> </span><span class="annot"><span class="annottext">SpliceType
+</span><a href="GHC.Tc.Types.TH.html#Untyped"><span class="hs-identifier hs-var">Untyped</span></a></span><span>
+</span><span id="line-84"></span><span id="topSpliceStage"><span class="annot"><span class="annottext">topSpliceStage :: ThStage
+</span><a href="GHC.Tc.Types.TH.html#topSpliceStage"><span class="hs-identifier hs-var hs-var">topSpliceStage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SpliceType -&gt; ThStage
+</span><a href="GHC.Tc.Types.TH.html#Splice"><span class="hs-identifier hs-var">Splice</span></a></span><span> </span><span class="annot"><span class="annottext">SpliceType
+</span><a href="GHC.Tc.Types.TH.html#Untyped"><span class="hs-identifier hs-var">Untyped</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier hs-type">ThStage</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>   </span><span id="local-6989586621682560721"><span class="annot"><span class="annottext">ppr :: ThStage -&gt; SDoc
+</span><a href="#local-6989586621682560721"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#Splice"><span class="hs-identifier hs-type">Splice</span></a></span><span> </span><span class="annot"><span class="annottext">SpliceType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Splice&quot;</span></span><span>
+</span><span id="line-88"></span><span>   </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#RunSplice"><span class="hs-identifier hs-type">RunSplice</span></a></span><span> </span><span class="annot"><span class="annottext">TcRef [ForeignRef (Q ())]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RunSplice&quot;</span></span><span>
+</span><span id="line-89"></span><span>   </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ThStage
+</span><a href="GHC.Tc.Types.TH.html#Comp"><span class="hs-identifier hs-var">Comp</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Comp&quot;</span></span><span>
+</span><span id="line-90"></span><span>   </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#Brack"><span class="hs-identifier hs-type">Brack</span></a></span><span> </span><span id="local-6989586621682560724"><span class="annot"><span class="annottext">ThStage
+</span><a href="#local-6989586621682560724"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="annottext">PendingStuff
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Brack&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#parens"><span class="hs-identifier hs-var">parens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ThStage -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ThStage
+</span><a href="#local-6989586621682560724"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">type</span><span> </span><span id="ThLevel"><span class="annot"><a href="GHC.Tc.Types.TH.html#ThLevel"><span class="hs-identifier hs-var">ThLevel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-comment">-- NB: see Note [Template Haskell levels] in GHC.Tc.Gen.Splice</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-comment">-- Incremented when going inside a bracket,</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-comment">-- decremented when going inside a splice</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-comment">-- NB: ThLevel is one greater than the 'n' in Fig 2 of the</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-comment">--     original &quot;Template meta-programming for Haskell&quot; paper</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#impLevel"><span class="hs-identifier hs-type">impLevel</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#outerLevel"><span class="hs-identifier hs-type">outerLevel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThLevel"><span class="hs-identifier hs-type">ThLevel</span></a></span><span>
+</span><span id="line-100"></span><span id="impLevel"><span class="annot"><span class="annottext">impLevel :: ThLevel
+</span><a href="GHC.Tc.Types.TH.html#impLevel"><span class="hs-identifier hs-var hs-var">impLevel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-comment">-- Imported things; they can be used inside a top level splice</span><span>
+</span><span id="line-101"></span><span id="outerLevel"><span class="annot"><span class="annottext">outerLevel :: ThLevel
+</span><a href="GHC.Tc.Types.TH.html#outerLevel"><span class="hs-identifier hs-var hs-var">outerLevel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">1</span></span><span>  </span><span class="hs-comment">-- Things defined outside brackets</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-type">thLevel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThStage"><span class="hs-identifier hs-type">ThStage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.TH.html#ThLevel"><span class="hs-identifier hs-type">ThLevel</span></a></span><span>
+</span><span id="line-104"></span><span id="thLevel"><span class="annot"><span class="annottext">thLevel :: ThStage -&gt; ThLevel
+</span><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-var hs-var">thLevel</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#Splice"><span class="hs-identifier hs-type">Splice</span></a></span><span> </span><span class="annot"><span class="annottext">SpliceType
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-var">thLevel</span></a></span><span> </span><span class="annot"><span class="annottext">ThStage
+</span><a href="GHC.Tc.Types.TH.html#Comp"><span class="hs-identifier hs-var">Comp</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-var">thLevel</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#Brack"><span class="hs-identifier hs-type">Brack</span></a></span><span> </span><span id="local-6989586621682560727"><span class="annot"><span class="annottext">ThStage
+</span><a href="#local-6989586621682560727"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="annottext">PendingStuff
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThStage -&gt; ThLevel
+</span><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-var">thLevel</span></a></span><span> </span><span class="annot"><span class="annottext">ThStage
+</span><a href="#local-6989586621682560727"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">ThLevel -&gt; ThLevel -&gt; ThLevel
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-107"></span><span class="annot"><a href="GHC.Tc.Types.TH.html#thLevel"><span class="hs-identifier hs-var">thLevel</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Types.TH.html#RunSplice"><span class="hs-identifier hs-type">RunSplice</span></a></span><span> </span><span class="annot"><span class="annottext">TcRef [ForeignRef (Q ())]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThLevel
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-comment">-- previously: panic &quot;thLevel: called when running a splice&quot;</span><span>
+</span><span id="line-108"></span><span>                        </span><span class="hs-comment">-- See Note [RunSplice ThLevel].</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">{- Note [RunSplice ThLevel]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The 'RunSplice' stage is set when executing a splice, and only when running a
+splice. In particular it is not set when the splice is renamed or typechecked.
+
+However, this is not true. `reifyInstances` for example does rename the given type,
+and these types may contain variables (#9262 allow free variables in reifyInstances).
+Therefore here we assume that thLevel (RunSplice _) = 0.
+Proper fix would probably require renaming argument `reifyInstances` separately prior
+to evaluation of the overall splice.
+
+'RunSplice' is needed to provide a reference where 'addModFinalizer' can insert
+the finalizer (see Note [Delaying modFinalizers in untyped splices]), and
+'addModFinalizer' runs when doing Q things. Therefore, It doesn't make sense to
+set 'RunSplice' when renaming or typechecking the splice, where 'Splice',
+'Brack' or 'Comp' are used instead.
+
+-}</span><span>
+</span><span id="line-128"></span></pre></body></html>
