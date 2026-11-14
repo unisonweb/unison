@@ -660,5 +660,5 @@ configKeyCompletion ::
   String ->
   m [Completion]
 configKeyCompletion query = do
-  let options = Text.unpack <$> Config.allKeysText
+  let options = Text.unpack . Config.keyToText <$> Config.allKeys
   pure $ exactComplete query options

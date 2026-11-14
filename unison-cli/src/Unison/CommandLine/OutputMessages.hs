@@ -3075,6 +3075,17 @@ notifyUser dir issueFn = \case
             P.text (Config.keyToText key)
               <> " = "
               <> P.text ("\"" <> value <> "\"")
+  CommandAliasesAlreadyTaken taken ->
+    pure . P.lines $
+      [ P.wrap "These aliases are already used for other commands:",
+        "",
+        P.indentN 2 . P.lines $
+          [ P.backticked (P.text alias) <> " is an alias for " <> P.backticked (P.text command)
+          | (alias, command) <- taken
+          ],
+        "",
+        P.wrap "Remove them from those commands first, or pick different names."
+      ]
   WatchDisabled ->
     pure . P.warnCallout $
       P.wrap "I can only watch for changes in interactive sessions, which this isn't."
