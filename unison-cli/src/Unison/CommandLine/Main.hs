@@ -67,7 +67,20 @@ getUserInput ::
   IO (Branch IO) ->
   NumberedArgs ->
   IO Input
-getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
+getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs = do
+  -- Load the user's custom command aliases each time, so changes made with `config.set` take effect right away.
+  patternMap <- IP.loadPatternMap codebase
+  getUserInputWith patternMap codebase authHTTPClient pp currentProjectRoot numberedArgs
+
+getUserInputWith ::
+  Map String IP.InputPattern ->
+  Codebase IO Symbol Ann ->
+  AuthenticatedHttpClient ->
+  PP.ProjectPath ->
+  IO (Branch IO) ->
+  NumberedArgs ->
+  IO Input
+getUserInputWith patternMap codebase authHTTPClient pp currentProjectRoot numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -109,7 +122,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
         Just l -> case fromMaybe [] $ IP.parseArgs l of
           [] -> go
           ws -> do
-            liftIO (parseInput UseFZF codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput UseFZF codebase pp currentProjectRoot numberedArgs patternMap ws) >>= \case
               Left failure -> do
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
@@ -143,7 +156,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
           historyFile = Just ".unisonHistory",
           autoAddHistory = False
         }
-    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient pp
+    tabComplete = haskelineTabComplete patternMap codebase authHTTPClient pp
 
     -- Haskeline needs non-printing prompt segments wrapped with \SOH/\STX so
     -- cursor positioning stays correct with ANSI colors.

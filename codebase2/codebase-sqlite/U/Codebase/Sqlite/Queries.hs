@@ -313,6 +313,7 @@ module U.Codebase.Sqlite.Queries
     setAuthorName,
     getConfigValue,
     setConfigValue,
+    getCommandAliases,
 
     -- * Personal Keys
     ensurePersonalKeyThumbprintId,
@@ -4466,6 +4467,19 @@ getConfigValue key =
       FROM config
       WHERE key = :key
     |]
+
+-- | All of the command aliases set with @config.set alias.<command> ...@, as pairs of a command name and the raw
+-- config value (see 'Config.parseCommandAliases').
+getCommandAliases :: Transaction [(Text, Text)]
+getCommandAliases =
+  mapMaybe (\(key, value) -> (,value) <$> Text.stripPrefix Config.commandAliasesKeyPrefix key)
+    <$> queryListRow
+      [sql|
+        SELECT key, value
+        FROM config
+        WHERE key LIKE 'alias.%'
+        ORDER BY key
+      |]
 
 -- Resolve the last known remote project and branch names for a given local
 -- project and branch, for a specific remote URI.

@@ -105,3 +105,4 @@ The format for this list: name, GitHub handle
 * Frederick Pringle (@fpringle)
 * Giovanni d'Amelio (@giodamelio)
 * Shu Chen (@shu-chen-dot-ca)
+* Rajput Vivek (@Rajput-Vivek-16)

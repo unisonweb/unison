@@ -150,6 +150,11 @@ module Unison.CommandLine.InputPatterns
     makeExampleNoBackticks,
     patternMap,
     patternName,
+    CustomAliases,
+    customAliasesFromConfig,
+    validInputsWithAliases,
+    patternMapWithAliases,
+    loadPatternMap,
     showPatternHelp,
     unifyArgument,
     validInputs,
@@ -165,6 +170,7 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Network.URI qualified as URI
@@ -2742,7 +2748,15 @@ configSet =
             "",
             P.hang
               "Configuration options include:"
-              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText),
+            "",
+            P.wrap $
+              P.backticked (P.text (Config.commandAliasesKeyPrefix <> "<command>"))
+                <> "sets extra names for a command, separated by spaces. They're listed in"
+                <> makeExample' help
+                <> "along with the built-in ones. E.g.",
+            "",
+            makeExample configSet [P.text $ Config.keyToText (Config.CommandAliasesKey "list"), "\"l ll\""]
           ],
       parse = \case
         (key : value : []) -> do
@@ -2750,9 +2764,36 @@ configSet =
           value' <- unsupportedStructuredArgument configSet "a config value" value
           case Config.keyFromText (Text.pack key') of
             Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
-            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
+            Just pkey -> Input.ConfigSetI pkey <$> validateConfigValue pkey (Text.pack value')
         args -> wrongArgsLength "exactly two arguments" args
     }
+
+-- | Check a value for @config.set@, and normalize it.
+validateConfigValue :: Config.ConfigKey -> Text -> Either (P.Pretty CT.ColorText) Text
+validateConfigValue key value = case key of
+  Config.AuthorNameKey -> Right value
+  Config.CommandAliasesKey command ->
+    case Map.lookup (Text.unpack command) patternMap of
+      Nothing ->
+        Left . P.wrap $
+          "I don't know of a command called" <> P.group (P.backticked (P.text command) <> ".")
+      Just pat
+        | I.patternName pat /= Text.unpack command ->
+            Left . P.wrap $
+              P.backticked (P.text command)
+                <> "is an alias for"
+                <> P.group (P.backticked (P.string (I.patternName pat)) <> ",")
+                <> "so use"
+                <> P.backticked (P.text (Config.keyToText (Config.CommandAliasesKey (Text.pack (I.patternName pat)))))
+                <> "instead."
+        | otherwise -> do
+            let aliases = List.nubOrd (Config.parseCommandAliases value)
+            case filter (\alias -> Map.member (Text.unpack alias) patternMap) aliases of
+              [] -> Right (Text.unwords aliases)
+              taken ->
+                Left . P.wrap $
+                  "These are already the names of commands, so they can't be used as aliases:"
+                    <> P.group (P.commas (P.backticked . P.text <$> taken) <> ".")
 
 configGet :: InputPattern
 configGet =
@@ -3115,7 +3156,11 @@ helpTopicsMap =
         ]
 
 help :: InputPattern
-help =
+help = helpWith validInputs
+
+-- | The @help@ command, describing the given commands.
+helpWith :: [InputPattern] -> InputPattern
+helpWith inputs =
   InputPattern
     "help"
     ["?"]
@@ -3123,7 +3168,7 @@ help =
     (Parameters [] $ Optional [("command", commandNameArg)] Nothing)
     "`help` shows general help and `help <cmd>` shows help for one command."
     $ \case
-      [] -> Right . Input.CreateMessage $ intercalateMap "\n\n" showPatternHelp visibleInputs
+      [] -> Right . Input.CreateMessage $ intercalateMap "\n\n" showPatternHelp (filter ((== I.Visible) . I.visibility) inputs)
       cmd : _ -> do
         cmd <- unsupportedStructuredArgument help "a command" cmd
         case (Map.lookup cmd commandsByName, isHelp cmd) of
@@ -3146,7 +3191,7 @@ help =
   where
     commandsByName =
       Map.fromList $ do
-        input@I.InputPattern {I.patternName, I.aliases} <- validInputs
+        input@I.InputPattern {I.patternName, I.aliases} <- inputs
         name <- patternName : aliases
         pure (name, input)
     isHelp s = Map.lookup s helpTopicsMap
@@ -4479,10 +4524,56 @@ validInputs =
 
 -- | A map of all command patterns by pattern name or alias.
 patternMap :: Map String InputPattern
-patternMap =
+patternMap = patternMapFor validInputs
+
+patternMapFor :: [InputPattern] -> Map String InputPattern
+patternMapFor inputs =
   Map.fromList $
-    validInputs
+    inputs
       >>= (\p -> (I.patternName p, p) : ((,p) <$> I.aliases p))
+
+-- | Extra command aliases defined by the user with @config.set alias.<command> ...@, keyed by command name.
+type CustomAliases = Map String [String]
+
+-- | Build 'CustomAliases' from the result of 'Queries.getCommandAliases'.
+customAliasesFromConfig :: [(Text, Text)] -> CustomAliases
+customAliasesFromConfig =
+  Map.fromListWith (flip (++)) . map (bimap Text.unpack (map Text.unpack . Config.parseCommandAliases))
+
+-- | All command patterns, with the user's custom aliases added after the built-in ones.
+--
+-- A custom alias is ignored if it's already the name or alias of a built-in command, or if an earlier custom alias
+-- (by command name) already uses it, so every alias that shows up in @help@ really runs that command.
+validInputsWithAliases :: CustomAliases -> [InputPattern]
+validInputsWithAliases custom
+  | Map.null accepted = validInputs
+  | otherwise = inputs
+  where
+    inputs = map (withHelp . addAliases) validInputs
+    addAliases p = case Map.lookup (I.patternName p) accepted of
+      Nothing -> p
+      Just extra -> p {I.aliases = I.aliases p ++ extra}
+    -- `help` has to know about the custom aliases too, both to list them and to look commands up by them.
+    withHelp p
+      | I.patternName p == I.patternName help = (helpWith inputs) {I.aliases = I.aliases p}
+      | otherwise = p
+    accepted :: Map String [String]
+    accepted =
+      snd $ Map.foldlWithKey' step (Map.keysSet patternMap, Map.empty) (Map.restrictKeys custom commandNamesSet)
+      where
+        step (used, acc) command aliases =
+          let new = List.nubOrd (filter (`Set.notMember` used) aliases)
+           in (used <> Set.fromList new, if null new then acc else Map.insert command new acc)
+    commandNamesSet = Set.fromList (I.patternName <$> validInputs)
+
+-- | A map of all command patterns by pattern name or alias, including the user's custom aliases.
+patternMapWithAliases :: CustomAliases -> Map String InputPattern
+patternMapWithAliases = patternMapFor . validInputsWithAliases
+
+-- | Load the user's custom aliases from the codebase, and build 'patternMapWithAliases'.
+loadPatternMap :: (MonadIO m) => Codebase m v a -> m (Map String InputPattern)
+loadPatternMap codebase =
+  patternMapWithAliases . customAliasesFromConfig <$> Codebase.runTransaction codebase Queries.getCommandAliases
 
 visibleInputs :: [InputPattern]
 visibleInputs = filter ((== I.Visible) . I.visibility) validInputs

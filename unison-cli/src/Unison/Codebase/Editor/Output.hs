@@ -571,6 +571,8 @@ data Output
   | CommentFailed Text
   | AuthorNameRequired
   | ConfigValueGet ConfigKey (Maybe Text)
+  | -- | (alias, command that already has that alias)
+    CommandAliasesAlreadyTaken [(Text, Text)]
   | WatchDisabled
   | -- | Result of attempting to add a path to the watch list.
     -- First FilePath is the canonical path on success (Nothing on failure),
@@ -881,6 +883,7 @@ isFailure o = case o of
   CommentFailed {} -> True
   AuthorNameRequired {} -> True
   ConfigValueGet {} -> False
+  CommandAliasesAlreadyTaken {} -> True
   WatchDisabled -> True
   WatchAddResult Nothing _ -> True
   WatchAddResult (Just _) _ -> False

@@ -108,7 +108,7 @@
 
   `config.get author.name`
 
-  Configuration options include: author.name
+  Configuration options include: author.name, alias.<command>
 
   config.set
   The `config.set` command sets the configuration key to the
@@ -116,7 +116,13 @@
 
   `config.set author.name "Author Name"`
 
-  Configuration options include: author.name
+  Configuration options include: author.name, alias.<command>
+
+  `alias.<command>` sets extra names for a command, separated by
+  spaces. They're listed in `help` along with the built-in ones.
+  E.g.
+
+  `config.set alias.list "l ll"`
 
   create.author
   `create.author alicecoder "Alice McGee"` creates `alicecoder`

@@ -53,7 +53,6 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
-import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
@@ -294,7 +293,6 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
   expectFailure <- newIORef False
   hasErrors <- newIORef False
   mBlock <- newIORef Nothing
-  let patternMap = Map.fromList $ (\p -> (patternName p, p) : ((,p) <$> aliases p)) =<< IP.validInputs
   let output' :: Bool -> Stanza -> IO ()
       output' inputEcho msg = do
         hide <- hideOutput inputEcho
@@ -463,6 +461,7 @@ run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                     PP.ProjectAndBranch projId branchId <-
                       PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
                     let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
+                    patternMap <- liftIO $ IP.loadPatternMap codebase
                     liftIO (parseInput NoFZF codebase curPath getProjectRoot numberedArgs patternMap args)
                       >>= either
                         -- invalid command is treated as a failure
