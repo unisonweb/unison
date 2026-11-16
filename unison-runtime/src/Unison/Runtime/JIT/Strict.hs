@@ -28,6 +28,7 @@ import Unison.Util.Text (Text)
 import Unison.Util.Text qualified as UT
 
 data Pair a b = Pair !a !b
+  deriving (Eq, Ord)
 
 data Triple a b c = Triple !a !b !c
 

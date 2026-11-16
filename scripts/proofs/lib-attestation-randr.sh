@@ -142,7 +142,8 @@ _lookup_attestation() {
             CACHED_RESULT="$result"
             CACHED_SOURCE=tracked
             CACHED_INFRA=$(echo "$line" | awk '{print $1}')
-            if [[ -n "$CACHED_INFRA" && "$CACHED_INFRA" != "$INFRA_HASH" ]]; then
+            # A tracked file holds a prefix of the infrastructure hash (see _write_tracked).
+            if [[ -n "$CACHED_INFRA" && "$INFRA_HASH" != "$CACHED_INFRA"* ]]; then
                 INFRA_CHANGED=true
             fi
             return
@@ -286,12 +287,20 @@ attestation_check_skip() {
 # since every file is named by its hash and never edited, two branches that
 # both record only add differently named files and delete the same ones,
 # which git merges cleanly.
+#
+# That holds only if git sees a delete and an add, not a rename. Git takes a
+# deleted file and an added one for a rename when their contents are at least
+# half the same, measured in chunks of up to 64 bytes. So the file holds the
+# hash it attests, and only a 16-character prefix of the infrastructure hash:
+# the first chunk then mixes the two, and no two files share a chunk. With the
+# whole infrastructure hash first, every file's first chunk would be the same.
+# Line: <infra hash prefix> <result> <hash>; readers use the first two fields.
 # -----------------------------------------------------------------------------
 _write_tracked() {
     local result="$1"
     mkdir -p "$TRACKED_PROOFS_DIR"
     find "$TRACKED_PROOFS_DIR" -mindepth 1 -delete
-    echo "$INFRA_HASH $result" > "$TRACKED_PROOFS_FILE"
+    echo "${INFRA_HASH:0:16} $result $HASH" > "$TRACKED_PROOFS_FILE"
 }
 
 # -----------------------------------------------------------------------------

@@ -185,6 +185,8 @@ data Input
   | ListDependentsI (HQ.HashQualified Name)
   | LoadI (Maybe FilePath)
   | MakeStandaloneI String (HQ.HashQualified Name)
+  | -- | like 'MakeStandaloneI', but a self-contained executable
+    BundleI String (HQ.HashQualified Name)
   | MergeBuiltinsI (Maybe Path)
   | MergeCommitI
   | MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)

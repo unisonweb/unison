@@ -1090,6 +1090,8 @@ ioBuiltins =
     ("IO.renameFile.impl.v3", text --> text --> iof unit),
     ("IO.getFileTimestamp.impl.v3", text --> iof nat),
     ("IO.getFileSize.impl.v3", text --> iof nat),
+    ("IO.getFilePermissions.impl.v1", text --> iof filePermissions),
+    ("IO.setFilePermissions.impl.v1", text --> filePermissions --> iof unit),
     ("IO.serverSocket.impl.v3", optionalt text --> text --> iof socket),
     ("IO.listen.impl.v3", socket --> iof unit),
     ("IO.clientSocket.impl.v3", text --> text --> iof socket),
@@ -1324,7 +1326,7 @@ a --> b = Type.arrow () a b
 infixr 9 -->
 
 io, iof :: Type -> Type
-socket, threadId, handle, phandle, unit :: Type
+socket, threadId, handle, phandle, unit, filePermissions :: Type
 udpSocket, udpListenSocket, udpClientSockAddr :: Type
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 fmode, bmode, smode, stdhandle :: Type
@@ -1383,6 +1385,8 @@ socket = Type.socket ()
 threadId = Type.threadId ()
 
 handle = Type.fileHandle ()
+
+filePermissions = tuple [boolean, boolean, boolean, boolean]
 
 phandle = Type.processHandle ()
 

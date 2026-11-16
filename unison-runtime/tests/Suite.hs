@@ -9,6 +9,8 @@ import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.Runtime.ANF qualified as ANF
 import Unison.Test.Runtime.ANF.Serialization qualified as ANF.Serialization
+import Unison.Test.Runtime.BuiltinDecls qualified as BuiltinDecls
+import Unison.Test.Runtime.Bundle qualified as Bundle
 import Unison.Test.Runtime.Crypto.P256 qualified as P256
 import Unison.Test.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Test.Runtime.Foreign.Arrays qualified as Arrays
@@ -20,12 +22,15 @@ import Unison.Test.Runtime.Process qualified as Process
 import Unison.Test.Runtime.Signal qualified as Signal
 import Unison.Test.Runtime.TypeNumbers qualified as TypeNumbers
 import Unison.Test.UnisonSources qualified as UnisonSources
+import Unison.Test.Util.Text qualified as Util.Text
 
 test :: Test ()
 test =
   tests
     [ ANF.test,
       ANF.Serialization.test,
+      Bundle.test,
+      BuiltinDecls.test,
       MCode.test,
       MCode.Serialization.test,
       MCode.Wide.test,
@@ -36,7 +41,8 @@ test =
       Process.test,
       Signal.test,
       TypeNumbers.test,
-      UnisonSources.test
+      UnisonSources.test,
+      Util.Text.test
     ]
 
 main :: IO ()

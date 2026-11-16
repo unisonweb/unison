@@ -1,2 +1,0 @@
-# transcripts run for the partial attestation 3df9fca697e6257ed6bcd074954d9960549cf02d5cb9217a017797311c042bef
-3825c42985d1834eca2909aba558c8ad26752cb71cbb70d5e22b87afd2bfd910 unison-src/transcripts/idempotent/jit-tests.md

@@ -16,6 +16,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Pattern qualified as P
 import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Convert (anfTerm, lamLift, superNormalize)
 import Unison.Runtime.MCode (RefNums (..), emitCombs, emptyRecordFieldMappings)
 import Unison.Term qualified as Term
 import Unison.Test.Common

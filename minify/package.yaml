@@ -1,0 +1,42 @@
+name: minify
+version: 0.1.0
+synopsis: Removes unreachable definitions from a linked GHC executable
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2026 Unison Computing, PBC and contributors
+
+# On Windows the directory of the Minify modules and the package's own
+# (minify) differ only in case, which clang's preprocessor would refuse, as
+# for unison-cli-main
+ghc-options: -Wall -O2 -optP-Wno-nonportable-include-path
+
+library:
+  source-dirs: src
+  dependencies:
+    - base
+    - bytestring
+    - containers
+    - vector
+    - vector-algorithms
+
+executables:
+  minify:
+    main: Main.hs
+    source-dirs: app
+    ghc-options: -rtsopts "-with-rtsopts=-A64m"
+    dependencies:
+      - base
+      - bytestring
+      - containers
+      - minify
+      - optparse-applicative
+      - process
+      - vector
+
+default-extensions:
+  - BangPatterns
+  - LambdaCase
+  - MultiWayIf
+  - OverloadedStrings
+  - RecordWildCards
+  - ScopedTypeVariables
+  - TupleSections

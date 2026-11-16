@@ -6007,3 +6007,55 @@ headLoop n c =
            ⧩
            50000
 ```
+
+## A small constructor yielded to a callback
+
+A handler's pure case returns `Some a` or `Right a` wide (the witness in the value slot, the
+field below it), and the handled thunk is forced by `tryEval`, whose nested evaluation reads its
+result through a callback frame. The frame handed the slot to the hook as it was, so the hook saw
+the witness (unisonweb/unison\#6333 and \#6334, 2026-11-07: `Threads.run` returned a closure, and a
+`Failure` reached a match as a witness); it boxes the slot first now, as a handler frame does.
+The interpreter alone showed it, with the convention on.
+
+``` unison
+structural ability Ask where
+  ask : Nat
+
+handled : '{g, Ask} a ->{g} Optional a
+handled p = handle p() with cases
+  { Ask.ask -> k } -> handled do k 1
+  { a } -> Some a
+
+eitherHandled : '{g, Ask} a ->{g} Either Text a
+eitherHandled p = handle p() with cases
+  { Ask.ask -> k } -> eitherHandled do k 1
+  { a } -> Right a
+
+forcedTest : '{IO, Exception} [Nat]
+forcedTest = do
+  a = match ##IO.tryEval do handled do Ask.ask + 10 with
+    Some x -> x
+    None -> 0
+  b = match ##IO.tryEval do eitherHandled do Ask.ask + 20 with
+    Right x -> x
+    Left _ -> 0
+  [a, b]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+
+  + eitherHandled : '{g, Ask} a ->{g} Either Text a
+  + forcedTest    : '{IO, Exception} [Nat]
+  + handled       : '{g, Ask} a ->{g} Optional a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run forcedTest
+
+  [11, 21]
+```

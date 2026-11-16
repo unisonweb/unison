@@ -102,3 +102,6 @@ The format for this list: name, GitHub handle
 * Gabriel Anderson (@andgate)
 * Alistair Roche (@aroche-p)
 * Olivier Mélois (@Baccata)
+* Frederick Pringle (@fpringle)
+* Giovanni d'Amelio (@giodamelio)
+* Shu Chen (@shu-chen-dot-ca)

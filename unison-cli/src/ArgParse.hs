@@ -52,7 +52,7 @@ import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcap
 import Options.Applicative.Help (bold, (<+>))
 import Options.Applicative.Help.Pretty qualified as P
 import Stats
-import System.Environment (lookupEnv)
+import System.Environment (lookupEnv, withProgName)
 import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -123,6 +123,9 @@ data Command
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
+  | -- | a definition, and where to write the executable (by default, the
+    -- definition's name)
+    Bundle PP.ProjectPathNames (Maybe FilePath)
   | Transcript TranscriptCodebaseSetup (Maybe RtsStatsPath) (NonEmpty FilePath)
   deriving (Show, Eq)
 
@@ -161,7 +164,8 @@ parseCLIArgs progName version = do
   let parserInfo = rootParserInfo progName version envOpts
   let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols <> subparserInline
   let usage = renderUsage progName parserInfo preferences
-  (globalOptions, command) <- customExecParser preferences parserInfo
+  -- optparse-applicative looks the program name up itself, for the usage lines it prints
+  (globalOptions, command) <- withProgName progName $ customExecParser preferences parserInfo
   pure $ (usage, globalOptions, command)
 
 -- | Load default options from environment variables.
@@ -209,6 +213,24 @@ runSymbolCommand =
     help =
       "Execute a definition from the codebase, passing on the provided arguments. "
         <> " To pass flags to your program, use `run <symbol> -- --my-flag`"
+
+bundleCommand :: Mod CommandFields Command
+bundleCommand =
+  command "bundle" (info bundleParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Write a self-contained executable that runs a definition from the codebase, as the `bundle` command does: "
+        <> "the compiled program with a copy of unisonrt, the runtime that ships with ucm. It is named after the definition unless OUTPUT is given."
+
+bundleParser :: Parser Command
+bundleParser =
+  Bundle <$> pathParser <*> optional (strArgument (metavar "OUTPUT"))
+  where
+    -- the path after the colon may leave out its leading dot
+    pathParser = argument (maybeReader (eitherToMaybe . PP.parseProjectPath . withDot . Text.pack)) (metavar "myproject/mybranch:path.to.main")
+    withDot t = case Text.breakOn ":" t of
+      (pb, rest) | Just path <- Text.stripPrefix ":" rest, not ("." `Text.isPrefixOf` path) -> pb <> ":." <> path
+      _ -> t
 
 runFileCommand :: Mod CommandFields Command
 runFileCommand =
@@ -283,6 +305,7 @@ commandParser envOpts =
           runCompiledCommand,
           runFileCommand,
           runPipeCommand,
+          bundleCommand,
           transcriptCommand,
           transcriptForkCommand,
           transcriptInPlaceCommand,
@@ -331,14 +354,14 @@ jitParser =
   optional . strOption $
     long "jit"
       <> metavar "MODE"
-      <> help "[Experimental] JIT compilation mode: off, on, or eager. Needs LLVM 20 or newer installed (UNISON_LLVM_LIB can point at the library). Same as the UNISON_JIT environment variable."
+      <> help "JIT compilation mode: off, on, or eager. Needs LLVM 20 or newer installed (UNISON_LLVM_LIB can point at the library). Same as the UNISON_JIT environment variable."
 
 jitDumpIRParser :: Parser (Maybe String)
 jitDumpIRParser =
   optional . strOption $
     long "jit-dump-ir"
       <> metavar "DIR"
-      <> help "[Experimental] Write the LLVM IR the JIT generates, with the MCode of each function as a comment, to one .ll file per definition in DIR, or to stderr if DIR is '-'. Same as the UNISON_JIT_DUMP_IR environment variable."
+      <> help "Write the LLVM IR the JIT generates, with the MCode of each function as a comment, to one .ll file per definition in DIR, or to stderr if DIR is '-'. Same as the UNISON_JIT_DUMP_IR environment variable."
 
 lspFormattingParser :: Parser LspFormattingConfig
 lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)

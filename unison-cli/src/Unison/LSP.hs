@@ -85,7 +85,8 @@ spawnLsp lspFormattingConfig codebase runtime signal onSocketBound =
         Socket.listen serverSock 1
         onSocketBound serverSock
         UnliftIO.writeIORef shutdownVar True
-        void $ TCP.acceptFork serverSock $ \(sock, _sockaddr) -> do
+        -- Closing serverSock on shutdown ends this loop via handleFailure.
+        forever $ TCP.acceptFork serverSock $ \(sock, _sockaddr) -> do
           Ki.scoped \scope -> do
             -- If the socket is closed, reading/writing will throw an exception,
             -- but since the socket is closed, this connection will be shutting down
@@ -256,7 +257,11 @@ lspOptions :: Options
 lspOptions =
   defaultOptions
     { optTextDocumentSync = Just $ textDocSyncOptions,
-      optExecuteCommandCommands = Just supportedCommands
+      optExecuteCommandCommands = Just supportedCommands,
+      -- '.' isn't an identifier character, so editors won't auto-request completions after it
+      -- unless we register it as a trigger character. Without this, typing a '.' after a
+      -- completed name (e.g. `List.`) never triggers a completion request.
+      optCompletionTriggerCharacters = Just ['.']
     }
   where
     textDocSyncOptions =

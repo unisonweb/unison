@@ -18,14 +18,19 @@
 // flags bit 0: an exit, so record ap, fp and sp in the context (fp + base
 // is the interpreter's frame base, fp + depth its stack pointer); bit 1:
 // the code is not inside an inline binding, so ap is the ap argument,
-// otherwise it is the frame base. The argument block holds a word and a
-// pointer per slot, in the order of the offsets. Each record is three words
+// otherwise it is the frame base; bit 2: the argument block is indexed by
+// slot. The argument block holds a word and a pointer per slot: in the
+// order of the offsets, or with bit 2 set the pair of the slot at offset k
+// at words 2k-1 and 2k, wherever k comes in the offsets, so that a
+// function's sites can share the code that stores a slot
+// (Codegen.joinChain). Each record is three words
 // (frame table index, frame size, pending arguments), written after the
 // frame records already there; a negative pending count means
 // fp + fbase - ap, the count of the outermost frame. A record whose index
 // is negative is a Local frame (an affine handler case's environment switch,
 // in force at the exit): the environment to switch back to is one more
-// pointer in the block, after the slots, which goes in the boxed stack's
+// pointer in the block, after the slots (at word 0 when the block is
+// indexed by slot), which goes in the boxed stack's
 // out-area (a collector root) and the record's index becomes -1 - its
 // position there. The site returns the status itself (a constant there,
 // which LLVM would lose if this handed it back).
@@ -57,13 +62,15 @@ __attribute__((preserve_most)) void unison_jit_exit_frame(UnisonJitCtx *ctx, con
   // read of the flag, then a register test per store (zero unless the
   // process runs under +RTS -xn and a mark is in progress)
   const int64_t nm = ctx->nm_barrier;
+  const int64_t by_slot = flags & 4;
   for (int64_t i = 0; i < nslots; i++) {
     int64_t k = fp + slots[i];
-    ustk[k] = args[2 * i];
+    const int64_t *a = by_slot ? args + 2 * slots[i] - 1 : args + 2 * i;
+    ustk[k] = a[0];
     if (nm) unison_jit_push_old(ctx, bstk[k]);
-    bstk[k] = (void *)args[2 * i + 1];
+    bstk[k] = (void *)a[1];
   }
-  const int64_t *extra = args + 2 * nslots;
+  const int64_t *extra = by_slot ? args : args + 2 * nslots;
   if (flags & 1) {
     ctx->ap = (flags & 2) ? ap : fp + base;
     ctx->fp = fp + base;

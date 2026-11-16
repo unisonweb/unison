@@ -140,9 +140,14 @@ data Config = Config
     -- | exits and unwinds write the frame back through one call to the C
     -- routine @unison_jit_exit_frame@ per site, the live slots as its
     -- arguments, rather than through generated write-back blocks
-    -- (@UNISON_JIT_EXITS=call@, the default, or @blocks@). See
-    -- Codegen.joinShared.
+    -- (@UNISON_JIT_EXITS=chain@, the default, or @call@; not under
+    -- @blocks@). See Codegen.joinShared.
     exitCall :: Bool,
+    -- | with 'exitCall': the stores into the routine's argument block are
+    -- shared between a function's sites (@UNISON_JIT_EXITS=chain@, the
+    -- default) rather than each site having its own (@call@). See
+    -- Codegen.joinChain.
+    exitChain :: Bool,
     -- | with 'On': a compiled callee of a definition being compiled is
     -- compiled again as a private copy in the new module, so that calls to
     -- it are direct and LLVM can inline it, when the callee's estimated
@@ -279,6 +284,7 @@ readConfig = do
         sizeUnit = max 1 (fromMaybe 500 (sizeU >>= readMaybe)),
         passes = fromMaybe defaultPasses pipeline,
         exitCall = fmap (map toLower) exits /= Just "blocks",
+        exitChain = fmap (map toLower) exits `notElem` [Just "blocks", Just "call"],
         copyBound = max 0 (fromMaybe 40 (copyB >>= readMaybe)),
         reentryWait = max 0 (fromMaybe 20 (reWait >>= readMaybe)),
         reentryAdHoc = max 0 (fromMaybe 3 (reAdHoc >>= readMaybe)),

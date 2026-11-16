@@ -14,6 +14,7 @@ import Data.Either.Extra ()
 import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Ki qualified as Ki
 import System.FileLock (SharedExclusive (Exclusive), withFileLock, withTryFileLock)
 import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -52,7 +53,6 @@ import Unison.Util.Cache qualified as Cache
 import Unison.Util.Defns (Defns (..))
 import UnliftIO (finally)
 import UnliftIO qualified as UnliftIO
-import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO.Environment (lookupEnv)
 import UnliftIO.STM
@@ -145,7 +145,7 @@ sqliteCodebase ::
   MigrationStrategy ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
-sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
+sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption $ withPreloads \preloads -> do
   -- The branchLoadCache ephemerally caches branches in memory, but doesn't prevent them from being GC'd.
   -- This is very useful when loading root branches because the cache shouldn't be limited in size.
   -- But this cache will automatically clean itself up and remove entries that are no longer reachable.
@@ -226,14 +226,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   Cache.insert rootBranchCache (Branch.headHash branch) branch
                   runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
+            -- The thread is a child of the codebase's scope, so it never outlives the codebase. A failure only means
+            -- the branch isn't cached.
             preloadBranch :: CausalHash -> m ()
-            preloadBranch hash = do
-              void . UnliftIO.forkIO $ void $ do
-                getBranchForHash hash >>= \case
-                  Nothing -> pure ()
-                  Just b -> do
-                    UnliftIO.evaluate b
-                    pure ()
+            preloadBranch hash =
+              withRunInIO \runInIO ->
+                void . Ki.fork preloads . UnliftIO.try @_ @SomeException . runInIO $
+                  getBranchForHash hash >>= traverse_ UnliftIO.evaluate
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
@@ -312,6 +311,11 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                 }
         Right <$> action codebase
   where
+    -- Closing the scope cancels the preloads still running and waits for them, so that none uses the database, or
+    -- holds it open, after the codebase is closed.
+    withPreloads :: (Ki.Scope -> m x) -> m x
+    withPreloads k = withRunInIO \runInIO -> Ki.scoped (runInIO . k)
+
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
       withConnection debugName root \conn -> Sqlite.runTransaction conn action

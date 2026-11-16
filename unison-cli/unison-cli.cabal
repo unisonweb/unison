@@ -54,6 +54,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
+      Unison.Codebase.Editor.HandleInput.Bundle
       Unison.Codebase.Editor.HandleInput.Cancel
       Unison.Codebase.Editor.HandleInput.Config
       Unison.Codebase.Editor.HandleInput.DebugDefinition

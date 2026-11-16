@@ -11,11 +11,9 @@ library:
       other-modules: Paths_unison_parser_typechecker
 
   dependencies:
-    - primitive
     - ListLike
     - aeson
     - async
-    - atomic-primops
     - base
     - bytes
     - bytestring
@@ -30,11 +28,11 @@ library:
     - generic-lens
     - hashable
     - hashtables
+    - ki
     - lens
     - megaparsec
     - mmorph
     - mtl
-    - murmur-hash
     - mutable-containers
     - nonempty-containers
     - pretty-simple
@@ -64,7 +62,6 @@ library:
     - unison-util-cache
     - unison-util-recursion
     - unison-util-relation
-    - unison-util-rope
     - unison-util-serialization
     - unliftio
     - uuid
@@ -80,7 +77,6 @@ tests:
       - base
       - code-page
       - containers
-      - async
       - easytest
       - text
       - unison-core
@@ -90,9 +86,7 @@ tests:
       - unison-prelude
       - unison-pretty-printer
       - unison-syntax
-      - unison-util-bytes
       - unison-util-relation
-      - unison-util-rope
       - megaparsec
       - mtl
       - temporary

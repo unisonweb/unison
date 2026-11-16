@@ -51,6 +51,15 @@
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
 
+  bundle
+  `bundle main file`  Writes a self-contained executable,
+                      `file`, that runs `!main`. It is the
+                      program `compile` writes, with a copy of
+                      unisonrt, the runtime that runs compiled
+                      programs without a codebase, and needs
+                      nothing else to run. The arguments it is
+                      given are the program's.
+
   cancel
   `cancel`  cancels the in-progress merge, update, or upgrade.
 

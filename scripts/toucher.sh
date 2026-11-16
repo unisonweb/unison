@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 function touch_the_things {
   for x in $(seq 10 1)

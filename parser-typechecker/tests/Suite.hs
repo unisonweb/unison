@@ -14,6 +14,7 @@ import Unison.Test.Codebase.Causal qualified as Causal
 import Unison.Test.Codebase.Path qualified as Path
 import Unison.Test.CodebaseInit qualified as CodebaseInit
 import Unison.Test.DataDeclaration qualified as DataDeclaration
+import Unison.Test.PrintError qualified as PrintError
 import Unison.Test.Referent qualified as Referent
 import Unison.Test.Syntax.FileParser qualified as FileParser
 import Unison.Test.Syntax.TermParser qualified as TermParser
@@ -25,7 +26,6 @@ import Unison.Test.Typechecker.Context qualified as Context
 import Unison.Test.Typechecker.Context.Structure qualified as ContextStructure
 import Unison.Test.Typechecker.TypeError qualified as TypeError
 import Unison.Test.Util.Relation qualified as Relation
-import Unison.Test.Util.Text qualified as Text
 import Unison.Test.Var qualified as Var
 
 test :: Test ()
@@ -38,7 +38,7 @@ test =
       TypePrinter.test,
       FileParser.test,
       DataDeclaration.test,
-      Text.test,
+      PrintError.test,
       Relation.test,
       Path.test,
       Causal.test,

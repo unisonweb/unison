@@ -3,6 +3,7 @@
 module Unison.PrintError
   ( Env,
     defaultWidth,
+    ordinal,
     prettyParseError,
     prettyResolutionFailures,
     prettyVar,
@@ -12,6 +13,8 @@ module Unison.PrintError
     renderParseErrorAsANSI,
     renderParseErrors,
     renderTypeWarnings,
+    rangeForErrorNote,
+    rangeForWarn,
   )
 where
 
@@ -34,10 +37,12 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
+import Unison.KindInference.Error qualified as KindInference
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -81,7 +86,6 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
-import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -1773,6 +1777,45 @@ rangeForAnnotated a = case ann a of
   GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
+-- | The most specific source location to point an editor at for a given type
+-- error: a location carried directly by the error's cause when there is one,
+-- otherwise the innermost subterm the typechecker was looking at. Used to render
+-- a clickable `file:line:col` reference in the CLI.
+rangeForErrorNote :: (Annotated loc, Semigroup loc) => C.ErrorNote v loc -> Maybe Range
+rangeForErrorNote note =
+  causeRange (C.cause note) <|> (rangeForAnnotated =<< C.innermostErrorTerm note)
+  where
+    -- The primary location for each cause is the one the LSP's diagnostics use (Unison.LSP.FileAnalysis).
+    causeRange = \case
+      C.TypeMismatch _ -> Nothing
+      C.IllFormedType _ -> Nothing
+      C.UnknownSymbol loc _ -> rangeForAnnotated loc
+      C.UnknownTerm loc _ _ _ -> rangeForAnnotated loc
+      C.AbilityCheckFailure _ _ _ -> Nothing
+      C.AbilityEqFailure _ _ _ -> Nothing
+      C.EffectConstructorWrongArgCount _ _ _ -> Nothing
+      C.MalformedEffectBind _ _ _ -> Nothing
+      C.PatternArityMismatch loc _ _ -> rangeForAnnotated loc
+      C.DuplicateDefinitions ((_, locs) Nel.:| _) -> rangeForAnnotated (NES.findMin locs)
+      C.UnguardedLetRecCycle _ defns -> rangeForAnnotated . ABT.annotation . snd =<< listToMaybe defns
+      C.ConcatPatternWithoutConstantLength loc _ -> rangeForAnnotated loc
+      C.HandlerOfUnexpectedType loc _ -> rangeForAnnotated loc
+      C.DataEffectMismatch _ _ decl -> rangeForAnnotated (DD.annotation decl)
+      C.UncoveredPatterns loc _ -> rangeForAnnotated loc
+      C.RedundantPattern loc -> rangeForAnnotated loc
+      C.KindInferenceFailure ke -> rangeForAnnotated (KindInference.lspLoc ke)
+      C.InaccessiblePattern loc -> rangeForAnnotated loc
+      C.RunWatchTypeMismatch loc _ -> rangeForAnnotated loc
+      C.MissingRecordField _ _ recordWithoutField _ -> rangeForAnnotated (ABT.annotation recordWithoutField)
+      C.UnexpectedRecordField _ _ _ recordWithField -> rangeForAnnotated (ABT.annotation recordWithField)
+      C.PatternMatchedMissingField _ pat _ -> rangeForAnnotated (Pattern.loc pat)
+      C.RecordPatternMatchOnNonRecordType pat _ -> rangeForAnnotated (Pattern.loc pat)
+
+-- | The source location to point an editor at for a typechecker warning.
+rangeForWarn :: (Annotated loc) => C.Warn v loc -> Maybe Range
+rangeForWarn = \case
+  C.AbilityConcreteSubset _ _ tm _ -> rangeForAnnotated tm
+
 showLexerOutput :: Bool
 showLexerOutput = False
 
@@ -2596,3 +2639,22 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
+
+-- | Return the ordinal representation of a number in English.
+--   A number ending with '1' must finish with 'st'
+--   A number ending with '2' must finish with 'nd'
+--   A number ending with '3' must finish with 'rd'
+--   _except_ for 11, 12, and 13 which must finish with 'th'
+ordinal :: (IsString s) => Int -> s
+ordinal n = do
+  let s = show n
+  fromString $
+    s ++ case drop (length s - 2) s of
+      ['1', '1'] -> "th"
+      ['1', '2'] -> "th"
+      ['1', '3'] -> "th"
+      _ -> case last s of
+        '1' -> "st"
+        '2' -> "nd"
+        '3' -> "rd"
+        _ -> "th"

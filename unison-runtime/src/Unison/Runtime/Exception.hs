@@ -6,15 +6,16 @@ module Unison.Runtime.Exception
 where
 
 import Control.Exception (throw, throwIO)
+import Data.Text qualified as Text
 import GHC.Stack (CallStack, callStack)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Runtime.Stack (Val)
-import Unison.Util.Pretty as P
 
 data RuntimeExn
-  = -- | pretty exception
-    PE CallStack [Word] (P.Pretty P.ColorText)
+  = -- | an internal error: where it was raised, the numbers of the GitHub
+    -- issues it may be, and a message
+    PE CallStack [Word] Text
   | -- | a failure in Unison code
     BU
       -- | Unison stack
@@ -28,7 +29,7 @@ data RuntimeExn
 instance Exception RuntimeExn
 
 peStr :: (HasCallStack) => [Word] -> String -> RuntimeExn
-peStr issues = PE callStack issues . P.lit . fromString
+peStr issues = PE callStack issues . Text.pack
 {-# INLINE peStr #-}
 
 die :: (HasCallStack) => [Word] -> String -> IO a

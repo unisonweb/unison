@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # with-clean-worktree.sh - Run a command on a clean worktree, preserving state
 # =============================================================================

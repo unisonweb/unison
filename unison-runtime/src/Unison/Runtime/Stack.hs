@@ -246,15 +246,12 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.StableName (makeStableName)
 import System.Process (ProcessHandle)
 import Test.Inspection qualified as TI
-import Unison.Builtin.Decls as Ty hiding
-  ( tlsPrivateKeyRef,
-    tlsSignedCertRef,
-  )
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
 import Unison.Runtime.Array as PA
+import Unison.Runtime.Builtin.Decls as Ty
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
 import Unison.Runtime.JIT.Config qualified as JIT

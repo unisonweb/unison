@@ -58,6 +58,7 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Bundle qualified as Bundle
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Execute (execute)
@@ -82,6 +83,8 @@ import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
+import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -89,6 +92,7 @@ import Unison.Project (defaultBranchName)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.JIT.Config qualified as JITConfig
+import Unison.Runtime.Version (runtimeVersion)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -160,7 +164,7 @@ main version = do
     interruptHandler <- defaultInterruptHandler
     withInterruptHandler interruptHandler $ do
       void $ Ki.fork scope (initHTTPClient version)
-      progName <- getProgName
+      progName <- getUserFacingProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption} = globalOptions
@@ -194,7 +198,7 @@ main version = do
             )
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
-            RTI.withRuntime jit False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
+            RTI.withRuntime jit False RTI.OneOff \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -256,6 +260,15 @@ main version = do
                     initRes
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
+        Bundle mainPath mOutput -> do
+          -- named after the definition, unless told otherwise
+          let output = fromMaybe "main" $ mOutput <|> (Text.unpack . NameSegment.toUnescapedText . Name.lastSegment <$> Path.toName (PP.path mainPath))
+          getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) ->
+            RTI.withRuntime jit False RTI.OneOff \runtime ->
+              Bundle.bundleFromCodebase theCodebase runtime mainPath output >>= \case
+                Left (Bundle.BundleProblem why) -> exitError (P.text why)
+                Left (Bundle.BundleCompileError err) -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
+                Right written -> putStrLn ("Wrote " ++ written)
         Run (RunCompiled file) args ->
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case
@@ -276,14 +289,14 @@ main version = do
                     "",
                     P.indentN 2 . P.wrap $ P.string err
                   ]
-              Right (Right (v, rf, combIx, sto))
+              Right (Right (RTI.Compiled v rf combIx sto _))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
                     withArgs args (RTI.runStandalone jit False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
-                  vmatch = v == Version.gitDescribeWithDate version
+                  vmatch = v == runtimeVersion
                   ws s = P.wrap (P.text s)
                   ifile
                     | 'c' : 'u' : '.' : rest <- reverse file = reverse rest
@@ -299,7 +312,7 @@ main version = do
                         P.indentN 4 $ P.text v,
                         "",
                         "Your version",
-                        P.indentN 4 $ P.text $ Version.gitDescribeWithDate version,
+                        P.indentN 4 $ P.text runtimeVersion,
                         "",
                         P.wrap $
                           "The program was compiled from hash "
@@ -421,8 +434,8 @@ main version = do
     -- (runtime, sandboxed runtime)
     withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
     withRuntimes jit mode action =
-      RTI.withRuntime jit False mode (Version.gitDescribeWithDate version) \runtime -> do
-        RTI.withRuntime jit True mode (Version.gitDescribeWithDate version) \sbRuntime ->
+      RTI.withRuntime jit False mode \runtime -> do
+        RTI.withRuntime jit True mode \sbRuntime ->
           action (runtime, sbRuntime)
     initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do
@@ -443,6 +456,16 @@ initHTTPClient version = do
   let managerSettings = HTTP.tlsManagerSettings {HTTP.managerModifyRequest = addUserAgent}
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
+
+-- | The name to show users for this program, in help text and messages.
+--
+-- The release bundle and the Nix package start the @unison@ executable from a @ucm@ launcher, so 'getProgName' gives
+-- @unison@, a command users don't have.
+getUserFacingProgName :: IO String
+getUserFacingProgName =
+  getProgName <&> \case
+    "unison" -> "ucm"
+    name -> name
 
 -- | Prep the codebase for transcripts, then pass the directory to the action.
 -- After the action the codebase will be deleted/copied/saved as indicated.
@@ -629,7 +652,7 @@ runTranscripts jit version verbosity renderUsageInfo codebaseSetup mCodePathOpti
       putStrLn (renderUsageInfo $ Just "transcript")
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
-  progName <- getProgName
+  progName <- getUserFacingProgName
   completed <-
     fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
       runTranscripts' jit version progName transcriptDir markdownFiles
@@ -701,7 +724,7 @@ getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
     Left (dir, err) ->
       let message = do
             pDir <- prettyDir dir
-            executableName <- P.text . Text.pack <$> getProgName
+            executableName <- P.text . Text.pack <$> getUserFacingProgName
 
             case err of
               InitErrorOpen err ->

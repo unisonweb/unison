@@ -51,32 +51,43 @@ extra-source-files:
   - cbits/jit_*.h
   - cbits/jit_helpers.ll
   - cbits/jit_exit.ll
+  - unisonrt/bundle-section
 
-library:
-  source-dirs: src
-  when:
-    - condition: false
-      other-modules: Paths_unison_runtime
-    - condition: "!os(windows)"
-      dependencies: unix
-      c-sources: cbits/signals.c
+# The runtime is two libraries. The internal library `core` (src) is what
+# running compiled code needs: the machine, the builtins, the JIT, and the
+# readers of compiled code. It depends on nothing that parses, typechecks
+# or pretty-prints Unison, so that unisonrt, which runs .uc files, is
+# built from it alone. The main library (ucm) is what ucm adds on top:
+# compiling terms from a codebase to ANF, decompiling values back to terms,
+# and the Runtime interface.
+internal-libraries:
+  core:
+    source-dirs: src
+    when:
+      - condition: false
+        other-modules: Paths_unison_runtime
+      - condition: "!os(windows)"
+        dependencies: unix
+        c-sources: cbits/signals.c
 
-  c-sources:
-    - cbits/i2d.c
-    # The JIT (src/Unison/Runtime/JIT/design.md). LLVM isn't linked: jit_llvm.c
-    # loads it at run time when the JIT is turned on, so building needs no LLVM.
-    # (cbits/jit_exit.c is not built here: it is only ever compiled to IR,
-    # by gen-helpers.sh, and compiled again by the JIT at startup.)
-    - cbits/jit_llvm.c
-    # The JIT's C runtime, one translation unit: jit_rt.c is the machinery
-    # (entering native code, allocation, the trampoline, the startup probes)
-    # and includes the native builtins, one file per family
-    # (cbits/jit_builtins_*.c, sharing cbits/jit_builtins.h), and
-    # cbits/jit_helpers.c, which is also compiled to IR for the JIT
-    # (cbits/gen-helpers.sh, jit_helpers.ll).
-    - cbits/jit_rt.c
+    c-sources:
+      - cbits/i2d.c
+      # The JIT (src/Unison/Runtime/JIT/design.md). LLVM isn't linked: jit_llvm.c
+      # loads it at run time when the JIT is turned on, so building needs no LLVM.
+      # (cbits/jit_exit.c is not built here: it is only ever compiled to IR,
+      # by gen-helpers.sh, and compiled again by the JIT at startup.)
+      - cbits/jit_llvm.c
+      # The JIT's C runtime, one translation unit: jit_rt.c is the machinery
+      # (entering native code, allocation, the trampoline, the startup probes)
+      # and includes the native builtins, one file per family
+      # (cbits/jit_builtins_*.c, sharing cbits/jit_builtins.h), and
+      # cbits/jit_helpers.c, which is also compiled to IR for the JIT
+      # (cbits/gen-helpers.sh, jit_helpers.ll).
+      - cbits/jit_rt.c
+      # where a bundle finds its program (Unison.Runtime.Bundle)
+      - cbits/bundle.c
 
-  dependencies:
+    dependencies:
     - asn1-encoding
     - asn1-types
     - atomic-primops
@@ -86,6 +97,10 @@ library:
     - clock
     - containers >= 0.6.3
     - crypton
+    - crypton-x509
+    - crypton-x509-store
+    - crypton-x509-system
+    - crypton-x509-validation
     - data-default
     - data-memocombinators
     - deepseq
@@ -93,11 +108,11 @@ library:
     - exceptions
     - filepath
     - hashable
+    - inspection-testing
     - iproute
     - lens
     - libffi
     - memory
-    - mmorph
     - mtl
     - murmur-hash
     - network
@@ -106,38 +121,91 @@ library:
     - pem
     - primitive
     - process
-    - raw-strings-qq
     - safe-exceptions
     - stm
     - tagged
+    - template-haskell
     - temporary
     - text
-    - template-haskell
-    - transformers
-    - inspection-testing
     - time
     - tls
-    - unison-codebase-sqlite
+    - transformers
     - unison-core
     - unison-core1
     - unison-dynlib
     - unison-hash
-    - unison-parser-typechecker
     - unison-prelude
-    - unison-pretty-printer
-    - unison-syntax
     - unison-util-bytes
     - unison-util-file-embed
-    - unison-util-recursion
     - unison-util-relation
     - unison-util-rope
     - unliftio
     - unordered-containers
     - vector
-    - crypton-x509
-    - crypton-x509-store
-    - crypton-x509-system
-    - crypton-x509-validation
+
+library:
+  source-dirs: ucm
+  when:
+    - condition: false
+      other-modules: Paths_unison_runtime
+  # the modules of `core` that other packages use
+  reexported-modules:
+    - Unison.Runtime.JIT
+    - Unison.Runtime.JIT.Config
+    - Unison.Runtime.Version
+    - Unison.Runtime.Bundle
+  dependencies:
+    - base
+    - bytestring
+    - containers >= 0.6.3
+    - core
+    - filepath
+    - lens
+    - mmorph
+    - mtl
+    - raw-strings-qq
+    - stm
+    - text
+    - unison-codebase-sqlite
+    - unison-core
+    - unison-core1
+    - unison-parser-typechecker
+    - unison-prelude
+    - unison-pretty-printer
+    - unison-syntax
+    - unison-util-bytes
+    - unison-util-recursion
+    - unliftio
+    - vector
+
+executables:
+  # Runs a compiled program (a .uc file), without a codebase: see
+  # unisonrt/README.md.
+  unisonrt:
+    source-dirs: unisonrt
+    main: Main.hs
+    # main.c is the program's entry: it stops the RTS reading flags after
+    # the .uc file, which belong to the program
+    c-sources: unisonrt/main.c
+    ghc-options: -threaded -rtsopts -no-hs-main
+    when:
+      - condition: false
+        other-modules: Paths_unison_runtime
+      # On macOS a bundle's program is in a section of its own, which a
+      # plain unisonrt has empty (Unison.Runtime.Bundle)
+      - condition: os(darwin)
+        ghc-options: -optl-Wl,-sectcreate,__UNISON,__uc,unisonrt/bundle-section
+      # minify (ucm's bundle) needs the relocations on Linux, which only the
+      # BFD linker keeps (minify/README.md)
+      - condition: os(linux)
+        ghc-options: -optl-fuse-ld=bfd -optl-Wl,--emit-relocs
+    dependencies:
+      - base
+      - bytestring
+      - core
+      - text
+      - unison-core
+      - unison-core1
 
 tests:
   runtime-tests:
@@ -150,7 +218,11 @@ tests:
       - condition: "!os(windows)"
         dependencies: unix
         c-sources: tests/cbits/signals.c
+    # the bundle test writes bundles from it
+    build-tools:
+      - unison-runtime:unisonrt
     dependencies:
+      - async
       - base
       - bytestring
       - code-page
@@ -173,10 +245,13 @@ tests:
       - unison-hash
       - unison-util-bytes
       - unison-util-relation
+      - unison-util-rope
+      - temporary
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer
       - unison-runtime
+      - core
       - unison-syntax
 
 default-extensions:

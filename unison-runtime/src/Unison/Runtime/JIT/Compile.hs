@@ -411,7 +411,7 @@ compileUnits c st numbers modName lazy candidates = do
       -- a private copy gets internal linkage, so that LLVM drops it once it
       -- is inlined at every call
       env local workers u cells =
-        CG.Env (jsLayouts st) (jsCtx st) (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
+        CG.Env (jsLayouts st) (jsCtx st) (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (exitChain config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
       -- The functions that get a worker: calls to them from this module
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us

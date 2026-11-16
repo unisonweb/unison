@@ -57,11 +57,11 @@ foo = +5
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-57d67278.u.
+  definitions to fix are in update-main-ca32a681.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-57d67278.u
+      scratch/update-main> load update-main-ca32a681.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -76,7 +76,7 @@ foo = +5
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-57d67278.u
+``` unison :added-by-ucm update-main-ca32a681.u
 foo : Int
 foo = +5
 

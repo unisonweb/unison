@@ -112,19 +112,27 @@ import Numeric (showHex)
 import Numeric.Natural (Natural)
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
-  ( createDirectoryIfMissing,
+  ( Permissions (..),
+    createDirectoryIfMissing,
     doesDirectoryExist,
     doesPathExist,
+    emptyPermissions,
     getCurrentDirectory,
     getDirectoryContents,
     getFileSize,
     getModificationTime,
+    getPermissions,
     getTemporaryDirectory,
     removeDirectoryRecursive,
     removeFile,
     renameDirectory,
     renameFile,
     setCurrentDirectory,
+    setOwnerExecutable,
+    setOwnerReadable,
+    setOwnerSearchable,
+    setOwnerWritable,
+    setPermissions,
   )
 import System.Environment as SYS
   ( getArgs,
@@ -165,7 +173,6 @@ import System.Process as SYS
     withCreateProcess,
   )
 import System.X509 qualified as X
-import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
@@ -175,6 +182,7 @@ import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
+import Unison.Runtime.Builtin.Decls qualified as Ty
 import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
@@ -353,6 +361,10 @@ foreignCallHelper = \case
   IO_getFileTimestamp_impl_v3 ->
     mkForeignIOF $
       fmap utcTimeToPOSIXSeconds . getModificationTime
+  IO_getFilePermissions_impl_v1 ->
+    mkForeignIOF getPermissions
+  IO_setFilePermissions_impl_v1 ->
+    mkForeignIOF $ uncurry setPermissions
   IO_getFileSize_impl_v3 ->
     -- TODO: truncating integer
     mkForeignIOF $
@@ -3103,6 +3115,24 @@ instance ForeignConvention Foreign where
       Foreign f -> pure f
       c -> foreignConventionError "Foreign" (BoxedVal c)
   writeBack stk f = bpoke stk (Foreign f)
+
+toPermissions :: (Bool, Bool, Bool, Bool) -> Permissions
+toPermissions (r, w, e, s) =
+  emptyPermissions
+    & setOwnerReadable r
+    & setOwnerWritable w
+    & setOwnerExecutable e
+    & setOwnerSearchable s
+
+fromPermissions :: Permissions -> (Bool, Bool, Bool, Bool)
+fromPermissions permissions = (readable permissions, writable permissions, executable permissions, searchable permissions)
+
+instance ForeignConvention Permissions where
+  decodeVal = fmap toPermissions . decodeVal
+  encodeVal = encodeVal . fromPermissions
+
+  readAtIndex stk = fmap toPermissions . readAtIndex stk
+  writeBack stk = writeBack stk . fromPermissions
 
 instance (ForeignConvention a) => ForeignConvention [a] where
   decodeVal (BoxedVal (ListC sq)) =

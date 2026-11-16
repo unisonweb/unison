@@ -109,7 +109,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
         Just l -> case fromMaybe [] $ IP.parseArgs l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput UseFZF codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
               Left failure -> do
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.

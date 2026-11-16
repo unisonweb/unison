@@ -59,11 +59,11 @@ foo = +30
   definitions would no longer typecheck.
 
   You're now on a temporary branch, update-main, and the
-  definitions to fix are in update-main-04618c90.u.
+  definitions to fix are in update-main-80b0121d.u.
 
   Edit the file, then run:
 
-      scratch/update-main> load update-main-04618c90.u
+      scratch/update-main> load update-main-80b0121d.u
 
   If `load` reports errors, fix them and run it again. When the
   file loads with no errors, run:
@@ -78,7 +78,7 @@ foo = +30
   until a successful `update`.
 ```
 
-``` unison :added-by-ucm update-main-04618c90.u
+``` unison :added-by-ucm update-main-80b0121d.u
 foo = +30
 
 -- The definitions below no longer typecheck with the changes above.

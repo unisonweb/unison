@@ -24,7 +24,10 @@
 #   With HASH_NORMALIZE=true set before sourcing, Haskell and C sources are
 #   hashed with their comments removed (pragmas kept) and all whitespace
 #   collapsed, so that a comment edit or a reformatting does not invalidate an
-#   attestation. The proofs that only depend on what the code does opt in;
+#   attestation. YAML files are hashed with their comments, trailing
+#   whitespace and blank lines removed; their indentation stays, since it is
+#   part of what they say. A # inside a block scalar counts as a comment too,
+#   which the hashed YAML files (stack.yaml, package.yaml) don't have. The proofs that only depend on what the code does opt in;
 #   the formatting proof hashes the raw text.
 #
 # =============================================================================
@@ -100,6 +103,13 @@ _hash_files() {
             } elsif ($ARGV =~ /\.[ch]$/) {
                 s{("(?:[^"\\\n]|\\.)*")|\/\*.*?\*\/|\/\/[^\n]*}{defined $1 ? $1 : ""}gse;
                 s/\s+/ /g;
+            } elsif ($ARGV =~ /\.ya?ml$/) {
+                # drop comments: a # at the start of a line or after a space or
+                # tab, outside a quoted string on that line. Indentation is
+                # meaningful, so only trailing whitespace and blank lines go.
+                s{("(?:[^"\\\n]|\\.)*"|\x27(?:[^\x27\n]|\x27\x27)*\x27)|(?:^|(?<=[ \t]))#[^\n]*}{defined $1 ? $1 : ""}gme;
+                s/[ \t]+$//mg;
+                s/^\n//mg;
             }
         }
         print;
