@@ -20,9 +20,11 @@ jobs:
     if: github.event_name == 'merge_group'
     uses: ./.github/workflows/test.yaml
     with:
-      # The merge queue runs transcripts on every platform a release does, so
-      # platform-specific transcript output is caught before release, not at it.
-      transcripts-os: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
+      # The merge queue runs transcripts on every platform with its own IO and
+      # path behavior (Linux, macOS arm64, Windows), so platform-specific
+      # transcript output is caught before release, not at it. The arm64 Linux
+      # and Intel Mac runners behave like macos-15 here.
+      transcripts-os: '["ubuntu-24.04","macos-15","windows-2025"]'
   ci-result:
     if: ${{ !cancelled() }}
     needs: [quick, full]
