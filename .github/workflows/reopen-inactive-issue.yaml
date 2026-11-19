@@ -1,0 +1,40 @@
+name: Reopen inactive issues
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  reopen:
+    if: >-
+      !github.event.issue.pull_request &&
+      github.event.comment.user.id == github.event.issue.user.id
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            if (context.payload.comment.body.trim() !== '/reopen') return;
+
+            const params = { ...context.repo, issue_number: context.issue.number };
+            const label = 'inactive-180-days';
+            const { data: issue } = await github.rest.issues.get(params);
+            if (issue.state !== 'closed' || !issue.labels.some(({ name }) => name === label)) return;
+
+            // A maintainer may have closed the issue again after an inactivity closure.
+            const events = await github.paginate(github.rest.issues.listEvents, {
+              ...params,
+              per_page: 100,
+            });
+            const closure = events.reverse().find(({ event }) => event === 'closed');
+            if (closure?.actor?.login !== 'github-actions[bot]') return;
+
+            await github.rest.issues.update({ ...params, state: 'open' });
+            try {
+              await github.rest.issues.removeLabel({ ...params, name: label });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
