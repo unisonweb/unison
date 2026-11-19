@@ -230,8 +230,11 @@ newRewritesPath dir mfile = do
         uuid <- UUID.nextRandom
         pure (formatTime defaultTimeLocale "%Y-%m-%d-%H-%M" now, take 8 (UUID.toString uuid))
   let path = dir </> time <> "-" <> maybe "" (<> "-") mfile <> guid <> ".u"
+  -- A transcript's output has to be the same on every platform, so the path uses forward slashes, however the
+  -- platform's `</>` writes it. Windows accepts forward slashes everywhere the path is used.
+  let slashify = map (\c -> if c == '\\' then '/' else c)
   -- An agent's own working directory is usually not the server's, so it gets the whole path.
-  if env.unattended then liftIO (Directory.makeAbsolute path) else pure path
+  if env.unattended then liftIO (slashify <$> Directory.makeAbsolute path) else pure (slashify path)
 
 -- | Parse a file, without typechecking it: its text, and the parse.
 loadAndParse :: FilePath -> Cli (Text, UF.UnisonFile Symbol Ann)

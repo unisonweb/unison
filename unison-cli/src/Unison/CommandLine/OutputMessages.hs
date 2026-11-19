@@ -3508,28 +3508,23 @@ displayOutputRewrittenFile fp backup vs = do
         P.wrap case backup of
           Nothing ->
             "The rewritten definitions are in"
-              <> P.backticked' (prettyPath fp) "."
+              <> P.backticked' (fromString fp) "."
               <> "Review them, typecheck that file with"
-              <> IP.makeExample IP.load [prettyPath fp]
+              <> IP.makeExample IP.load [fromString fp]
               <> "and run"
               <> IP.makeExample' IP.update
               <> "when you are done."
           Just previous ->
             "I rewrote"
-              <> P.backticked (prettyPath fp)
+              <> P.backticked (fromString fp)
               <> "in place; the version before is saved as"
-              <> P.backticked' (prettyPath previous) "."
+              <> P.backticked' (fromString previous) "."
               <> "Review the file, typecheck it with"
-              <> IP.makeExample IP.load [prettyPath fp]
+              <> IP.makeExample IP.load [fromString fp]
               <> "and run"
               <> IP.makeExample' IP.update
               <> "when you are done."
       ]
-  where
-    -- A file path shown to the user, with forward slashes whatever the
-    -- platform's native separator is, so that transcript output matches on
-    -- every platform (on Windows a bare `</>` would render backslashes).
-    prettyPath = fromString . map (\c -> if c == '\\' then '/' else c)
 
 displayDefinitions' ::
   (Var v) =>
