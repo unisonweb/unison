@@ -39,7 +39,7 @@ jobs:
           stale-pr-label: inactive-180-days
           close-issue-message: >-
             Closing this issue because it has had no activity for 180 days.
-            Please reopen it if it is still relevant.
+            If you opened this issue and it is still relevant, comment `/reopen` to reopen it.
           close-pr-message: >-
             Closing this pull request because it has had no activity for 180 days.
             Please reopen it if it is still relevant.
