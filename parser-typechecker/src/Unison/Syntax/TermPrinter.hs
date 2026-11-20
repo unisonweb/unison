@@ -593,15 +593,9 @@ pretty0
                           pretty0 (AmbientContext Application Normal Infix im doc False) f
                         ]
             case (term, binaryOpsPred) of
-              -- A record section applied to all its arguments is the field read
-              -- or update it names, so it renders as the infix form, here where
-              -- the application is rendered — never as `(@foo)` with arguments
-              -- appended. Reducing the section's own binders yields exactly the
-              -- term that `x@foo` / `x@foo.set y` desugar to, which the
-              -- projection and set cases below render. A setter applied to only
-              -- its record has no infix form (`x@foo.set` still wants its new
-              -- value), so it, like a bare section, stays prefix: see the
-              -- `asRecordSection` case below.
+              -- A saturated record section prints as the infix form:
+              -- `(@foo) x` as `x@foo`, `(@foo.set) x y` as `x@foo.set y`;
+              -- a bare or partially applied section stays prefix.
               (Apps' (asRecordSection -> Just (RecordGetter _ r body)) [arg], _) ->
                 pretty0 a (ABT.subst r arg body)
               (Apps' (asRecordSection -> Just (RecordSetter _ r v body)) [arg1, arg2], _) ->
@@ -711,13 +705,8 @@ pretty0
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure $ f' `PP.hang` args'
                 _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
-                  -- A standalone lambda of one or two binders feeding a
-                  -- projection or set is what `(@field)` or `(@field.set)`
-                  -- desugars to, so print it back as the section. (A section
-                  -- applied to its arguments is rendered by the `Apps'` cases
-                  -- at the top of this dispatch, in the infix form.) The parens
-                  -- are part of the syntax, so they are always printed: the
-                  -- section is a leaf, like `(+)`.
+                  -- A standalone section lambda prints as the section; a
+                  -- saturated application was handled by the `Apps'` cases above.
                   (asRecordSection -> Just section, _) ->
                     let field = sectionField section
                         dotSet = case section of
@@ -1149,10 +1138,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
                 term = PP.group (renderPrettyBinding tm')
               }
-        -- A binding of the first-class record section syntax, `name = (@foo)` or
-        -- `name = (@foo.set)`: print the RHS as the section rather than as the
-        -- lambda the parser desugars it to. See `asRecordSection`. The section
-        -- binds nothing, so the binding is never infix, however symbolic the name.
+        -- A binding of the section syntax prints as `name = (@foo)`.
         (asRecordSection -> Just _) -> do
           prettyBody <- pretty0 (ac (precedence a) Block im doc) binding
           pure $
@@ -1839,17 +1825,11 @@ asRecordProjection = \case
         Just (scrutinee, field)
   _ -> Nothing
 
--- | Recognize the first-class record sections @(\@foo)@ and @(\@foo.set)@, which
--- the parser makes a lambda of: @(\@foo)@ is @r -> r\@foo@ and @(\@foo.set)@ is
--- @r v -> r \@foo.set v@, with the lambda's binders exactly the record and the
--- new value, and nothing else in the body, so the section syntax cannot
--- capture. Printing it back as a section keeps @view@, docs and diffs showing
--- the syntax that was written.
---
--- Each constructor carries the field name, the section's own binders, and the
--- term those binders act on — the projection for the getter, the set for the
--- setter — which is what a saturated application of the section reduces to (see
--- the @Apps'@ cases in @pretty0@).
+-- | Recognize the record sections @(\@foo)@ and @(\@foo.set)@, which the parser
+-- desugars to @r -> r\@foo@ and @r v -> r \@foo.set v@ — a body mentioning
+-- nothing but its own binders, so matching them cannot capture. Each
+-- constructor carries the field name, those binders, and the term they act on
+-- (the projection, or the set): what a saturated application reduces to.
 data RecordSection v a
   = -- | @(\@foo)@ reads the field.
     RecordGetter Text v (Term3 v a)
