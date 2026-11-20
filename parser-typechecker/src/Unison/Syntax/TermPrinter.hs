@@ -698,6 +698,17 @@ pretty0
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure $ f' `PP.hang` args'
                 _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
+                  -- A lambda of one or two binders feeding a projection or set is
+                  -- what `(@field)` or `(@field.set)` desugars to, so print it back
+                  -- as the section. The parens are part of the syntax, so they are
+                  -- always printed: the section is a leaf, like `(+)`.
+                  (asRecordSection -> Just (field, isSet), _) ->
+                    pure $
+                      fmt S.Parenthesis "("
+                        <> fmt S.DelimiterChar "@"
+                        <> fmt (S.RecordFieldName field) (PP.text field)
+                        <> (if isSet then fmt S.TypeOperator ".set" else mempty)
+                        <> fmt S.Parenthesis ")"
                   (LamsNamedMatch' [] branches, _) -> do
                     pbs <- printCase im doc branches
                     pure . paren (p >= InfixOp Lowest) $
@@ -1117,6 +1128,19 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
             PrettyBinding
               { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
                 term = PP.group (renderPrettyBinding tm')
+              }
+        -- A binding of the first-class record section syntax, `name = (@foo)` or
+        -- `name = (@foo.set)`: print the RHS as the section rather than as the
+        -- lambda the parser desugars it to. See `asRecordSection`. The section
+        -- binds nothing, so the binding is never infix, however symbolic the name.
+        (asRecordSection -> Just _) -> do
+          prettyBody <- pretty0 (ac (precedence a) Block im doc) binding
+          pure $
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group (renderName v <> fmt S.BindingEquals " =") `PP.hang` prettyBody
               }
         LamsNamedMatch' vs branches -> do
           branches' <- printCase im doc branches
@@ -1793,6 +1817,19 @@ asRecordProjection = \case
     | v == v',
       [(field, Pattern.Var _)] <- Map.toList fields ->
         Just (scrutinee, field)
+  _ -> Nothing
+
+-- | Recognize the first-class record sections @(\@foo)@ and @(\@foo.set)@, which
+-- the parser makes a lambda of: @(\@foo)@ is @r -> r\@foo@ and @(\@foo.set)@ is
+-- @r v -> r \@foo.set v@, with the lambda's binders exactly the record and the
+-- new value, and nothing else in the body, so the section syntax cannot capture.
+-- Printing it back as a section keeps @view@, docs and diffs showing the syntax
+-- that was written. Returns the field name and whether it is the setter.
+asRecordSection :: (Var v) => Term3 v PrintAnnotation -> Maybe (Text, Bool)
+asRecordSection = \case
+  LamNamed' r (asRecordProjection -> Just (Var' r', field)) | r == r' -> Just (field, False)
+  LamNamed' r (LamNamed' v (RecordSet' field (Var' r') (Var' v')))
+    | r == r', v == v' -> Just (field, True)
   _ -> Nothing
 
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
