@@ -684,6 +684,21 @@ row_var_set r v = r @ foo.set v
 row_var_getter_section : { foo : Nat } -> Nat
 row_var_getter_section = (@foo)
 
+-- a saturated section application prints as the infix form
+record_section_applied : Nat
+record_section_applied = { x : 41 }@x
+
+record_section_setter_applied : { foo : Nat } -> { foo : Nat }
+record_section_setter_applied r = r@foo.set 42
+
+-- a section passed to a function prints as the section
+record_section_argument : [Nat]
+record_section_argument = List.map (@x) [{ x : 1 }, { x : 2 }]
+
+-- a setter applied to only its record has no infix form and stays prefix
+record_section_partial : Nat -> { x : Nat, y : Nat }
+record_section_partial = (@x.set) { x : 1, y : 2 }
+
 -- record-set blocks: several fields replaced at once, the values reading the fields'
 -- current values through `@field`. These print back as written, including the path form.
 record_set_block : { f1 : Nat, f2 : Nat } -> { f1 : Nat, f2 : Nat }

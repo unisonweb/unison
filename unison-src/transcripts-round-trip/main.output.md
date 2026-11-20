@@ -37,7 +37,7 @@ scratch/a1> edit.new 1-1000
 
   ☝️
 
-  I added 132 definitions to the top of scratch.u
+  I added 136 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -620,10 +620,10 @@ record_nested : {a: {b: {c: Nat}}}
 record_nested = {a: {b: {c: 42}}}
 
 record_open_type : {x: Nat, y: Text} -> Nat
-record_open_type = cases {x: x} -> x
+record_open_type = (@x)
 
 record_projection : {a: Nat} -> Nat
-record_projection = cases {a: field} -> field
+record_projection = (@a)
 
 record_projection_applied : {a: Nat} -> Nat
 record_projection_applied r = Nat.increment r@a
@@ -638,6 +638,18 @@ record_refutable : {x: Nat} -> Text
 record_refutable = cases
   {x: 0} -> "zero"
   _      -> "other"
+
+record_section_applied : Nat
+record_section_applied = {x: 41}@x
+
+record_section_argument : [Nat]
+record_section_argument = List.map (@x) [{x: 1}, {x: 2}]
+
+record_section_partial : Nat -> {x: Nat, y: Nat}
+record_section_partial = (@x.set) {x: 1, y: 2}
+
+record_section_setter_applied : {foo: Nat} -> {foo: Nat}
+record_section_setter_applied r = r@foo.set 42
 
 record_set_block : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
 record_set_block r =
@@ -661,16 +673,16 @@ row_var_flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
 row_var_flat r = r
 
 row_var_getter_section : {foo: Nat} -> Nat
-row_var_getter_section = cases {foo: field} -> field
+row_var_getter_section = (@foo)
 
 row_var_open : {x: Nat} -> Nat
-row_var_open = cases {x: field} -> field
+row_var_open = (@x)
 
 row_var_set : {foo: Nat | rest} -> Nat -> {foo: Nat | rest}
-row_var_set r v = r@foo.set v
+row_var_set = (@foo.set)
 
 row_var_spaced : {y: Nat} -> Nat
-row_var_spaced = cases {y: field} -> field
+row_var_spaced = (@y)
 
 row_var_type : {x: Nat | r} -> {x: Nat | r}
 row_var_type r = r
@@ -943,7 +955,7 @@ scratch/a3> edit.new 1-5000
 
   ☝️
 
-  I added 2 definitions to the top of scratch.u
+  I added 4 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -956,6 +968,12 @@ explanationOfThisFile =
   Put definitions in here that are expected to
   parse with a different hash after pretty-printing.
   """
+
+record_section_prefix_applied : Nat
+record_section_prefix_applied = {x: 41}@x
+
+record_section_prefix_setter_applied : {foo: Nat} -> {foo: Nat}
+record_section_prefix_setter_applied r = r@foo.set 42
 
 sloppyDocEval : Doc2
 sloppyDocEval =
@@ -990,9 +1008,19 @@ scratch/main> diff.namespace /a3_new: /a3:
 
   Updates:
 
-    1. sloppyDocEval : Doc2
+    1. record_section_prefix_applied : Nat
        ↓
-    2. sloppyDocEval : Doc2
+    2. record_section_prefix_applied : Nat
+    
+    3. record_section_prefix_setter_applied : {foo: Nat}
+       -> {foo: Nat}
+       ↓
+    4. record_section_prefix_setter_applied : {foo: Nat}
+       -> {foo: Nat}
+    
+    5. sloppyDocEval : Doc2
+       ↓
+    6. sloppyDocEval : Doc2
 ```
 
 ## Other regression tests not covered by above

@@ -593,6 +593,13 @@ pretty0
                           pretty0 (AmbientContext Application Normal Infix im doc False) f
                         ]
             case (term, binaryOpsPred) of
+              -- A saturated record section prints as the infix form:
+              -- `(@foo) x` as `x@foo`, `(@foo.set) x y` as `x@foo.set y`;
+              -- a bare or partially applied section stays prefix.
+              (Apps' (asRecordSection -> Just (RecordGetter _ r body)) [arg], _) ->
+                pretty0 a (ABT.subst r arg body)
+              (Apps' (asRecordSection -> Just (RecordSetter _ r v body)) [arg1, arg2], _) ->
+                pretty0 a (ABT.substs [(r, arg1), (v, arg2)] body)
               (DD.Doc, _)
                 | doc == MaybeDoc ->
                     if isDocLiteral term
@@ -698,6 +705,19 @@ pretty0
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure $ f' `PP.hang` args'
                 _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
+                  -- A standalone section lambda prints as the section; a
+                  -- saturated application was handled by the `Apps'` cases above.
+                  (asRecordSection -> Just section, _) ->
+                    let field = sectionField section
+                        dotSet = case section of
+                          RecordGetter {} -> mempty
+                          RecordSetter {} -> fmt S.TypeOperator ".set"
+                     in pure $
+                          fmt S.Parenthesis "("
+                            <> fmt S.DelimiterChar "@"
+                            <> fmt (S.RecordFieldName field) (PP.text field)
+                            <> dotSet
+                            <> fmt S.Parenthesis ")"
                   (LamsNamedMatch' [] branches, _) -> do
                     pbs <- printCase im doc branches
                     pure . paren (p >= InfixOp Lowest) $
@@ -1117,6 +1137,16 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
             PrettyBinding
               { typeSignature = Just (PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") tp')),
                 term = PP.group (renderPrettyBinding tm')
+              }
+        -- A binding of the section syntax prints as `name = (@foo)`.
+        (asRecordSection -> Just _) -> do
+          prettyBody <- pretty0 (ac (precedence a) Block im doc) binding
+          pure $
+            PrettyBinding
+              { typeSignature = Nothing,
+                term =
+                  PP.group $
+                    PP.group (renderName v <> fmt S.BindingEquals " =") `PP.hang` prettyBody
               }
         LamsNamedMatch' vs branches -> do
           branches' <- printCase im doc branches
@@ -1787,12 +1817,36 @@ asRecordTargetProjection = \case
   _ -> Nothing
 
 asRecordProjection ::
-  (Var v) => Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Text)
+  (Var v) => Term3 v a -> Maybe (Term3 v a, Text)
 asRecordProjection = \case
   Match' scrutinee [MatchCase (Pattern.RecordLiteral _ fields) Nothing (AbsN' [v] (Var' v'))]
     | v == v',
       [(field, Pattern.Var _)] <- Map.toList fields ->
         Just (scrutinee, field)
+  _ -> Nothing
+
+-- | Recognize the record sections @(\@foo)@ and @(\@foo.set)@, which the parser
+-- desugars to @r -> r\@foo@ and @r v -> r \@foo.set v@ — a body mentioning
+-- nothing but its own binders, so matching them cannot capture. Each
+-- constructor carries the field name, those binders, and the term they act on
+-- (the projection, or the set): what a saturated application reduces to.
+data RecordSection v a
+  = -- | @(\@foo)@ reads the field.
+    RecordGetter Text v (Term3 v a)
+  | -- | @(\@foo.set)@ writes it.
+    RecordSetter Text v v (Term3 v a)
+
+sectionField :: RecordSection v a -> Text
+sectionField = \case
+  RecordGetter field _ _ -> field
+  RecordSetter field _ _ _ -> field
+
+asRecordSection :: (Var v) => Term3 v a -> Maybe (RecordSection v a)
+asRecordSection = \case
+  LamNamed' r body@(asRecordProjection -> Just (Var' r', field))
+    | r == r' -> Just (RecordGetter field r body)
+  LamNamed' r (LamNamed' v inner@(RecordSet' field (Var' r') (Var' v')))
+    | r == r', v == v' -> Just (RecordSetter field r v inner)
   _ -> Nothing
 
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
