@@ -37,7 +37,7 @@ scratch/a1> edit.new 1-1000
 
   ☝️
 
-  I added 134 definitions to the top of scratch.u
+  I added 136 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -641,6 +641,12 @@ record_refutable = cases
 
 record_section_applied : Nat
 record_section_applied = {x: 41}@x
+
+record_section_argument : [Nat]
+record_section_argument = List.map (@x) [{x: 1}, {x: 2}]
+
+record_section_partial : Nat -> {x: Nat, y: Nat}
+record_section_partial = (@x.set) {x: 1, y: 2}
 
 record_section_setter_applied : {foo: Nat} -> {foo: Nat}
 record_section_setter_applied r = r@foo.set 42
