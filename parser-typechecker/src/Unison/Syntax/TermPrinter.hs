@@ -602,9 +602,9 @@ pretty0
               -- its record has no infix form (`x@foo.set` still wants its new
               -- value), so it, like a bare section, stays prefix: see the
               -- `asRecordSection` case below.
-              (Apps' (asRecordSection -> Just (_, False, [r], body)) [arg], _) ->
+              (Apps' (asRecordSection -> Just (RecordGetter _ r body)) [arg], _) ->
                 pretty0 a (ABT.subst r arg body)
-              (Apps' (asRecordSection -> Just (_, True, [r, v], body)) [arg1, arg2], _) ->
+              (Apps' (asRecordSection -> Just (RecordSetter _ r v body)) [arg1, arg2], _) ->
                 pretty0 a (ABT.substs [(r, arg1), (v, arg2)] body)
               (DD.Doc, _)
                 | doc == MaybeDoc ->
@@ -718,13 +718,17 @@ pretty0
                   -- at the top of this dispatch, in the infix form.) The parens
                   -- are part of the syntax, so they are always printed: the
                   -- section is a leaf, like `(+)`.
-                  (asRecordSection -> Just (field, isSet, _, _), _) ->
-                    pure $
-                      fmt S.Parenthesis "("
-                        <> fmt S.DelimiterChar "@"
-                        <> fmt (S.RecordFieldName field) (PP.text field)
-                        <> (if isSet then fmt S.TypeOperator ".set" else mempty)
-                        <> fmt S.Parenthesis ")"
+                  (asRecordSection -> Just section, _) ->
+                    let field = sectionField section
+                        dotSet = case section of
+                          RecordGetter {} -> mempty
+                          RecordSetter {} -> fmt S.TypeOperator ".set"
+                     in pure $
+                          fmt S.Parenthesis "("
+                            <> fmt S.DelimiterChar "@"
+                            <> fmt (S.RecordFieldName field) (PP.text field)
+                            <> dotSet
+                            <> fmt S.Parenthesis ")"
                   (LamsNamedMatch' [] branches, _) -> do
                     pbs <- printCase im doc branches
                     pure . paren (p >= InfixOp Lowest) $
@@ -1842,16 +1846,27 @@ asRecordProjection = \case
 -- capture. Printing it back as a section keeps @view@, docs and diffs showing
 -- the syntax that was written.
 --
--- Returns the field name, whether it is the setter, the section's own binders,
--- and the term those binders act on: the projection for the getter, the set for
--- the setter. Substituting the binders is what a saturated application reduces
--- to (see `etaReduce`).
-asRecordSection :: (Var v) => Term3 v a -> Maybe (Text, Bool, [v], Term3 v a)
+-- Each constructor carries the field name, the section's own binders, and the
+-- term those binders act on — the projection for the getter, the set for the
+-- setter — which is what a saturated application of the section reduces to (see
+-- the @Apps'@ cases in @pretty0@).
+data RecordSection v a
+  = -- | @(\@foo)@ reads the field.
+    RecordGetter Text v (Term3 v a)
+  | -- | @(\@foo.set)@ writes it.
+    RecordSetter Text v v (Term3 v a)
+
+sectionField :: RecordSection v a -> Text
+sectionField = \case
+  RecordGetter field _ _ -> field
+  RecordSetter field _ _ _ -> field
+
+asRecordSection :: (Var v) => Term3 v a -> Maybe (RecordSection v a)
 asRecordSection = \case
   LamNamed' r body@(asRecordProjection -> Just (Var' r', field))
-    | r == r' -> Just (field, False, [r], body)
+    | r == r' -> Just (RecordGetter field r body)
   LamNamed' r (LamNamed' v inner@(RecordSet' field (Var' r') (Var' v')))
-    | r == r', v == v' -> Just (field, True, [r, v], inner)
+    | r == r', v == v' -> Just (RecordSetter field r v inner)
   _ -> Nothing
 
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
