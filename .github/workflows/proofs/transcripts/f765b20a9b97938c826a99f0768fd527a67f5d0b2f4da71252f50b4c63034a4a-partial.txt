@@ -1,4 +1,4 @@
-# transcripts run for the partial attestation 3434cb88ceda783c9bfcc6930222363670cf64c841c1b35a074e7757fbf6e73f
+# transcripts run for the partial attestation f765b20a9b97938c826a99f0768fd527a67f5d0b2f4da71252f50b4c63034a4a
 04a8373a249bbbe9bf334f25156e92de406e3e3ad2c0ad2bd76dfbaee96e8059 unison-src/transcripts-manual/rewrites.md
 5801b4bfddabee3def8c5741ed42acbc459b779bc9826cafe04e30ee8a999c80 unison-src/transcripts-round-trip/main.md
 ee60196d2646a08b1391c9c6fc8fb3eb8103416d32f2e2cb9aa2d8f5bc669bcb unison-src/transcripts-using-base/doc.md
