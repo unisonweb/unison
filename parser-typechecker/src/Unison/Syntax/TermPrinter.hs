@@ -78,6 +78,16 @@ type SyntaxText = S.SyntaxText' Reference
 -- | Gets rid of unsightly "_eta" expansion in the pretty-printed output
 etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
+-- A saturated record section is the field read or update it names, so it
+-- prints as the infix form, the way a saturated `(+)` prints as an infix
+-- application: `(@foo) x` prints as `x@foo` and `(@foo.set) x y` as
+-- `x@foo.set y`. Reducing the section's own binders hands the term to the
+-- projection and set printer cases. A setter applied to only its record has no
+-- infix form (`x@foo.set` still wants its new value), so that stays prefix.
+etaReduce (App' (App' (asRecordSection -> Just (_, True, [r, v], body)) arg1) arg2) =
+  ABT.substs [(r, arg1), (v, arg2)] body
+etaReduce (App' (asRecordSection -> Just (_, False, [r], body)) arg) =
+  ABT.subst r arg body
 etaReduce tm = tm
 
 goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
@@ -702,7 +712,7 @@ pretty0
                   -- what `(@field)` or `(@field.set)` desugars to, so print it back
                   -- as the section. The parens are part of the syntax, so they are
                   -- always printed: the section is a leaf, like `(+)`.
-                  (asRecordSection -> Just (field, isSet), _) ->
+                  (asRecordSection -> Just (field, isSet, _, _), _) ->
                     pure $
                       fmt S.Parenthesis "("
                         <> fmt S.DelimiterChar "@"
@@ -1811,7 +1821,7 @@ asRecordTargetProjection = \case
   _ -> Nothing
 
 asRecordProjection ::
-  (Var v) => Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Text)
+  (Var v) => Term3 v a -> Maybe (Term3 v a, Text)
 asRecordProjection = \case
   Match' scrutinee [MatchCase (Pattern.RecordLiteral _ fields) Nothing (AbsN' [v] (Var' v'))]
     | v == v',
@@ -1822,14 +1832,20 @@ asRecordProjection = \case
 -- | Recognize the first-class record sections @(\@foo)@ and @(\@foo.set)@, which
 -- the parser makes a lambda of: @(\@foo)@ is @r -> r\@foo@ and @(\@foo.set)@ is
 -- @r v -> r \@foo.set v@, with the lambda's binders exactly the record and the
--- new value, and nothing else in the body, so the section syntax cannot capture.
--- Printing it back as a section keeps @view@, docs and diffs showing the syntax
--- that was written. Returns the field name and whether it is the setter.
-asRecordSection :: (Var v) => Term3 v PrintAnnotation -> Maybe (Text, Bool)
+-- new value, and nothing else in the body, so the section syntax cannot
+-- capture. Printing it back as a section keeps @view@, docs and diffs showing
+-- the syntax that was written.
+--
+-- Returns the field name, whether it is the setter, the section's own binders,
+-- and the term those binders act on: the projection for the getter, the set for
+-- the setter. Substituting the binders is what a saturated application reduces
+-- to (see `etaReduce`).
+asRecordSection :: (Var v) => Term3 v a -> Maybe (Text, Bool, [v], Term3 v a)
 asRecordSection = \case
-  LamNamed' r (asRecordProjection -> Just (Var' r', field)) | r == r' -> Just (field, False)
-  LamNamed' r (LamNamed' v (RecordSet' field (Var' r') (Var' v')))
-    | r == r', v == v' -> Just (field, True)
+  LamNamed' r body@(asRecordProjection -> Just (Var' r', field))
+    | r == r' -> Just (field, False, [r], body)
+  LamNamed' r (LamNamed' v inner@(RecordSet' field (Var' r') (Var' v')))
+    | r == r', v == v' -> Just (field, True, [r, v], inner)
   _ -> Nothing
 
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool

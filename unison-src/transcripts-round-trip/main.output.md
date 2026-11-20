@@ -640,10 +640,10 @@ record_refutable = cases
   _      -> "other"
 
 record_section_applied : Nat
-record_section_applied = (@x) {x: 41}
+record_section_applied = {x: 41}@x
 
 record_section_setter_applied : {foo: Nat} -> {foo: Nat}
-record_section_setter_applied r = (@foo.set) r 42
+record_section_setter_applied r = r@foo.set 42
 
 record_set_block : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
 record_set_block r =
@@ -949,7 +949,7 @@ scratch/a3> edit.new 1-5000
 
   ☝️
 
-  I added 2 definitions to the top of scratch.u
+  I added 4 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -962,6 +962,12 @@ explanationOfThisFile =
   Put definitions in here that are expected to
   parse with a different hash after pretty-printing.
   """
+
+record_section_prefix_applied : Nat
+record_section_prefix_applied = {x: 41}@x
+
+record_section_prefix_setter_applied : {foo: Nat} -> {foo: Nat}
+record_section_prefix_setter_applied r = r@foo.set 42
 
 sloppyDocEval : Doc2
 sloppyDocEval =
@@ -996,9 +1002,19 @@ scratch/main> diff.namespace /a3_new: /a3:
 
   Updates:
 
-    1. sloppyDocEval : Doc2
+    1. record_section_prefix_applied : Nat
        ↓
-    2. sloppyDocEval : Doc2
+    2. record_section_prefix_applied : Nat
+    
+    3. record_section_prefix_setter_applied : {foo: Nat}
+       -> {foo: Nat}
+       ↓
+    4. record_section_prefix_setter_applied : {foo: Nat}
+       -> {foo: Nat}
+    
+    5. sloppyDocEval : Doc2
+       ↓
+    6. sloppyDocEval : Doc2
 ```
 
 ## Other regression tests not covered by above

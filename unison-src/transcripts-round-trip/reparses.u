@@ -17,3 +17,13 @@ sloppyDocEval =
     ],
     docEval (_ -> 1 Nat.+ 1)
   ]
+
+-- A record section applied to all its arguments prints as the infix form:
+-- `(@x) r` prints as `r@x` and `(@foo.set) r v` as `r@foo.set v`, the way a
+-- saturated `(+)` prints as an infix application. The infix form parses to the
+-- reduced term, so these change hash on round trip.
+record_section_prefix_applied : Nat
+record_section_prefix_applied = (@x) { x : 41 }
+
+record_section_prefix_setter_applied : { foo : Nat } -> { foo : Nat }
+record_section_prefix_setter_applied r = (@foo.set) r 42
