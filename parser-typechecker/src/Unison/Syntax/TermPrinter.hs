@@ -78,16 +78,6 @@ type SyntaxText = S.SyntaxText' Reference
 -- | Gets rid of unsightly "_eta" expansion in the pretty-printed output
 etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
--- A saturated record section is the field read or update it names, so it
--- prints as the infix form, the way a saturated `(+)` prints as an infix
--- application: `(@foo) x` prints as `x@foo` and `(@foo.set) x y` as
--- `x@foo.set y`. Reducing the section's own binders hands the term to the
--- projection and set printer cases. A setter applied to only its record has no
--- infix form (`x@foo.set` still wants its new value), so that stays prefix.
-etaReduce (App' (App' (asRecordSection -> Just (_, True, [r, v], body)) arg1) arg2) =
-  ABT.substs [(r, arg1), (v, arg2)] body
-etaReduce (App' (asRecordSection -> Just (_, False, [r], body)) arg) =
-  ABT.subst r arg body
 etaReduce tm = tm
 
 goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
@@ -603,6 +593,19 @@ pretty0
                           pretty0 (AmbientContext Application Normal Infix im doc False) f
                         ]
             case (term, binaryOpsPred) of
+              -- A record section applied to all its arguments is the field read
+              -- or update it names, so it renders as the infix form, here where
+              -- the application is rendered — never as `(@foo)` with arguments
+              -- appended. Reducing the section's own binders yields exactly the
+              -- term that `x@foo` / `x@foo.set y` desugar to, which the
+              -- projection and set cases below render. A setter applied to only
+              -- its record has no infix form (`x@foo.set` still wants its new
+              -- value), so it, like a bare section, stays prefix: see the
+              -- `asRecordSection` case below.
+              (Apps' (asRecordSection -> Just (_, False, [r], body)) [arg], _) ->
+                pretty0 a (ABT.subst r arg body)
+              (Apps' (asRecordSection -> Just (_, True, [r, v], body)) [arg1, arg2], _) ->
+                pretty0 a (ABT.substs [(r, arg1), (v, arg2)] body)
               (DD.Doc, _)
                 | doc == MaybeDoc ->
                     if isDocLiteral term
@@ -708,10 +711,13 @@ pretty0
                     args' <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) args
                     pure $ f' `PP.hang` args'
                 _other -> case (term, \v -> nonUnitArgPred v && not (isDelay term)) of
-                  -- A lambda of one or two binders feeding a projection or set is
-                  -- what `(@field)` or `(@field.set)` desugars to, so print it back
-                  -- as the section. The parens are part of the syntax, so they are
-                  -- always printed: the section is a leaf, like `(+)`.
+                  -- A standalone lambda of one or two binders feeding a
+                  -- projection or set is what `(@field)` or `(@field.set)`
+                  -- desugars to, so print it back as the section. (A section
+                  -- applied to its arguments is rendered by the `Apps'` cases
+                  -- at the top of this dispatch, in the infix form.) The parens
+                  -- are part of the syntax, so they are always printed: the
+                  -- section is a leaf, like `(+)`.
                   (asRecordSection -> Just (field, isSet, _, _), _) ->
                     pure $
                       fmt S.Parenthesis "("
