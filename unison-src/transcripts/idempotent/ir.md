@@ -208,7 +208,7 @@ scratch/main> ir runCounter
   runCounter$h$Lambda0 k n = k n
 
   runCounter$Lambda0 p =
-    v1 = Unit
+    v1 = ()
     p v1
 
 scratch/main> ir.optimized runCounter
@@ -250,7 +250,7 @@ scratch/main> ir.optimized runCounter
   runCounter$h$Lambda0 k n = k n
 
   runCounter$Lambda0 p =
-    v1 = Unit
+    v1 = ()
     p v1
 ```
 
@@ -273,7 +273,7 @@ scratch/main> ir.optimized sumCount
             match p4 with
               Cons p5 p6 ->
                 match p6 with
-                  Unit ->
+                  () ->
                     v2 = prim.ADDN p3 p1
                     v3 = 1
                     v4 = prim.ADDN p5 v3
@@ -284,7 +284,7 @@ scratch/main> ir.optimized sumCount
             match p8 with
               Cons p9 p10 ->
                 match p10 with
-                  Unit -> prim.ADDN p7 p9
+                  () -> prim.ADDN p7 p9
 
   sumCount$go#spec1 eta1 eta2 x1 =
     v1 = prim.VWLS x1
@@ -297,14 +297,42 @@ scratch/main> ir.optimized sumCount
       VEmpty -> prim.ADDN eta1 eta2
 ```
 
-A function that returns a pair gets a worker that returns the two values without building it (`#return`), which a caller that takes the pair apart calls:
+A function that returns a pair gets a worker that returns the two values without building it (`#return`): its tails `yield (# q, r #)`, several values rather than a pair. A caller that takes the pair apart calls it and binds the values, `(# q, r #) = ...`; the entry still builds the pair, for the callers that keep it.
 
 ``` ucm
+scratch/main> ir.optimized divMod
+
+  divMod a b =
+    v1 = prim.LESU a b
+    match v1 with
+      false ->
+        v2 = prim.DRPN a b
+        (# eta1, eta2 #) = divMod#return v2 b
+        v3 = 1
+        v4 = prim.ADDN eta1 v3
+        (v4, eta2)
+      _ ->
+        v7 = 0
+        (v7, a)
+
+  divMod#return a b =
+    v1 = prim.LESU a b
+    match v1 with
+      false ->
+        v2 = prim.DRPN a b
+        (# eta1, eta2 #) = divMod#return v2 b
+        v3 = 1
+        v4 = prim.ADDN eta1 v3
+        yield (# v4, eta2 #)
+      _ ->
+        v7 = 0
+        yield (# v7, a #)
+
 scratch/main> ir.optimized useDivMod
 
   useDivMod n =
     v1 = 7
-    (eta1, eta2) = divMod#return n v1
+    (# eta1, eta2 #) = divMod#return n v1
     prim.ADDN eta1 eta2
 ```
 

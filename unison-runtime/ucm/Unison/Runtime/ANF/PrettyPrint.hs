@@ -10,8 +10,13 @@
 -- * A group is a definition. Its local functions (the group's other
 --   members, which may call each other) come first in the entry's block,
 --   like local definitions in Unison.
--- * A let is a binding, `x = e`; a binding of several values (an unboxed
---   tuple) is `(x, y) = e`, and of none is `_ = e`.
+-- * A let is a binding, `x = e`; a binding of several values is
+--   `(# x, y #) = e`, as in GHC's unboxed tuples, and of none is `_ = e`. A
+--   tail that returns several values (a product-return worker's,
+--   Unison.Runtime.MCode.Explode) is `yield (# x, y #)`. Neither builds
+--   anything.
+-- * A tuple, which is nested pairs ending in `()`, is `(x, y)` when the lets
+--   of its inner pairs are used only there; they are folded into it.
 -- * Building a closure (partial application) is `f = g a b -- closure`.
 -- * A force is `x()`; a continuation call is like a function call.
 -- * A primitive operation is `prim.OP` (`prim.ADDN`), and a foreign function
@@ -32,7 +37,7 @@ module Unison.Runtime.ANF.PrettyPrint
 where
 
 import Control.Monad.State.Strict (State, evalState, gets, modify)
-import Data.Bifoldable (bifoldMap)
+import Data.Bifoldable (bifoldMap, bifoldr)
 import Data.Bits (bit, shiftL, shiftR, testBit, (.&.))
 import Data.Char (isDigit)
 import Data.List (partition)
@@ -53,6 +58,7 @@ import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin (builtinForeignNames)
+import Unison.Runtime.Builtin.Decls (pairRef, unitRef)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified)
@@ -86,7 +92,13 @@ data Head = Head Bool (Pretty SyntaxText)
 -- one line, which decides whether a binding of it goes on one line.
 data Stmt = Stmt Bool (Pretty SyntaxText)
 
-type Names = Map Symbol (Pretty SyntaxText)
+-- | How to show the variables of a definition.
+data Names = Names
+  { varNames :: Map Symbol (Pretty SyntaxText),
+    -- | the variables of a lambda bound to the inner pairs of a tuple
+    -- shown as one ('tupleSugar'), with the elements of each
+    tupleTails :: Map Symbol [Symbol]
+  }
 
 -- | A group (one top-level function and its local functions), as the
 -- definition of the given reference.
@@ -149,9 +161,10 @@ indexLabel localName i
   | otherwise = "#" <> P.shown i
 
 definition :: IRNames -> Names -> Pretty SyntaxText -> SuperNormal Reference Symbol -> [Stmt] -> Stmt
-definition irn vns name (Lambda ccs (ABTN.TAbss vs body)) locals =
+definition irn vns0 name (Lambda ccs (ABTN.TAbss vs body)) locals =
   binding conventionNote lhs "=" (locals ++ block irn vns body)
   where
+    vns = vns0 {tupleTails = tupleSugar body}
     lhs = P.sep " " (name : map (var vns) vs)
     conventionNote
       | all (== BX) ccs = Nothing
@@ -177,6 +190,8 @@ indentBlock stmts = P.indentN 2 . P.lines $ [p | Stmt _ p <- stmts]
 -- | The statements of a block: its bindings, then its result.
 block :: IRNames -> Names -> ANormal Reference Symbol -> [Stmt]
 block irn vns tm = case tm of
+  -- the inner pair of a tuple shown as one ('tupleSugar')
+  TLets _ [v] _ _ bo | Map.member v (tupleTails vns) -> block irn vns bo
   TLets _ vs ms bn bo ->
     binding wideNote (lhsVars vs) "=" (block irn vns bn) : block irn vns bo
     where
@@ -205,7 +220,7 @@ block irn vns tm = case tm of
   where
     lhsVars [] = "_"
     lhsVars [v] = var vns v
-    lhsVars vs = P.parenthesizeCommas (map (var vns) vs)
+    lhsVars vs = values (map (var vns) vs)
     -- prefix even for an operator: a closure is not a call
     nameHead (Left r) = case refHead irn (combName irn r) of
       Head True op -> Head False (P.parenthesize op)
@@ -219,6 +234,11 @@ expr irn vns tm = case tm of
   TBLit l -> lit irn l
   TFrc v -> var vns v <> fmt S.DelayForceChar "()"
   TVar v -> var vns v
+  TApp (FCon r t) [a, w]
+    | r == pairRef,
+      rawTag t == 0,
+      Just es <- Map.lookup w (tupleTails vns) ->
+        P.parenthesizeCommas (map (var vns) (a : es))
   TApp f as -> func irn vns f (map (var vns) as)
   TDiscard h -> kw "discard" <> " " <> var vns h
   TUpdate _ h v -> kw "update" <> " " <> var vns h <> " " <> var vns v
@@ -233,6 +253,7 @@ func irn vns f as = case f of
   FComb r -> app (refHead irn $ combName irn r) as
   FCon r t
     | r == Ty.booleanRef, [] <- as -> fmt S.BooleanLiteral (if rawTag t == 0 then "false" else "true")
+    | r == unitRef, [] <- as -> fmt S.Unit "()"
     | otherwise -> app (constructor irn CT.Data r t) as
   FReq r t -> app (constructor irn CT.Effect r t) as
   FPrim (Left op) -> app (Head False . fmt S.ControlKeyword . P.text $ "prim." <> tShow op) as
@@ -244,7 +265,7 @@ func irn vns f as = case f of
     | [r, v] <- as -> r <> " " <> kw "with" <> " " <> record [fieldName fld <> " = " <> v]
     | otherwise -> app (Head False $ "recordSet." <> P.text fld) as
   FWorker r i -> app (Head False $ headText (refHead irn $ combName irn r) <> indexLabel (localName irn r) i) as
-  FYield -> app (Head False $ kw "yield") as
+  FYield -> kw "yield" <> " " <> values as
   where
     record ps = "{" <> P.sep ", " ps <> "}"
 
@@ -295,6 +316,7 @@ branches irn vns bs = case bs of
     defaultPat vs = P.sep " " (map (var vns) vs)
     dataPat r t vs
       | r == Ty.booleanRef, [] <- vs = fmt S.BooleanLiteral (if rawTag t == 0 then "false" else "true")
+      | r == unitRef, [] <- vs = fmt S.Unit "()"
       | otherwise = app (constructor irn CT.Data r t) (map (var vns) vs)
     caseOf pat (ABTN.TAbss vs e) = case binding Nothing (pat vs) "->" (block irn vns e) of
       Stmt _ p -> p
@@ -336,7 +358,76 @@ fieldName :: Text -> Pretty SyntaxText
 fieldName = fmt (S.RecordFieldName "") . P.text
 
 var :: Names -> Symbol -> Pretty SyntaxText
-var vns v = fromMaybe (fmt S.Var . P.text $ Var.name v) (Map.lookup v vns)
+var vns v = fromMaybe (fmt S.Var . P.text $ Var.name v) (Map.lookup v (varNames vns))
+
+-- | Several values, not a tuple: `(# x, y #)`.
+values :: [Pretty SyntaxText] -> Pretty SyntaxText
+values ps = "(# " <> P.sep ", " ps <> " #)"
+
+-- * Tuples
+
+-- | The variables of a lambda's body that are bound to the inner pairs of a
+-- tuple shown as one, with the elements of each. A tuple is nested pairs
+-- ending in `()`, and in ANF each pair is a let: `v1 = ()`,
+-- `v2 = Cons y v1`, `Cons x v2`. A pair whose second field is a variable
+-- bound to `()` or to such a pair, and used only there, is shown with the
+-- elements of the tuple, `(x, y)`, when that makes two or more, and the
+-- lets of those variables are not shown: they are part of it. A variable
+-- used anywhere else keeps its let, so the sugar hides no sharing.
+tupleSugar :: ANormal Reference Symbol -> Map Symbol [Symbol]
+tupleSugar body = Map.fromList [(w, elems w) | w <- Set.toList folded]
+  where
+    uses = useCounts body
+    once v = Map.lookup v uses == Just 1
+    -- the variables a pair's second field can be folded through: bound to
+    -- `()`, or to a pair whose second field is one, and used once
+    chains :: Map Symbol (Maybe Symbol, [Symbol])
+    chains = foldl' add mempty (singleLets body)
+    add m (v, bn)
+      | not (once v) = m
+      | TCon r _ [] <- bn, r == unitRef = Map.insert v (Nothing, []) m
+      | TCon r t [a, w] <- bn,
+        r == pairRef,
+        rawTag t == 0,
+        Just (_, es) <- Map.lookup w m =
+          Map.insert v (Just w, a : es) m
+      | otherwise = m
+    elems w = maybe [] snd (Map.lookup w chains)
+    -- every pair with two or more elements folds its second field's chain
+    folded =
+      Set.fromList
+        [ u
+        | (_, w) <- pairs body,
+          Just (_, es) <- [Map.lookup w chains],
+          length es >= 1,
+          u <- chainOf w
+        ]
+    chainOf w = w : maybe [] chainOf (fst =<< Map.lookup w chains)
+
+-- | How many times each variable occurs in a term (binders aside).
+useCounts :: ANormal Reference Symbol -> Map Symbol Int
+useCounts (ABTN.Term _ abt) = case abt of
+  ABTN.Abs _ bd -> useCounts bd
+  ABTN.Tm f -> bifoldr (\v -> Map.insertWith (+) v 1) (Map.unionWith (+) . useCounts) mempty f
+
+-- | The lets of one variable in a term, outermost first, so that a
+-- variable's let comes before the lets that use it.
+singleLets :: ANormal Reference Symbol -> [(Symbol, ANormal Reference Symbol)]
+singleLets tm = case tm of
+  TLets _ [v] _ bn bo -> (v, bn) : singleLets bn ++ singleLets bo
+  ABTN.Term _ (ABTN.Abs _ bd) -> singleLets bd
+  ABTN.Term _ (ABTN.Tm f) -> bifoldMap (const []) singleLets f
+
+-- | The pairs a term builds: each one's fields.
+pairs :: ANormal Reference Symbol -> [(Symbol, Symbol)]
+pairs tm = here ++ below
+  where
+    here = case tm of
+      TCon r t [a, w] | r == pairRef, rawTag t == 0 -> [(a, w)]
+      _ -> []
+    below = case tm of
+      ABTN.Term _ (ABTN.Abs _ bd) -> pairs bd
+      ABTN.Term _ (ABTN.Tm f) -> bifoldMap (const []) pairs f
 
 kw :: Pretty SyntaxText -> Pretty SyntaxText
 kw = fmt S.ControlKeyword
@@ -363,9 +454,10 @@ binders (ABTN.Term _ abt) = case abt of
 -- name unless that is taken, a generated one is `v1`, `v2`, ... (`f1`, ...
 -- for a local function).
 nameVars :: [Symbol] -> [Symbol] -> Names
-nameVars fs vs = evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty
+nameVars fs vs =
+  Names (evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty) mempty
   where
-    add :: Text -> Names -> Symbol -> State (Set Text) Names
+    add :: Text -> Map Symbol (Pretty SyntaxText) -> Symbol -> State (Set Text) (Map Symbol (Pretty SyntaxText))
     add dflt m v
       | Map.member v m = pure m
       | otherwise = do
