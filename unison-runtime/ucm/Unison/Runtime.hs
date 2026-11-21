@@ -6,6 +6,7 @@ module Unison.Runtime
     terminate,
     evaluate,
     compileTo,
+    intermediateCode,
     mainType,
     ioTestTypes,
     Error (..),
@@ -31,5 +32,5 @@ data Error
 
 type Runtime = Rt.Runtime Error DecompError
 
-pattern Runtime {terminate, evaluate, compileTo, mainType, ioTestTypes} =
-  Rt.Runtime {terminate, evaluate, compileTo, mainType, ioTestTypes}
+pattern Runtime {terminate, evaluate, compileTo, intermediateCode, mainType, ioTestTypes} =
+  Rt.Runtime {terminate, evaluate, compileTo, intermediateCode, mainType, ioTestTypes}

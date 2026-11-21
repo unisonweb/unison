@@ -1,0 +1,396 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
+
+-- | Shows intermediate code (ANF) in a syntax that resembles Unison's, for
+-- the `ir` and `ir.optimized` commands in ucm.
+--
+-- The rendering, by construct:
+--
+-- * A group is a definition. Its local functions (the group's other
+--   members, which may call each other) come first in the entry's block,
+--   like local definitions in Unison.
+-- * A let is a binding, `x = e`; a binding of several values (an unboxed
+--   tuple) is `(x, y) = e`, and of none is `_ = e`.
+-- * Building a closure (partial application) is `f = g a b -- closure`.
+-- * A force is `x()`; a continuation call is like a function call.
+-- * A primitive operation is `prim.OP` (`prim.ADDN`), and a foreign function
+--   `foreign.` and its builtin's name, so that a call of a builtin function
+--   (`Nat.+ x y`) and the instruction inlined for it (`prim.ADDN x y`) look
+--   different.
+-- * `shift`, `handle`, `local`, `discard`, `update` and `box` are the
+--   runtime's own constructs for abilities and affine handlers, shown by
+--   name.
+--
+-- Generated variables are renamed `v1`, `v2`, ... per definition; user
+-- variables keep their names, numbered when two would clash.
+module Unison.Runtime.ANF.PrettyPrint
+  ( IRNames (..),
+    prettyIRGroup,
+    prettyIRCombs,
+  )
+where
+
+import Control.Monad.State.Strict (State, evalState, gets, modify)
+import Data.Bifoldable (bifoldMap)
+import Data.Bits (bit, shiftL, shiftR, testBit, (.&.))
+import Data.Char (isDigit)
+import Data.List (partition)
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import GHC.Float (castWord64ToDouble)
+import Numeric (showHex)
+import Unison.ABT.Normalized qualified as ABTN
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
+import Unison.Name (Name)
+import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv, termName, typeName)
+import Unison.Reference (Reference)
+import Unison.Referent qualified as Referent
+import Unison.ReferentPrime qualified as Rfn
+import Unison.Runtime.ANF
+import Unison.Runtime.Builtin (builtinForeignNames)
+import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified)
+import Unison.Type qualified as Ty
+import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.EnumContainers qualified as EC
+import Unison.Util.Pretty (Pretty)
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
+import Unison.Util.Text qualified as Util.Text
+import Unison.Var qualified as Var
+
+-- | How to name what the code refers to.
+data IRNames = IRNames
+  { -- | A top-level function (combinator): the definition it came from, or
+    -- the name of a lifted lambda.
+    combName :: Reference -> Either (Pretty SyntaxText) (HQ.HashQualified Name),
+    -- | Constructors, abilities and links.
+    ppe :: PrettyPrintEnv,
+    -- | The name of a local function by group and index, for the labels of
+    -- the combinators the rewrites add ('indexLabel'); set for the group
+    -- being shown.
+    localName :: Reference -> Word64 -> Maybe (Pretty SyntaxText)
+  }
+
+-- | A name, and whether it is an operator (shown infix with two
+-- arguments, and in parentheses otherwise).
+data Head = Head Bool (Pretty SyntaxText)
+
+-- | A line or lines of a block. The flag says whether it spans more than
+-- one line, which decides whether a binding of it goes on one line.
+data Stmt = Stmt Bool (Pretty SyntaxText)
+
+type Names = Map Symbol (Pretty SyntaxText)
+
+-- | A group (one top-level function and its local functions), as the
+-- definition of the given reference.
+prettyIRGroup :: IRNames -> Reference -> SuperGroup Reference Symbol -> Pretty SyntaxText
+prettyIRGroup irn ref (Rec grp ent) =
+  prettyIRCombs irn ref (map fst grp) ((0, ent) : zip localIndices (map snd grp))
+
+-- | The combinators of a group by index, as the runtime numbers them: the
+-- entry at 0, the local functions at @n * 2^16@ (named by the given
+-- variables, which is how the bodies refer to them), and those the
+-- loader's rewrites add (Unison.Runtime.MCode.Explode): specialisations,
+-- a product-return worker and join points. The entry is the definition
+-- of the reference with the local functions in its block; each added
+-- combinator is a definition of its own, named for its index
+-- ('indexLabel').
+prettyIRCombs :: IRNames -> Reference -> [Symbol] -> [(Word64, SuperNormal Reference Symbol)] -> Pretty SyntaxText
+prettyIRCombs irn0 ref locals cmbs =
+  P.linesSpaced (main ++ map added others)
+  where
+    (entry, rest) = partition ((== 0) . fst) cmbs
+    (localCmbs, others) = partition ((`elem` localIndices') . fst) rest
+    localIndices' = take (length locals) localIndices
+    localNames = zip localIndices' locals
+    vnames = nameVars locals (concatMap (superBinders . snd) cmbs)
+    irn = irn0 {localName = \r i -> if r == ref then lookupLocal vnames localNames i else localName irn0 r i}
+    base = refHead irn (combName irn ref)
+    local (i, sn) = case lookup i localNames of
+      Just v -> definition irn vnames (var vnames v) sn []
+      Nothing -> definition irn vnames (P.shown i) sn []
+    main = [p | (_, sn) <- entry, Stmt _ p <- [definition irn vnames (defName base) sn (map local localCmbs)]]
+    added (i, sn) = case definition irn vnames (headText base <> indexLabel (localName irn ref) i) sn [] of
+      Stmt _ p -> p
+    defName (Head True op) = P.parenthesize op
+    defName (Head False f) = f
+
+headText :: Head -> Pretty SyntaxText
+headText (Head _ p) = p
+
+localIndices :: [Word64]
+localIndices = map (`shiftL` 16) [1 ..]
+
+lookupLocal :: Names -> [(Word64, Symbol)] -> Word64 -> Maybe (Pretty SyntaxText)
+lookupLocal vns localNames i = var vns <$> lookup i localNames
+
+-- | The suffix that names a combinator of a group by its index
+-- (Unison.Runtime.MCode.Explode: 'specIndex', 'retIndex', 'joinIndex'):
+-- nothing for the entry, @#spec1@ for a specialisation, @#return@ for the
+-- product-return worker, @#join1@ after its owner's for a join point, and
+-- @#f1@ (the local function's name, when known) for a local function.
+indexLabel :: (Word64 -> Maybe (Pretty SyntaxText)) -> Word64 -> Pretty SyntaxText
+indexLabel localName i
+  | k <- i `shiftR` 48,
+    k /= 0 =
+      indexLabel localName (i .&. (bit 48 - 1)) <> "#join" <> P.shown k
+  | i == 0 = mempty
+  | testBit i 15 =
+      let k = i `shiftR` 16
+       in if k == 0 then "#return" else "#spec" <> P.shown k
+  | i .&. 0xffff == 0 = "#" <> fromMaybe ("local" <> P.shown (i `shiftR` 16)) (localName i)
+  | otherwise = "#" <> P.shown i
+
+definition :: IRNames -> Names -> Pretty SyntaxText -> SuperNormal Reference Symbol -> [Stmt] -> Stmt
+definition irn vns name (Lambda ccs (ABTN.TAbss vs body)) locals =
+  binding conventionNote lhs "=" (locals ++ block irn vns body)
+  where
+    lhs = P.sep " " (name : map (var vns) vs)
+    conventionNote
+      | all (== BX) ccs = Nothing
+      | otherwise =
+          Just . comment $
+            "calling convention: "
+              <> P.sep " " [var vns v <> ":" <> P.shown c | (v, c) <- zip vs ccs]
+
+-- | `lhs = e` on one line, or `lhs =` and the block indented below it.
+binding :: Maybe (Pretty SyntaxText) -> Pretty SyntaxText -> Pretty SyntaxText -> [Stmt] -> Stmt
+binding note lhs eq stmts = case stmts of
+  [Stmt False e] -> Stmt (isJust note) $ withNote (lhs <> " " <> kw eq <> " " <> e)
+  _ -> Stmt True $ withNote (lhs <> " " <> kw eq) `above` indentBlock stmts
+  where
+    withNote p = maybe p (`above` p) note
+
+above :: Pretty SyntaxText -> Pretty SyntaxText -> Pretty SyntaxText
+above a b = P.lines [a, b]
+
+indentBlock :: [Stmt] -> Pretty SyntaxText
+indentBlock stmts = P.indentN 2 . P.lines $ [p | Stmt _ p <- stmts]
+
+-- | The statements of a block: its bindings, then its result.
+block :: IRNames -> Names -> ANormal Reference Symbol -> [Stmt]
+block irn vns tm = case tm of
+  TLets _ vs ms bn bo ->
+    binding wideNote (lhsVars vs) "=" (block irn vns bn) : block irn vns bo
+    where
+      -- laid out wide (Unison.Runtime.MCode.Wide)
+      wideNote
+        | WD `elem` ms = Just (comment "wide")
+        | otherwise = Nothing
+  TName v f as bo ->
+    Stmt False (var vns v <> " " <> kw "=" <> " " <> app (nameHead f) (map (var vns) as) <> "  " <> comment "closure")
+      : block irn vns bo
+  TMatch v bs ->
+    [Stmt True $ (kw "match" <> " " <> var vns v <> " " <> kw "with") `above` P.indentN 2 (P.lines $ branches irn vns bs)]
+  TShift r v bo ->
+    [binding Nothing (kw "shift" <> " " <> abilities irn [r] <> " " <> var vns v) "->" (block irn vns bo)]
+  THnd rs nh ah bo ->
+    [ Stmt True $
+        P.lines
+          [ kw "handle" <> " " <> abilities irn rs,
+            indentBlock (block irn vns bo),
+            kw "with" <> " " <> var vns nh <> maybe mempty (\a -> "  " <> comment ("affine: " <> var vns a)) ah
+          ]
+    ]
+  TLocal h bo ->
+    [binding Nothing (kw "local" <> " " <> var vns h) "->" (block irn vns bo)]
+  _ -> [Stmt False (expr irn vns tm)]
+  where
+    lhsVars [] = "_"
+    lhsVars [v] = var vns v
+    lhsVars vs = P.parenthesizeCommas (map (var vns) vs)
+    -- prefix even for an operator: a closure is not a call
+    nameHead (Left r) = case refHead irn (combName irn r) of
+      Head True op -> Head False (P.parenthesize op)
+      h -> h
+    nameHead (Right v) = Head False (var vns v)
+
+-- | A term that is a single expression.
+expr :: IRNames -> Names -> ANormal Reference Symbol -> Pretty SyntaxText
+expr irn vns tm = case tm of
+  TLit l -> lit irn l
+  TBLit l -> lit irn l
+  TFrc v -> var vns v <> fmt S.DelayForceChar "()"
+  TVar v -> var vns v
+  TApp f as -> func irn vns f (map (var vns) as)
+  TDiscard h -> kw "discard" <> " " <> var vns h
+  TUpdate _ h v -> kw "update" <> " " <> var vns h <> " " <> var vns v
+  TBox v -> kw "box" <> " " <> var vns v
+  -- the multi-line forms, should one be nested in an expression
+  _ -> P.lines [p | Stmt _ p <- block irn vns tm]
+
+func :: IRNames -> Names -> Func Reference Symbol -> [Pretty SyntaxText] -> Pretty SyntaxText
+func irn vns f as = case f of
+  FVar v -> app (Head False $ var vns v) as
+  FCont v -> app (Head False $ var vns v) as
+  FComb r -> app (refHead irn $ combName irn r) as
+  FCon r t
+    | r == Ty.booleanRef, [] <- as -> fmt S.BooleanLiteral (if rawTag t == 0 then "false" else "true")
+    | otherwise -> app (constructor irn CT.Data r t) as
+  FReq r t -> app (constructor irn CT.Effect r t) as
+  FPrim (Left op) -> app (Head False . fmt S.ControlKeyword . P.text $ "prim." <> tShow op) as
+  FPrim (Right ff) ->
+    app (Head False . fmt S.ControlKeyword . P.text $ "foreign." <> Map.findWithDefault (tShow ff) ff builtinForeignNames) as
+  FRec (RecordSchema fields) ->
+    record [fieldName fld <> " = " <> a | (fld, a) <- zip (Set.toList fields) as]
+  FRecSet fld
+    | [r, v] <- as -> r <> " " <> kw "with" <> " " <> record [fieldName fld <> " = " <> v]
+    | otherwise -> app (Head False $ "recordSet." <> P.text fld) as
+  FWorker r i -> app (Head False $ headText (refHead irn $ combName irn r) <> indexLabel (localName irn r) i) as
+  FYield -> app (Head False $ kw "yield") as
+  where
+    record ps = "{" <> P.sep ", " ps <> "}"
+
+app :: Head -> [Pretty SyntaxText] -> Pretty SyntaxText
+app (Head True op) [x, y] = P.sep " " [x, op, y]
+app (Head True op) as = P.sep " " (P.parenthesize op : as)
+app (Head False f) as = P.sep " " (f : as)
+
+refHead :: IRNames -> Either (Pretty SyntaxText) (HQ.HashQualified Name) -> Head
+refHead _ (Left p) = Head False p
+refHead _ (Right hq) = Head (maybe False Name.isSymboly (HQ.toName hq)) (prettyHashQualified hq)
+
+constructor :: IRNames -> CT.ConstructorType -> Reference -> CTag -> Head
+constructor irn ct r t =
+  refHead irn . Right . termName (ppe irn) $
+    Referent.Con (ConstructorReference r (fromIntegral (rawTag t))) ct
+
+abilities :: IRNames -> [Reference] -> Pretty SyntaxText
+abilities irn rs =
+  fmt S.AbilityBraces "{" <> P.sep ", " (prettyHashQualified . typeName (ppe irn) <$> rs) <> fmt S.AbilityBraces "}"
+
+branches :: IRNames -> Names -> Branched Reference (ANormal Reference Symbol) -> [Pretty SyntaxText]
+branches irn vns bs = case bs of
+  MatchEmpty -> [comment "no cases"]
+  MatchIntegral cs df -> cases (first (patWith . P.shown) <$> EC.mapToList cs) df
+  MatchNumeric r cs df -> cases (first (patWith . numeric r) <$> EC.mapToList cs) df
+  MatchText cs df -> cases (first (patWith . textLit) <$> Map.toList cs) df
+  MatchBytes cs df -> cases (first (patWith . bytesLit) <$> Map.toList cs) df
+  MatchData r cs df ->
+    cases [(dataPat r t, e) | (t, (_, e)) <- EC.mapToList cs] df
+  MatchRequest abs df ->
+    [ caseOf (\vs -> braces . app (constructor irn CT.Effect r t) $ map (var vns) vs) e
+    | (r, cs) <- abs,
+      (t, (_, e)) <- EC.mapToList cs
+    ]
+      ++ [caseOf (braces . P.sep " " . map (var vns)) df]
+  MatchSum cs -> cases [(\vs -> P.sep " " ("tag" : P.shown t : map (var vns) vs), e) | (t, (_, e)) <- EC.mapToList cs] Nothing
+  MatchRec (RecordSchema fields) e ->
+    [caseOf (\vs -> "{" <> P.sep ", " [fieldName f <> " = " <> var vns v | (f, v) <- zip (Set.toList fields) vs] <> "}") e]
+  where
+    cases :: [([Symbol] -> Pretty SyntaxText, ANormal Reference Symbol)] -> Maybe (ANormal Reference Symbol) -> [Pretty SyntaxText]
+    cases cs df =
+      [caseOf p e | (p, e) <- cs] ++ maybe [] (pure . caseOf defaultPat) df
+    -- a literal pattern binds nothing
+    patWith p [] = p
+    patWith p vs = P.sep " " (p : map (var vns) vs)
+    defaultPat [] = fmt S.Blank "_"
+    defaultPat vs = P.sep " " (map (var vns) vs)
+    dataPat r t vs
+      | r == Ty.booleanRef, [] <- vs = fmt S.BooleanLiteral (if rawTag t == 0 then "false" else "true")
+      | otherwise = app (constructor irn CT.Data r t) (map (var vns) vs)
+    caseOf pat (ABTN.TAbss vs e) = case binding Nothing (pat vs) "->" (block irn vns e) of
+      Stmt _ p -> p
+    braces p = fmt S.AbilityBraces "{" <> p <> fmt S.AbilityBraces "}"
+
+numeric :: Reference -> Word64 -> Pretty SyntaxText
+numeric r w
+  | r == Ty.intRef = lit' (I $ fromIntegral w)
+  | r == Ty.charRef = lit' (C . toEnum $ fromIntegral w)
+  | r == Ty.floatRef = lit' (F $ castWord64ToDouble w)
+  | otherwise = lit' (N w)
+  where
+    lit' :: Lit Reference -> Pretty SyntaxText
+    lit' = lit IRNames {combName = const (Left mempty), ppe = mempty, localName = \_ _ -> Nothing}
+
+lit :: IRNames -> Lit Reference -> Pretty SyntaxText
+lit irn l = case l of
+  N n -> fmt S.NumericLiteral (P.shown n)
+  I i
+    | i >= 0 -> fmt S.NumericLiteral ("+" <> P.shown i)
+    | otherwise -> fmt S.NumericLiteral (P.shown i)
+  F d -> fmt S.NumericLiteral (P.shown d)
+  T t -> textLit t
+  C c -> fmt S.CharLiteral ("?" <> P.string (init . drop 1 $ show c))
+  LM (Rfn.Ref' r) -> fmt S.LinkKeyword "termLink" <> " " <> either id prettyHashQualified (combName irn r)
+  LM (Rfn.Con' (ConstructorReference r t) ct) ->
+    fmt S.LinkKeyword "termLink" <> " " <> prettyHashQualified (termName (ppe irn) $ Referent.Con (ConstructorReference r t) ct)
+  LY r -> fmt S.LinkKeyword "typeLink" <> " " <> prettyHashQualified (typeName (ppe irn) r)
+
+textLit :: Util.Text.Text -> Pretty SyntaxText
+textLit = fmt S.TextLiteral . P.shown . Util.Text.toString
+
+bytesLit :: Bytes.Bytes -> Pretty SyntaxText
+bytesLit b = fmt S.BytesLiteral . P.string $ "0xs" ++ concatMap hex (Bytes.toWord8s b)
+  where
+    hex w = showHex (w `shiftR` 4) (showHex (w .&. 15) "")
+
+fieldName :: Text -> Pretty SyntaxText
+fieldName = fmt (S.RecordFieldName "") . P.text
+
+var :: Names -> Symbol -> Pretty SyntaxText
+var vns v = fromMaybe (fmt S.Var . P.text $ Var.name v) (Map.lookup v vns)
+
+kw :: Pretty SyntaxText -> Pretty SyntaxText
+kw = fmt S.ControlKeyword
+
+comment :: Pretty SyntaxText -> Pretty SyntaxText
+comment p = fmt S.DocDelimiter ("-- " <> p)
+
+fmt :: S.Element Reference -> Pretty SyntaxText -> Pretty SyntaxText
+fmt = P.withSyntax
+
+-- * Variable names
+
+-- | The variables a function binds, in the order they are bound.
+superBinders :: SuperNormal Reference Symbol -> [Symbol]
+superBinders (Lambda _ tm) = binders tm
+
+binders :: ANormal Reference Symbol -> [Symbol]
+binders (ABTN.Term _ abt) = case abt of
+  ABTN.Abs v bd -> v : binders bd
+  ABTN.Tm f -> bifoldMap (const []) binders f
+
+-- | Display names for the variables of a definition, given its local
+-- functions and then the variables it binds: a user's variable keeps its
+-- name unless that is taken, a generated one is `v1`, `v2`, ... (`f1`, ...
+-- for a local function).
+nameVars :: [Symbol] -> [Symbol] -> Names
+nameVars fs vs = evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty
+  where
+    add :: Text -> Names -> Symbol -> State (Set Text) Names
+    add dflt m v
+      | Map.member v m = pure m
+      | otherwise = do
+          n <- fresh (base dflt v)
+          pure $ Map.insert v (fmt S.Var $ P.text n) m
+    base dflt v = case Var.typeOf v of
+      Var.User n
+        | generatedName n -> ("x", True)
+        | otherwise -> (n, False)
+      Var.Pattern -> ("p", True)
+      Var.Eta -> ("eta", True)
+      _ -> (dflt, True)
+    -- the parser names the arguments of a `cases` function with ten
+    -- characters of base32hex and a number (TermParser.lamCase)
+    generatedName n =
+      let (h, rest) = Text.splitAt 10 n
+       in Text.length h == 10
+            && Text.all (\c -> isDigit c || (c >= 'a' && c <= 'v')) h
+            && not (Text.null rest)
+            && Text.all isDigit rest
+    fresh :: (Text, Bool) -> State (Set Text) Text
+    fresh (b, numbered) = do
+      let candidates = [b | not numbered] ++ [b <> tShow i | i <- [1 :: Int ..]]
+      n <- firstFree candidates
+      modify (Set.insert n)
+      pure n
+    firstFree (c : cs) = gets (Set.member c) >>= \taken -> if taken then firstFree cs else pure c
+    firstFree [] = error "nameVars: impossible"

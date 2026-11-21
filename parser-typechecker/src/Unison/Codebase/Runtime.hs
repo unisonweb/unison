@@ -66,6 +66,15 @@ data Runtime e e' v = Runtime
       Reference ->
       FilePath ->
       IO (Maybe e),
+    -- | The intermediate code (ANF) of a term, shown: its own, the other
+    -- terms of its cycle's, and that of the lambdas lifted out of them;
+    -- optimized when the flag is set (the `ir` and `ir.optimized` commands).
+    intermediateCode ::
+      CL.CodeLookup v IO () ->
+      PPE.PrettyPrintEnv ->
+      Bool ->
+      Reference ->
+      IO (Either e (P.Pretty P.ColorText)),
     mainType :: Type v Ann,
     ioTestTypes :: NESet (Type v Ann)
   }

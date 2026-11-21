@@ -57,6 +57,7 @@ library
       Unison.Codebase.Execute
       Unison.Runtime
       Unison.Runtime.ANF.Convert
+      Unison.Runtime.ANF.PrettyPrint
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
       Unison.Runtime.Interface

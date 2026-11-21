@@ -63,6 +63,7 @@ import Unison.Referent qualified as RF (pattern Con, pattern Ref)
 import Unison.Runtime
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Convert as ANF
+import Unison.Runtime.ANF.PrettyPrint (IRNames (..), prettyIRCombs, prettyIRGroup)
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
@@ -71,10 +72,11 @@ import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (JIT, jitCompileGroup, printJITStats, startJIT)
-import Unison.Runtime.MCode (CombIx (..))
+import Unison.Runtime.MCode (CombIx (..), rewrittenLambdas)
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    LoadedBatch (..),
     Tracer (..),
     apply0,
     baseCCache,
@@ -82,6 +84,7 @@ import Unison.Runtime.Machine
     cacheAdd,
     cacheAdd0,
     expandSandbox,
+    loadBatch,
     refNumTm,
     refNumsTm,
     refNumsTy,
@@ -583,6 +586,87 @@ interpCompile ctxVar _copts cl ppe rf path = tryM $ do
         compiledConstructorNames = constructorNames ppe (dspec ctx) (toList trs)
       }
 
+-- | The intermediate code of a term, shown (`ir` and `ir.optimized` in ucm).
+--
+-- A term becomes several groups of intermediate code: one for each term of
+-- its cycle, and one for each lambda lifted out of them. The term is loaded
+-- as for evaluation, and those groups are read back from the cache: each
+-- group of the cycle, then the lifted lambdas it refers to, transitively.
+-- A lifted lambda is a group whose reference maps back to no codebase term.
+--
+-- The cache holds code as it was before optimization, and what loading
+-- does to it depends on the batch loaded with it: the inlining uses what
+-- is known of the code loaded before, and the rewrites of
+-- Unison.Runtime.MCode.Explode take their call patterns and returned
+-- products from the batch. `ir.optimized` shows the code as loading the
+-- term and all its dependencies together makes it, as a fresh ucm does:
+-- the batch is these groups and their dependencies, made by `loadBatch`,
+-- which 'cacheAdd0' loads with, from the cache's optimization information
+-- less the batch's own entries, and each group shown as the emitter gets
+-- it ('rewrittenLambdas', which 'emitCombs' emits). Code loaded in some
+-- other batch, after its dependencies, can come out differently.
+interpIntermediate ::
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Bool ->
+  Reference ->
+  IO (Either Error (Pretty ColorText))
+interpIntermediate ctxVar cl ppe optimized rf = catchErrors $ case rf of
+  RF.Builtin _
+    | Just w <- Map.lookup rf builtinTermNumbering,
+      Just sn <- EC.lookup w numberedTermLookup ->
+        pure . Right . syntaxToColor $
+          prettyIRGroup names0 rf (Rec [] sn)
+    | otherwise -> die [] $ "Unknown builtin term reference: " ++ show rf
+  RF.DerivedId rid -> do
+    ctx0 <- readIORef ctxVar
+    (tyrs, tmrs) <- collectRefDeps cl rf
+    (ctx, _) <- loadDeps cl ppe ctx0 tyrs tmrs
+    writeIORef ctxVar ctx
+    let cc = ccache ctx
+    igs <- readTVarIO (intermed cc)
+    (arities, inls) <- readTVarIO (optInfos cc)
+    let cycleRefs =
+          Set.toList . Set.fromList $
+            [r | r@(RF.DerivedId i) <- tmrs, RF.idToHash i == RF.idToHash rid]
+        entries = toIntermed ctx <$> cycleRefs
+        isLifted r = case r of
+          RF.DerivedId _ -> isNothing (intermedToBase ctx r) && Map.member r igs
+          _ -> False
+        -- each entry, then the lifted lambdas reachable from it not yet shown
+        order = reverse . snd $ foldl' visit (Set.empty, []) entries
+        visit acc@(seen, out) r
+          | Set.member r seen = acc
+          | Just g <- Map.lookup r igs =
+              foldl' visit (Set.insert r seen, r : out) $
+                Prelude.filter isLifted (groupTermLinks g)
+          | otherwise = acc
+        shown = Map.fromList [(r, g) | r <- order, Just g <- [Map.lookup r igs]]
+        -- the batch a fresh load of the term makes: it and its dependencies
+        batch = Map.fromList (recursiveIntermedDeps igs (Map.keys shown))
+        keys = Map.keysSet batch
+        LoadedBatch opt _ rewrites =
+          loadBatch (arities `Map.withoutKeys` keys, inls `Map.withoutKeys` keys) igs batch
+        pretty r g
+          | optimized,
+            og@(Rec ogrp _) <- Map.findWithDefault g r opt =
+              -- the optimized group's local functions: optimization adds
+              -- some (an affine handler's matcher)
+              prettyIRCombs names r (fst <$> ogrp) (rewrittenLambdas rewrites r og)
+          | otherwise = prettyIRGroup names r g
+        refName r
+          | Just b <- intermedToBase ctx r = Right . termName ppe $ RF.Ref b
+          | Just f <- Map.lookup r . backmap $ intermedRemap ctx,
+            Just fn <- Map.lookup f (floatNames ctx) =
+              Left $ prettyFloatNameSyntax ppe fn
+          | otherwise = Right . termName ppe $ RF.Ref r
+        names = IRNames {combName = refName, ppe, localName = \_ _ -> Nothing}
+    pure . Right . syntaxToColor . P.linesSpaced $
+      [pretty r g | r <- order, Just g <- [Map.lookup r shown]]
+  where
+    names0 = IRNames {combName = Right . termName ppe . RF.Ref, ppe, localName = \_ _ -> Nothing}
+
 -- | The names the codebase gives the constructors of these types, for a
 -- compiled program to print its values with (unisonrt).
 constructorNames :: PrettyPrintEnv -> DataSpec -> [Reference] -> Map Reference [Text]
@@ -858,6 +942,7 @@ startRuntime jit sandboxed runtimeHost = do
       { terminate = pure (),
         evaluate = interpEval activeThreads cleanupThreads ctxVar,
         compileTo = interpCompile ctxVar,
+        intermediateCode = interpIntermediate ctxVar,
         mainType = builtinMain External,
         ioTestTypes = builtinIOTestTypes External
       }

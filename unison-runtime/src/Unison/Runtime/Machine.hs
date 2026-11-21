@@ -16,6 +16,8 @@ module Unison.Runtime.Machine
     initialNativeCells,
     cacheAdd,
     cacheAdd0,
+    LoadedBatch (..),
+    loadBatch,
     eval0,
     expandSandbox,
     mCombVal,
@@ -110,7 +112,7 @@ import Unison.Runtime.Foreign.Function
     writeBack,
   )
 import Unison.Runtime.MCode
-import Unison.Runtime.MCode.Explode (explosions, returns)
+import Unison.Runtime.MCode.Explode (Batch (..), explosions, returns)
 import Unison.Runtime.MCode.Live qualified as Live
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
@@ -2122,13 +2124,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       let new = M.difference toAdd have
       let sz = fromIntegral $ M.size new
       let rs = M.keys new
-      let int = new <> have
-      let replace =
-            ANF.replaceConstructors pseudoConstructors
-              . ANF.replaceFunctions functionReplacements
-          haff (cmbs, opts) =
-            (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
-      (opt, optInfos') <- haff . ANF.optimize (fmap replace new) <$> readTVar (optInfos cc)
+      LoadedBatch opt optInfos' batch <- (\opts -> loadBatch opts have new) <$> readTVar (optInfos cc)
       -- The terms and schemas are numbered here. Numbering is harmless to
       -- commit even if the pool turns out to be too small: the numbers are
       -- simply used or skipped.
@@ -2146,13 +2142,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       -- shape during emit interns any name it hasn't seen.
       oldRfms <- readTVar (recordFieldMappings cc)
       -- check for missing references
-      let arities = fmap ANF.entryArity int <> builtinArities
-          -- the loop state this batch's functions take as fields
-          -- (Unison.Runtime.MCode.Explode): decided over the batch, since
-          -- that is where a function's callers are
-          rets = returns opt
-          exploded = explosions rets opt
-          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (flip M.lookup exploded) (flip M.lookup rets) (recordRefLookup rrLookup)
+      let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (batchArity batch) (batchSpecs batch) (batchRets batch) (recordRefLookup rrLookup)
           combinate :: Word64 -> Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings ((Word64, EnumMap Word64 Comb), Maybe (Word64, EnumMap Word64 Comb))
           combinate n nb (r, g) = (\(o, mb) -> ((n, o), (nb,) <$> mb)) <$> emitCombs rns r n nb g
       let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
@@ -2210,6 +2200,43 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           -- Now that the code cache is primed with everything we need,
           -- we can pre-evaluate the top-level constants.
           pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` nbn `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
+
+-- | A batch of code as loading makes it, before it is emitted ('loadBatch').
+data LoadedBatch = LoadedBatch
+  { -- | the batch's groups, optimized
+    loadedGroups :: M.Map Reference (SuperGroup Reference Symbol),
+    -- | what is known about the code loaded so far, this batch included
+    loadedOptInfos :: ANF.OptInfos Reference Symbol,
+    -- | what the emitter's rewrites (Unison.Runtime.MCode.Explode) know
+    -- about the batch
+    loadedBatch :: Batch
+  }
+
+-- | What loading does to a batch of code before emitting it, given what is
+-- known about the code loaded before it and that code: the replacements,
+-- the optimizations (Unison.Runtime.ANF.Optimize), and what the
+-- emitter's rewrites decide over the batch (the loop state its functions
+-- take as fields, and the products they return: decided over the batch,
+-- since that is where a function's callers are). 'cacheAdd0' loads code
+-- this way, and `ir.optimized` in ucm shows code made this way.
+loadBatch ::
+  ANF.OptInfos Reference Symbol ->
+  M.Map Reference (SuperGroup Reference Symbol) ->
+  M.Map Reference (SuperGroup Reference Symbol) ->
+  LoadedBatch
+loadBatch opts0 have new =
+  LoadedBatch opt opts $
+    Batch (flip M.lookup exploded) (flip M.lookup rets) (flip M.lookup arities)
+  where
+    (opt, opts) = haff $ ANF.optimize (fmap replace new) opts0
+    replace =
+      ANF.replaceConstructors pseudoConstructors
+        . ANF.replaceFunctions functionReplacements
+    haff (cmbs, os) =
+      (M.mapWithKey (ANF.optimizeHandler Builtin os) cmbs, os)
+    arities = fmap ANF.entryArity (new <> have) <> builtinArities
+    rets = returns opt
+    exploded = explosions rets opt
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>

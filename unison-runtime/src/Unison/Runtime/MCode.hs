@@ -81,6 +81,8 @@ module Unison.Runtime.MCode
     emptyRecordFieldMappings,
     convertFieldNamesToRefs,
     emitCombs,
+    preparedGroup,
+    rewrittenLambdas,
     emitComb,
     emptyRCtx,
     resolveCombs,
@@ -1615,28 +1617,15 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
           }
       -- a prepared form of the lambda at index bix, emitted at index ix
       -- (its own, or a worker's), and its join points at theirs
-      emitPrepared bix ix lam p = do
-        (es, _) <- emitComb rns grpr grpn (recFor bix lam p) (ix, preparedLambda p)
-        joins <- foldMapM (\(k, jn) -> fst <$> emitComb rns grpr grpn (recJoin bix lam p jn) (joinIndex ix k, joinLambda jn)) (zip [1 ..] (preparedJoins p))
-        pure (es <> joins)
+      emitPrepared bix ix lam p =
+        foldMapM
+          (\(i, l, mjn) -> fst <$> emitComb rns grpr grpn (maybe (recFor bix lam p) (recJoin bix lam p) mjn) (i, l))
+          (preparedLambdas ix p)
   -- every lambda is rewritten for the batch's workers first
-  -- (Unison.Runtime.MCode.Explode, 'prepare'): the emitter sees calls of
-  -- workers and yields of several values as forms of their own
-  es <- emitPrepared 0 0 ent (prepare b (setting 0) ent)
-  -- a function that returns a product on every path also gets a
-  -- product-return worker: the lambda with its tails yielding the
-  -- product's leaves; the entry keeps the original body, as with a
-  -- specialisation, so that a caller that doesn't take the result apart,
-  -- the function's own recursion included, pays nothing
-  ret <- case retOf rns grpr of
-    Just s -> let p = returnWorker b s ent in fst <$> emitComb rns grpr grpn (recFor 0 ent p) (retIndex, preparedLambda p)
-    Nothing -> pure mempty
-  -- a specialisation of the entry point per call pattern its callers in
-  -- the batch build, each a combinator of its own
-  specs <- case explode rns grpr of
-    Just pats -> foldMapM (\(k, pat) -> emitPrepared 0 (specIndex k) ent (specialise b (setting (specIndex k)) pat ent)) (zip [1 ..] pats)
-    Nothing -> pure mempty
-  auxEs <- foldMapM (\(ix, lam) -> emitPrepared ix ix lam (prepare b (setting ix) lam)) (zip ixs cmbs)
+  -- (Unison.Runtime.MCode.Explode, 'preparedGroup'): the emitter sees calls
+  -- of workers and yields of several values as forms of their own
+  emitted <- traverse (\(bix, ix, lam, p) -> (bix == ix,) <$> emitPrepared bix ix lam p) (preparedGroup b grpr (Rec grp ent))
+  let own = foldMap snd (filter fst emitted)
   -- the group needs its unoptimized form beside it when a frame or a
   -- section number of its own lambdas (not of the workers, which are
   -- extra) differs from the unoptimized code's: then a continuation from
@@ -1645,14 +1634,14 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
   -- their binders renamed and their lets numbered as 'uniqueBody' does,
   -- which is what a process with every rewrite off emits for the group
   -- ('prepareBody'), so the two agree on every section's number.
-  let rewritten = or [isJust (baseFrames lay) | (_, Comb _ lay) <- EC.mapToList (es <> auxEs)]
+  let rewritten = or [isJust (baseFrames lay) | (_, Comb _ lay) <- EC.mapToList own]
       base = if rewritten then Just (foldMap (fst . snd) bases) else Nothing
   -- with every rewrite off the group is its own unoptimized form, so a
   -- table means the emitter sees a difference the rewrites did not make
   when (rewritten && not rewritesOn) $
     internalBug [] $
       "emitCombs: a deoptimization table with every rewrite off, in group " ++ show grpr
-  pure (es <> ret <> specs <> auxEs, base)
+  pure (foldMap snd emitted, base)
   where
     b = batchOf rns
     (rvs, cmbs) = unzip grp
@@ -1660,8 +1649,69 @@ emitCombs rns grpr grpn grpnBase (Rec grp ent) = do
     lams = (0, ent) : zip ixs cmbs
     rec = emptyRCtx {rctxCombs = M.fromList $ zip rvs ixs}
     uniqueLambda (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (uniqueBody bd))
+
+-- | The lambdas of a group as the batch's rewrites make them
+-- (Unison.Runtime.MCode.Explode), in the order they are emitted: the entry;
+-- a function that returns a product on every path also gets a
+-- product-return worker, the lambda with its tails yielding the product's
+-- leaves (the entry keeps the original body, as with a specialisation, so
+-- that a caller that doesn't take the result apart, the function's own
+-- recursion included, pays nothing); a specialisation of the entry per
+-- call pattern its callers in the batch build, each a combinator of its
+-- own; then the local functions. Each is the index of the lambda it was
+-- made from, the index it goes at, that lambda, and the rewritten form,
+-- whose join points go at 'joinIndex' of the second index. What the
+-- emitter emits ('emitCombs'), and what `ir.optimized` in ucm shows.
+preparedGroup ::
+  (Var v) =>
+  Batch ->
+  Reference ->
+  SuperGroup Reference v ->
+  [(Word64, Word64, SuperNormal Reference v, Prepared v)]
+preparedGroup b grpr (Rec grp ent) =
+  [(0, 0, ent, prepare b (setting 0) ent)]
+    ++ [(0, retIndex, ent, returnWorker b s ent) | Just s <- [batchRets b grpr]]
+    ++ [ (0, specIndex k, ent, specialise b (setting (specIndex k)) pat ent)
+       | Just pats <- [batchSpecs b grpr],
+         (k, pat) <- zip [1 ..] pats
+       ]
+    ++ [(ix, ix, lam, prepare b (setting ix) lam) | (ix, lam) <- zip ixs cmbs]
+  where
+    (rvs, cmbs) = unzip grp
+    ixs = map (`shiftL` 16) [1 ..]
     -- where a lambda's join points go (Unison.Runtime.MCode.Explode)
     setting ix = Just (JoinSetting ix grpr (Set.fromList rvs))
+
+-- | The lambdas of a group by combinator index, each as 'emitComb' gets
+-- it: the rewritten forms of 'preparedGroup' and their join points, with
+-- 'combBody' applied last as 'emitComb' applies it (the unoptimized copy
+-- of a rewritten group is not among them). What `ir.optimized` in ucm
+-- shows.
+rewrittenLambdas ::
+  (Var v) =>
+  Batch ->
+  Reference ->
+  SuperGroup Reference v ->
+  [(Word64, SuperNormal Reference v)]
+rewrittenLambdas b grpr g =
+  [ (i, wide lam)
+  | (_, ix, _, p) <- preparedGroup b grpr g,
+    (i, lam, _) <- preparedLambdas ix p
+  ]
+  where
+    wide (Lambda ccs (TAbss vs bd)) = Lambda ccs (TAbss vs (combBody bd))
+
+-- | A rewritten lambda going at an index and its join points, each with
+-- its index and the join point it is, in the order they are emitted.
+preparedLambdas :: Word64 -> Prepared v -> [(Word64, SuperNormal Reference v, Maybe (Join v))]
+preparedLambdas ix p =
+  (ix, preparedLambda p, Nothing)
+    : [(joinIndex ix k, joinLambda jn, Just jn) | (k, jn) <- zip [1 ..] (preparedJoins p)]
+
+-- | The last pass over a body before 'emitComb' emits it: the wide binders
+-- marked and the boxes placed (Unison.Runtime.MCode.Wide).
+combBody :: (Var v) => ANormal Reference v -> ANormal Reference v
+combBody = wideBody
 
 -- | What the explosion's rewrites know about the batch
 -- (Unison.Runtime.MCode.Explode): the call patterns, the returned
@@ -1923,9 +1973,7 @@ emitComb rns grpr grpn rec0 (n, Lambda ccs (TAbss vs bd0))
         . recordTop vs 0
         $ emitSection rns grpr grpn rec (ctx vs ccs) bd
   where
-    -- the wide binders marked and the boxes placed, last
-    -- (Unison.Runtime.MCode.Wide)
-    bd = wideBody bd0
+    bd = combBody bd0
     -- the lambda's own lets by section index, for 'deoptOf' to find the
     -- let enclosing a section
     rec = rec0 {rctxBase = fmap (\bi -> bi {optLets = EC.mapFromList [(letIndex w n, us) | TLets (Indirect w) us _ _ _ <- universe bd]}) (rctxBase rec0)}

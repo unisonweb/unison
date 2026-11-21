@@ -14,6 +14,7 @@ module Unison.Runtime.ANF.Convert
   ( minimizeCyclesOrCrash,
     FloatName (..),
     prettyFloatName,
+    prettyFloatNameSyntax,
     close,
     saturate,
     float,
@@ -50,7 +51,7 @@ import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.ANF
 import Unison.Runtime.InternalError (internalBug)
-import Unison.Syntax.NamePrinter (prettyHashQualified)
+import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified)
 import Unison.Term hiding (Char, Float, List, Record, Ref, Text, arity, float, fresh, record, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
@@ -332,14 +333,17 @@ extendName s (FloatName ss) = FloatName $ s : ss
 
 prettyFloatName ::
   (Var v) => PrettyPrintEnv -> FloatName v -> Pretty.Pretty Pretty.ColorText
-prettyFloatName ppe (FloatName ts) =
+prettyFloatName ppe = Pretty.syntaxToColor . prettyFloatNameSyntax ppe
+
+prettyFloatNameSyntax ::
+  (Var v) => PrettyPrintEnv -> FloatName v -> Pretty.Pretty SyntaxText
+prettyFloatNameSyntax ppe (FloatName ts) =
   Pretty.sep "$" . fmap prettySeg $ reverse ts
   where
     prettySeg (FSText tx) = Pretty.text tx
     prettySeg (FSVar v) = Pretty.text $ Var.name v
     prettySeg (FSRef r) =
-      Pretty.syntaxToColor
-        . prettyHashQualified
+      prettyHashQualified
         . termName ppe
         $ Rfn.Ref' r
 
