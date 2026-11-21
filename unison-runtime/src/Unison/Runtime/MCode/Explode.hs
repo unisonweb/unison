@@ -878,7 +878,7 @@ prepareBody b ms mj bd
           ++ "\nrewritten body:\n"
           ++ show main
           ++ concat ["\njoin point:\n" ++ show (joinLambda jn) | jn <- joins]
-  | otherwise = (freshLets main, M.unions [srcsK, srcs, srcsJ], lets, dead, map freshJoin joins)
+  | otherwise = (freshLets main, M.unions [srcsK, srcs, srcsD, srcsJ], lets, dead, map freshJoin joins)
   where
     -- a rewritten body, or a join point under its parameters, is closed
     -- where the unoptimized body is
@@ -894,9 +894,16 @@ prepareBody b ms mj bd
       | knownConstructorOn = runState (knownCons (uniqueBody bd)) M.empty
       | otherwise = (uniqueBody bd, M.empty)
     (rets, srcs, lets) = useReturns b (sinkCalls known)
-    body = dropDead (useSpecs b (maybe id (yieldLeaves b) ms rets))
+    used = useSpecs b (maybe id (yieldLeaves b) ms rets)
+    body = dropDead used
+    -- the product lets 'dropDead' left out, as the products they built:
+    -- one the unoptimized body binds to something else (a match the
+    -- argument side's 'rewrite' resolved to the arm, which builds a
+    -- constructor) has no other source, and the unoptimized frames may
+    -- hold it
+    srcsD = M.map Right (conLets used `M.difference` conLets body)
     (main, joins, srcsJ, dead) = case mj of
-      Just j | knownConstructorOn, Nothing <- ms -> splitJoins j (srcsK <> srcs) body
+      Just j | knownConstructorOn, Nothing <- ms -> splitJoins j (M.unions [srcsK, srcs, srcsD]) body
       _ -> (body, [], M.empty, Set.empty)
 
 -- | The body with a number of its own for every indirect let: a let
