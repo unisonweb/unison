@@ -934,8 +934,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         builtin type builtin.FFI.Func
         
   262.  -- ##FFI.functionPtr
-        builtin.FFI.functionPtr : Spec a
-        -> FFI.Type (Func a)
+        builtin.FFI.functionPtr : Spec a -> FFI.Type (Func a)
         
   263.  -- ##FFI.getDLLSym
         builtin.FFI.getDLLSym : DLL
@@ -962,9 +961,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         builtin.FFI.int8 : FFI.Type Int
         
   269.  -- ##FFI.newCallback
-        builtin.FFI.newCallback : Spec a
-        -> a
-        ->{IO} Func a
+        builtin.FFI.newCallback : Spec a -> a ->{IO} Func a
         
   270.  -- ##FFI.openDLL
         builtin.FFI.openDLL : Text ->{IO, Exception} DLL
