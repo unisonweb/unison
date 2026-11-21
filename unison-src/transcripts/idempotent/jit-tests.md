@@ -2187,6 +2187,111 @@ scratch/main> run genTest
   ]
 ```
 
+A continuation captured where a loop's worker has dropped a value the
+unoptimized frame still holds (unisonweb/unison\#6354). The call `go found false rest` gets a worker for `atStart = false`; in it the scrutinee
+`if atStart then pairAt ns else None` is the `None` arm, a product let the
+known-constructor rewrite then matches and drops. The unoptimized frame of
+the let of `pairAt rest` holds both the scrutinee and `atStart`, so a
+continuation captured inside that `pairAt` is written out with `None` and
+`false` packed into those slots. The loader stopped on `deoptOf: no source for` the scrutinee, since nothing recorded the dropped let. Each `pairAt`
+asks, and the second and third asks are inside the worker.
+
+``` unison
+use Nat + - * == < >
+
+structural ability Ask where
+  ask : Nat
+
+answer : Nat -> Request {Ask} Nat -> Nat
+answer x = cases
+  { r } -> r
+  { Ask.ask -> k } -> handle k x with answer (x + 1)
+
+structural type Outcome = Done Nat | Suspended (Nat ->{Ask} Nat)
+
+suspendAt : Nat -> '{Ask} Nat -> Outcome
+suspendAt m c =
+  h : Nat -> Request {Ask} Nat -> Outcome
+  h j = cases
+    { r } -> Done r
+    { Ask.ask -> k } -> if j == m then Suspended k else handle k (j + 1) with h (j + 1)
+  handle !c with h 0
+
+finish : Outcome -> Nat
+finish = cases
+  Done r -> r
+  Suspended k -> handle k 100 with answer 101
+
+roundTrip : Nat -> '{Ask} Nat ->{IO, Exception} Text
+roundTrip m c =
+  direct = finish (suspendAt m c)
+  match suspendAt m c with
+    Done _ -> "no request to suspend at"
+    Suspended k ->
+      match ##Value.deserialize (##Value.serialize (##Value.value k)) with
+        Left err -> "deserialize: " ++ err
+        Right v -> match ##Value.load v with
+          Left _ -> "load: missing dependencies"
+          Right k' ->
+            r = finish (Suspended k')
+            (if r == direct then "same, " else "DIFFERENT, ") ++ Nat.toText r ++ " and " ++ Nat.toText direct
+
+total : [Nat] -> Nat
+total = cases
+  [] -> 0
+  x +: rest -> x + total rest
+
+pairAt : [Nat] ->{Ask} Optional (Nat, [Nat])
+pairAt = cases
+  n +: rest -> Some (n + Ask.ask, rest)
+  [] -> None
+
+pairsAfterZeros : [Nat] ->{Ask} [Nat]
+pairsAfterZeros xs =
+  go found atStart ns = match (if atStart then pairAt ns else None) with
+    Some (n, remaining) -> go (found :+ n) false remaining
+    None -> match ns with
+      [] -> found
+      0 +: rest -> match pairAt rest with
+        Some (n, remaining) -> go (found :+ n) false remaining
+        None -> go found false rest
+      _ +: rest -> go found false rest
+  go [] true xs
+
+droppedTest : '{IO, Exception} [Text]
+droppedTest = do
+  [ roundTrip 0 '(total (pairsAfterZeros [1, 0, 2, 3, 0, 4])),
+    roundTrip 1 '(total (pairsAfterZeros [1, 0, 2, 3, 0, 4])),
+    roundTrip 2 '(total (pairsAfterZeros [1, 0, 2, 3, 0, 4])) ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Outcome
+
+  + answer          : Nat -> Request {Ask} Nat -> Nat
+  + droppedTest     : '{IO, Exception} [Text]
+  + finish          : Outcome -> Nat
+  + pairAt          : [Nat] ->{Ask} Optional (Nat, [Nat])
+  + pairsAfterZeros : [Nat] ->{Ask} [Nat]
+  + roundTrip       : Nat -> '{Ask} Nat ->{IO, Exception} Text
+  + suspendAt       : Nat -> '{Ask} Nat -> Outcome
+  + total           : [Nat] -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run droppedTest
+
+  [ "same, 310 and 310"
+  , "same, 209 and 209"
+  , "same, 110 and 110"
+  ]
+```
+
 ## Preemption
 
 A thread stuck in a loop that never allocates must still be killable. Compiled code polls at
