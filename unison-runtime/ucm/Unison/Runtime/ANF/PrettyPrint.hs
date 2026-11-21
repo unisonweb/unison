@@ -260,14 +260,14 @@ func irn vns f as = case f of
   FPrim (Right ff) ->
     app (Head False . fmt S.ControlKeyword . P.text $ "foreign." <> Map.findWithDefault (tShow ff) ff builtinForeignNames) as
   FRec (RecordSchema fields) ->
-    record [fieldName fld <> " = " <> a | (fld, a) <- zip (Set.toList fields) as]
+    record [fieldName fld <> ": " <> a | (fld, a) <- zip (Set.toList fields) as]
   FRecSet fld
-    | [r, v] <- as -> r <> " " <> kw "with" <> " " <> record [fieldName fld <> " = " <> v]
+    | [r, v] <- as -> r <> "@" <> fieldName fld <> ".set " <> v
     | otherwise -> app (Head False $ "recordSet." <> P.text fld) as
   FWorker r i -> app (Head False $ headText (refHead irn $ combName irn r) <> indexLabel (localName irn r) i) as
   FYield -> kw "yield" <> " " <> values as
   where
-    record ps = "{" <> P.sep ", " ps <> "}"
+    record ps = "{ " <> P.sep ", " ps <> " }"
 
 app :: Head -> [Pretty SyntaxText] -> Pretty SyntaxText
 app (Head True op) [x, y] = P.sep " " [x, op, y]
@@ -304,7 +304,7 @@ branches irn vns bs = case bs of
       ++ [caseOf (braces . P.sep " " . map (var vns)) df]
   MatchSum cs -> cases [(\vs -> P.sep " " ("tag" : P.shown t : map (var vns) vs), e) | (t, (_, e)) <- EC.mapToList cs] Nothing
   MatchRec (RecordSchema fields) e ->
-    [caseOf (\vs -> "{" <> P.sep ", " [fieldName f <> " = " <> var vns v | (f, v) <- zip (Set.toList fields) vs] <> "}") e]
+    [caseOf (\vs -> "{ " <> P.sep ", " [fieldName f <> ": " <> var vns v | (f, v) <- zip (Set.toList fields) vs] <> " }") e]
   where
     cases :: [([Symbol] -> Pretty SyntaxText, ANormal Reference Symbol)] -> Maybe (ANormal Reference Symbol) -> [Pretty SyntaxText]
     cases cs df =
