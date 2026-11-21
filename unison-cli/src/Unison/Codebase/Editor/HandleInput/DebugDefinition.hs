@@ -8,8 +8,10 @@ where
 import Control.Monad.Reader
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (getLatestTypecheckedFile)
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.CodeLookup.Util qualified as CL
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Execute qualified as Codebase (codebaseToCodeLookup)
 import Unison.Codebase.Runtime qualified as Runtime
@@ -25,6 +27,7 @@ import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Pretty qualified as P
 
 debugTermReference :: Bool -> TermReference -> Cli ()
@@ -66,13 +69,20 @@ debugDecl hqName = do
   for_ matches \typeRef -> debugTypeReference typeRef Nothing
 
 -- | Show the intermediate code (ANF) of a term, the other terms of its cycle,
--- and the lambdas lifted out of them; optimized when the flag is set.
+-- and the lambdas lifted out of them; optimized when the flag is set. The
+-- term can be one of the latest typechecked file's, not added yet: as for
+-- `run`, the file's names shadow the codebase's, and its code is looked up
+-- before the codebase's.
 intermediateCode :: Bool -> HQ.HashQualified Name -> Cli ()
 intermediateCode optimized hqName = do
   Cli.Env {codebase, runtime} <- ask
-  names <- Cli.currentNames
-  let ppe = (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)).suffixifiedPPE
-      codeLookup = () <$ Codebase.codebaseToCodeLookup codebase
+  file <- Cli.getLatestTypecheckedFile
+  codebaseNames <- Cli.currentNames
+  let names = maybe codebaseNames (`UF.addNamesFromTypeCheckedUnisonFile` codebaseNames) file
+      ppe = (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)).suffixifiedPPE
+      codeLookup =
+        foldMap (void . CL.fromTypecheckedUnisonFile) file
+          <> (() <$ Codebase.codebaseToCodeLookup codebase)
       matches = toList (Names.lookupHQTerm Names.IncludeSuffixes hqName names)
       refs = [r | Referent.Ref r <- matches]
   when (null matches) $ Cli.returnEarly (SearchTermsNotFound [hqName])

@@ -378,3 +378,27 @@ scratch/main> ir nope
   The following names were not found in the codebase. Check your spelling.
     nope
 ```
+
+The commands also show definitions in the scratch file that aren't added yet. The file's definitions shadow the codebase's, as for `run`: here `swapSum` is the file's, and `quadruple`, which uses it, isn't in the codebase.
+
+``` unison :hide
+swapSum : Nat -> Nat -> Nat
+swapSum a b = a * b
+
+quadruple : Nat -> Nat
+quadruple n = swapSum (swapSum n 2) 2
+```
+
+``` ucm
+scratch/main> ir swapSum
+
+  swapSum a b = (builtin Nat.*) a b
+
+scratch/main> ir.optimized quadruple
+
+  quadruple n =
+    v1 = 2
+    v2 = n Nat.* v1
+    v3 = 2
+    v2 Nat.* v3
+```
