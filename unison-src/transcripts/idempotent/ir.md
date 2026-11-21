@@ -155,10 +155,10 @@ scratch/main> ir sumWith
   sumWith$go k acc x1 =
     v1 = (builtin ##List.viewl) x1
     match v1 with
-      VElem p1 p2 ->
-        v2 = (builtin Nat.*) p1 k
+      VElem x rest ->
+        v2 = (builtin Nat.*) x k
         v3 = (builtin Nat.+) acc v2
-        sumWith$go k v3 p2
+        sumWith$go k v3 rest
       VEmpty -> acc
 
 scratch/main> ir describe
@@ -175,7 +175,7 @@ scratch/main> ir describe
       None -> "none"
 ```
 
-Optimization recognizes `runCounter`'s handler as affine (each case resumes the continuation at most once, in tail position, with the same handler) and adds a second matcher for it, installed by `with h or affine h'`. The general matcher captures the continuation (`shift`) and resumes it (`jumpCont` makes it a function); the affine one captures nothing: it runs with the handlers in force where its handler was installed (`inHandlerEnv aff`), stores the next handler in its cell (`setHandler aff`), and returns the request's result to the requester.
+Optimization recognizes `runCounter`'s handler as affine (each case resumes the continuation at most once, in tail position, with the same handler) and adds a second matcher for it. Which one a `handle` installs is decided when it runs: the affine one if no handler that isn't affine is in force, `with if noNonAffineHandlers then h' else h`. The general matcher captures the continuation (`cont1 = shift {Counter}`) and resumes it (`jumpCont` makes it the function `k` the pattern binds); the affine one captures nothing: it runs with the handlers in force where its handler was installed (`inHandlerEnv aff`), stores the next handler in its cell (`setHandler aff`), and returns the request's result to the requester.
 
 ``` ucm
 scratch/main> ir runCounter
@@ -190,14 +190,14 @@ scratch/main> ir runCounter
     f1 n v2 =
       match v2 with
         {bump} ->
-          shift {Counter} v3 ->
-            p1 = partialApply (builtin ##jumpCont) v3
-            v4 = 1
-            v5 = (builtin Nat.+) n v4
-            v6 = runCounter$h v5
-            v7 = partialApply runCounter$h$Lambda0 p1 n
-            v6 v7
-        {p2} -> p2
+          cont1 = shift {Counter}
+          k = partialApply (builtin ##jumpCont) cont1
+          v3 = 1
+          v4 = (builtin Nat.+) n v3
+          v5 = runCounter$h v4
+          v6 = partialApply runCounter$h$Lambda0 k n
+          v5 v6
+        {a} -> a
     v1 = partialApply f1 n
     handle {Counter}
       x1()
@@ -220,30 +220,30 @@ scratch/main> ir.optimized runCounter
     f1 n v3 =
       match v3 with
         {bump} ->
-          shift {Counter} v4 ->
-            p1 = partialApply (builtin ##jumpCont) v4
-            v5 = 1
-            v6 = n Nat.+ v5
-            v1 = partialApply f1 v6
-            handle {Counter}
-              p1 n
-            with v1
-        {p2} -> p2
+          cont1 = shift {Counter}
+          k = partialApply (builtin ##jumpCont) cont1
+          v4 = 1
+          v5 = n Nat.+ v4
+          v1 = partialApply f1 v5
+          handle {Counter}
+            k n
+          with v1
+        {a} -> a
     f2 n aff v3 =
       match v3 with
         {bump} ->
           inHandlerEnv aff ->
-            v5 = 1
-            v6 = n Nat.+ v5
-            v1 = partialApply f2 v6 aff
+            v4 = 1
+            v5 = n Nat.+ v4
+            v1 = partialApply f2 v5 aff
             setHandler aff v1
             n
-        {p2} -> p2
+        {a} -> a
     v1 = partialApply f1 n
     v2 = partialApply f2 n
     handle {Counter}
       x1()
-    with v1 or affine v2
+    with if noNonAffineHandlers then v2 else v1
 
   runCounter$h$Lambda0 k n = k n
 
@@ -265,33 +265,33 @@ scratch/main> ir.optimized sumCount
   sumCount$go st x1 =
     v1 = ##List.viewl x1
     match v1 with
-      VElem p1 p2 ->
+      VElem x rest ->
         match st with
-          Cons p3 p4 ->
-            match p4 with
-              Cons p5 p6 ->
-                match p6 with
+          Cons acc p1 ->
+            match p1 with
+              Cons n p2 ->
+                match p2 with
                   () ->
-                    v2 = p3 Nat.+ p1
+                    v2 = acc Nat.+ x
                     v3 = 1
-                    v4 = p5 Nat.+ v3
-                    sumCount$go#spec1 v2 v4 p2
+                    v4 = n Nat.+ v3
+                    sumCount$go#spec1 v2 v4 rest
       VEmpty ->
         match st with
-          Cons p7 p8 ->
-            match p8 with
-              Cons p9 p10 ->
-                match p10 with
-                  () -> p7 Nat.+ p9
+          Cons acc1 p3 ->
+            match p3 with
+              Cons n1 p4 ->
+                match p4 with
+                  () -> acc1 Nat.+ n1
 
   sumCount$go#spec1 eta1 eta2 x1 =
     v1 = ##List.viewl x1
     match v1 with
-      VElem p1 p2 ->
-        v2 = eta1 Nat.+ p1
+      VElem x rest ->
+        v2 = eta1 Nat.+ x
         v3 = 1
         v4 = eta2 Nat.+ v3
-        sumCount$go#spec1 v2 v4 p2
+        sumCount$go#spec1 v2 v4 rest
       VEmpty -> eta1 Nat.+ eta2
 ```
 

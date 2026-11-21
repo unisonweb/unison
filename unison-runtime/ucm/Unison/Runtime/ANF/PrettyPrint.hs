@@ -33,12 +33,16 @@
 --   until it is boxed, `v = box #v`, after which it is an ordinary value,
 --   `v`. Shown only when the wide convention is on: with it off nothing is
 --   laid out wide, though the binders are still marked.
--- * `shift k -> e` captures the continuation up to the handler, and
---   `handle e with h` installs a handler; `with h or affine h'` when the
---   optimizer made an affine matcher too (Unison.Runtime.ANF.Optimize). An
---   affine matcher's case runs `inHandlerEnv aff -> e`, with the handlers
---   in force where its handler was installed, and stores the next handler
---   with `setHandler aff h`; `aff` is its affine cell. `discard` drops one.
+-- * `cont1 = shift {A}` captures the continuation up to the handler of
+--   `A` (the rest of the block runs with it bound), and `handle e with h`
+--   installs a handler. When the optimizer made an affine matcher too
+--   (Unison.Runtime.ANF.Optimize), which matcher is installed is decided
+--   when the `handle` runs: the affine one if no handler that isn't affine
+--   is in force (Machine's `Reset`), so it is
+--   `with if noNonAffineHandlers then h' else h`. An affine matcher's case
+--   runs `inHandlerEnv aff -> e`, with the handlers in force where its
+--   handler was installed, and stores the next handler with
+--   `setHandler aff h`; `aff` is its affine cell. `discard` drops one.
 --
 -- Generated variables are renamed `v1`, `v2`, ... per definition; user
 -- variables keep their names, numbered when two would clash.
@@ -139,7 +143,7 @@ prettyIRCombs irn0 ref locals cmbs =
     (localCmbs, others) = partition ((`elem` localIndices') . fst) rest
     localIndices' = take (length locals) localIndices
     localNames = zip localIndices' locals
-    vnames = nameVars (foldMap (affineCells . snd) cmbs) locals (concatMap (superBinders . snd) cmbs)
+    vnames = nameVars (foldMap (affineCells . snd) cmbs) (foldMap (continuations . snd) cmbs) locals (concatMap (superBinders . snd) cmbs)
     irn = irn0 {localName = \r i -> if r == ref then lookupLocal vnames localNames i else localName irn0 r i}
     base = refHead irn (combName irn ref)
     local (i, sn) = case lookup i localNames of
@@ -230,13 +234,17 @@ block irn vns tm = case tm of
   TMatch v bs ->
     [Stmt True $ (kw "match" <> " " <> var vns v <> " " <> kw "with") `above` P.indentN 2 (P.lines $ branches irn vns bs)]
   TShift r v bo ->
-    [binding Nothing (kw "shift" <> " " <> abilities irn [r] <> " " <> var vns v) "->" (block irn vns bo)]
+    Stmt False (var vns v <> " " <> kw "=" <> " " <> kw "shift" <> " " <> abilities irn [r])
+      : block irn vns bo
   THnd rs nh ah bo ->
     [ Stmt True $
         P.lines
           [ kw "handle" <> " " <> abilities irn rs,
             indentBlock (block irn vns bo),
-            kw "with" <> " " <> var vns nh <> maybe mempty (\a -> " " <> kw "or affine" <> " " <> var vns a) ah
+            kw "with" <> " " <> case ah of
+              Nothing -> var vns nh
+              Just a ->
+                kw "if" <> " noNonAffineHandlers " <> kw "then" <> " " <> var vns a <> " " <> kw "else" <> " " <> var vns nh
           ]
     ]
   TLocal h bo ->
@@ -506,13 +514,26 @@ affineCells (Lambda _ tm) = go tm
       ABTN.Abs _ bd -> go bd
       ABTN.Tm f -> bifoldMap (const mempty) go f
 
+-- | The continuations a lambda captures: the variables `shift` binds.
+continuations :: SuperNormal Reference Symbol -> Set Symbol
+continuations (Lambda _ tm) = go tm
+  where
+    go t@(ABTN.Term _ abt) = here t <> below abt
+    here = \case
+      TShift _ k _ -> Set.singleton k
+      _ -> mempty
+    below = \case
+      ABTN.Abs _ bd -> go bd
+      ABTN.Tm f -> bifoldMap (const mempty) go f
+
 -- | Display names for the variables of a definition, given its affine
--- cells, its local functions and then the variables it binds: a user's
--- variable keeps its name unless that is taken, an affine cell is `aff`,
--- and another generated one is `v1`, `v2`, ... (`f1`, ... for a local
--- function).
-nameVars :: Set Symbol -> [Symbol] -> [Symbol] -> Names
-nameVars cells fs vs =
+-- cells, its continuations, its local functions and then the variables it
+-- binds: a user's variable keeps its name unless that is taken (also when
+-- the pattern compiler renamed it, 'Var.PatternNamed'), an affine cell is
+-- `aff`, a continuation `cont1`, `cont2`, ..., and another generated one
+-- `v1`, `v2`, ... (`f1`, ... for a local function).
+nameVars :: Set Symbol -> Set Symbol -> [Symbol] -> [Symbol] -> Names
+nameVars cells conts fs vs =
   Names (evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty) mempty mempty
   where
     add :: Text -> Map Symbol (Pretty SyntaxText) -> Symbol -> State (Set Text) (Map Symbol (Pretty SyntaxText))
@@ -523,13 +544,16 @@ nameVars cells fs vs =
           pure $ Map.insert v (fmt S.Var $ P.text n) m
     base dflt v
       | Set.member v cells = ("aff", False)
+      | Set.member v conts = ("cont", True)
       | otherwise = case Var.typeOf v of
-          Var.User n
-            | generatedName n -> ("x", True)
-            | otherwise -> (n, False)
+          Var.User n -> user n
+          Var.PatternNamed n -> user n
           Var.Pattern -> ("p", True)
           Var.Eta -> ("eta", True)
           _ -> (dflt, True)
+    user n
+      | generatedName n = ("x", True)
+      | otherwise = (n, False)
     -- the parser names the arguments of a `cases` function with ten
     -- characters of base32hex and a number (TermParser.lamCase)
     generatedName n =
