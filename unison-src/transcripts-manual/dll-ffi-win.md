@@ -101,7 +101,7 @@ doCallbackTest = do
 doReentrantCallbackTest = do
   dll = libtest()
   apply = getDLLSym dll "apply_fn" applySpec
-  slot : Ref {IO} (Optional (FFI.FunctionPtr (Nat ->{IO} Nat)))
+  slot : Ref {IO} (Optional (FFI.Func (Nat ->{IO} Nat)))
   slot = IO.ref None
   count : Nat ->{IO} Nat
   count n =

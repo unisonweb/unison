@@ -152,7 +152,7 @@ doCallbackTest = do
 doReentrantCallbackTest = do
   dll = libtest()
   apply = getDLLSym dll "apply_fn" applySpec
-  slot : Ref {IO} (Optional (FFI.FunctionPtr (Nat ->{IO} Nat)))
+  slot : Ref {IO} (Optional (FFI.Func (Nat ->{IO} Nat)))
   slot = IO.ref None
   count : Nat ->{IO} Nat
   count n =
@@ -171,7 +171,7 @@ doReentrantCallbackTest = do
   Loading changes detected in scratch.u.
 
   + applySpec               : Spec
-                                (FunctionPtr (Nat ->{IO} Nat)
+                                (Func (Nat ->{IO} Nat)
                                  -> Nat
                                  ->{IO} Nat)
   + doCallbackTest          : '{IO, Exception} Nat

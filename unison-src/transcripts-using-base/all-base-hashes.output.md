@@ -860,7 +860,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   244.  -- ##FFI.ForeignPtr.addCFinalizer
         builtin.FFI.ForeignPtr.addCFinalizer : ForeignPtr a
-        -> FunctionPtr (Ptr a ->{IO} ())
+        -> Func (Ptr a ->{IO} ())
         ->{IO} ()
         
   245.  -- ##FFI.ForeignPtr.addFinalizer
@@ -914,7 +914,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         ->{IO} ForeignPtr a
         
   257.  -- ##FFI.ForeignPtr.new.foreign
-        builtin.FFI.ForeignPtr.new.foreign : FunctionPtr
+        builtin.FFI.ForeignPtr.new.foreign : Func
           (Ptr a ->{IO} ())
         -> Ptr a
         ->{IO} ForeignPtr a
@@ -928,14 +928,14 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Ptr a
         
   260.  -- ##FFI.freeCallback
-        builtin.FFI.freeCallback : FunctionPtr a ->{IO} ()
+        builtin.FFI.freeCallback : Func a ->{IO} ()
         
-  261.  -- ##FFI.FunctionPtr
-        builtin type builtin.FFI.FunctionPtr
+  261.  -- ##FFI.Func
+        builtin type builtin.FFI.Func
         
   262.  -- ##FFI.functionPtr
         builtin.FFI.functionPtr : Spec a
-        -> FFI.Type (FunctionPtr a)
+        -> FFI.Type (Func a)
         
   263.  -- ##FFI.getDLLSym
         builtin.FFI.getDLLSym : DLL
@@ -947,7 +947,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         builtin.FFI.getDLLSymPtr : DLL
         -> Text
         -> Spec a
-        ->{IO, Exception} FunctionPtr a
+        ->{IO, Exception} Func a
         
   265.  -- ##FFI.int16
         builtin.FFI.int16 : FFI.Type Int
@@ -964,7 +964,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   269.  -- ##FFI.newCallback
         builtin.FFI.newCallback : Spec a
         -> a
-        ->{IO} FunctionPtr a
+        ->{IO} Func a
         
   270.  -- ##FFI.openDLL
         builtin.FFI.openDLL : Text ->{IO, Exception} DLL

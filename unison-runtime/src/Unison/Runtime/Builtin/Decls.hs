@@ -237,7 +237,7 @@ builtinTypeRefs =
     R.Builtin "Float",
     R.Builtin "Float32",
     R.Builtin "FFI.ForeignPtr",
-    R.Builtin "FFI.FunctionPtr",
+    R.Builtin "FFI.Func",
     R.Builtin "Handle",
     R.Builtin "crypto.HashAlgorithm",
     R.Builtin "IO",
