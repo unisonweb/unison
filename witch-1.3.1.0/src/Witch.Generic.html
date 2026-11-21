@@ -1,0 +1,167 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Witch.Generic.html"><span class="hs-identifier">Witch.Generic</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Generics</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Witch.From.html"><span class="hs-identifier">Witch.From</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">From</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | This type class is used to implement generic conversions using the 'Generics.Generically' helper.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This is an advanced use case.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Most users will not need to know about this type class.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- And even for those that want to derive 'Generics.Generically', this type class should be an implementation detail.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- This type class can convert between any two types as long as they have 'Generics.Generic' instances and they are structurally similar.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- For example, if you define your own empty type you could convert it to the typical 'Data.Void.Void' type:</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt; data Empty deriving Generic</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt; deriving via Generically Void instance From Empty Void</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Or your own unit type:</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt; data Unit = MkUnit deriving Generic</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt; deriving via Generically () instance From Unit ()</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Note that this looks superficially similar to @newtype Unit = MkUnit ()@ together with @instance From Unit ()@, but that goes through 'Data.Coerce.Coercible' and requires the types to be representationally equal.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- This approach (with 'Generics.Generically') only requires the types to be /structurally/ equal.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- In this case, @Unit@ is structurally equal to @()@ since they both have a single constructor with no arguments.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- This also works with arbitrary product types, like a custom pair type:</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &gt; data Pair a b = MkPair a b deriving Generic</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &gt; deriving via Generically (Pair c d)</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- &gt;   instance (From a c, From b d) =&gt; From (a, b) (Pair c d)</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Note that this can also convert the type variables as long as they have 'From.From' instances as well.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- This allows converting from @(Int, Int)@ to @Pair Integer Integer@ in one step, for example.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- And this works with arbitrary sum types as well:</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt; data Result a b = Failure a | Success b deriving Generic</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt; deriving via Generically (Result c d)</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- &gt;   instance (From a c, From b d) =&gt; From (Either a b) (Result c d)</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- Note that these conversions are all /structural/ not semantic.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- That means if you had defined @Result@ as @Success b | Failure a@, then converting from 'Either' would be &quot;wrong&quot;.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- 'Left' would convert into @Success@ and 'Right' would convert into @Failure@.</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">class</span><span> </span><span id="GFrom"><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-var">GFrom</span></a></span></span><span> </span><span id="local-6989586621679071643"><span class="annot"><a href="#local-6989586621679071643"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679071644"><span class="annot"><a href="#local-6989586621679071644"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="gFrom"><span class="annot"><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-type">gFrom</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679071641"><span class="annot"><a href="#local-6989586621679071643"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071641"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071644"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071641"><span class="hs-identifier hs-type">x</span></a></span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.V1</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.V1</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679071739"><span class="annot"><span class="annottext">gFrom :: forall x. V1 x -&gt; V1 x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">V1 x -&gt; V1 x
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.U1</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.U1</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679071743"><span class="annot"><span class="annottext">gFrom :: forall x. U1 x -&gt; U1 x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 x -&gt; U1 x
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071653"><span id="local-6989586621679071654"><span id="local-6989586621679071655"><span id="local-6989586621679071656"><span class="hs-special">(</span><span class="annot"><a href="Witch.From.html#From"><span class="hs-identifier hs-type">From.From</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071653"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071654"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.K1</span></span><span> </span><span class="annot"><a href="#local-6989586621679071655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071653"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.K1</span></span><span> </span><span class="annot"><a href="#local-6989586621679071656"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071654"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679071748"><span class="annot"><span class="annottext">gFrom :: forall x. K1 a s x -&gt; K1 b t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t -&gt; K1 b t x
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">Generics.K1</span></span><span> </span><span class="annot"><span class="annottext">(t -&gt; K1 b t x) -&gt; (K1 a s x -&gt; t) -&gt; K1 a s x -&gt; K1 b t x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; t
+forall source target. From source target =&gt; source -&gt; target
+</span><a href="Witch.From.html#from"><span class="hs-identifier hs-var">From.from</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; t) -&gt; (K1 a s x -&gt; s) -&gt; K1 a s x -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">K1 a s x -&gt; s
+forall k i c (p :: k). K1 i c p -&gt; c
+</span><span class="hs-identifier hs-var">Generics.unK1</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071678"><span id="local-6989586621679071679"><span id="local-6989586621679071680"><span id="local-6989586621679071681"><span id="local-6989586621679071682"><span id="local-6989586621679071683"><span class="hs-special">(</span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071678"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071679"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679071680"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071681"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071678"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679071682"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071683"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071679"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679071757"><span class="annot"><span class="annottext">gFrom :: forall x. M1 a b s x -&gt; M1 c d t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t x -&gt; M1 c d t x
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">Generics.M1</span></span><span> </span><span class="annot"><span class="annottext">(t x -&gt; M1 c d t x)
+-&gt; (M1 a b s x -&gt; t x) -&gt; M1 a b s x -&gt; M1 c d t x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s x -&gt; t x
+forall x. s x -&gt; t x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">(s x -&gt; t x) -&gt; (M1 a b s x -&gt; s x) -&gt; M1 a b s x -&gt; t x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">M1 a b s x -&gt; s x
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). M1 i c f p -&gt; f p
+</span><span class="hs-identifier hs-var">Generics.unM1</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071699"><span id="local-6989586621679071700"><span id="local-6989586621679071701"><span id="local-6989586621679071702"><span class="hs-special">(</span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071699"><span class="hs-identifier hs-type">s1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071700"><span class="hs-identifier hs-type">t1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071701"><span class="hs-identifier hs-type">s2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071702"><span class="hs-identifier hs-type">t2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071699"><span class="hs-identifier hs-type">s1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Generics.:+:</span></span><span> </span><span class="annot"><a href="#local-6989586621679071701"><span class="hs-identifier hs-type">s2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071700"><span class="hs-identifier hs-type">t1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Generics.:+:</span></span><span> </span><span class="annot"><a href="#local-6989586621679071702"><span class="hs-identifier hs-type">t2</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679071766"><span class="annot"><span class="annottext">gFrom :: forall x. (:+:) s1 s2 x -&gt; (:+:) t1 t2 x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span id="local-6989586621679071767"><span class="annot"><span class="annottext">(:+:) s1 s2 x
+</span><a href="#local-6989586621679071767"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(:+:) s1 s2 x
+</span><a href="#local-6989586621679071767"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Generics.L1</span></span><span> </span><span id="local-6989586621679071769"><span class="annot"><span class="annottext">s1 x
+</span><a href="#local-6989586621679071769"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">t1 x -&gt; (:+:) t1 t2 x
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). f p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">Generics.L1</span></span><span> </span><span class="annot"><span class="annottext">(t1 x -&gt; (:+:) t1 t2 x) -&gt; t1 x -&gt; (:+:) t1 t2 x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">s1 x -&gt; t1 x
+forall x. s1 x -&gt; t1 x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">s1 x
+</span><a href="#local-6989586621679071769"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Generics.R1</span></span><span> </span><span id="local-6989586621679071771"><span class="annot"><span class="annottext">s2 x
+</span><a href="#local-6989586621679071771"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">t2 x -&gt; (:+:) t1 t2 x
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k). g p -&gt; (:+:) f g p
+</span><span class="hs-identifier hs-var">Generics.R1</span></span><span> </span><span class="annot"><span class="annottext">(t2 x -&gt; (:+:) t1 t2 x) -&gt; t2 x -&gt; (:+:) t1 t2 x
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">s2 x -&gt; t2 x
+forall x. s2 x -&gt; t2 x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">s2 x
+</span><a href="#local-6989586621679071771"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071716"><span id="local-6989586621679071717"><span id="local-6989586621679071718"><span id="local-6989586621679071719"><span class="hs-special">(</span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071716"><span class="hs-identifier hs-type">s1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071717"><span class="hs-identifier hs-type">t1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071718"><span class="hs-identifier hs-type">s2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071719"><span class="hs-identifier hs-type">t2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071716"><span class="hs-identifier hs-type">s1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Generics.:*:</span></span><span> </span><span class="annot"><a href="#local-6989586621679071718"><span class="hs-identifier hs-type">s2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071717"><span class="hs-identifier hs-type">t1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">Generics.:*:</span></span><span> </span><span class="annot"><a href="#local-6989586621679071719"><span class="hs-identifier hs-type">t2</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621679071778"><span class="annot"><span class="annottext">gFrom :: forall x. (:*:) s1 s2 x -&gt; (:*:) t1 t2 x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var hs-var hs-var">gFrom</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071779"><span class="annot"><span class="annottext">s1 x
+</span><a href="#local-6989586621679071779"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">Generics.:*:</span></span><span> </span><span id="local-6989586621679071781"><span class="annot"><span class="annottext">s2 x
+</span><a href="#local-6989586621679071781"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s1 x -&gt; t1 x
+forall x. s1 x -&gt; t1 x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">s1 x
+</span><a href="#local-6989586621679071779"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">t1 x -&gt; t2 x -&gt; (:*:) t1 t2 x
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">Generics.:*:</span></span><span> </span><span class="annot"><span class="annottext">s2 x -&gt; t2 x
+forall x. s2 x -&gt; t2 x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">s2 x
+</span><a href="#local-6989586621679071781"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><span class="hs-comment">-- | See the 'GFrom' type class for an explanation of this instance.</span></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621679071728"><span id="local-6989586621679071729"><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Generics.Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679071728"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Generics.Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679071729"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="Witch.Generic.html#GFrom"><span class="hs-identifier hs-type">GFrom</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679071728"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679071729"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><a href="Witch.From.html#From"><span class="hs-identifier hs-type">From.From</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071728"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generics.Generically</span></span><span> </span><span class="annot"><a href="#local-6989586621679071729"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>  </span><span id="local-6989586621679071791"><span class="annot"><span class="annottext">from :: s -&gt; Generically t
+</span><a href="Witch.From.html#from"><span class="hs-identifier hs-var hs-var hs-var">from</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t -&gt; Generically t
+forall a. a -&gt; Generically a
+</span><span class="hs-identifier hs-var">Generics.Generically</span></span><span> </span><span class="annot"><span class="annottext">(t -&gt; Generically t) -&gt; (s -&gt; t) -&gt; s -&gt; Generically t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Rep t (ZonkAny 0) -&gt; t
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep t x -&gt; t
+</span><span class="hs-identifier hs-var">Generics.to</span></span><span> </span><span class="annot"><span class="annottext">(Rep t (ZonkAny 0) -&gt; t) -&gt; (s -&gt; Rep t (ZonkAny 0)) -&gt; s -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Rep s (ZonkAny 0) -&gt; Rep t (ZonkAny 0)
+forall x. Rep s x -&gt; Rep t x
+forall (s :: * -&gt; *) (t :: * -&gt; *) x. GFrom s t =&gt; s x -&gt; t x
+</span><a href="Witch.Generic.html#gFrom"><span class="hs-identifier hs-var">gFrom</span></a></span><span> </span><span class="annot"><span class="annottext">(Rep s (ZonkAny 0) -&gt; Rep t (ZonkAny 0))
+-&gt; (s -&gt; Rep s (ZonkAny 0)) -&gt; s -&gt; Rep t (ZonkAny 0)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Rep s (ZonkAny 0)
+forall x. s -&gt; Rep s x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">Generics.from</span></span><span>
+</span><span id="line-83"></span></pre></body></html>

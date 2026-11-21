@@ -1,0 +1,477 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module: Optics.AffineTraversal</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Description: A 'Optics.Traversal.Traversal' that applies to at most one element.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- An 'AffineTraversal' is a 'Optics.Traversal.Traversal' that</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- applies to at most one element.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- These arise most frequently as the composition of a</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- 'Optics.Lens.Lens' with a 'Optics.Prism.Prism'.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html"><span class="hs-identifier">Optics.AffineTraversal</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Formation</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal"><span class="hs-identifier">AffineTraversal</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal%27"><span class="hs-identifier">AffineTraversal'</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Introduction</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraversal"><span class="hs-identifier">atraversal</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Elimination</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-comment">-- | An 'AffineTraversal' is in particular an 'Optics.AffineFold.AffineFold'</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-comment">-- and a 'Optics.Setter.Setter', therefore you can specialise types to obtain:</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-comment">-- 'Optics.AffineFold.preview' :: 'AffineTraversal' s t a b -&gt; s -&gt; Maybe a</span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-comment">-- 'Optics.Setter.over'    :: 'AffineTraversal' s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-comment">-- 'Optics.Setter.set'     :: 'AffineTraversal' s t a b -&gt;       b  -&gt; s -&gt; t</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#matching"><span class="hs-identifier">matching</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Computation</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-comment">-- |</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-comment">-- 'matching' ('atraversal' f g) &#8801; f</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-comment">-- 'Data.Either.isRight' (f s)  =&gt;  'Optics.Setter.set' ('atraversal' f g) b s &#8801; g s b</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Additional introduction forms</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-comment">-- | See 'Optics.Cons.Core._head', 'Optics.Cons.Core._tail',</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-comment">-- 'Optics.Cons.Core._init' and 'Optics.Cons.Core._last' for</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-comment">-- 'AffineTraversal's for container types.</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#unsafeFiltered"><span class="hs-identifier">unsafeFiltered</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Additional elimination forms</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#withAffineTraversal"><span class="hs-identifier">withAffineTraversal</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Monoid structure</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-comment">-- | 'AffineTraversal' admits a monoid structure where 'adisjoin' returns the</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-comment">-- result from the second affine traversal only if the first does not return a</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- result. The identity element is 'ignored' (which traverses no elements).</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#adisjoin"><span class="hs-identifier">adisjoin</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Subtyping</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier">An_AffineTraversal</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><span class="hs-comment">-- | &lt;&lt;diagrams/AffineTraversal.png AffineTraversal in the optics hierarchy&gt;&gt;</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="hs-comment">-- * van Laarhoven encoding</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL"><span class="hs-identifier">AffineTraversalVL</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL%27"><span class="hs-identifier">AffineTraversalVL'</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-identifier">atraversalVL</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-identifier">atraverseOf</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Profunctor.Indexed</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html"><span class="hs-identifier">Optics.Internal.Optic</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Optics.Internal.Utils.html"><span class="hs-identifier">Optics.Internal.Utils</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;&gt;&gt; import Optics.Core</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | Type synonym for a type-modifying affine traversal.</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">type</span><span> </span><span id="AffineTraversal"><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal"><span class="hs-identifier hs-var">AffineTraversal</span></a></span></span><span> </span><span id="local-6989586621679139169"><span class="annot"><a href="#local-6989586621679139169"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679139170"><span class="annot"><a href="#local-6989586621679139170"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679139171"><span class="annot"><a href="#local-6989586621679139171"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679139172"><span class="annot"><a href="#local-6989586621679139172"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.TypeLevel.html#NoIx"><span class="hs-identifier hs-type">NoIx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139169"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139170"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139171"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139172"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><span class="hs-comment">-- | Type synonym for a type-preserving affine traversal.</span></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">type</span><span> </span><span id="AffineTraversal%27"><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal%27"><span class="hs-identifier hs-var">AffineTraversal'</span></a></span></span><span> </span><span id="local-6989586621679139173"><span class="annot"><a href="#local-6989586621679139173"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679139174"><span class="annot"><a href="#local-6989586621679139174"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic%27"><span class="hs-identifier hs-type">Optic'</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.TypeLevel.html#NoIx"><span class="hs-identifier hs-type">NoIx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139173"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139174"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Type synonym for a type-modifying van Laarhoven affine traversal.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- Note: this isn't exactly van Laarhoven representation as there is</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- no @Pointed@ class (which would be a superclass of 'Applicative'</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- that contains 'pure' but not '&lt;*&gt;'). You can interpret the first</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- argument as a dictionary of @Pointed@ that supplies the @point@</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- function (i.e. the implementation of 'pure').</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- A 'Optics.Traversal.TraversalVL' has 'Applicative' available and</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- hence can combine the effects arising from multiple elements using</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- '&lt;*&gt;'. In contrast, an 'AffineTraversalVL' has no way to combine</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- effects from multiple elements, so it must act on at most one</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- element.  (It can act on none at all thanks to the availability of</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- @point@.)</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-keyword">type</span><span> </span><span id="AffineTraversalVL"><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL"><span class="hs-identifier hs-var">AffineTraversalVL</span></a></span></span><span> </span><span id="local-6989586621679139176"><span class="annot"><a href="#local-6989586621679139176"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679139177"><span class="annot"><a href="#local-6989586621679139177"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679139178"><span class="annot"><a href="#local-6989586621679139178"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679139179"><span class="annot"><a href="#local-6989586621679139179"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679139180"><span class="annot"><a href="#local-6989586621679139180"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679139180"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679139088"><span class="annot"><a href="#local-6989586621679139088"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679139088"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139180"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139088"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139178"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139180"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139179"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139176"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139180"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139177"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><span class="hs-comment">-- | Type synonym for a type-preserving van Laarhoven affine traversal.</span></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">type</span><span> </span><span id="AffineTraversalVL%27"><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL%27"><span class="hs-identifier hs-var">AffineTraversalVL'</span></a></span></span><span> </span><span id="local-6989586621679139181"><span class="annot"><a href="#local-6989586621679139181"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679139182"><span class="annot"><a href="#local-6989586621679139182"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL"><span class="hs-identifier hs-type">AffineTraversalVL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139181"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139181"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139182"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139182"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- | Build an affine traversal from a matcher and an updater.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- If you want to build an 'AffineTraversal' from the van Laarhoven</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- representation, use 'atraversalVL'.</span><span>
+</span><span id="line-108"></span><span id="local-6989586621679138969"><span id="local-6989586621679138970"><span id="local-6989586621679138971"><span id="local-6989586621679138972"><span class="annot"><a href="Optics.AffineTraversal.html#atraversal"><span class="hs-identifier hs-type">atraversal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679138969"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679138970"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138971"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679138969"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679138972"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679138970"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal"><span class="hs-identifier hs-type">AffineTraversal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138969"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138970"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138971"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679138972"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-109"></span><span id="atraversal"><span class="annot"><span class="annottext">atraversal :: forall s t a b.
+(s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; AffineTraversal s t a b
+</span><a href="Optics.AffineTraversal.html#atraversal"><span class="hs-identifier hs-var hs-var">atraversal</span></a></span></span><span> </span><span id="local-6989586621679139183"><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139183"><span class="hs-identifier hs-var">match</span></a></span></span><span> </span><span id="local-6989586621679139184"><span class="annot"><span class="annottext">s -&gt; b -&gt; t
+</span><a href="#local-6989586621679139184"><span class="hs-identifier hs-var">update</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+ Profunctor p =&gt;
+ Optic_ An_AffineTraversal p i (Curry NoIx i) s t a b)
+-&gt; Optic An_AffineTraversal NoIx s t a b
+forall k (is :: IxList) s t a b.
+(forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+ Profunctor p =&gt;
+ Optic_ k p i (Curry is i) s t a b)
+-&gt; Optic k is s t a b
+</span><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-var">Optic</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+  Profunctor p =&gt;
+  Optic_ An_AffineTraversal p i (Curry NoIx i) s t a b)
+ -&gt; Optic An_AffineTraversal NoIx s t a b)
+-&gt; (forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+    Profunctor p =&gt;
+    Optic_ An_AffineTraversal p i (Curry NoIx i) s t a b)
+-&gt; Optic An_AffineTraversal NoIx s t a b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-comment">-- Do not define atraversal in terms of atraversalVL, mixing profunctor-style</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-comment">-- definitions with VL style implementation can lead to subpar generated code.</span><span>
+</span><span id="line-112"></span><span>  </span><span class="annot"><span class="annottext">(s -&gt; (Either t a, b -&gt; t))
+-&gt; ((Either t b, b -&gt; t) -&gt; t)
+-&gt; p i (Either t a, b -&gt; t) (Either t b, b -&gt; t)
+-&gt; p i s t
+forall a b c d i. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p i b c -&gt; p i a d
+forall (p :: * -&gt; * -&gt; * -&gt; *) a b c d i.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p i b c -&gt; p i a d
+</span><span class="hs-identifier hs-var">dimap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679139197"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139197"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139183"><span class="hs-identifier hs-var">match</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139197"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s -&gt; b -&gt; t
+</span><a href="#local-6989586621679139184"><span class="hs-identifier hs-var">update</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139197"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679139198"><span class="annot"><span class="annottext">Either t b
+</span><a href="#local-6989586621679139198"><span class="hs-identifier hs-var">etb</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679139199"><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679139199"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(t -&gt; t) -&gt; (b -&gt; t) -&gt; Either t b -&gt; t
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; t
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679139199"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Either t b
+</span><a href="#local-6989586621679139198"><span class="hs-identifier hs-var">etb</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><span class="annottext">(p i (Either t a, b -&gt; t) (Either t b, b -&gt; t) -&gt; p i s t)
+-&gt; (p i a b -&gt; p i (Either t a, b -&gt; t) (Either t b, b -&gt; t))
+-&gt; p i a b
+-&gt; p i s t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p i (Either t a) (Either t b)
+-&gt; p i (Either t a, b -&gt; t) (Either t b, b -&gt; t)
+forall i a b c. p i a b -&gt; p i (a, c) (b, c)
+forall (p :: * -&gt; * -&gt; * -&gt; *) i a b c.
+Strong p =&gt;
+p i a b -&gt; p i (a, c) (b, c)
+</span><span class="hs-identifier hs-var">first'</span></span><span>
+</span><span id="line-115"></span><span>  </span><span class="annot"><span class="annottext">(p i (Either t a) (Either t b)
+ -&gt; p i (Either t a, b -&gt; t) (Either t b, b -&gt; t))
+-&gt; (p i a b -&gt; p i (Either t a) (Either t b))
+-&gt; p i a b
+-&gt; p i (Either t a, b -&gt; t) (Either t b, b -&gt; t)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p i a b -&gt; p i (Either t a) (Either t b)
+forall i a b c. p i a b -&gt; p i (Either c a) (Either c b)
+forall (p :: * -&gt; * -&gt; * -&gt; *) i a b c.
+Choice p =&gt;
+p i a b -&gt; p i (Either c a) (Either c b)
+</span><span class="hs-identifier hs-var">right'</span></span><span>
+</span><span id="line-116"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraversal"><span class="hs-pragma hs-type">atraversal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="annot"><span class="hs-comment">-- | Work with an affine traversal as a matcher and an updater.</span></span><span>
+</span><span id="line-119"></span><span id="local-6989586621679139027"><span id="local-6989586621679139029"><span id="local-6989586621679139030"><span id="local-6989586621679139031"><span id="local-6989586621679139032"><span id="local-6989586621679139033"><span id="local-6989586621679139034"><span class="annot"><a href="Optics.AffineTraversal.html#withAffineTraversal"><span class="hs-identifier hs-type">withAffineTraversal</span></a></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Subtyping.html#Is"><span class="hs-identifier hs-type">Is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139027"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139027"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139029"><span class="hs-identifier hs-type">is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139030"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139031"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139032"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139033"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139030"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679139031"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139032"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139030"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139033"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139031"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139034"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139034"><span class="hs-identifier hs-type">r</span></a></span></span></span></span></span></span></span></span><span>
+</span><span id="line-124"></span><span id="withAffineTraversal"><span class="annot"><span class="annottext">withAffineTraversal :: forall k (is :: IxList) s t a b r.
+Is k An_AffineTraversal =&gt;
+Optic k is s t a b
+-&gt; ((s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; r) -&gt; r
+</span><a href="Optics.AffineTraversal.html#withAffineTraversal"><span class="hs-identifier hs-var hs-var">withAffineTraversal</span></a></span></span><span> </span><span id="local-6989586621679139212"><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139212"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679139213"><span class="annot"><span class="annottext">(s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; r
+</span><a href="#local-6989586621679139213"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Optic An_AffineTraversal is s t a b
+-&gt; Optic_
+     An_AffineTraversal
+     (AffineMarket a b)
+     (ZonkAny 1)
+     (Curry is (ZonkAny 1))
+     s
+     t
+     a
+     b
+forall (p :: * -&gt; * -&gt; * -&gt; *) k (is :: IxList) s t a b i.
+Profunctor p =&gt;
+Optic k is s t a b -&gt; Optic_ k p i (Curry is i) s t a b
+</span><a href="Optics.Internal.Optic.html#getOptic"><span class="hs-identifier hs-var">getOptic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall destKind srcKind (is :: IxList) s t a b.
+Is srcKind destKind =&gt;
+Optic srcKind is s t a b -&gt; Optic destKind is s t a b
+</span><a href="Optics.Internal.Optic.html#castOptic"><span class="hs-identifier hs-var">castOptic</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139212"><span class="hs-identifier hs-var">o</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b -&gt; b)
+-&gt; (a -&gt; Either b a) -&gt; AffineMarket a b (ZonkAny 1) a b
+forall a b i s t.
+(s -&gt; b -&gt; t) -&gt; (s -&gt; Either t a) -&gt; AffineMarket a b i s t
+</span><span class="hs-identifier hs-var">AffineMarket</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679139217"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679139217"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679139217"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either b a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">AffineMarket</span></span><span> </span><span id="local-6989586621679139218"><span class="annot"><span class="annottext">s -&gt; b -&gt; t
+</span><a href="#local-6989586621679139218"><span class="hs-identifier hs-var">update</span></a></span></span><span> </span><span id="local-6989586621679139219"><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139219"><span class="hs-identifier hs-var">match</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; r
+</span><a href="#local-6989586621679139213"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139219"><span class="hs-identifier hs-var">match</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; b -&gt; t
+</span><a href="#local-6989586621679139218"><span class="hs-identifier hs-var">update</span></a></span><span>
+</span><span id="line-127"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#withAffineTraversal"><span class="hs-pragma hs-type">withAffineTraversal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Build an affine traversal from the van Laarhoven representation.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- azSnd = atraversalVL $ \point f ab@(a, b) -&gt;</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--   if a &gt;= 'a' &amp;&amp; a &lt;= 'z'</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--   then (a, ) &lt;$&gt; f b</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--   else point ab</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- &gt;&gt;&gt; preview azSnd ('a', &quot;Hi&quot;)</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- Just &quot;Hi&quot;</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- &gt;&gt;&gt; preview azSnd ('@', &quot;Hi&quot;)</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- &gt;&gt;&gt; over azSnd (++ &quot;!!!&quot;) ('f', &quot;Hi&quot;)</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- ('f',&quot;Hi!!!&quot;)</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- &gt;&gt;&gt; set azSnd &quot;Bye&quot; ('Y', &quot;Hi&quot;)</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- ('Y',&quot;Hi&quot;)</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span id="local-6989586621679139070"><span id="local-6989586621679139071"><span id="local-6989586621679139072"><span id="local-6989586621679139073"><span class="annot"><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-identifier hs-type">atraversalVL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversalVL"><span class="hs-identifier hs-type">AffineTraversalVL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139070"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139071"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139072"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139073"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal"><span class="hs-identifier hs-type">AffineTraversal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139070"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139071"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139072"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139073"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-153"></span><span id="atraversalVL"><span class="annot"><span class="annottext">atraversalVL :: forall s t a b.
+AffineTraversalVL s t a b -&gt; AffineTraversal s t a b
+</span><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-identifier hs-var hs-var">atraversalVL</span></a></span></span><span> </span><span id="local-6989586621679139220"><span class="annot"><span class="annottext">AffineTraversalVL s t a b
+</span><a href="#local-6989586621679139220"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+ Profunctor p =&gt;
+ Optic_ An_AffineTraversal p i (Curry NoIx i) s t a b)
+-&gt; Optic An_AffineTraversal NoIx s t a b
+forall k (is :: IxList) s t a b.
+(forall (p :: * -&gt; * -&gt; * -&gt; *) i.
+ Profunctor p =&gt;
+ Optic_ k p i (Curry is i) s t a b)
+-&gt; Optic k is s t a b
+</span><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-var">Optic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AffineTraversalVL s t a b -&gt; p i a b -&gt; p i s t
+forall i s t a b.
+(forall (f :: * -&gt; *).
+ Functor f =&gt;
+ (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t)
+-&gt; p i a b -&gt; p i s t
+forall (p :: * -&gt; * -&gt; * -&gt; *) i s t a b.
+Visiting p =&gt;
+(forall (f :: * -&gt; *).
+ Functor f =&gt;
+ (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t)
+-&gt; p i a b -&gt; p i s t
+</span><span class="hs-identifier hs-var">visit</span></span><span> </span><span class="annot"><span class="annottext">(forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+AffineTraversalVL s t a b
+</span><a href="#local-6989586621679139220"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-pragma hs-type">atraversalVL</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- | Traverse over the target of an 'AffineTraversal' and compute a</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- 'Functor'-based answer.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- @since 0.3</span><span>
+</span><span id="line-160"></span><span id="local-6989586621679139090"><span id="local-6989586621679139091"><span id="local-6989586621679139092"><span id="local-6989586621679139093"><span id="local-6989586621679139094"><span id="local-6989586621679139095"><span id="local-6989586621679139096"><span class="annot"><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-identifier hs-type">atraverseOf</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Optics.Internal.Optic.Subtyping.html#Is"><span class="hs-identifier hs-type">Is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139090"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679139091"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139090"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139092"><span class="hs-identifier hs-type">is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139093"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139094"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139095"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139096"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679139097"><span class="annot"><a href="#local-6989586621679139097"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679139097"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139091"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139097"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139095"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139091"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139096"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139093"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139091"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139094"><span class="hs-identifier hs-type">t</span></a></span></span></span></span></span></span></span></span><span>
+</span><span id="line-164"></span><span id="atraverseOf"><span class="annot"><span class="annottext">atraverseOf :: forall k (f :: * -&gt; *) (is :: IxList) s t a b.
+(Is k An_AffineTraversal, Functor f) =&gt;
+Optic k is s t a b
+-&gt; (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-identifier hs-var hs-var">atraverseOf</span></a></span></span><span> </span><span id="local-6989586621679139236"><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139236"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span id="local-6989586621679139237"><span class="annot"><span class="annottext">forall r. r -&gt; f r
+</span><a href="#local-6989586621679139237"><span class="hs-identifier hs-var">point</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="annottext">StarA f (Curry is (ZonkAny 0)) s t -&gt; s -&gt; f t
+forall (f :: * -&gt; *) i a b. StarA f i a b -&gt; a -&gt; f b
+</span><span class="hs-identifier hs-var">runStarA</span></span><span> </span><span class="annot"><span class="annottext">(StarA f (Curry is (ZonkAny 0)) s t -&gt; s -&gt; f t)
+-&gt; ((a -&gt; f b) -&gt; StarA f (Curry is (ZonkAny 0)) s t)
+-&gt; (a -&gt; f b)
+-&gt; s
+-&gt; f t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Optic An_AffineTraversal is s t a b
+-&gt; Optic_
+     An_AffineTraversal
+     (StarA f)
+     (ZonkAny 0)
+     (Curry is (ZonkAny 0))
+     s
+     t
+     a
+     b
+forall (p :: * -&gt; * -&gt; * -&gt; *) k (is :: IxList) s t a b i.
+Profunctor p =&gt;
+Optic k is s t a b -&gt; Optic_ k p i (Curry is i) s t a b
+</span><a href="Optics.Internal.Optic.html#getOptic"><span class="hs-identifier hs-var">getOptic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall destKind srcKind (is :: IxList) s t a b.
+Is srcKind destKind =&gt;
+Optic srcKind is s t a b -&gt; Optic destKind is s t a b
+</span><a href="Optics.Internal.Optic.html#castOptic"><span class="hs-identifier hs-var">castOptic</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139236"><span class="hs-identifier hs-var">o</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Optic__ (StarA f) (ZonkAny 0) (Curry is (ZonkAny 0)) s t a b
+-&gt; ((a -&gt; f b) -&gt; StarA f (ZonkAny 0) a b)
+-&gt; (a -&gt; f b)
+-&gt; StarA f (Curry is (ZonkAny 0)) s t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; StarA f (ZonkAny 0) a b
+forall (f :: * -&gt; *) i a b.
+(forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; StarA f i a b
+</span><span class="hs-identifier hs-var">StarA</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; f r
+forall r. r -&gt; f r
+</span><a href="#local-6989586621679139237"><span class="hs-identifier hs-var">point</span></a></span><span>
+</span><span id="line-166"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-pragma hs-type">atraverseOf</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | Retrieve the value targeted by an 'AffineTraversal' or return the original</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- value while allowing the type to change if it does not match.</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- 'Optics.AffineFold.preview' o &#8801; 'either' ('const' 'Nothing') 'id' . 'matching' o</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-174"></span><span id="local-6989586621679139118"><span id="local-6989586621679139119"><span id="local-6989586621679139120"><span id="local-6989586621679139121"><span id="local-6989586621679139122"><span id="local-6989586621679139123"><span class="annot"><a href="Optics.AffineTraversal.html#matching"><span class="hs-identifier hs-type">matching</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Subtyping.html#Is"><span class="hs-identifier hs-type">Is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139118"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139118"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139119"><span class="hs-identifier hs-type">is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139120"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139121"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139122"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139123"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679139120"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679139121"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139122"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span></span></span><span>
+</span><span id="line-175"></span><span id="matching"><span class="annot"><span class="annottext">matching :: forall k (is :: IxList) s t a b.
+Is k An_AffineTraversal =&gt;
+Optic k is s t a b -&gt; s -&gt; Either t a
+</span><a href="Optics.AffineTraversal.html#matching"><span class="hs-identifier hs-var hs-var">matching</span></a></span></span><span> </span><span id="local-6989586621679139243"><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139243"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+-&gt; ((s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; s -&gt; Either t a)
+-&gt; s
+-&gt; Either t a
+forall k (is :: IxList) s t a b r.
+Is k An_AffineTraversal =&gt;
+Optic k is s t a b
+-&gt; ((s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; r) -&gt; r
+</span><a href="Optics.AffineTraversal.html#withAffineTraversal"><span class="hs-identifier hs-var">withAffineTraversal</span></a></span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139243"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">(((s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; s -&gt; Either t a)
+ -&gt; s -&gt; Either t a)
+-&gt; ((s -&gt; Either t a) -&gt; (s -&gt; b -&gt; t) -&gt; s -&gt; Either t a)
+-&gt; s
+-&gt; Either t a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679139244"><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139244"><span class="hs-identifier hs-var">match</span></a></span></span><span> </span><span class="annot"><span class="annottext">s -&gt; b -&gt; t
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679139244"><span class="hs-identifier hs-var">match</span></a></span><span>
+</span><span id="line-176"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#matching"><span class="hs-pragma hs-type">matching</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Try the first 'AffineTraversal'. If it does not return an entry, try the</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- second one.</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- &gt;&gt;&gt; over (ix 2 `adisjoin` ix 1) (*5) [1,2,3]</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- [1,2,15]</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- &gt;&gt;&gt; over (ix 2 `adisjoin` ix 1) (*5) [1,2]</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- [1,10]</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- @since 0.4.3</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span id="local-6989586621679139130"><span id="local-6989586621679139131"><span id="local-6989586621679139132"><span id="local-6989586621679139133"><span id="local-6989586621679139134"><span id="local-6989586621679139135"><span id="local-6989586621679139136"><span id="local-6989586621679139137"><span class="annot"><a href="Optics.AffineTraversal.html#adisjoin"><span class="hs-identifier hs-type">adisjoin</span></a></span><span>
+</span><span id="line-189"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Optics.Internal.Optic.Subtyping.html#Is"><span class="hs-identifier hs-type">Is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139130"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Subtyping.html#Is"><span class="hs-identifier hs-type">Is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139131"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="Optics.Internal.Optic.Types.html#An_AffineTraversal"><span class="hs-identifier hs-type">An_AffineTraversal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139130"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139132"><span class="hs-identifier hs-type">is</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139133"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139135"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139136"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Optics.Internal.Optic.html#Optic"><span class="hs-identifier hs-type">Optic</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139131"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139137"><span class="hs-identifier hs-type">js</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139133"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139135"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139136"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal"><span class="hs-identifier hs-type">AffineTraversal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139133"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139135"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139136"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-193"></span><span id="adisjoin"><span class="annot"><span class="annottext">adisjoin :: forall k l (is :: IxList) s t a b (js :: IxList).
+(Is k An_AffineTraversal, Is l An_AffineTraversal) =&gt;
+Optic k is s t a b -&gt; Optic l js s t a b -&gt; AffineTraversal s t a b
+</span><a href="Optics.AffineTraversal.html#adisjoin"><span class="hs-identifier hs-var hs-var">adisjoin</span></a></span></span><span> </span><span id="local-6989586621679139247"><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139247"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679139248"><span class="annot"><span class="annottext">Optic l js s t a b
+</span><a href="#local-6989586621679139248"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AffineTraversalVL s t a b -&gt; AffineTraversal s t a b
+forall s t a b.
+AffineTraversalVL s t a b -&gt; AffineTraversal s t a b
+</span><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-identifier hs-var">atraversalVL</span></a></span><span> </span><span class="annot"><span class="annottext">(AffineTraversalVL s t a b -&gt; AffineTraversal s t a b)
+-&gt; AffineTraversalVL s t a b -&gt; AffineTraversal s t a b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679139255"><span class="annot"><span class="annottext">forall r. r -&gt; f r
+</span><a href="#local-6989586621679139255"><span class="hs-identifier hs-var">point</span></a></span></span><span> </span><span id="local-6989586621679139256"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679139256"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679139257"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139257"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="annot"><a href="Optics.Internal.Utils.html#OrT"><span class="hs-identifier hs-type">OrT</span></a></span><span> </span><span id="local-6989586621679139259"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679139259"><span class="hs-identifier hs-var">visited</span></a></span></span><span> </span><span id="local-6989586621679139260"><span class="annot"><span class="annottext">f t
+</span><a href="#local-6989586621679139260"><span class="hs-identifier hs-var">fu</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+-&gt; (forall r. r -&gt; OrT f r) -&gt; (a -&gt; OrT f b) -&gt; s -&gt; OrT f t
+forall k (f :: * -&gt; *) (is :: IxList) s t a b.
+(Is k An_AffineTraversal, Functor f) =&gt;
+Optic k is s t a b
+-&gt; (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-identifier hs-var">atraverseOf</span></a></span><span> </span><span class="annot"><span class="annottext">Optic k is s t a b
+</span><a href="#local-6989586621679139247"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; f r -&gt; OrT f r
+forall {k} (f :: k -&gt; *) (a :: k). Bool -&gt; f a -&gt; OrT f a
+</span><a href="Optics.Internal.Utils.html#OrT"><span class="hs-identifier hs-var">OrT</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">(f r -&gt; OrT f r) -&gt; (r -&gt; f r) -&gt; r -&gt; OrT f r
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; f r
+forall r. r -&gt; f r
+</span><a href="#local-6989586621679139255"><span class="hs-identifier hs-var">point</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f b -&gt; OrT f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; OrT f a
+</span><a href="Optics.Internal.Utils.html#wrapOrT"><span class="hs-identifier hs-var">wrapOrT</span></a></span><span> </span><span class="annot"><span class="annottext">(f b -&gt; OrT f b) -&gt; (a -&gt; f b) -&gt; a -&gt; OrT f b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679139256"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139257"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679139259"><span class="hs-identifier hs-var">visited</span></a></span><span>
+</span><span id="line-196"></span><span>     </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">f t
+</span><a href="#local-6989586621679139260"><span class="hs-identifier hs-var">fu</span></a></span><span>
+</span><span id="line-197"></span><span>     </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Optic l js s t a b
+-&gt; (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+forall k (f :: * -&gt; *) (is :: IxList) s t a b.
+(Is k An_AffineTraversal, Functor f) =&gt;
+Optic k is s t a b
+-&gt; (forall r. r -&gt; f r) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Optics.AffineTraversal.html#atraverseOf"><span class="hs-identifier hs-var">atraverseOf</span></a></span><span> </span><span class="annot"><span class="annottext">Optic l js s t a b
+</span><a href="#local-6989586621679139248"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">r -&gt; f r
+forall r. r -&gt; f r
+</span><a href="#local-6989586621679139255"><span class="hs-identifier hs-var">point</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679139256"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679139257"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-198"></span><span class="hs-keyword">infixl</span><span> </span><span class="hs-number">3</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#adisjoin"><span class="hs-operator hs-type">`adisjoin`</span></a></span><span> </span><span class="hs-comment">-- Same as (&lt;|&gt;)</span><span>
+</span><span id="line-199"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#adisjoin"><span class="hs-pragma hs-type">adisjoin</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- | Filter result(s) of a traversal that don't satisfy a predicate.</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- /Note:/ This is /not/ a legal 'Optics.Traversal.Traversal', unless you are</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- very careful not to invalidate the predicate on the target.</span><span>
+</span><span id="line-205"></span><span class="hs-comment">--</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- As a counter example, consider that given @evens = 'unsafeFiltered' 'even'@</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- the second 'Optics.Traversal.Traversal' law is violated:</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- 'Optics.Setter.over' evens 'succ' '.' 'Optics.over' evens 'succ' '/=' 'Optics.Setter.over' evens ('succ' '.' 'succ')</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- So, in order for this to qualify as a legal 'Optics.Traversal.Traversal' you</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- can only use it for actions that preserve the result of the predicate!</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- For a safe variant see 'Optics.IxTraversal.indices' (or</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- 'Optics.AffineFold.filtered' for read-only optics).</span><span>
+</span><span id="line-218"></span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span id="local-6989586621679139157"><span class="annot"><a href="Optics.AffineTraversal.html#unsafeFiltered"><span class="hs-identifier hs-type">unsafeFiltered</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679139157"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#AffineTraversal%27"><span class="hs-identifier hs-type">AffineTraversal'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139157"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679139157"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-220"></span><span id="unsafeFiltered"><span class="annot"><span class="annottext">unsafeFiltered :: forall a. (a -&gt; Bool) -&gt; AffineTraversal' a a
+</span><a href="Optics.AffineTraversal.html#unsafeFiltered"><span class="hs-identifier hs-var hs-var">unsafeFiltered</span></a></span></span><span> </span><span id="local-6989586621679139265"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679139265"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AffineTraversalVL a a a a -&gt; AffineTraversal a a a a
+forall s t a b.
+AffineTraversalVL s t a b -&gt; AffineTraversal s t a b
+</span><a href="Optics.AffineTraversal.html#atraversalVL"><span class="hs-identifier hs-var">atraversalVL</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679139267"><span class="annot"><span class="annottext">forall r. r -&gt; f r
+</span><a href="#local-6989586621679139267"><span class="hs-identifier hs-var">point</span></a></span></span><span> </span><span id="local-6989586621679139268"><span class="annot"><span class="annottext">a -&gt; f a
+</span><a href="#local-6989586621679139268"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679139269"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139269"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679139265"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139269"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+</span><a href="#local-6989586621679139268"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139269"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall r. r -&gt; f r
+</span><a href="#local-6989586621679139267"><span class="hs-identifier hs-var">point</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679139269"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Optics.AffineTraversal.html#unsafeFiltered"><span class="hs-pragma hs-type">unsafeFiltered</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-222"></span></pre></body></html>

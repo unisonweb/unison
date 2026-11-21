@@ -1,0 +1,85 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-orphans #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy, FlexibleInstances, UnicodeSyntax #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | This module exports all the things at the same time, plus a utility</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- function.</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.html"><span class="hs-identifier">Network.HTTP.Link</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html"><span class="hs-identifier">Network.HTTP.Link.Types</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Writer.html"><span class="hs-identifier">Network.HTTP.Link.Writer</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Parser.html"><span class="hs-identifier">Network.HTTP.Link.Parser</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Link.html#lnk"><span class="hs-identifier">lnk</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Error.Util</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hush</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">encodeUtf8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">safe</span><span>      </span><span class="annot"><a href="Network.HTTP.Link.Parser.html"><span class="hs-identifier">Network.HTTP.Link.Parser</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">safe</span><span>      </span><span class="annot"><a href="Network.HTTP.Link.Types.html"><span class="hs-identifier">Network.HTTP.Link.Types</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">safe</span><span>      </span><span class="annot"><a href="Network.HTTP.Link.Writer.html"><span class="hs-identifier">Network.HTTP.Link.Writer</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Web.HttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ToHttpApiData</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071941"><span id="local-6989586621679071968"><span id="local-6989586621679071973"><span id="local-6989586621679071976"><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071941"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToHttpApiData</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071941"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">]</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>  </span><span id="local-6989586621679071982"><span class="annot"><span class="annottext">toUrlPiece :: [Link uri] -&gt; Text
+</span><a href="#local-6989586621679071982"><span class="hs-identifier hs-var hs-var hs-var">toUrlPiece</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+forall a. ToHttpApiData a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">toUrlPiece</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; ([Link uri] -&gt; Text) -&gt; [Link uri] -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Link uri] -&gt; Text
+forall uri. IsURI uri =&gt; [Link uri] -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLinkHeader"><span class="hs-identifier hs-var">writeLinkHeader</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span id="local-6989586621679071987"><span class="annot"><span class="annottext">toHeader :: [Link uri] -&gt; ByteString
+</span><a href="#local-6989586621679071987"><span class="hs-identifier hs-var hs-var hs-var">toHeader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString)
+-&gt; ([Link uri] -&gt; Text) -&gt; [Link uri] -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Link uri] -&gt; Text
+forall uri. IsURI uri =&gt; [Link uri] -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLinkHeader"><span class="hs-identifier hs-var">writeLinkHeader</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071946"><span id="local-6989586621679071992"><span id="local-6989586621679071997"><span id="local-6989586621679072000"><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071946"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToHttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071946"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679072004"><span class="annot"><span class="annottext">toUrlPiece :: Link uri -&gt; Text
+</span><span class="hs-identifier hs-var hs-var hs-var">toUrlPiece</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+forall a. ToHttpApiData a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">toUrlPiece</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; (Link uri -&gt; Text) -&gt; Link uri -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Link uri -&gt; Text
+forall uri. IsURI uri =&gt; Link uri -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier hs-var">writeLink</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679072007"><span class="annot"><span class="annottext">toHeader :: Link uri -&gt; ByteString
+</span><span class="hs-identifier hs-var hs-var hs-var">toHeader</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString)
+-&gt; (Link uri -&gt; Text) -&gt; Link uri -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Link uri -&gt; Text
+forall uri. IsURI uri =&gt; Link uri -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier hs-var">writeLink</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- | Construct a Link.</span></span><span>
+</span><span id="line-30"></span><span id="local-6989586621679071947"><span class="annot"><a href="Network.HTTP.Link.html#lnk"><span class="hs-identifier hs-type">lnk</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071947"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-type">LinkParam</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071947"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-31"></span><span id="lnk"><span class="annot"><span class="annottext">lnk :: forall uri.
+IsURI uri =&gt;
+String -&gt; [(LinkParam, Text)] -&gt; Maybe (Link uri)
+</span><a href="Network.HTTP.Link.html#lnk"><span class="hs-identifier hs-var hs-var">lnk</span></a></span></span><span> </span><span id="local-6989586621679072012"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679072012"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679072013"><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679072013"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(uri -&gt; Link uri) -&gt; Maybe uri -&gt; Maybe (Link uri)
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679072014"><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679072014"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="annottext">uri -&gt; [(LinkParam, Text)] -&gt; Link uri
+forall uri. uri -&gt; [(LinkParam, Text)] -&gt; Link uri
+</span><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-var">Link</span></a></span><span> </span><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679072014"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679072013"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe uri -&gt; Maybe (Link uri)) -&gt; Maybe uri -&gt; Maybe (Link uri)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Either String uri -&gt; Maybe uri
+forall a b. Either a b -&gt; Maybe b
+</span><span class="hs-identifier hs-var">hush</span></span><span> </span><span class="annot"><span class="annottext">(Either String uri -&gt; Maybe uri) -&gt; Either String uri -&gt; Maybe uri
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String uri
+forall uri. IsURI uri =&gt; Text -&gt; Either String uri
+</span><a href="Network.HTTP.Link.Types.html#uriFromText"><span class="hs-identifier hs-var">uriFromText</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either String uri) -&gt; Text -&gt; Either String uri
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679072012"><span class="hs-identifier hs-var">u</span></a></span><span>
+</span><span id="line-32"></span></pre></body></html>

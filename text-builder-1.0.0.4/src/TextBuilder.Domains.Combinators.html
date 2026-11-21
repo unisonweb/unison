@@ -1,0 +1,139 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html"><span class="hs-identifier">TextBuilder.Domains.Combinators</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Prelude.html"><span class="hs-identifier">TextBuilder.Prelude</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">intercalate</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">TextBuilderCore</span></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Run the builder and pack the produced text into a new builder.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Useful to have around builders that you reuse,</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- because a forced builder is much faster,</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- since it's virtually a single call to @memcopy@.</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#force"><span class="hs-pragma hs-type">force</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-13"></span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#force"><span class="hs-identifier hs-type">force</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span>
+</span><span id="line-14"></span><span id="force"><span class="annot"><span class="annottext">force :: TextBuilder -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Combinators.html#force"><span class="hs-identifier hs-var hs-var">force</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; TextBuilder)
+-&gt; (TextBuilder -&gt; Text) -&gt; TextBuilder -&gt; TextBuilder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; Text
+</span><span class="hs-identifier hs-var">toText</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | Intercalate builders.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- &gt;&gt;&gt; intercalate &quot;, &quot; [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &quot;a, b, c&quot;</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt;&gt;&gt; intercalate &quot;, &quot; [&quot;a&quot;]</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &quot;a&quot;</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- &gt;&gt;&gt; intercalate &quot;, &quot; []</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &quot;&quot;</span><span>
+</span><span id="line-26"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalate"><span class="hs-pragma hs-type">intercalate</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-27"></span><span id="local-6989586621679083696"><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalate"><span class="hs-identifier hs-type">intercalate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679083696"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083696"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-28"></span><span id="intercalate"><span class="annot"><span class="annottext">intercalate :: forall (f :: * -&gt; *).
+Foldable f =&gt;
+TextBuilder -&gt; f TextBuilder -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Combinators.html#intercalate"><span class="hs-identifier hs-var hs-var">intercalate</span></a></span></span><span> </span><span id="local-6989586621679083735"><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083735"><span class="hs-identifier hs-var">separator</span></a></span></span><span> </span><span id="local-6989586621679083736"><span class="annot"><span class="annottext">f TextBuilder
+</span><a href="#local-6989586621679083736"><span class="hs-identifier hs-var">elements</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="annottext">(TextBuilder
+ -&gt; (TextBuilder -&gt; TextBuilder) -&gt; TextBuilder -&gt; TextBuilder)
+-&gt; (TextBuilder -&gt; TextBuilder)
+-&gt; f TextBuilder
+-&gt; TextBuilder
+-&gt; TextBuilder
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679083738"><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083738"><span class="hs-identifier hs-var">element</span></a></span></span><span> </span><span id="local-6989586621679083739"><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder
+</span><a href="#local-6989586621679083739"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679083740"><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083740"><span class="hs-identifier hs-var">prefix</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083740"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083738"><span class="hs-identifier hs-var">element</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder
+</span><a href="#local-6989586621679083739"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083735"><span class="hs-identifier hs-var">separator</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="annottext">f TextBuilder
+</span><a href="#local-6989586621679083736"><span class="hs-identifier hs-var">elements</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="annottext">TextBuilder
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><span class="hs-comment">-- | Intercalate projecting values to builder.</span></span><span>
+</span><span id="line-36"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalateMap"><span class="hs-pragma hs-type">intercalateMap</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-37"></span><span id="local-6989586621679083705"><span id="local-6989586621679083706"><span class="annot"><a href="TextBuilder.Domains.Combinators.html#intercalateMap"><span class="hs-identifier hs-type">intercalateMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679083705"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083706"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083705"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679083706"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span></span><span>
+</span><span id="line-38"></span><span id="intercalateMap"><span class="annot"><span class="annottext">intercalateMap :: forall (f :: * -&gt; *) a.
+Foldable f =&gt;
+TextBuilder -&gt; (a -&gt; TextBuilder) -&gt; f a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Combinators.html#intercalateMap"><span class="hs-identifier hs-var hs-var">intercalateMap</span></a></span></span><span> </span><span id="local-6989586621679083749"><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083749"><span class="hs-identifier hs-var">separator</span></a></span></span><span> </span><span id="local-6989586621679083750"><span class="annot"><span class="annottext">a -&gt; TextBuilder
+</span><a href="#local-6989586621679083750"><span class="hs-identifier hs-var">mapper</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe TextBuilder -&gt; TextBuilder
+forall {a}. Monoid a =&gt; Maybe a -&gt; a
+</span><a href="#local-6989586621679083751"><span class="hs-identifier hs-var">extract</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe TextBuilder -&gt; TextBuilder)
+-&gt; (f a -&gt; Maybe TextBuilder) -&gt; f a -&gt; TextBuilder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Maybe TextBuilder -&gt; a -&gt; Maybe TextBuilder)
+-&gt; Maybe TextBuilder -&gt; f a -&gt; Maybe TextBuilder
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; f a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Maybe TextBuilder -&gt; a -&gt; Maybe TextBuilder
+</span><a href="#local-6989586621679083753"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TextBuilder
+forall {a}. Maybe a
+</span><a href="#local-6989586621679083754"><span class="hs-identifier hs-var">init</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679083754"><span class="annot"><span class="annottext">init :: Maybe a
+</span><a href="#local-6989586621679083754"><span class="hs-identifier hs-var hs-var">init</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall {a}. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679083753"><span class="annot"><span class="annottext">step :: Maybe TextBuilder -&gt; a -&gt; Maybe TextBuilder
+</span><a href="#local-6989586621679083753"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679083755"><span class="annot"><span class="annottext">Maybe TextBuilder
+</span><a href="#local-6989586621679083755"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679083756"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083756"><span class="hs-identifier hs-var">element</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="annottext">TextBuilder -&gt; Maybe TextBuilder
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(TextBuilder -&gt; Maybe TextBuilder)
+-&gt; TextBuilder -&gt; Maybe TextBuilder
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe TextBuilder
+</span><a href="#local-6989586621679083755"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">Maybe TextBuilder
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+</span><a href="#local-6989586621679083750"><span class="hs-identifier hs-var">mapper</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083756"><span class="hs-identifier hs-var">element</span></a></span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679083757"><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083757"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083757"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><a href="#local-6989586621679083749"><span class="hs-identifier hs-var">separator</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+</span><a href="#local-6989586621679083750"><span class="hs-identifier hs-var">mapper</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083756"><span class="hs-identifier hs-var">element</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679083751"><span class="annot"><span class="annottext">extract :: Maybe a -&gt; a
+</span><a href="#local-6989586621679083751"><span class="hs-identifier hs-var hs-var">extract</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a -&gt; a
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-46"></span></pre></body></html>

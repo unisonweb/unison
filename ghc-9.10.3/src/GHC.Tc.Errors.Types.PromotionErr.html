@@ -1,0 +1,204 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html"><span class="hs-identifier">GHC.Tc.Errors.Types.PromotionErr</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PromotionErr"><span class="hs-identifier">PromotionErr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>                                        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#pprPECategory"><span class="hs-identifier">pprPECategory</span></a></span><span>
+</span><span id="line-4"></span><span>                                        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier">peCategory</span></a></span><span>
+</span><span id="line-5"></span><span>                                        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermLevelUseErr"><span class="hs-identifier">TermLevelUseErr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>                                        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#teCategory"><span class="hs-identifier">teCategory</span></a></span><span>
+</span><span id="line-7"></span><span>                                        </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Type.html"><span class="hs-identifier">GHC.Core.Type</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#ThetaType"><span class="hs-identifier">ThetaType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="PromotionErr"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PromotionErr"><span class="hs-identifier hs-var">PromotionErr</span></a></span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TyConPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyConPE"><span class="hs-identifier hs-var">TyConPE</span></a></span></span><span>          </span><span class="hs-comment">-- TyCon used in a kind before we are ready</span><span>
+</span><span id="line-17"></span><span>                     </span><span class="hs-comment">--     data T :: T -&gt; * where ...</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ClassPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#ClassPE"><span class="hs-identifier hs-var">ClassPE</span></a></span></span><span>          </span><span class="hs-comment">-- Ditto Class</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FamDataConPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#FamDataConPE"><span class="hs-identifier hs-var">FamDataConPE</span></a></span></span><span>     </span><span class="hs-comment">-- Data constructor for a data family</span><span>
+</span><span id="line-21"></span><span>                     </span><span class="hs-comment">-- See Note [AFamDataCon: not promoting data family constructors]</span><span>
+</span><span id="line-22"></span><span>                     </span><span class="hs-comment">-- in GHC.Tc.Utils.Env.</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConstrainedDataConPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#ConstrainedDataConPE"><span class="hs-identifier hs-var">ConstrainedDataConPE</span></a></span></span><span> </span><span class="annot"><a href="GHC.Core.TyCo.Rep.html#ThetaType"><span class="hs-identifier hs-type">ThetaType</span></a></span><span> </span><span class="hs-comment">-- Data constructor with a context</span><span>
+</span><span id="line-24"></span><span>                                   </span><span class="hs-comment">-- See Note [No constraints in kinds] in GHC.Tc.Validity</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PatSynPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PatSynPE"><span class="hs-identifier hs-var">PatSynPE</span></a></span></span><span>         </span><span class="hs-comment">-- Pattern synonyms</span><span>
+</span><span id="line-26"></span><span>                     </span><span class="hs-comment">-- See Note [Don't promote pattern synonyms] in GHC.Tc.Utils.Env</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RecDataConPE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#RecDataConPE"><span class="hs-identifier hs-var">RecDataConPE</span></a></span></span><span>     </span><span class="hs-comment">-- Data constructor in a recursive loop</span><span>
+</span><span id="line-29"></span><span>                     </span><span class="hs-comment">-- See Note [Recursion and promoting data constructors] in GHC.Tc.TyCl</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TermVariablePE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermVariablePE"><span class="hs-identifier hs-var">TermVariablePE</span></a></span></span><span>   </span><span class="hs-comment">-- See Note [Demotion of unqualified variables] in GHC.Rename.Env</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TypeVariablePE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TypeVariablePE"><span class="hs-identifier hs-var">TypeVariablePE</span></a></span></span><span>   </span><span class="hs-comment">-- See Note [Type variable scoping errors during typechecking]</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682421610"><span id="local-6989586621682421612"><span class="annot"><span class="annottext">(forall x. PromotionErr -&gt; Rep PromotionErr x)
+-&gt; (forall x. Rep PromotionErr x -&gt; PromotionErr)
+-&gt; Generic PromotionErr
+forall x. Rep PromotionErr x -&gt; PromotionErr
+forall x. PromotionErr -&gt; Rep PromotionErr x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. PromotionErr -&gt; Rep PromotionErr x
+from :: forall x. PromotionErr -&gt; Rep PromotionErr x
+$cto :: forall x. Rep PromotionErr x -&gt; PromotionErr
+to :: forall x. Rep PromotionErr x -&gt; PromotionErr
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PromotionErr"><span class="hs-identifier hs-type">PromotionErr</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682421634"><span class="annot"><span class="annottext">ppr :: PromotionErr -&gt; SDoc
+</span><a href="#local-6989586621682421634"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#ClassPE"><span class="hs-identifier hs-var">ClassPE</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClassPE&quot;</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyConPE"><span class="hs-identifier hs-var">TyConPE</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TyConPE&quot;</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#PatSynPE"><span class="hs-identifier hs-var">PatSynPE</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PatSynPE&quot;</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#FamDataConPE"><span class="hs-identifier hs-var">FamDataConPE</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FamDataConPE&quot;</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#ConstrainedDataConPE"><span class="hs-identifier hs-type">ConstrainedDataConPE</span></a></span><span> </span><span id="local-6989586621682421637"><span class="annot"><span class="annottext">ThetaType
+</span><a href="#local-6989586621682421637"><span class="hs-identifier hs-var">theta</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ConstrainedDataConPE&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#parens"><span class="hs-identifier hs-var">parens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ThetaType -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ThetaType
+</span><a href="#local-6989586621682421637"><span class="hs-identifier hs-var">theta</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#RecDataConPE"><span class="hs-identifier hs-var">RecDataConPE</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RecDataConPE&quot;</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermVariablePE"><span class="hs-identifier hs-var">TermVariablePE</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TermVariablePE&quot;</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TypeVariablePE"><span class="hs-identifier hs-var">TypeVariablePE</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TypeVariablePE&quot;</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#pprPECategory"><span class="hs-identifier hs-type">pprPECategory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PromotionErr"><span class="hs-identifier hs-type">PromotionErr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span>
+</span><span id="line-45"></span><span id="pprPECategory"><span class="annot"><span class="annottext">pprPECategory :: PromotionErr -&gt; SDoc
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#pprPECategory"><span class="hs-identifier hs-var hs-var">pprPECategory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; SDoc)
+-&gt; (PromotionErr -&gt; String) -&gt; PromotionErr -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String
+</span><a href="GHC.Utils.Misc.html#capitalise"><span class="hs-identifier hs-var">capitalise</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String)
+-&gt; (PromotionErr -&gt; String) -&gt; PromotionErr -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PromotionErr -&gt; String
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-type">peCategory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#PromotionErr"><span class="hs-identifier hs-type">PromotionErr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-48"></span><span id="peCategory"><span class="annot"><span class="annottext">peCategory :: PromotionErr -&gt; String
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var hs-var">peCategory</span></a></span></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#ClassPE"><span class="hs-identifier hs-var">ClassPE</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;class&quot;</span></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyConPE"><span class="hs-identifier hs-var">TyConPE</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;type constructor&quot;</span></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#PatSynPE"><span class="hs-identifier hs-var">PatSynPE</span></a></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;pattern synonym&quot;</span></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#FamDataConPE"><span class="hs-identifier hs-var">FamDataConPE</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;data constructor&quot;</span></span><span>
+</span><span id="line-52"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#ConstrainedDataConPE"><span class="hs-identifier hs-type">ConstrainedDataConPE</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;data constructor&quot;</span></span><span>
+</span><span id="line-53"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#RecDataConPE"><span class="hs-identifier hs-var">RecDataConPE</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;data constructor&quot;</span></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermVariablePE"><span class="hs-identifier hs-var">TermVariablePE</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;term variable&quot;</span></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#peCategory"><span class="hs-identifier hs-var">peCategory</span></a></span><span> </span><span class="annot"><span class="annottext">PromotionErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TypeVariablePE"><span class="hs-identifier hs-var">TypeVariablePE</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;type variable&quot;</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- The opposite of a promotion error (a demotion error, in a sense).</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="TermLevelUseErr"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermLevelUseErr"><span class="hs-identifier hs-var">TermLevelUseErr</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TyConTE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyConTE"><span class="hs-identifier hs-var">TyConTE</span></a></span></span><span>   </span><span class="hs-comment">-- Type constructor used at the term level, e.g. x = Int</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ClassTE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#ClassTE"><span class="hs-identifier hs-var">ClassTE</span></a></span></span><span>   </span><span class="hs-comment">-- Class used at the term level,            e.g. x = Functor</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TyVarTE"><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyVarTE"><span class="hs-identifier hs-var">TyVarTE</span></a></span></span><span>   </span><span class="hs-comment">-- Type variable used at the term level,    e.g. f (Proxy :: Proxy a) = a</span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682421646"><span id="local-6989586621682421648"><span class="annot"><span class="annottext">(forall x. TermLevelUseErr -&gt; Rep TermLevelUseErr x)
+-&gt; (forall x. Rep TermLevelUseErr x -&gt; TermLevelUseErr)
+-&gt; Generic TermLevelUseErr
+forall x. Rep TermLevelUseErr x -&gt; TermLevelUseErr
+forall x. TermLevelUseErr -&gt; Rep TermLevelUseErr x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. TermLevelUseErr -&gt; Rep TermLevelUseErr x
+from :: forall x. TermLevelUseErr -&gt; Rep TermLevelUseErr x
+$cto :: forall x. Rep TermLevelUseErr x -&gt; TermLevelUseErr
+to :: forall x. Rep TermLevelUseErr x -&gt; TermLevelUseErr
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#teCategory"><span class="hs-identifier hs-type">teCategory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#TermLevelUseErr"><span class="hs-identifier hs-type">TermLevelUseErr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-65"></span><span id="teCategory"><span class="annot"><span class="annottext">teCategory :: TermLevelUseErr -&gt; String
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#teCategory"><span class="hs-identifier hs-var hs-var">teCategory</span></a></span></span><span> </span><span class="annot"><span class="annottext">TermLevelUseErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#ClassTE"><span class="hs-identifier hs-var">ClassTE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;class&quot;</span></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#teCategory"><span class="hs-identifier hs-var">teCategory</span></a></span><span> </span><span class="annot"><span class="annottext">TermLevelUseErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyConTE"><span class="hs-identifier hs-var">TyConTE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;type constructor&quot;</span></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="GHC.Tc.Errors.Types.PromotionErr.html#teCategory"><span class="hs-identifier hs-var">teCategory</span></a></span><span> </span><span class="annot"><span class="annottext">TermLevelUseErr
+</span><a href="GHC.Tc.Errors.Types.PromotionErr.html#TyVarTE"><span class="hs-identifier hs-var">TyVarTE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;type variable&quot;</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">{- Note [Type variable scoping errors during typechecking]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Consider the scoping of the type variable `a` in the following
+term-level example:
+
+  -- f :: [forall b . Either b ()]
+  f = [Right @a @() () :: forall a. Either a ()]
+
+Here `@a` in the type application and `a` in the type signature refer to
+the same type variable. Indeed, this term elaborates to the following Core:
+
+  f = [(\@a -&gt; Right @a @() ()) :: forall a . Either a ()]
+
+But how does this work with types? Suppose we have:
+
+  type F = '[Right @a @() () :: forall a. Either a ()]
+
+To be consistent with the term-level language, we would have to elaborate
+this using a big lambda:
+
+  type F = '[(/\ a . Right @a @() ()) :: forall a. Either a ()]
+
+Core has no such construct, so this is not a valid type.
+
+Conclusion: Even with -XExtendedForAllScope, the forall'd variables of a
+kind signature on a type cannot scope over the type.
+
+In implementation terms, to get a helpful error message we do this:
+
+* The renamer treats the type variable as bound by the forall
+  (so it doesn't just say &quot;out of scope&quot;); see the `HsKindSig` case of GHC.Rename.HsType.rnHsTyKi.
+
+* The typechecker adds the forall-bound type variables to the type environent,
+  but bound to `APromotionErr TypeVariablePE`; see the call to `tcAddKindSigPlaceholders`
+  in the `HsKindSig` case of `GHC.Tc.Gen.HsType.tc_infer_hs_type`.
+
+* The occurrence site of a type variable then complains when it finds `APromotionErr`;
+  see `GHC.Tc.Gen.HsType.tcTyVar`.
+-}</span><span>
+</span><span id="line-108"></span></pre></body></html>

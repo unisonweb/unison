@@ -1,0 +1,253 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  All rights reserved.
+
+  This source code is licensed under the BSD-style license found in the
+  LICENSE file in the root directory of this source tree.
+-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- | A more flexible way to create 'Async's and have them automatically</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- cancelled when the 'Warden' is shut down.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html"><span class="hs-identifier">Control.Concurrent.Async.Warden</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier">Warden</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#withWarden"><span class="hs-identifier">withWarden</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#create"><span class="hs-identifier">create</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#shutdown"><span class="hs-identifier">shutdown</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawn"><span class="hs-identifier">spawn</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawn_"><span class="hs-identifier">spawn_</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawnMask"><span class="hs-identifier">spawnMask</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#WardenException"><span class="hs-identifier">WardenException</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forkIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.html"><span class="hs-identifier">Control.Concurrent.Async</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#Async"><span class="hs-identifier">Async</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.html"><span class="hs-identifier">Control.Concurrent.Async</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Async</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HashSet</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HashSet</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fixIO</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if defined(__MHS__)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span> </span><span class="hs-keyword">hiding</span><span class="hs-special">(</span><span class="hs-identifier">mapM_</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad</span><span> </span><span class="hs-keyword">hiding</span><span class="hs-special">(</span><span class="hs-identifier">mapM_</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Foldable</span><span class="hs-special">(</span><span class="hs-identifier">mapM_</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | A 'Warden' is an owner of 'Async's which cancels them on 'shutdown'.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- 'Nothing' in the MVar means the 'Warden' has been shut down.</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">newtype</span><span> </span><span id="Warden"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-var">Warden</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Warden"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-var">Warden</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HashSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#Async"><span class="hs-identifier hs-type">Async</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | Run the action with a new 'Warden', and call 'shutdown' when the action</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- exits.</span><span>
+</span><span id="line-49"></span><span id="local-6989586621679063223"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#withWarden"><span class="hs-identifier hs-type">withWarden</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063223"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063223"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-50"></span><span id="withWarden"><span class="annot"><span class="annottext">withWarden :: forall a. (Warden -&gt; IO a) -&gt; IO a
+</span><a href="Control.Concurrent.Async.Warden.html#withWarden"><span class="hs-identifier hs-var hs-var">withWarden</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Warden -&gt; (Warden -&gt; IO ()) -&gt; (Warden -&gt; IO a) -&gt; IO a
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span> </span><span class="annot"><span class="annottext">IO Warden
+</span><a href="Control.Concurrent.Async.Warden.html#create"><span class="hs-identifier hs-var">create</span></a></span><span> </span><span class="annot"><span class="annottext">Warden -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Warden.html#shutdown"><span class="hs-identifier hs-var">shutdown</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Create a new 'Warden'.</span></span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#create"><span class="hs-identifier hs-type">create</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span>
+</span><span id="line-54"></span><span id="create"><span class="annot"><span class="annottext">create :: IO Warden
+</span><a href="Control.Concurrent.Async.Warden.html#create"><span class="hs-identifier hs-var hs-var">create</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ()))) -&gt; Warden
+</span><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-var">Warden</span></a></span><span> </span><span class="annot"><span class="annottext">(MVar (Maybe (HashSet (Async ()))) -&gt; Warden)
+-&gt; IO (MVar (Maybe (HashSet (Async ())))) -&gt; IO Warden
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+-&gt; IO (MVar (Maybe (HashSet (Async ()))))
+forall a. a -&gt; IO (MVar a)
+</span><span class="hs-identifier hs-var">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HashSet (Async ()) -&gt; Maybe (HashSet (Async ()))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">HashSet (Async ())
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Shutdown a 'Warden', calling 'cancel' on all owned threads. Subsequent</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- calls to 'spawn' and 'shutdown' will be no-ops. </span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- </span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Note that any exceptions thrown by the threads will be ignored. If you want</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- exceptions to be propagated, either call `wait` explicitly on the 'Async', </span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- or use 'link'.</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#shutdown"><span class="hs-identifier hs-type">shutdown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span id="shutdown"><span class="annot"><span class="annottext">shutdown :: Warden -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Warden.html#shutdown"><span class="hs-identifier hs-var hs-var">shutdown</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span id="local-6989586621679063312"><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063312"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679063313"><span class="annot"><a href="#local-6989586621679063313"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+-&gt; Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ())))
+forall a. MVar a -&gt; a -&gt; IO a
+</span><span class="hs-identifier hs-var">swapMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063312"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#mapConcurrently_"><span class="hs-identifier hs-type">Async.mapConcurrently_</span></a></span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#cancel"><span class="hs-identifier hs-type">Async.cancel</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063313"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span id="local-6989586621679063244"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#forget"><span class="hs-identifier hs-type">forget</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#Async"><span class="hs-identifier hs-type">Async</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063244"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-68"></span><span id="forget"><span class="annot"><span class="annottext">forget :: forall a. Warden -&gt; Async a -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Warden.html#forget"><span class="hs-identifier hs-var hs-var">forget</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span id="local-6989586621679063325"><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063325"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679063326"><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063326"><span class="hs-identifier hs-var">async</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+-&gt; (Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ()))))
+-&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063325"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">((Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ()))))
+ -&gt; IO ())
+-&gt; (Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ()))))
+-&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063328"><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><a href="#local-6989586621679063328"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><a href="#local-6989586621679063328"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679063329"><span class="annot"><span class="annottext">HashSet (Async ())
+</span><a href="#local-6989586621679063329"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ())))
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ()))))
+-&gt; Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ())))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">HashSet (Async ()) -&gt; Maybe (HashSet (Async ()))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(HashSet (Async ()) -&gt; Maybe (HashSet (Async ())))
+-&gt; HashSet (Async ()) -&gt; Maybe (HashSet (Async ()))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Async () -&gt; HashSet (Async ()) -&gt; HashSet (Async ())
+forall a. (Eq a, Hashable a) =&gt; a -&gt; HashSet a -&gt; HashSet a
+</span><span class="hs-identifier hs-var">HashSet.delete</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Async a -&gt; Async ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063326"><span class="hs-identifier hs-var">async</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">HashSet (Async ())
+</span><a href="#local-6989586621679063329"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ())) -&gt; IO (Maybe (HashSet (Async ())))
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | Spawn a thread with masked exceptions and pass an unmask function to the</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- action.</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679063260"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawnMask"><span class="hs-identifier hs-type">spawnMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679063259"><span class="annot"><a href="#local-6989586621679063259"><span class="hs-identifier hs-type">b</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063259"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063259"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#Async"><span class="hs-identifier hs-type">Async</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063260"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-75"></span><span id="spawnMask"><span class="annot"><span class="annottext">spawnMask :: forall a.
+Warden -&gt; ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.Warden.html#spawnMask"><span class="hs-identifier hs-var hs-var">spawnMask</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span id="local-6989586621679063342"><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063342"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679063343"><span class="annot"><span class="annottext">(forall b. IO b -&gt; IO b) -&gt; IO a
+</span><a href="#local-6989586621679063343"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+-&gt; (Maybe (HashSet (Async ()))
+    -&gt; IO (Maybe (HashSet (Async ())), Async a))
+-&gt; IO (Async a)
+forall a b. MVar a -&gt; (a -&gt; IO (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">modifyMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063342"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">((Maybe (HashSet (Async ()))
+  -&gt; IO (Maybe (HashSet (Async ())), Async a))
+ -&gt; IO (Async a))
+-&gt; (Maybe (HashSet (Async ()))
+    -&gt; IO (Maybe (HashSet (Async ())), Async a))
+-&gt; IO (Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063345"><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><a href="#local-6989586621679063345"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><a href="#local-6989586621679063345"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679063346"><span class="annot"><span class="annottext">HashSet (Async ())
+</span><a href="#local-6989586621679063346"><span class="hs-identifier hs-var">asyncs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-comment">-- Create a new thread which removes itself from the 'HashSet' when it</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- exits.</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679063347"><span class="annot"><a href="#local-6989586621679063347"><span class="hs-identifier hs-var">this</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Async a -&gt; IO (Async a)) -&gt; IO (Async a)
+forall a. (a -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">fixIO</span></span><span> </span><span class="annot"><span class="annottext">((Async a -&gt; IO (Async a)) -&gt; IO (Async a))
+-&gt; (Async a -&gt; IO (Async a)) -&gt; IO (Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063348"><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063348"><span class="hs-identifier hs-var">this</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO (Async a) -&gt; IO (Async a)
+forall b. IO b -&gt; IO b
+</span><span class="hs-identifier hs-var">mask_</span></span><span> </span><span class="annot"><span class="annottext">(IO (Async a) -&gt; IO (Async a)) -&gt; IO (Async a) -&gt; IO (Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+forall a. ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.Internal.html#asyncWithUnmask"><span class="hs-identifier hs-var">Async.asyncWithUnmask</span></a></span><span> </span><span class="annot"><span class="annottext">(((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a))
+-&gt; ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063351"><span class="annot"><span class="annottext">forall b. IO b -&gt; IO b
+</span><a href="#local-6989586621679063351"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">(forall b. IO b -&gt; IO b) -&gt; IO a
+</span><a href="#local-6989586621679063343"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">IO b -&gt; IO b
+forall b. IO b -&gt; IO b
+</span><a href="#local-6989586621679063351"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO () -&gt; IO a
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><span class="hs-operator hs-var">`finally`</span></span><span> </span><span class="annot"><span class="annottext">Warden -&gt; Async a -&gt; IO ()
+forall a. Warden -&gt; Async a -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Warden.html#forget"><span class="hs-identifier hs-var">forget</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ()))) -&gt; Warden
+</span><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-var">Warden</span></a></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe (HashSet (Async ())))
+</span><a href="#local-6989586621679063342"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Async a
+</span><a href="#local-6989586621679063348"><span class="hs-identifier hs-var">this</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashSet.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">void</span></span><span> </span><span class="annot"><a href="#local-6989586621679063347"><span class="hs-identifier hs-type">this</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679063346"><span class="hs-identifier hs-type">asyncs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679063347"><span class="hs-identifier hs-type">this</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="annottext">Maybe (HashSet (Async ()))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">WardenException -&gt; IO (Maybe (HashSet (Async ())), Async a)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">(WardenException -&gt; IO (Maybe (HashSet (Async ())), Async a))
+-&gt; WardenException -&gt; IO (Maybe (HashSet (Async ())), Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; WardenException
+</span><a href="Control.Concurrent.Async.Warden.html#WardenException"><span class="hs-identifier hs-var">WardenException</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Warden has been shut down&quot;</span></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">newtype</span><span> </span><span id="WardenException"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#WardenException"><span class="hs-identifier hs-var">WardenException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="WardenException"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#WardenException"><span class="hs-identifier hs-var">WardenException</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679063357"><span id="local-6989586621679063364"><span id="local-6989586621679063368"><span class="annot"><span class="annottext">Int -&gt; WardenException -&gt; ShowS
+[WardenException] -&gt; ShowS
+WardenException -&gt; String
+(Int -&gt; WardenException -&gt; ShowS)
+-&gt; (WardenException -&gt; String)
+-&gt; ([WardenException] -&gt; ShowS)
+-&gt; Show WardenException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; WardenException -&gt; ShowS
+showsPrec :: Int -&gt; WardenException -&gt; ShowS
+$cshow :: WardenException -&gt; String
+show :: WardenException -&gt; String
+$cshowList :: [WardenException] -&gt; ShowS
+showList :: [WardenException] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679063378"><span id="local-6989586621679063381"><span id="local-6989586621679063384"><span id="local-6989586621679063387"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#WardenException"><span class="hs-identifier hs-type">WardenException</span></a></span></span></span></span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><span class="hs-comment">-- | Spawn a new thread owned by the 'Warden'.</span></span><span>
+</span><span id="line-90"></span><span id="local-6989586621679063279"><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawn"><span class="hs-identifier hs-type">spawn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679063279"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Concurrent.Async.Internal.html#Async"><span class="hs-identifier hs-type">Async</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679063279"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-91"></span><span id="spawn"><span class="annot"><span class="annottext">spawn :: forall a. Warden -&gt; IO a -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.Warden.html#spawn"><span class="hs-identifier hs-var hs-var">spawn</span></a></span></span><span> </span><span id="local-6989586621679063390"><span class="annot"><span class="annottext">Warden
+</span><a href="#local-6989586621679063390"><span class="hs-identifier hs-var">warden</span></a></span></span><span> </span><span id="local-6989586621679063391"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679063391"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Warden -&gt; ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+forall a.
+Warden -&gt; ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.Warden.html#spawnMask"><span class="hs-identifier hs-var">spawnMask</span></a></span><span> </span><span class="annot"><span class="annottext">Warden
+</span><a href="#local-6989586621679063390"><span class="hs-identifier hs-var">warden</span></a></span><span> </span><span class="annot"><span class="annottext">(((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a))
+-&gt; ((forall b. IO b -&gt; IO b) -&gt; IO a) -&gt; IO (Async a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679063392"><span class="annot"><span class="annottext">forall b. IO b -&gt; IO b
+</span><a href="#local-6989586621679063392"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall b. IO b -&gt; IO b
+</span><a href="#local-6989586621679063392"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679063391"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><span class="hs-comment">-- | Spawn a new thread owned by the 'Warden'.</span></span><span>
+</span><span id="line-94"></span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#spawn_"><span class="hs-identifier hs-type">spawn_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Concurrent.Async.Warden.html#Warden"><span class="hs-identifier hs-type">Warden</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span id="spawn_"><span class="annot"><span class="annottext">spawn_ :: Warden -&gt; IO () -&gt; IO ()
+</span><a href="Control.Concurrent.Async.Warden.html#spawn_"><span class="hs-identifier hs-var hs-var">spawn_</span></a></span></span><span> </span><span id="local-6989586621679063393"><span class="annot"><span class="annottext">Warden
+</span><a href="#local-6989586621679063393"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Async ()) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Async ()) -&gt; IO ())
+-&gt; (IO () -&gt; IO (Async ())) -&gt; IO () -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Warden -&gt; IO () -&gt; IO (Async ())
+forall a. Warden -&gt; IO a -&gt; IO (Async a)
+</span><a href="Control.Concurrent.Async.Warden.html#spawn"><span class="hs-identifier hs-var">spawn</span></a></span><span> </span><span class="annot"><span class="annottext">Warden
+</span><a href="#local-6989586621679063393"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-96"></span></pre></body></html>

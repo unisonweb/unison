@@ -1,0 +1,58 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Version.Type.html"><span class="hs-identifier">GHC.CmmToLlvm.Version.Type</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.CmmToLlvm.Version.Type.html#LlvmVersion"><span class="hs-identifier">LlvmVersion</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html"><span class="hs-identifier">Data.List.NonEmpty</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NE</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">newtype</span><span> </span><span id="LlvmVersion"><span class="annot"><a href="GHC.CmmToLlvm.Version.Type.html#LlvmVersion"><span class="hs-identifier hs-var">LlvmVersion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="LlvmVersion"><span class="annot"><a href="GHC.CmmToLlvm.Version.Type.html#LlvmVersion"><span class="hs-identifier hs-var">LlvmVersion</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="llvmVersionNE"><span class="annot"><span class="annottext">LlvmVersion -&gt; NonEmpty Int
+</span><a href="GHC.CmmToLlvm.Version.Type.html#llvmVersionNE"><span class="hs-identifier hs-var hs-var">llvmVersionNE</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NE.NonEmpty</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682341636"><span id="local-6989586621682341642"><span class="annot"><span class="annottext">LlvmVersion -&gt; LlvmVersion -&gt; Bool
+(LlvmVersion -&gt; LlvmVersion -&gt; Bool)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; Bool) -&gt; Eq LlvmVersion
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+== :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+$c/= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+/= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682341653"><span id="local-6989586621682341659"><span id="local-6989586621682341664"><span id="local-6989586621682341669"><span id="local-6989586621682341674"><span id="local-6989586621682341679"><span id="local-6989586621682341684"><span class="annot"><span class="annottext">Eq LlvmVersion
+Eq LlvmVersion =&gt;
+(LlvmVersion -&gt; LlvmVersion -&gt; Ordering)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; Bool)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; Bool)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; Bool)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; Bool)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion)
+-&gt; (LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion)
+-&gt; Ord LlvmVersion
+LlvmVersion -&gt; LlvmVersion -&gt; Bool
+LlvmVersion -&gt; LlvmVersion -&gt; Ordering
+LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: LlvmVersion -&gt; LlvmVersion -&gt; Ordering
+compare :: LlvmVersion -&gt; LlvmVersion -&gt; Ordering
+$c&lt; :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+&lt; :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+$c&lt;= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+&lt;= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+$c&gt; :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+&gt; :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+$c&gt;= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+&gt;= :: LlvmVersion -&gt; LlvmVersion -&gt; Bool
+$cmax :: LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion
+max :: LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion
+$cmin :: LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion
+min :: LlvmVersion -&gt; LlvmVersion -&gt; LlvmVersion
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span></pre></body></html>

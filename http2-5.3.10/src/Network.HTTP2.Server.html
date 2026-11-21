@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | HTTP\/2 server library.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">--  Example:</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- &gt; {-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- &gt; module Main (main) where</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- &gt; import qualified Control.Exception as E</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- &gt; import Data.ByteString.Builder (byteString)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- &gt; import Network.HTTP.Types (ok200)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- &gt; import Network.Run.TCP (runTCPServer) -- network-run</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- &gt; import Network.HTTP2.Server</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- &gt; main :: IO ()</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- &gt; main = runTCPServer Nothing &quot;80&quot; runHTTP2Server</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- &gt;   where</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- &gt;     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &gt;                                  freeSimpleConfig</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- &gt;                                  (\config -&gt; run defaultServerConfig config server)</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt;     server _req _aux sendResponse = sendResponse response []</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt;       where</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- &gt;         response = responseBuilder ok200 header body</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- &gt;         header = [(&quot;Content-Type&quot;, &quot;text/plain&quot;)]</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &gt;         body = byteString &quot;Hello, world!\n&quot;</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.html"><span class="hs-identifier">Network.HTTP2.Server</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Runner</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#run"><span class="hs-identifier">run</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Server configuration</span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier">ServerConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#defaultServerConfig"><span class="hs-identifier">defaultServerConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#numberOfWorkers"><span class="hs-identifier">numberOfWorkers</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#connectionWindowSize"><span class="hs-identifier">connectionWindowSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#settings"><span class="hs-identifier">settings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- * HTTP\/2 setting</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#Settings"><span class="hs-identifier">Settings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#defaultSettings"><span class="hs-identifier">defaultSettings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#headerTableSize"><span class="hs-identifier">headerTableSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#enablePush"><span class="hs-identifier">enablePush</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#maxConcurrentStreams"><span class="hs-identifier">maxConcurrentStreams</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#initialWindowSize"><span class="hs-identifier">initialWindowSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#maxFrameSize"><span class="hs-identifier">maxFrameSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#maxHeaderListSize"><span class="hs-identifier">maxHeaderListSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Rate limits</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#pingRateLimit"><span class="hs-identifier">pingRateLimit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#settingsRateLimit"><span class="hs-identifier">settingsRateLimit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#emptyFrameRateLimit"><span class="hs-identifier">emptyFrameRateLimit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#rstRateLimit"><span class="hs-identifier">rstRateLimit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Common configuration</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier">Config</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Config.html#allocSimpleConfig"><span class="hs-identifier">allocSimpleConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Config.html#allocSimpleConfig%27"><span class="hs-identifier">allocSimpleConfig'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="Network.HTTP2.H2.Config.html#freeSimpleConfig"><span class="hs-identifier">freeSimpleConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.Server</span></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.Server</span></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.html"><span class="hs-identifier">Network.HTTP2.H2</span></a></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html"><span class="hs-identifier">Network.HTTP2.Server.Run</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier">ServerConfig</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#defaultServerConfig"><span class="hs-identifier">defaultServerConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#run"><span class="hs-identifier">run</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span></pre></body></html>

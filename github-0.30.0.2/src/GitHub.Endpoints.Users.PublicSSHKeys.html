@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     :  BSD-3-Clause</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  :  Todd Mohney &lt;toddmohney@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- The public keys API, as described at</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- &lt;https://developer.github.com/v3/users/keys/&gt;</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html"><span class="hs-identifier">GitHub.Endpoints.Users.PublicSSHKeys</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Querying public SSH keys</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysR"><span class="hs-identifier">publicSSHKeysR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysForR"><span class="hs-identifier">publicSSHKeysForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeyR"><span class="hs-identifier">publicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Create</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#createUserPublicSSHKeyR"><span class="hs-identifier">createUserPublicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Delete</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#deleteUserPublicSSHKeyR"><span class="hs-identifier">deleteUserPublicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Querying public SSH keys.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/users/keys/#list-public-keys-for-a-user&gt;</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysForR"><span class="hs-identifier hs-type">publicSSHKeysForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RO"><span class="hs-identifier hs-type">RO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKeyBasic"><span class="hs-identifier hs-type">PublicSSHKeyBasic</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span id="publicSSHKeysForR"><span class="annot"><span class="annottext">publicSSHKeysForR :: Name Owner -&gt; FetchCount -&gt; Request 'RO (Vector PublicSSHKeyBasic)
+</span><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysForR"><span class="hs-identifier hs-var hs-var">publicSSHKeysForR</span></a></span></span><span> </span><span id="local-6989586621679526435"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679526435"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; Request 'RO (Vector PublicSSHKeyBasic)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;users&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679526435"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Querying the authenticated users' public SSH keys</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/users/keys/#list-your-public-keys&gt;</span><span>
+</span><span id="line-33"></span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysR"><span class="hs-identifier hs-type">publicSSHKeysR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span id="publicSSHKeysR"><span class="annot"><span class="annottext">publicSSHKeysR :: Request 'RA (Vector PublicSSHKey)
+</span><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysR"><span class="hs-identifier hs-var hs-var">publicSSHKeysR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request 'RA (Vector PublicSSHKey)
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Querying a public SSH key.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/users/keys/#get-a-single-public-key&gt;</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeyR"><span class="hs-identifier hs-type">publicSSHKeyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span>
+</span><span id="line-40"></span><span id="publicSSHKeyR"><span class="annot"><span class="annottext">publicSSHKeyR :: Id PublicSSHKey -&gt; Request 'RA PublicSSHKey
+</span><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeyR"><span class="hs-identifier hs-var hs-var">publicSSHKeyR</span></a></span></span><span> </span><span id="local-6989586621679526439"><span class="annot"><span class="annottext">Id PublicSSHKey
+</span><a href="#local-6989586621679526439"><span class="hs-identifier hs-var">keyId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request 'RA PublicSSHKey
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey
+</span><a href="#local-6989586621679526439"><span class="hs-identifier hs-var">keyId</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Create a public SSH key.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/users/keys/#create-a-public-key&gt;.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#createUserPublicSSHKeyR"><span class="hs-identifier hs-type">createUserPublicSSHKeyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#NewPublicSSHKey"><span class="hs-identifier hs-type">NewPublicSSHKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span>
+</span><span id="line-46"></span><span id="createUserPublicSSHKeyR"><span class="annot"><span class="annottext">createUserPublicSSHKeyR :: NewPublicSSHKey -&gt; Request 'RW PublicSSHKey
+</span><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#createUserPublicSSHKeyR"><span class="hs-identifier hs-var hs-var">createUserPublicSSHKeyR</span></a></span></span><span> </span><span id="local-6989586621679526440"><span class="annot"><span class="annottext">NewPublicSSHKey
+</span><a href="#local-6989586621679526440"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW PublicSSHKey
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NewPublicSSHKey -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">NewPublicSSHKey
+</span><a href="#local-6989586621679526440"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Delete a public SSH key.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/users/keys/#delete-a-public-key&gt;</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#deleteUserPublicSSHKeyR"><span class="hs-identifier hs-type">deleteUserPublicSSHKeyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.PublicSSHKeys.html#PublicSSHKey"><span class="hs-identifier hs-type">PublicSSHKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span id="deleteUserPublicSSHKeyR"><span class="annot"><span class="annottext">deleteUserPublicSSHKeyR :: Id PublicSSHKey -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#deleteUserPublicSSHKeyR"><span class="hs-identifier hs-var hs-var">deleteUserPublicSSHKeyR</span></a></span></span><span> </span><span id="local-6989586621679526444"><span class="annot"><span class="annottext">Id PublicSSHKey
+</span><a href="#local-6989586621679526444"><span class="hs-identifier hs-var">keyId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id PublicSSHKey
+</span><a href="#local-6989586621679526444"><span class="hs-identifier hs-var">keyId</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-54"></span></pre></body></html>

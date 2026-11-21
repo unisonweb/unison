@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The underlying git references on a Github repo, exposed for the world to</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- see. The git internals documentation will also prove handy for understanding</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- these. API documentation at &lt;http://developer.github.com/v3/git/refs/&gt;.</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html"><span class="hs-identifier">GitHub.Endpoints.GitData.References</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referenceR"><span class="hs-identifier">referenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referencesR"><span class="hs-identifier">referencesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#createReferenceR"><span class="hs-identifier">createReferenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#deleteReferenceR"><span class="hs-identifier">deleteReferenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#namespacedReferencesR"><span class="hs-identifier">namespacedReferencesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | A single reference -- | Query a reference.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/git/refs/#get-a-reference&gt;</span><span>
+</span><span id="line-21"></span><span id="local-6989586621679568308"><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referenceR"><span class="hs-identifier hs-type">referenceR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568308"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span></span><span>
+</span><span id="line-22"></span><span id="referenceR"><span class="annot"><span class="annottext">referenceR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo -&gt; Name GitReference -&gt; Request k GitReference
+</span><a href="GitHub.Endpoints.GitData.References.html#referenceR"><span class="hs-identifier hs-var hs-var">referenceR</span></a></span></span><span> </span><span id="local-6989586621679568365"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568365"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679568366"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568366"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679568367"><span class="annot"><span class="annottext">Name GitReference
+</span><a href="#local-6989586621679568367"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k GitReference
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568365"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568366"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;git&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;refs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name GitReference -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name GitReference
+</span><a href="#local-6989586621679568367"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Query all References.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/git/refs/#get-all-references&gt;</span><span>
+</span><span id="line-27"></span><span id="local-6989586621679568319"><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referencesR"><span class="hs-identifier hs-type">referencesR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568319"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-28"></span><span id="referencesR"><span class="annot"><span class="annottext">referencesR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo -&gt; FetchCount -&gt; Request k (Vector GitReference)
+</span><a href="GitHub.Endpoints.GitData.References.html#referencesR"><span class="hs-identifier hs-var hs-var">referencesR</span></a></span></span><span> </span><span id="local-6989586621679568377"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568377"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679568378"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568378"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector GitReference)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568377"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568378"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;git&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;refs&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Create a reference.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/git/refs/#create-a-reference&gt;</span><span>
+</span><span id="line-33"></span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#createReferenceR"><span class="hs-identifier hs-type">createReferenceR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#NewGitReference"><span class="hs-identifier hs-type">NewGitReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span><span>
+</span><span id="line-34"></span><span id="createReferenceR"><span class="annot"><span class="annottext">createReferenceR :: Name Owner
+-&gt; Name Repo -&gt; NewGitReference -&gt; Request 'RW GitReference
+</span><a href="GitHub.Endpoints.GitData.References.html#createReferenceR"><span class="hs-identifier hs-var hs-var">createReferenceR</span></a></span></span><span> </span><span id="local-6989586621679568380"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568380"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679568381"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568381"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679568382"><span class="annot"><span class="annottext">NewGitReference
+</span><a href="#local-6989586621679568382"><span class="hs-identifier hs-var">newRef</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW GitReference
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568380"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568381"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;git&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;refs&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NewGitReference -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">NewGitReference
+</span><a href="#local-6989586621679568382"><span class="hs-identifier hs-var">newRef</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Delete a reference.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/git/refs/#delete-a-reference&gt;</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#deleteReferenceR"><span class="hs-identifier hs-type">deleteReferenceR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span id="deleteReferenceR"><span class="annot"><span class="annottext">deleteReferenceR :: Name Owner
+-&gt; Name Repo -&gt; Name GitReference -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.GitData.References.html#deleteReferenceR"><span class="hs-identifier hs-var hs-var">deleteReferenceR</span></a></span></span><span> </span><span id="local-6989586621679568386"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568386"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679568387"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568387"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679568388"><span class="annot"><span class="annottext">Name GitReference
+</span><a href="#local-6989586621679568388"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568386"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568387"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;git&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;refs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name GitReference -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name GitReference
+</span><a href="#local-6989586621679568388"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Query namespaced references.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/git/refs/#get-all-references&gt;</span><span>
+</span><span id="line-45"></span><span id="local-6989586621679568335"><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#namespacedReferencesR"><span class="hs-identifier hs-type">namespacedReferencesR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679568335"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GitHub.Data.GitData.html#GitReference"><span class="hs-identifier hs-type">GitReference</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-46"></span><span id="namespacedReferencesR"><span class="annot"><span class="annottext">namespacedReferencesR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; Text -&gt; Request k [GitReference]
+</span><a href="GitHub.Endpoints.GitData.References.html#namespacedReferencesR"><span class="hs-identifier hs-var hs-var">namespacedReferencesR</span></a></span></span><span> </span><span id="local-6989586621679568396"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568396"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679568397"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568397"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679568398"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679568398"><span class="hs-identifier hs-var">namespace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k [GitReference]
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679568396"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679568397"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;git&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;refs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679568398"><span class="hs-identifier hs-var">namespace</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span></pre></body></html>

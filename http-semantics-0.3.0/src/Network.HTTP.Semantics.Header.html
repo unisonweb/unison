@@ -1,0 +1,93 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html"><span class="hs-identifier">Network.HTTP.Semantics.Header</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Low-level headers.</span></span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldName"><span class="hs-identifier">FieldName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier">FieldValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeader"><span class="hs-identifier">TokenHeader</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderList"><span class="hs-identifier">TokenHeaderList</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderTable"><span class="hs-identifier">TokenHeaderTable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Value table</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier">ValueTable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getFieldValue"><span class="hs-identifier">getFieldValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Deprecated</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#HeaderTable"><span class="hs-identifier">HeaderTable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#HeaderValue"><span class="hs-identifier">HeaderValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getHeaderValue"><span class="hs-identifier">getHeaderValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Array</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Array.Base</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeAt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Token.html"><span class="hs-identifier">Network.HTTP.Semantics.Token</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><span class="hs-comment">-- | Field name. Internal usage only.</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">type</span><span> </span><span id="FieldName"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldName"><span class="hs-identifier hs-var">FieldName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- | Field value.</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">type</span><span> </span><span id="FieldValue"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier hs-var">FieldValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">HeaderValue</span><span> </span><span class="hs-pragma">&quot;use FieldValue instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Header value.</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">type</span><span> </span><span id="HeaderValue"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#HeaderValue"><span class="hs-identifier hs-var">HeaderValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | An array to get 'FieldValue' quickly.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--   'getHeaderValue' should be used.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--   Internally, the key is 'tokenIx'.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">type</span><span> </span><span id="ValueTable"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier hs-var">ValueTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier hs-type">FieldValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">HeaderTable</span><span> </span><span class="hs-pragma">&quot;use TokenHeaderTable instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | A pair of token list and value table.</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">type</span><span> </span><span id="HeaderTable"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#HeaderTable"><span class="hs-identifier hs-var">HeaderTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderList"><span class="hs-identifier hs-type">TokenHeaderList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier hs-type">ValueTable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | A pair of token list and value table.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">type</span><span> </span><span id="TokenHeaderTable"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderTable"><span class="hs-identifier hs-var">TokenHeaderTable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderList"><span class="hs-identifier hs-type">TokenHeaderList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier hs-type">ValueTable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | TokenBased header.</span></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">type</span><span> </span><span id="TokenHeader"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeader"><span class="hs-identifier hs-var">TokenHeader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Semantics.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier hs-type">FieldValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="annot"><span class="hs-comment">-- | TokenBased header list.</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">type</span><span> </span><span id="TokenHeaderList"><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeaderList"><span class="hs-identifier hs-var">TokenHeaderList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#TokenHeader"><span class="hs-identifier hs-type">TokenHeader</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">getHeaderValue</span><span> </span><span class="hs-pragma">&quot;use geFieldValue instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><span class="hs-comment">-- | Accessing 'FieldValue' with 'Token'.</span></span><span>
+</span><span id="line-59"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getHeaderValue"><span class="hs-pragma hs-type">getHeaderValue</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getHeaderValue"><span class="hs-identifier hs-type">getHeaderValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier hs-type">ValueTable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier hs-type">FieldValue</span></a></span><span>
+</span><span id="line-61"></span><span id="getHeaderValue"><span class="annot"><span class="annottext">getHeaderValue :: Token -&gt; ValueTable -&gt; Maybe FieldValue
+</span><a href="Network.HTTP.Semantics.Header.html#getHeaderValue"><span class="hs-identifier hs-var hs-var">getHeaderValue</span></a></span></span><span> </span><span id="local-6989586621679073844"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679073844"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679073845"><span class="annot"><span class="annottext">ValueTable
+</span><a href="#local-6989586621679073845"><span class="hs-identifier hs-var">tbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ValueTable
+</span><a href="#local-6989586621679073845"><span class="hs-identifier hs-var">tbl</span></a></span><span> </span><span class="annot"><span class="annottext">ValueTable -&gt; Int -&gt; Maybe FieldValue
+forall i.
+Ix i =&gt;
+Array i (Maybe FieldValue) -&gt; Int -&gt; Maybe FieldValue
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; Int -&gt; e
+</span><span class="hs-operator hs-var">`unsafeAt`</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Int
+</span><a href="Network.HTTP.Semantics.Token.html#tokenIx"><span class="hs-identifier hs-var">tokenIx</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679073844"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><span class="hs-comment">-- | Accessing 'FieldValue' with 'Token'.</span></span><span>
+</span><span id="line-64"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getFieldValue"><span class="hs-pragma hs-type">getFieldValue</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#getFieldValue"><span class="hs-identifier hs-type">getFieldValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Token.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#ValueTable"><span class="hs-identifier hs-type">ValueTable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Header.html#FieldValue"><span class="hs-identifier hs-type">FieldValue</span></a></span><span>
+</span><span id="line-66"></span><span id="getFieldValue"><span class="annot"><span class="annottext">getFieldValue :: Token -&gt; ValueTable -&gt; Maybe FieldValue
+</span><a href="Network.HTTP.Semantics.Header.html#getFieldValue"><span class="hs-identifier hs-var hs-var">getFieldValue</span></a></span></span><span> </span><span id="local-6989586621679073846"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679073846"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679073847"><span class="annot"><span class="annottext">ValueTable
+</span><a href="#local-6989586621679073847"><span class="hs-identifier hs-var">tbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ValueTable
+</span><a href="#local-6989586621679073847"><span class="hs-identifier hs-var">tbl</span></a></span><span> </span><span class="annot"><span class="annottext">ValueTable -&gt; Int -&gt; Maybe FieldValue
+forall i.
+Ix i =&gt;
+Array i (Maybe FieldValue) -&gt; Int -&gt; Maybe FieldValue
+forall (a :: * -&gt; * -&gt; *) e i.
+(IArray a e, Ix i) =&gt;
+a i e -&gt; Int -&gt; e
+</span><span class="hs-operator hs-var">`unsafeAt`</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Int
+</span><a href="Network.HTTP.Semantics.Token.html#tokenIx"><span class="hs-identifier hs-var">tokenIx</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679073846"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-67"></span></pre></body></html>

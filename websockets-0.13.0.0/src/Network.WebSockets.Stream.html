@@ -1,0 +1,658 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | Lightweight abstraction over an input/output stream.</span></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html"><span class="hs-identifier">Network.WebSockets.Stream</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier">Stream</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#makeStream"><span class="hs-identifier">makeStream</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#makeSocketStream"><span class="hs-identifier">makeSocketStream</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#makeEchoStream"><span class="hs-identifier">makeEchoStream</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#parse"><span class="hs-identifier">parse</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#parseBin"><span class="hs-identifier">parseBin</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#write"><span class="hs-identifier">write</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#close"><span class="hs-identifier">close</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newEmptyMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newMVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>                                                 </span><span class="annot"><span class="hs-identifier">putMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">takeMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withMVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SomeException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SomeAsyncException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">catch</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">try</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString</span></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Atto</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BIN</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>                     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">atomicModifyIORef'</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>                                                 </span><span class="annot"><span class="hs-identifier">newIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readIORef</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>                                                 </span><span class="annot"><span class="hs-identifier">writeIORef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket.ByteString</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SB</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">recv</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SBL</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sendAll</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Network.Socket.ByteString</span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">SB</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">sendAll</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO.Error</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isResourceVanishedError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Types.html"><span class="hs-identifier">Network.WebSockets.Types</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- | State of the stream</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="StreamState"><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-var">StreamState</span></a></span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Closed"><span class="annot"><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>  </span><span class="hs-comment">-- Remainder</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Open"><span class="annot"><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-var">Open</span></a></span></span><span>   </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>  </span><span class="hs-comment">-- Buffer</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | Lightweight abstraction over an input/output stream.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">data</span><span> </span><span id="Stream"><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Stream"><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="streamIn"><span class="annot"><span class="annottext">Stream -&gt; IO (Maybe ByteString)
+</span><a href="Network.WebSockets.Stream.html#streamIn"><span class="hs-identifier hs-var hs-var">streamIn</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamOut"><span class="annot"><span class="annottext">Stream -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#streamOut"><span class="hs-identifier hs-var hs-var">streamOut</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="streamState"><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var hs-var">streamState</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Create a stream from a &quot;receive&quot; and &quot;send&quot; action. The following</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- properties apply:</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- - Regardless of the provided &quot;receive&quot; and &quot;send&quot; functions, reading and</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--   writing from the stream will be thread-safe, i.e. this function will create</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--   a receive and write lock to be used internally.</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- - Reading from or writing to a closed 'Stream' will always throw an</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--   exception, even if the underlying &quot;receive&quot; and &quot;send&quot; functions do not</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--   (we do the bookkeeping).</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- - Streams should always be closed.</span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Network.WebSockets.Stream.html#makeStream"><span class="hs-identifier hs-type">makeStream</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Reading</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Writing</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>                       </span><span class="annot"><span class="hs-comment">-- ^ Resulting stream</span></span><span>
+</span><span id="line-72"></span><span id="makeStream"><span class="annot"><span class="annottext">makeStream :: IO (Maybe ByteString) -&gt; (Maybe ByteString -&gt; IO ()) -&gt; IO Stream
+</span><a href="Network.WebSockets.Stream.html#makeStream"><span class="hs-identifier hs-var hs-var">makeStream</span></a></span></span><span> </span><span id="local-6989586621679089369"><span class="annot"><span class="annottext">IO (Maybe ByteString)
+</span><a href="#local-6989586621679089369"><span class="hs-identifier hs-var">receive</span></a></span></span><span> </span><span id="local-6989586621679089370"><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO ()
+</span><a href="#local-6989586621679089370"><span class="hs-identifier hs-var">send</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679089371"><span class="annot"><a href="#local-6989586621679089371"><span class="hs-identifier hs-var">ref</span></a></span></span><span>         </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StreamState -&gt; IO (IORef StreamState)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-var">Open</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679089373"><span class="annot"><a href="#local-6989586621679089373"><span class="hs-identifier hs-var">receiveLock</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679089374"><span class="annot"><a href="#local-6989586621679089374"><span class="hs-identifier hs-var">sendLock</span></a></span></span><span>    </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newMVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679089375"><span class="hs-identifier hs-type">receive'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679089371"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679089373"><span class="hs-identifier hs-type">receiveLock</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679089376"><span class="hs-identifier hs-type">send'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679089371"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679089374"><span class="hs-identifier hs-type">sendLock</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679089371"><span class="hs-identifier hs-type">ref</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="#local-6989586621679089377"><span class="hs-identifier hs-type">closeRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679089377"><span class="annot"><span class="annottext">closeRef :: IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089377"><span class="hs-identifier hs-var hs-var">closeRef</span></a></span></span><span> </span><span id="local-6989586621679089378"><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089378"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; (StreamState -&gt; (StreamState, ())) -&gt; IO ()
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089378"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">((StreamState -&gt; (StreamState, ())) -&gt; IO ())
+-&gt; (StreamState -&gt; (StreamState, ())) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679089379"><span class="annot"><span class="annottext">StreamState
+</span><a href="#local-6989586621679089379"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">StreamState
+</span><a href="#local-6989586621679089379"><span class="hs-identifier hs-var">state</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-80"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span>   </span><span id="local-6989586621679089380"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089380"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089380"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span id="local-6989586621679089381"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089381"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089381"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-comment">-- Throw a 'ConnectionClosed' is the connection is not 'Open'.</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="#local-6989586621679089382"><span class="hs-identifier hs-type">assertOpen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679089382"><span class="annot"><span class="annottext">assertOpen :: IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089382"><span class="hs-identifier hs-var hs-var">assertOpen</span></a></span></span><span> </span><span id="local-6989586621679089383"><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089383"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>        </span><span id="local-6989586621679089384"><span class="annot"><a href="#local-6989586621679089384"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO StreamState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089383"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-87"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089384"><span class="hs-identifier hs-type">state</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-88"></span><span>            </span><span class="annot"><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; IO ()
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><a href="Network.WebSockets.Types.html#ConnectionClosed"><span class="hs-identifier hs-var">ConnectionClosed</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span class="annot"><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span>   </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><a href="#local-6989586621679089375"><span class="hs-identifier hs-type">receive'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span id="local-6989586621679089375"><span class="annot"><span class="annottext">receive' :: IORef StreamState -&gt; MVar () -&gt; IO (Maybe ByteString)
+</span><a href="#local-6989586621679089375"><span class="hs-identifier hs-var hs-var">receive'</span></a></span></span><span> </span><span id="local-6989586621679089386"><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089386"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679089387"><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679089387"><span class="hs-identifier hs-var">lock</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; (() -&gt; IO (Maybe ByteString)) -&gt; IO (Maybe ByteString)
+forall a b. MVar a -&gt; (a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679089387"><span class="hs-identifier hs-var">lock</span></a></span><span> </span><span class="annot"><span class="annottext">((() -&gt; IO (Maybe ByteString)) -&gt; IO (Maybe ByteString))
+-&gt; (() -&gt; IO (Maybe ByteString)) -&gt; IO (Maybe ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>        </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089382"><span class="hs-identifier hs-var">assertOpen</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089386"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-94"></span><span>        </span><span id="local-6989586621679089388"><span class="annot"><a href="#local-6989586621679089388"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe ByteString) -&gt; IO () -&gt; IO (Maybe ByteString)
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><a href="#local-6989586621679089389"><span class="hs-identifier hs-var">onSyncException</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe ByteString)
+</span><a href="#local-6989586621679089369"><span class="hs-identifier hs-var">receive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089377"><span class="hs-identifier hs-var">closeRef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089386"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089388"><span class="hs-identifier hs-type">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-96"></span><span>            </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089377"><span class="hs-identifier hs-var">closeRef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089386"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Maybe ByteString) -&gt; IO (Maybe ByteString)
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-97"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089390"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089390"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089390"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="#local-6989586621679089376"><span class="hs-identifier hs-type">send'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#StreamState"><span class="hs-identifier hs-type">StreamState</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679089376"><span class="annot"><span class="annottext">send' :: IORef StreamState -&gt; MVar () -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="#local-6989586621679089376"><span class="hs-identifier hs-var hs-var">send'</span></a></span></span><span> </span><span id="local-6989586621679089391"><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089391"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679089392"><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679089392"><span class="hs-identifier hs-var">lock</span></a></span></span><span> </span><span id="local-6989586621679089393"><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679089393"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; (() -&gt; IO ()) -&gt; IO ()
+forall a b. MVar a -&gt; (a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679089392"><span class="hs-identifier hs-var">lock</span></a></span><span> </span><span class="annot"><span class="annottext">((() -&gt; IO ()) -&gt; IO ()) -&gt; (() -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679089393"><span class="hs-identifier hs-var">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-102"></span><span>            </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089377"><span class="hs-identifier hs-var">closeRef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089391"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-103"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089382"><span class="hs-identifier hs-var">assertOpen</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089391"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><a href="#local-6989586621679089389"><span class="hs-identifier hs-var">onSyncException</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO ()
+</span><a href="#local-6989586621679089370"><span class="hs-identifier hs-var">send</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679089393"><span class="hs-identifier hs-var">mbBs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO ()
+</span><a href="#local-6989586621679089377"><span class="hs-identifier hs-var">closeRef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef StreamState
+</span><a href="#local-6989586621679089391"><span class="hs-identifier hs-var">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679089272"><span id="local-6989586621679089273"><span class="annot"><a href="#local-6989586621679089389"><span class="hs-identifier hs-type">onSyncException</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679089272"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679089273"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679089272"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-107"></span><span>    </span><span id="local-6989586621679089389"><span class="annot"><span class="annottext">onSyncException :: forall a b. IO a -&gt; IO b -&gt; IO a
+</span><a href="#local-6989586621679089389"><span class="hs-identifier hs-var hs-var">onSyncException</span></a></span></span><span> </span><span id="local-6989586621679089406"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679089406"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span id="local-6989586621679089407"><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679089407"><span class="hs-identifier hs-var">what</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">IO a -&gt; (SomeException -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">catch</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679089406"><span class="hs-identifier hs-var">io</span></a></span><span> </span><span class="annot"><span class="annottext">((SomeException -&gt; IO a) -&gt; IO a)
+-&gt; (SomeException -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679089408"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679089408"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeAsyncException
+forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">fromException</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679089408"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeAsyncException</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-110"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">SomeAsyncException
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>                </span><span class="annot"><span class="annottext">Maybe SomeAsyncException
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679089407"><span class="hs-identifier hs-var">what</span></a></span><span> </span><span class="annot"><span class="annottext">IO b -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>            </span><span class="annot"><span class="annottext">SomeException -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679089408"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Network.WebSockets.Stream.html#makeSocketStream"><span class="hs-identifier hs-type">makeSocketStream</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Socket</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>
+</span><span id="line-117"></span><span id="makeSocketStream"><span class="annot"><span class="annottext">makeSocketStream :: Socket -&gt; IO Stream
+</span><a href="Network.WebSockets.Stream.html#makeSocketStream"><span class="hs-identifier hs-var hs-var">makeSocketStream</span></a></span></span><span> </span><span id="local-6989586621679089409"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679089409"><span class="hs-identifier hs-var">socket</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe ByteString) -&gt; (Maybe ByteString -&gt; IO ()) -&gt; IO Stream
+</span><a href="Network.WebSockets.Stream.html#makeStream"><span class="hs-identifier hs-var">makeStream</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe ByteString)
+</span><a href="#local-6989586621679089410"><span class="hs-identifier hs-var">receive</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO ()
+</span><a href="#local-6989586621679089411"><span class="hs-identifier hs-var">send</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679089410"><span class="annot"><span class="annottext">receive :: IO (Maybe ByteString)
+</span><a href="#local-6989586621679089410"><span class="hs-identifier hs-var hs-var">receive</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-120"></span><span>        </span><span id="local-6989586621679089421"><span class="annot"><a href="#local-6989586621679089421"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ByteString -&gt; IO (Either IOError ByteString)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">(IO ByteString -&gt; IO (Either IOError ByteString))
+-&gt; IO ByteString -&gt; IO (Either IOError ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; Int -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">SB.recv</span></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679089409"><span class="hs-identifier hs-var">socket</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8192</span></span><span>
+</span><span id="line-121"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089421"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-122"></span><span>            </span><span class="hs-comment">-- If the resource vanished, the socket was closed</span><span>
+</span><span id="line-123"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679089422"><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679089422"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; Bool
+</span><span class="hs-identifier hs-var">isResourceVanishedError</span></span><span> </span><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679089422"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-124"></span><span>                   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; IO (Maybe ByteString)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679089422"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-125"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679089423"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089423"><span class="hs-identifier hs-var">bs'</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089423"><span class="hs-identifier hs-var">bs'</span></a></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-126"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Maybe ByteString -&gt; IO (Maybe ByteString))
+-&gt; Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089423"><span class="hs-identifier hs-var">bs'</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679089411"><span class="annot"><span class="annottext">send :: Maybe ByteString -&gt; IO ()
+</span><a href="#local-6989586621679089411"><span class="hs-identifier hs-var hs-var">send</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="#local-6989586621679089411"><span class="hs-identifier hs-var">send</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089426"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089426"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span class="hs-cpp">
+#if !defined(mingw32_HOST_OS)
+</span><span>        </span><span class="annot"><span class="annottext">Socket -&gt; ByteString -&gt; IO ()
+</span><span class="hs-identifier hs-var">SBL.sendAll</span></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679089409"><span class="hs-identifier hs-var">socket</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089426"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-cpp">
+#else
+</span><span>        </span><span class="hs-identifier">forM_</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">BL.toChunks</span><span> </span><span class="hs-identifier">bs</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">SB.sendAll</span><span> </span><span class="hs-identifier">socket</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Network.WebSockets.Stream.html#makeEchoStream"><span class="hs-identifier hs-type">makeEchoStream</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span>
+</span><span id="line-139"></span><span id="makeEchoStream"><span class="annot"><span class="annottext">makeEchoStream :: IO Stream
+</span><a href="Network.WebSockets.Stream.html#makeEchoStream"><span class="hs-identifier hs-var hs-var">makeEchoStream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-140"></span><span>    </span><span id="local-6989586621679089427"><span class="annot"><a href="#local-6989586621679089427"><span class="hs-identifier hs-var">mvar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (MVar (Maybe ByteString))
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Stream.html#makeStream"><span class="hs-identifier hs-type">makeStream</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">takeMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679089427"><span class="hs-identifier hs-type">mvar</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679089428"><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679089428"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679089428"><span class="hs-identifier hs-var">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-142"></span><span>        </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe ByteString) -&gt; Maybe ByteString -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe ByteString)
+</span><a href="#local-6989586621679089427"><span class="hs-identifier hs-var">mvar</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-143"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089429"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089429"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; (ByteString -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString]
+</span><span class="hs-identifier hs-var">BL.toChunks</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089429"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((ByteString -&gt; IO ()) -&gt; IO ()) -&gt; (ByteString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679089431"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089431"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe ByteString) -&gt; Maybe ByteString -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Maybe ByteString)
+</span><a href="#local-6989586621679089427"><span class="hs-identifier hs-var">mvar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089431"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-147"></span><span id="local-6989586621679089299"><span class="annot"><a href="Network.WebSockets.Stream.html#parseBin"><span class="hs-identifier hs-type">parseBin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BIN.Get</span></span><span> </span><span class="annot"><a href="#local-6989586621679089299"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679089299"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-148"></span><span id="parseBin"><span class="annot"><span class="annottext">parseBin :: forall a. Stream -&gt; Get a -&gt; IO (Maybe a)
+</span><a href="Network.WebSockets.Stream.html#parseBin"><span class="hs-identifier hs-var hs-var">parseBin</span></a></span></span><span> </span><span id="local-6989586621679089437"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span id="local-6989586621679089438"><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679089438"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679089439"><span class="annot"><a href="#local-6989586621679089439"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO StreamState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089439"><span class="hs-identifier hs-type">state</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span id="local-6989586621679089440"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089440"><span class="hs-identifier hs-var">remainder</span></a></span></span><span>
+</span><span id="line-152"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089440"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-153"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get a -&gt; Decoder a
+forall a. Get a -&gt; Decoder a
+</span><span class="hs-identifier hs-var">BIN.runGetIncremental</span></span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679089438"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; ByteString -&gt; Decoder a
+forall a. Decoder a -&gt; ByteString -&gt; Decoder a
+</span><span class="hs-operator hs-var">`BIN.pushChunk`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089440"><span class="hs-identifier hs-var">remainder</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-154"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span id="local-6989586621679089444"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089444"><span class="hs-identifier hs-var">buffer</span></a></span></span><span>
+</span><span id="line-155"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089444"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-156"></span><span>                </span><span id="local-6989586621679089445"><span class="annot"><a href="#local-6989586621679089445"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO (Maybe ByteString)
+</span><a href="Network.WebSockets.Stream.html#streamIn"><span class="hs-identifier hs-var">streamIn</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-157"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089445"><span class="hs-identifier hs-type">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-158"></span><span>                    </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-159"></span><span>                        </span><span class="annot"><span class="annottext">IORef StreamState -&gt; StreamState -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>                        </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-161"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089446"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089446"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get a -&gt; Decoder a
+forall a. Get a -&gt; Decoder a
+</span><span class="hs-identifier hs-var">BIN.runGetIncremental</span></span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679089438"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; ByteString -&gt; Decoder a
+forall a. Decoder a -&gt; ByteString -&gt; Decoder a
+</span><span class="hs-operator hs-var">`BIN.pushChunk`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089446"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-162"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Get a -&gt; Decoder a
+forall a. Get a -&gt; Decoder a
+</span><span class="hs-identifier hs-var">BIN.runGetIncremental</span></span><span> </span><span class="annot"><span class="annottext">Get a
+</span><a href="#local-6989586621679089438"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; ByteString -&gt; Decoder a
+forall a. Decoder a -&gt; ByteString -&gt; Decoder a
+</span><span class="hs-operator hs-var">`BIN.pushChunk`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089444"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-comment">-- Buffer is empty when entering this function.</span><span>
+</span><span id="line-165"></span><span>    </span><span id="local-6989586621679089441"><span class="annot"><span class="annottext">go :: Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BIN.Done</span></span><span> </span><span id="local-6989586621679089454"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089454"><span class="hs-identifier hs-var">remainder</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679089455"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679089455"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679089456"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089456"><span class="hs-identifier hs-var">closed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-166"></span><span>        </span><span class="annot"><span class="annottext">IORef StreamState -&gt; StreamState -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(StreamState -&gt; IO ()) -&gt; StreamState -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-167"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089456"><span class="hs-identifier hs-var">closed</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089454"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-var">Open</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089454"><span class="hs-identifier hs-var">remainder</span></a></span><span>
+</span><span id="line-168"></span><span>        </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679089455"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>    </span><span class="annot"><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BIN.Partial</span></span><span> </span><span id="local-6989586621679089458"><span class="annot"><span class="annottext">Maybe ByteString -&gt; Decoder a
+</span><a href="#local-6989586621679089458"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679089459"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089459"><span class="hs-identifier hs-var">closed</span></a></span></span><span>
+</span><span id="line-170"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089459"><span class="hs-identifier hs-var">closed</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ByteString -&gt; Decoder a
+</span><a href="#local-6989586621679089458"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-171"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-172"></span><span>            </span><span id="local-6989586621679089460"><span class="annot"><a href="#local-6989586621679089460"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO (Maybe ByteString)
+</span><a href="Network.WebSockets.Stream.html#streamIn"><span class="hs-identifier hs-var">streamIn</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089437"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-173"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089460"><span class="hs-identifier hs-type">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-174"></span><span>                </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ByteString -&gt; Decoder a
+</span><a href="#local-6989586621679089458"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-175"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089461"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089461"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ByteString -&gt; Decoder a
+</span><a href="#local-6989586621679089458"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089461"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><a href="#local-6989586621679089441"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BIN.Fail</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ByteOffset
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679089463"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089463"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; IO (Maybe a)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ConnectionException
+</span><a href="Network.WebSockets.Types.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089463"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span id="local-6989586621679089308"><span class="annot"><a href="Network.WebSockets.Stream.html#parse"><span class="hs-identifier hs-type">parse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Atto.Parser</span></span><span> </span><span class="annot"><a href="#local-6989586621679089308"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679089308"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-180"></span><span id="parse"><span class="annot"><span class="annottext">parse :: forall a. Stream -&gt; Parser a -&gt; IO (Maybe a)
+</span><a href="Network.WebSockets.Stream.html#parse"><span class="hs-identifier hs-var hs-var">parse</span></a></span></span><span> </span><span id="local-6989586621679089470"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span id="local-6989586621679089471"><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679089471"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-181"></span><span>    </span><span id="local-6989586621679089472"><span class="annot"><a href="#local-6989586621679089472"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef StreamState -&gt; IO StreamState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089472"><span class="hs-identifier hs-type">state</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-183"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span id="local-6989586621679089473"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089473"><span class="hs-identifier hs-var">remainder</span></a></span></span><span>
+</span><span id="line-184"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089473"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-185"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; IResult ByteString a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">Atto.parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679089471"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089473"><span class="hs-identifier hs-var">remainder</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-186"></span><span>        </span><span class="annot"><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-type">Open</span></a></span><span> </span><span id="local-6989586621679089476"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089476"><span class="hs-identifier hs-var">buffer</span></a></span></span><span>
+</span><span id="line-187"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">B.null</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089476"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-188"></span><span>                </span><span id="local-6989586621679089477"><span class="annot"><a href="#local-6989586621679089477"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO (Maybe ByteString)
+</span><a href="Network.WebSockets.Stream.html#streamIn"><span class="hs-identifier hs-var">streamIn</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-189"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089477"><span class="hs-identifier hs-type">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-190"></span><span>                    </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-191"></span><span>                        </span><span class="annot"><span class="annottext">IORef StreamState -&gt; StreamState -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>                        </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-193"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089478"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089478"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; IResult ByteString a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">Atto.parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679089471"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089478"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-194"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+forall {a}. IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; IResult ByteString a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">Atto.parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+</span><a href="#local-6989586621679089471"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089476"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-196"></span><span>    </span><span class="hs-comment">-- Buffer is empty when entering this function.</span><span>
+</span><span id="line-197"></span><span>    </span><span id="local-6989586621679089474"><span class="annot"><span class="annottext">go :: IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Atto.Done</span></span><span> </span><span id="local-6989586621679089486"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089486"><span class="hs-identifier hs-var">remainder</span></a></span></span><span> </span><span id="local-6989586621679089487"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679089487"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679089488"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089488"><span class="hs-identifier hs-var">closed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-198"></span><span>        </span><span class="annot"><span class="annottext">IORef StreamState -&gt; StreamState -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IORef StreamState
+</span><a href="Network.WebSockets.Stream.html#streamState"><span class="hs-identifier hs-var">streamState</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(StreamState -&gt; IO ()) -&gt; StreamState -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-199"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089488"><span class="hs-identifier hs-var">closed</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089486"><span class="hs-identifier hs-var">remainder</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; StreamState
+</span><a href="Network.WebSockets.Stream.html#Open"><span class="hs-identifier hs-var">Open</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089486"><span class="hs-identifier hs-var">remainder</span></a></span><span>
+</span><span id="line-200"></span><span>        </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679089487"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Atto.Partial</span></span><span> </span><span id="local-6989586621679089490"><span class="annot"><span class="annottext">ByteString -&gt; IResult ByteString a
+</span><a href="#local-6989586621679089490"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679089491"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089491"><span class="hs-identifier hs-var">closed</span></a></span></span><span>
+</span><span id="line-202"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679089491"><span class="hs-identifier hs-var">closed</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; IResult ByteString a
+</span><a href="#local-6989586621679089490"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-203"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-204"></span><span>            </span><span id="local-6989586621679089492"><span class="annot"><a href="#local-6989586621679089492"><span class="hs-identifier hs-var">mbBs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; IO (Maybe ByteString)
+</span><a href="Network.WebSockets.Stream.html#streamIn"><span class="hs-identifier hs-var">streamIn</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089470"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-205"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679089492"><span class="hs-identifier hs-type">mbBs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-206"></span><span>                </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; IResult ByteString a
+</span><a href="#local-6989586621679089490"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">B.empty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-207"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089493"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089493"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IResult ByteString a -&gt; Bool -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; IResult ByteString a
+</span><a href="#local-6989586621679089490"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089493"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-208"></span><span>    </span><span class="annot"><a href="#local-6989586621679089474"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Atto.Fail</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679089495"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089495"><span class="hs-identifier hs-var">err</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; IO (Maybe a)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ConnectionException
+</span><a href="Network.WebSockets.Types.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089495"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-212"></span><span class="annot"><a href="Network.WebSockets.Stream.html#write"><span class="hs-identifier hs-type">write</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span id="write"><span class="annot"><span class="annottext">write :: Stream -&gt; ByteString -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#write"><span class="hs-identifier hs-var hs-var">write</span></a></span></span><span> </span><span id="local-6989586621679089496"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089496"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#streamOut"><span class="hs-identifier hs-var">streamOut</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089496"><span class="hs-identifier hs-var">stream</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe ByteString -&gt; IO ())
+-&gt; (ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-217"></span><span class="annot"><a href="Network.WebSockets.Stream.html#close"><span class="hs-identifier hs-type">close</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span id="close"><span class="annot"><span class="annottext">close :: Stream -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#close"><span class="hs-identifier hs-var hs-var">close</span></a></span></span><span> </span><span id="local-6989586621679089498"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089498"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#streamOut"><span class="hs-identifier hs-var">streamOut</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679089498"><span class="hs-identifier hs-var">stream</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-219"></span></pre></body></html>

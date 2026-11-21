@@ -1,0 +1,726 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE NamedFieldPuns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html"><span class="hs-identifier">Network.HTTP.Semantics.FillBuf</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Filling a buffer</span></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier">Next</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier">DynaNext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#BytesFilled"><span class="hs-identifier">BytesFilled</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingChunk"><span class="hs-identifier">StreamingChunk</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#IsEndOfStream"><span class="hs-identifier">IsEndOfStream</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CleanupStream"><span class="hs-identifier">CleanupStream</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillBuilderBodyGetNext"><span class="hs-identifier">fillBuilderBodyGetNext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillFileBodyGetNext"><span class="hs-identifier">fillFileBodyGetNext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillStreamBodyGetNext"><span class="hs-identifier">fillStreamBodyGetNext</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SomeException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Builder</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder.Extra</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.ByteOrder</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Client.html"><span class="hs-identifier">Network.HTTP.Semantics.Client</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | Write part of a streaming response to the write buffer</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- In @http2@ this will be used to construct a single HTTP2 @DATA@ frame</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- (see discussion of the maximum number of bytes, below).</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">type</span><span> </span><span id="DynaNext"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-var">DynaNext</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Buffer</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Write buffer</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">-- ^ Maximum number of bytes we are allowed to write</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">-- In @http2@, this maximum will be set to the space left in the write</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- buffer. Implicitly this also means that this maximum cannot exceed the</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-comment">-- maximum size of a HTTP2 frame, since in @http2@ the size of the write</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- buffer is also used to set @SETTINGS_MAX_FRAME_SIZE@ (see</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- @confBufferSize@).</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-type">Next</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">-- ^ Information on the data written, and on how to continue if not all data</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-comment">-- was written</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">type</span><span> </span><span id="BytesFilled"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#BytesFilled"><span class="hs-identifier hs-var">BytesFilled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">data</span><span> </span><span id="Next"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Next"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#BytesFilled"><span class="hs-identifier hs-type">BytesFilled</span></a></span><span> </span><span class="hs-comment">-- payload length</span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- require flushing</span><span>
+</span><span id="line-58"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="CancelNext"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CancelNext"><span class="hs-identifier hs-var">CancelNext</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">data</span><span> </span><span id="StreamingChunk"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingChunk"><span class="hs-identifier hs-var">StreamingChunk</span></a></span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Indicate that the stream is finished</span></span><span>
+</span><span id="line-65"></span><span>      </span><span id="StreamingFinished"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingFinished"><span class="hs-identifier hs-var">StreamingFinished</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CleanupStream"><span class="hs-identifier hs-type">CleanupStream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Indicate that the stream is cancelled</span></span><span>
+</span><span id="line-67"></span><span>      </span><span id="StreamingCancelled"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingCancelled"><span class="hs-identifier hs-var">StreamingCancelled</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | Flush the stream</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-comment">-- This will cause the write buffer to be written to the network socket,</span><span>
+</span><span id="line-71"></span><span>      </span><span class="hs-comment">-- without waiting for more data.</span><span>
+</span><span id="line-72"></span><span>      </span><span id="StreamingFlush"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingFlush"><span class="hs-identifier hs-var">StreamingFlush</span></a></span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Construct a DATA frame, optionally terminating the stream</span></span><span>
+</span><span id="line-74"></span><span>      </span><span id="StreamingBuilder"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingBuilder"><span class="hs-identifier hs-var">StreamingBuilder</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#IsEndOfStream"><span class="hs-identifier hs-type">IsEndOfStream</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Action to run prior to terminating the stream</span></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">type</span><span> </span><span id="CleanupStream"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CleanupStream"><span class="hs-identifier hs-var">CleanupStream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">data</span><span> </span><span id="IsEndOfStream"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#IsEndOfStream"><span class="hs-identifier hs-var">IsEndOfStream</span></a></span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | The stream is not yet terminated</span></span><span>
+</span><span id="line-81"></span><span>      </span><span id="NotEndOfStream"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NotEndOfStream"><span class="hs-identifier hs-var">NotEndOfStream</span></a></span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | The stream is terminated</span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-comment">-- In addition to indicating that the stream is terminated, we can also</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-comment">-- specify an optional `Cleanup` handler to be run.</span><span>
+</span><span id="line-86"></span><span>      </span><span id="EndOfStream"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#EndOfStream"><span class="hs-identifier hs-var">EndOfStream</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CleanupStream"><span class="hs-identifier hs-type">CleanupStream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillBuilderBodyGetNext"><span class="hs-identifier hs-type">fillBuilderBodyGetNext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-91"></span><span id="fillBuilderBodyGetNext"><span class="annot"><span class="annottext">fillBuilderBodyGetNext :: Builder -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBuilderBodyGetNext"><span class="hs-identifier hs-var hs-var">fillBuilderBodyGetNext</span></a></span></span><span> </span><span id="local-6989586621679074783"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074783"><span class="hs-identifier hs-var">bb</span></a></span></span><span> </span><span id="local-6989586621679074784"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074784"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074785"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074785"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679074786"><span class="annot"><a href="#local-6989586621679074786"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074787"><span class="annot"><a href="#local-6989586621679074787"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; BufferWriter
+</span><span class="hs-identifier hs-var">B.runBuilder</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074783"><span class="hs-identifier hs-var">bb</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074784"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074785"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-type">nextForBuilder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074786"><span class="hs-identifier hs-type">len</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074787"><span class="hs-identifier hs-type">signal</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillFileBodyGetNext"><span class="hs-identifier hs-type">fillFileBodyGetNext</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#PositionRead"><span class="hs-identifier hs-type">PositionRead</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#FileOffset"><span class="hs-identifier hs-type">FileOffset</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#Sentinel"><span class="hs-identifier hs-type">Sentinel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-97"></span><span id="fillFileBodyGetNext"><span class="annot"><span class="annottext">fillFileBodyGetNext :: PositionRead -&gt; Int64 -&gt; Int64 -&gt; Sentinel -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillFileBodyGetNext"><span class="hs-identifier hs-var hs-var">fillFileBodyGetNext</span></a></span></span><span> </span><span id="local-6989586621679074792"><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074792"><span class="hs-identifier hs-var">pread</span></a></span></span><span> </span><span id="local-6989586621679074793"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074793"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679074794"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074794"><span class="hs-identifier hs-var">bytecount</span></a></span></span><span> </span><span id="local-6989586621679074795"><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074795"><span class="hs-identifier hs-var">sentinel</span></a></span></span><span> </span><span id="local-6989586621679074796"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074796"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074797"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074797"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-98"></span><span>    </span><span id="local-6989586621679074798"><span class="annot"><a href="#local-6989586621679074798"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074792"><span class="hs-identifier hs-var">pread</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074793"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64 -&gt; Int64
+</span><a href="Network.HTTP.Semantics.FillBuf.html#mini"><span class="hs-identifier hs-var">mini</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074797"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074794"><span class="hs-identifier hs-var">bytecount</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074796"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074803"><span class="annot"><a href="#local-6989586621679074803"><span class="hs-identifier hs-var hs-var">len'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074798"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-type">nextForFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074803"><span class="hs-identifier hs-type">len'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074792"><span class="hs-identifier hs-type">pread</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074793"><span class="hs-identifier hs-type">start</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><a href="#local-6989586621679074798"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074794"><span class="hs-identifier hs-type">bytecount</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679074798"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679074795"><span class="hs-identifier hs-type">sentinel</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillStreamBodyGetNext"><span class="hs-identifier hs-type">fillStreamBodyGetNext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingChunk"><span class="hs-identifier hs-type">StreamingChunk</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-103"></span><span id="fillStreamBodyGetNext"><span class="annot"><span class="annottext">fillStreamBodyGetNext :: IO (Maybe StreamingChunk) -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillStreamBodyGetNext"><span class="hs-identifier hs-var hs-var">fillStreamBodyGetNext</span></a></span></span><span> </span><span id="local-6989586621679074806"><span class="annot"><span class="annottext">IO (Maybe StreamingChunk)
+</span><a href="#local-6989586621679074806"><span class="hs-identifier hs-var">takeQ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074807"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><a href="#local-6989586621679074807"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679074807"><span class="annot"><span class="annottext">loop :: NextWithTotal
+</span><a href="#local-6989586621679074807"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span id="local-6989586621679074808"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074808"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074809"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074809"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074810"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074810"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>        </span><span id="local-6989586621679074811"><span class="annot"><a href="#local-6989586621679074811"><span class="hs-identifier hs-var">mChunk</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe StreamingChunk)
+</span><a href="#local-6989586621679074806"><span class="hs-identifier hs-var">takeQ</span></a></span><span>
+</span><span id="line-108"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679074811"><span class="hs-identifier hs-type">mChunk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-109"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679074812"><span class="annot"><span class="annottext">StreamingChunk
+</span><a href="#local-6989586621679074812"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StreamingChunk -&gt; NextWithTotal -&gt; NextWithTotal
+</span><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingChunk"><span class="hs-identifier hs-var">runStreamingChunk</span></a></span><span> </span><span class="annot"><span class="annottext">StreamingChunk
+</span><a href="#local-6989586621679074812"><span class="hs-identifier hs-var">chunk</span></a></span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074807"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074808"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074809"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074810"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-110"></span><span>            </span><span class="annot"><span class="annottext">Maybe StreamingChunk
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074808"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074807"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderOne"><span class="hs-identifier hs-type">fillBufBuilderOne</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.BufferWriter</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-115"></span><span id="fillBufBuilderOne"><span class="annot"><span class="annottext">fillBufBuilderOne :: Int -&gt; BufferWriter -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderOne"><span class="hs-identifier hs-var hs-var">fillBufBuilderOne</span></a></span></span><span> </span><span id="local-6989586621679074815"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074815"><span class="hs-identifier hs-var">minReq</span></a></span></span><span> </span><span id="local-6989586621679074816"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074816"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span id="local-6989586621679074817"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074817"><span class="hs-identifier hs-var">buf0</span></a></span></span><span> </span><span id="local-6989586621679074818"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074818"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074818"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074815"><span class="hs-identifier hs-var">minReq</span></a></span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-118"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679074819"><span class="annot"><a href="#local-6989586621679074819"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074820"><span class="annot"><a href="#local-6989586621679074820"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074816"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074817"><span class="hs-identifier hs-var">buf0</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074818"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-119"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-type">nextForBuilder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074819"><span class="hs-identifier hs-type">len</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074820"><span class="hs-identifier hs-type">signal</span></a></span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-121"></span><span>            </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; BufferWriter -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderOne"><span class="hs-identifier hs-var">fillBufBuilderOne</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074815"><span class="hs-identifier hs-var">minReq</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074816"><span class="hs-identifier hs-var">writer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderTwo"><span class="hs-identifier hs-type">fillBufBuilderTwo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.BufferWriter</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-124"></span><span id="fillBufBuilderTwo"><span class="annot"><span class="annottext">fillBufBuilderTwo :: ByteString -&gt; BufferWriter -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderTwo"><span class="hs-identifier hs-var hs-var">fillBufBuilderTwo</span></a></span></span><span> </span><span id="local-6989586621679074822"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074822"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679074823"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074823"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span id="local-6989586621679074824"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074824"><span class="hs-identifier hs-var">buf0</span></a></span></span><span> </span><span id="local-6989586621679074825"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074825"><span class="hs-identifier hs-var">room</span></a></span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074822"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074825"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-126"></span><span>        </span><span id="local-6989586621679074828"><span class="annot"><a href="#local-6989586621679074828"><span class="hs-identifier hs-var">buf1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Buffer -&gt; ByteString -&gt; IO Buffer
+</span><span class="hs-identifier hs-var">copy</span></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074824"><span class="hs-identifier hs-var">buf0</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074822"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-127"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074830"><span class="annot"><a href="#local-6989586621679074830"><span class="hs-identifier hs-var hs-var">len1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074822"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679074831"><span class="annot"><a href="#local-6989586621679074831"><span class="hs-identifier hs-var">len2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074832"><span class="annot"><a href="#local-6989586621679074832"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679074823"><span class="hs-identifier hs-type">writer</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074828"><span class="hs-identifier hs-type">buf1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074825"><span class="hs-identifier hs-type">room</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679074830"><span class="hs-identifier hs-type">len1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-type">nextForBuilder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074830"><span class="hs-identifier hs-type">len1</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><a href="#local-6989586621679074831"><span class="hs-identifier hs-type">len2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679074832"><span class="hs-identifier hs-type">signal</span></a></span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-131"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679074833"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074833"><span class="hs-identifier hs-var hs-var">bs1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074834"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074834"><span class="hs-identifier hs-var hs-var">bs2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074825"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074822"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">IO Buffer -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO Buffer -&gt; IO ()) -&gt; IO Buffer -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Buffer -&gt; ByteString -&gt; IO Buffer
+</span><span class="hs-identifier hs-var">copy</span></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074824"><span class="hs-identifier hs-var">buf0</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074833"><span class="hs-identifier hs-var">bs1</span></a></span><span>
+</span><span id="line-133"></span><span>        </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Next -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-var">nextForBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074825"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; BufferWriter -&gt; Next
+</span><span class="hs-identifier hs-var">B.Chunk</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074834"><span class="hs-identifier hs-var">bs2</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074823"><span class="hs-identifier hs-var">writer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-type">nextForBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#BytesFilled"><span class="hs-identifier hs-type">BytesFilled</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Next</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-type">Next</span></a></span><span>
+</span><span id="line-136"></span><span id="nextForBuilder"><span class="annot"><span class="annottext">nextForBuilder :: Int -&gt; Next -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-var hs-var">nextForBuilder</span></a></span></span><span> </span><span id="local-6989586621679074838"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074838"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="annot"><span class="annottext">Next
+</span><span class="hs-identifier hs-var">B.Done</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074838"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Maybe DynaNext
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- let's flush</span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-var">nextForBuilder</span></a></span><span> </span><span id="local-6989586621679074840"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074840"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.More</span></span><span> </span><span id="local-6989586621679074842"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074842"><span class="hs-identifier hs-var">minReq</span></a></span></span><span> </span><span id="local-6989586621679074843"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074843"><span class="hs-identifier hs-var">writer</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074840"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">(Maybe DynaNext -&gt; Next) -&gt; Maybe DynaNext -&gt; Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; BufferWriter -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderOne"><span class="hs-identifier hs-var">fillBufBuilderOne</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074842"><span class="hs-identifier hs-var">minReq</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074843"><span class="hs-identifier hs-var">writer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForBuilder"><span class="hs-identifier hs-var">nextForBuilder</span></a></span><span> </span><span id="local-6989586621679074844"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074844"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.Chunk</span></span><span> </span><span id="local-6989586621679074845"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074845"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679074846"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074846"><span class="hs-identifier hs-var">writer</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074844"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">(Maybe DynaNext -&gt; Next) -&gt; Maybe DynaNext -&gt; Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; BufferWriter -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufBuilderTwo"><span class="hs-identifier hs-var">fillBufBuilderTwo</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074845"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074846"><span class="hs-identifier hs-var">writer</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | Like 'DynaNext', but with additional argument indicating total bytes written</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- Since @http2@ uses @DynaNext@ to construct a /single/ @DATA@ frame, the</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- \&quot;total number of bytes written\&quot; refers to the current size of the payload</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- of that @DATA@ frame.</span><span>
+</span><span id="line-150"></span><span class="hs-keyword">type</span><span> </span><span id="NextWithTotal"><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-var">NextWithTotal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="annot"><span class="hs-comment">-- | Run the chunk, then continue as specified, unless streaming is finished</span></span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingChunk"><span class="hs-identifier hs-type">runStreamingChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingChunk"><span class="hs-identifier hs-type">StreamingChunk</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-154"></span><span id="runStreamingChunk"><span class="annot"><span class="annottext">runStreamingChunk :: StreamingChunk -&gt; NextWithTotal -&gt; NextWithTotal
+</span><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingChunk"><span class="hs-identifier hs-var hs-var">runStreamingChunk</span></a></span></span><span> </span><span id="local-6989586621679074847"><span class="annot"><span class="annottext">StreamingChunk
+</span><a href="#local-6989586621679074847"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span id="local-6989586621679074848"><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074848"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">StreamingChunk
+</span><a href="#local-6989586621679074847"><span class="hs-identifier hs-var">chunk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingFinished"><span class="hs-identifier hs-type">StreamingFinished</span></a></span><span> </span><span id="local-6989586621679074849"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074849"><span class="hs-identifier hs-var">mdec</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (IO ()) -&gt; NextWithTotal
+</span><a href="#local-6989586621679074850"><span class="hs-identifier hs-var">finished</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074849"><span class="hs-identifier hs-var">mdec</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingCancelled"><span class="hs-identifier hs-type">StreamingCancelled</span></a></span><span> </span><span id="local-6989586621679074851"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679074851"><span class="hs-identifier hs-var">mErr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException -&gt; NextWithTotal
+</span><a href="#local-6989586621679074852"><span class="hs-identifier hs-var">cancel</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679074851"><span class="hs-identifier hs-var">mErr</span></a></span><span>
+</span><span id="line-158"></span><span>        </span><span class="annot"><span class="annottext">StreamingChunk
+</span><a href="Network.HTTP.Semantics.FillBuf.html#StreamingFlush"><span class="hs-identifier hs-var">StreamingFlush</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074853"><span class="hs-identifier hs-var">flush</span></a></span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingBuilder"><span class="hs-identifier hs-type">StreamingBuilder</span></a></span><span> </span><span id="local-6989586621679074854"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074854"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="annot"><span class="annottext">IsEndOfStream
+</span><a href="Network.HTTP.Semantics.FillBuf.html#NotEndOfStream"><span class="hs-identifier hs-var">NotEndOfStream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; NextWithTotal -&gt; NextWithTotal
+</span><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingBuilder"><span class="hs-identifier hs-var">runStreamingBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074854"><span class="hs-identifier hs-var">builder</span></a></span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074848"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-160"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#StreamingBuilder"><span class="hs-identifier hs-type">StreamingBuilder</span></a></span><span> </span><span id="local-6989586621679074856"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074856"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#EndOfStream"><span class="hs-identifier hs-type">EndOfStream</span></a></span><span> </span><span id="local-6989586621679074857"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074857"><span class="hs-identifier hs-var">mdec</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; NextWithTotal -&gt; NextWithTotal
+</span><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingBuilder"><span class="hs-identifier hs-var">runStreamingBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074856"><span class="hs-identifier hs-var">builder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (IO ()) -&gt; NextWithTotal
+</span><a href="#local-6989586621679074850"><span class="hs-identifier hs-var">finished</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074857"><span class="hs-identifier hs-var">mdec</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><a href="#local-6989586621679074850"><span class="hs-identifier hs-type">finished</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#CleanupStream"><span class="hs-identifier hs-type">CleanupStream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span id="local-6989586621679074850"><span class="annot"><span class="annottext">finished :: Maybe (IO ()) -&gt; NextWithTotal
+</span><a href="#local-6989586621679074850"><span class="hs-identifier hs-var hs-var">finished</span></a></span></span><span> </span><span id="local-6989586621679074858"><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074858"><span class="hs-identifier hs-var">mdec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074859"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074859"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074860"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074860"><span class="hs-identifier hs-var">_buf</span></a></span></span><span> </span><span id="local-6989586621679074861"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074861"><span class="hs-identifier hs-var">_room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-164"></span><span>        </span><span class="annot"><span class="annottext">IO () -&gt; Maybe (IO ()) -&gt; IO ()
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (IO ())
+</span><a href="#local-6989586621679074858"><span class="hs-identifier hs-var">mdec</span></a></span><span>
+</span><span id="line-165"></span><span>        </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074859"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Maybe DynaNext
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><a href="#local-6989586621679074853"><span class="hs-identifier hs-type">flush</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679074853"><span class="annot"><span class="annottext">flush :: NextWithTotal
+</span><a href="#local-6989586621679074853"><span class="hs-identifier hs-var hs-var">flush</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074863"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074863"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074864"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074864"><span class="hs-identifier hs-var">_buf</span></a></span></span><span> </span><span id="local-6989586621679074865"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074865"><span class="hs-identifier hs-var">_room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074863"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074848"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- Cancel streaming</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-comment">-- The @_total@ number of bytes written refers to the @DATA@ frame currently</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-comment">-- under construction, but not yet sent (see discussion at 'DynaNext' and</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-comment">-- 'NextWithTotal'). Moreover, the documentation of 'outBodyCancel'</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-comment">-- explicitly states that such a partially constructed frame, if one exists,</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-comment">-- will be discarded on cancellation. We can therefore simply ignore</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-comment">-- @_total@ here.</span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><a href="#local-6989586621679074852"><span class="hs-identifier hs-type">cancel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621679074852"><span class="annot"><span class="annottext">cancel :: Maybe SomeException -&gt; NextWithTotal
+</span><a href="#local-6989586621679074852"><span class="hs-identifier hs-var hs-var">cancel</span></a></span></span><span> </span><span id="local-6989586621679074866"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679074866"><span class="hs-identifier hs-var">mErr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074867"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074867"><span class="hs-identifier hs-var">_total</span></a></span></span><span> </span><span id="local-6989586621679074868"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074868"><span class="hs-identifier hs-var">_buf</span></a></span></span><span> </span><span id="local-6989586621679074869"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074869"><span class="hs-identifier hs-var">_room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#CancelNext"><span class="hs-identifier hs-var">CancelNext</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679074866"><span class="hs-identifier hs-var">mErr</span></a></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="annot"><span class="hs-comment">-- | Run 'Builder' until completion, then continue as specified</span></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingBuilder"><span class="hs-identifier hs-type">runStreamingBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-184"></span><span id="runStreamingBuilder"><span class="annot"><span class="annottext">runStreamingBuilder :: Builder -&gt; NextWithTotal -&gt; NextWithTotal
+</span><a href="Network.HTTP.Semantics.FillBuf.html#runStreamingBuilder"><span class="hs-identifier hs-var hs-var">runStreamingBuilder</span></a></span></span><span> </span><span id="local-6989586621679074870"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074870"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span id="local-6989586621679074871"><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074871"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074872"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074872"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074873"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074873"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074874"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074874"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621679074875"><span class="annot"><a href="#local-6989586621679074875"><span class="hs-identifier hs-var">writeResult</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; BufferWriter
+</span><span class="hs-identifier hs-var">B.runBuilder</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679074870"><span class="hs-identifier hs-var">builder</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074873"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074874"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><a href="#local-6989586621679074876"><span class="hs-identifier hs-type">ranWriter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074875"><span class="hs-identifier hs-type">writeResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074872"><span class="hs-identifier hs-type">total</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074873"><span class="hs-identifier hs-type">buf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074874"><span class="hs-identifier hs-type">room</span></a></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621679074876"><span class="hs-identifier hs-type">ranWriter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Next</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679074876"><span class="annot"><span class="annottext">ranWriter :: (Int, Next) -&gt; NextWithTotal
+</span><a href="#local-6989586621679074876"><span class="hs-identifier hs-var hs-var">ranWriter</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679074877"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074877"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074878"><span class="annot"><span class="annottext">Next
+</span><a href="#local-6989586621679074878"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074879"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074879"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074880"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074880"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074881"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074881"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-190"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074883"><span class="annot"><span class="annottext">total' :: Int
+</span><a href="#local-6989586621679074883"><span class="hs-identifier hs-var hs-var">total'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074879"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074877"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-191"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Next
+</span><a href="#local-6989586621679074878"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-192"></span><span>            </span><span class="annot"><span class="annottext">Next
+</span><span class="hs-identifier hs-var">B.Done</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-193"></span><span>                </span><span class="annot"><span class="annottext">NextWithTotal
+</span><a href="#local-6989586621679074871"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074883"><span class="hs-identifier hs-var">total'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074880"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer -&gt; Int -&gt; Buffer
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074877"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074881"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074877"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">B.More</span></span><span> </span><span id="local-6989586621679074884"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074884"><span class="hs-identifier hs-var">minReq</span></a></span></span><span> </span><span id="local-6989586621679074885"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074885"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-195"></span><span>                </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074883"><span class="hs-identifier hs-var">total'</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074886"><span class="hs-identifier hs-var">goMore</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074884"><span class="hs-identifier hs-var">minReq</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074885"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">B.Chunk</span></span><span> </span><span id="local-6989586621679074887"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074887"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679074888"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074888"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-197"></span><span>                </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074883"><span class="hs-identifier hs-var">total'</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074889"><span class="hs-identifier hs-var">goChunk</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074887"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074888"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span>    </span><span class="annot"><a href="#local-6989586621679074886"><span class="hs-identifier hs-type">goMore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.BufferWriter</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621679074886"><span class="annot"><span class="annottext">goMore :: Maybe Int -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074886"><span class="hs-identifier hs-var hs-var">goMore</span></a></span></span><span> </span><span id="local-6989586621679074890"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679074890"><span class="hs-identifier hs-var">mMinReq</span></a></span></span><span> </span><span id="local-6989586621679074891"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074891"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074892"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074892"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074893"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074893"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074894"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074894"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-201"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074896"><span class="annot"><span class="annottext">enoughRoom :: Bool
+</span><a href="#local-6989586621679074896"><span class="hs-identifier hs-var hs-var">enoughRoom</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; (Int -&gt; Bool) -&gt; Maybe Int -&gt; Bool
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074894"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679074890"><span class="hs-identifier hs-var">mMinReq</span></a></span><span>
+</span><span id="line-202"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679074896"><span class="hs-identifier hs-var">enoughRoom</span></a></span><span>
+</span><span id="line-203"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-204"></span><span>                </span><span id="local-6989586621679074898"><span class="annot"><a href="#local-6989586621679074898"><span class="hs-identifier hs-var">writeResult</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074891"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074893"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074894"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-205"></span><span>                </span><span class="annot"><a href="#local-6989586621679074876"><span class="hs-identifier hs-type">ranWriter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074898"><span class="hs-identifier hs-type">writeResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074892"><span class="hs-identifier hs-type">total</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074893"><span class="hs-identifier hs-type">buf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074894"><span class="hs-identifier hs-type">room</span></a></span><span>
+</span><span id="line-206"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-207"></span><span>                </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074892"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074886"><span class="hs-identifier hs-var">goMore</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679074890"><span class="hs-identifier hs-var">mMinReq</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074891"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span>    </span><span class="annot"><a href="#local-6989586621679074889"><span class="hs-identifier hs-type">goChunk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.BufferWriter</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#NextWithTotal"><span class="hs-identifier hs-type">NextWithTotal</span></a></span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621679074889"><span class="annot"><span class="annottext">goChunk :: ByteString -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074889"><span class="hs-identifier hs-var hs-var">goChunk</span></a></span></span><span> </span><span id="local-6989586621679074899"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679074900"><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074900"><span class="hs-identifier hs-var">writer</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679074901"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074901"><span class="hs-identifier hs-var">total</span></a></span></span><span> </span><span id="local-6989586621679074902"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074902"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074903"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">room</span></a></span><span>
+</span><span id="line-212"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-213"></span><span>                </span><span id="local-6989586621679074904"><span class="annot"><a href="#local-6989586621679074904"><span class="hs-identifier hs-var">buf'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Buffer -&gt; ByteString -&gt; IO Buffer
+</span><span class="hs-identifier hs-var">copy</span></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074902"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-214"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074905"><span class="annot"><a href="#local-6989586621679074905"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">BS.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-215"></span><span>                </span><span class="annot"><a href="#local-6989586621679074886"><span class="hs-identifier hs-type">goMore</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span> </span><span class="annot"><a href="#local-6989586621679074900"><span class="hs-identifier hs-type">writer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074901"><span class="hs-identifier hs-type">total</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><a href="#local-6989586621679074905"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679074904"><span class="hs-identifier hs-type">buf'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074903"><span class="hs-identifier hs-type">room</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679074905"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-217"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679074906"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074906"><span class="hs-identifier hs-var hs-var">bs1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679074907"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074907"><span class="hs-identifier hs-var hs-var">bs2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; (ByteString, ByteString)
+</span><span class="hs-identifier hs-var">BS.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074899"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-218"></span><span>                </span><span class="annot"><span class="annottext">IO Buffer -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO Buffer -&gt; IO ()) -&gt; IO Buffer -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Buffer -&gt; ByteString -&gt; IO Buffer
+</span><span class="hs-identifier hs-var">copy</span></span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074902"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074906"><span class="hs-identifier hs-var">bs1</span></a></span><span>
+</span><span id="line-219"></span><span>                </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074901"><span class="hs-identifier hs-var">total</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074903"><span class="hs-identifier hs-var">room</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; BufferWriter -&gt; NextWithTotal
+</span><a href="#local-6989586621679074889"><span class="hs-identifier hs-var">goChunk</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679074907"><span class="hs-identifier hs-var">bs2</span></a></span><span> </span><span class="annot"><span class="annottext">BufferWriter
+</span><a href="#local-6989586621679074900"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#fillBufFile"><span class="hs-identifier hs-type">fillBufFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#PositionRead"><span class="hs-identifier hs-type">PositionRead</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#FileOffset"><span class="hs-identifier hs-type">FileOffset</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#Sentinel"><span class="hs-identifier hs-type">Sentinel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#DynaNext"><span class="hs-identifier hs-type">DynaNext</span></a></span><span>
+</span><span id="line-224"></span><span id="fillBufFile"><span class="annot"><span class="annottext">fillBufFile :: PositionRead -&gt; Int64 -&gt; Int64 -&gt; Sentinel -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufFile"><span class="hs-identifier hs-var hs-var">fillBufFile</span></a></span></span><span> </span><span id="local-6989586621679074909"><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">pread</span></a></span></span><span> </span><span id="local-6989586621679074910"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074910"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679074911"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074911"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span id="local-6989586621679074912"><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074912"><span class="hs-identifier hs-var">sentinel</span></a></span></span><span> </span><span id="local-6989586621679074913"><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074913"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span id="local-6989586621679074914"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074914"><span class="hs-identifier hs-var">room</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-225"></span><span>    </span><span id="local-6989586621679074915"><span class="annot"><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074909"><span class="hs-identifier hs-var">pread</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074910"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64 -&gt; Int64
+</span><a href="Network.HTTP.Semantics.FillBuf.html#mini"><span class="hs-identifier hs-var">mini</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074914"><span class="hs-identifier hs-var">room</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074911"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Buffer
+</span><a href="#local-6989586621679074913"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-226"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679074912"><span class="hs-identifier hs-type">sentinel</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-227"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#Refresher"><span class="hs-identifier hs-type">Refresher</span></a></span><span> </span><span id="local-6989586621679074917"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679074917"><span class="hs-identifier hs-var">refresh</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679074917"><span class="hs-identifier hs-var">refresh</span></a></span><span>
+</span><span id="line-228"></span><span>        </span><span class="annot"><span class="annottext">Sentinel
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679074920"><span class="annot"><a href="#local-6989586621679074920"><span class="hs-identifier hs-var hs-var">len'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074915"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-230"></span><span>    </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-type">nextForFile</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074920"><span class="hs-identifier hs-type">len'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679074909"><span class="hs-identifier hs-type">pread</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074910"><span class="hs-identifier hs-type">start</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><a href="#local-6989586621679074915"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679074911"><span class="hs-identifier hs-type">bytes</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679074915"><span class="hs-identifier hs-type">len</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679074912"><span class="hs-identifier hs-type">sentinel</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-type">nextForFile</span></a></span><span>
+</span><span id="line-233"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#BytesFilled"><span class="hs-identifier hs-type">BytesFilled</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#PositionRead"><span class="hs-identifier hs-type">PositionRead</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#FileOffset"><span class="hs-identifier hs-type">FileOffset</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.Types.html#ByteCount"><span class="hs-identifier hs-type">ByteCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#Sentinel"><span class="hs-identifier hs-type">Sentinel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-type">Next</span></a></span><span>
+</span><span id="line-234"></span><span id="nextForFile"><span class="annot"><span class="annottext">nextForFile :: Int -&gt; PositionRead -&gt; Int64 -&gt; Int64 -&gt; Sentinel -&gt; IO Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-var hs-var">nextForFile</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">PositionRead
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Sentinel
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Maybe DynaNext
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-comment">-- let's flush</span><span>
+</span><span id="line-235"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-var">nextForFile</span></a></span><span> </span><span id="local-6989586621679074921"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074921"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span class="annot"><span class="annottext">PositionRead
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span> </span><span id="local-6989586621679074922"><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074922"><span class="hs-identifier hs-var">sentinel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074922"><span class="hs-identifier hs-var">sentinel</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-237"></span><span>        </span><span class="annot"><a href="Network.HTTP.Semantics.File.html#Closer"><span class="hs-identifier hs-type">Closer</span></a></span><span> </span><span id="local-6989586621679074924"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679074924"><span class="hs-identifier hs-var">close</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679074924"><span class="hs-identifier hs-var">close</span></a></span><span>
+</span><span id="line-238"></span><span>        </span><span class="annot"><span class="annottext">Sentinel
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>    </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074921"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Maybe DynaNext
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-240"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#nextForFile"><span class="hs-identifier hs-var">nextForFile</span></a></span><span> </span><span id="local-6989586621679074925"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074925"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679074926"><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074926"><span class="hs-identifier hs-var">pread</span></a></span></span><span> </span><span id="local-6989586621679074927"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074927"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span id="local-6989586621679074928"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074928"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span id="local-6989586621679074929"><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074929"><span class="hs-identifier hs-var">refresh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><span class="annottext">Next -&gt; IO Next
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Next -&gt; IO Next) -&gt; Next -&gt; IO Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool -&gt; Maybe DynaNext -&gt; Next
+</span><a href="Network.HTTP.Semantics.FillBuf.html#Next"><span class="hs-identifier hs-var">Next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074925"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">(Maybe DynaNext -&gt; Next) -&gt; Maybe DynaNext -&gt; Next
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(DynaNext -&gt; Maybe DynaNext) -&gt; DynaNext -&gt; Maybe DynaNext
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PositionRead -&gt; Int64 -&gt; Int64 -&gt; Sentinel -&gt; DynaNext
+</span><a href="Network.HTTP.Semantics.FillBuf.html#fillBufFile"><span class="hs-identifier hs-var">fillBufFile</span></a></span><span> </span><span class="annot"><span class="annottext">PositionRead
+</span><a href="#local-6989586621679074926"><span class="hs-identifier hs-var">pread</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074927"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074928"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="annot"><span class="annottext">Sentinel
+</span><a href="#local-6989586621679074929"><span class="hs-identifier hs-var">refresh</span></a></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#mini"><span class="hs-pragma hs-type">mini</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-244"></span><span class="annot"><a href="Network.HTTP.Semantics.FillBuf.html#mini"><span class="hs-identifier hs-type">mini</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-245"></span><span id="mini"><span class="annot"><span class="annottext">mini :: Int -&gt; Int64 -&gt; Int64
+</span><a href="Network.HTTP.Semantics.FillBuf.html#mini"><span class="hs-identifier hs-var hs-var">mini</span></a></span></span><span> </span><span id="local-6989586621679074930"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074930"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679074931"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074931"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-246"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074930"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074931"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679074930"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-247"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679074931"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-248"></span></pre></body></html>

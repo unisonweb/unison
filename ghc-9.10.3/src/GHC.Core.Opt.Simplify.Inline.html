@@ -1,0 +1,1159 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The AQUA Project, Glasgow University, 1994-1998
+
+This module contains inlining logic used by the simplifier.
+-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html"><span class="hs-identifier">GHC.Core.Opt.Simplify.Inline</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Cheap and cheerful inlining checks.</span></span><span>
+</span><span id="line-12"></span><span>        </span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#couldBeSmallEnoughToInline"><span class="hs-identifier">couldBeSmallEnoughToInline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#smallEnoughToInline"><span class="hs-identifier">smallEnoughToInline</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><span class="hs-comment">-- * The smart inlining decisions are made by callSiteInline</span></span><span>
+</span><span id="line-16"></span><span>        </span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#callSiteInline"><span class="hs-identifier">callSiteInline</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#CallCtxt"><span class="hs-identifier">CallCtxt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Flags.html"><span class="hs-identifier">GHC.Driver.Flags</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.html"><span class="hs-identifier">GHC.Core</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html"><span class="hs-identifier">GHC.Core.Unfold</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.html"><span class="hs-identifier">GHC.Types.Id</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier">Arity</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#RecFlag"><span class="hs-identifier">RecFlag</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Misc.html"><span class="hs-identifier">GHC.Utils.Misc</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPrefixOf</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection[considerUnfolding]{Given all the info, do (not) do the unfolding}
+*                                                                      *
+************************************************************************
+
+We use 'couldBeSmallEnoughToInline' to avoid exporting inlinings that
+we ``couldn't possibly use'' on the other side.  Can be overridden w/
+flaggery.  Just the same as smallEnoughToInline, except that it has no
+actual arguments.
+-}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#couldBeSmallEnoughToInline"><span class="hs-identifier hs-type">couldBeSmallEnoughToInline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#UnfoldingOpts"><span class="hs-identifier hs-type">UnfoldingOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-48"></span><span id="couldBeSmallEnoughToInline"><span class="annot"><span class="annottext">couldBeSmallEnoughToInline :: UnfoldingOpts -&gt; Int -&gt; CoreExpr -&gt; Bool
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#couldBeSmallEnoughToInline"><span class="hs-identifier hs-var hs-var">couldBeSmallEnoughToInline</span></a></span></span><span> </span><span id="local-6989586621682623838"><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623838"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621682623839"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623839"><span class="hs-identifier hs-var">threshold</span></a></span></span><span> </span><span id="local-6989586621682623840"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623840"><span class="hs-identifier hs-var">rhs</span></a></span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Int -&gt; [Id] -&gt; CoreExpr -&gt; ExprSize
+</span><a href="GHC.Core.Unfold.html#sizeExpr"><span class="hs-identifier hs-var">sizeExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623838"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623839"><span class="hs-identifier hs-var">threshold</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623842"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-50"></span><span>       </span><span class="annot"><span class="annottext">ExprSize
+</span><a href="GHC.Core.Unfold.html#TooBig"><span class="hs-identifier hs-var">TooBig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-51"></span><span>       </span><span class="annot"><span class="annottext">ExprSize
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Id]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682623842"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623842"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CoreExpr -&gt; ([Id], CoreExpr)
+forall b. Expr b -&gt; ([b], Expr b)
+</span><a href="GHC.Core.html#collectBinders"><span class="hs-identifier hs-var">collectBinders</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623840"><span class="hs-identifier hs-var">rhs</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">----------------</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#smallEnoughToInline"><span class="hs-identifier hs-type">smallEnoughToInline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#UnfoldingOpts"><span class="hs-identifier hs-type">UnfoldingOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#Unfolding"><span class="hs-identifier hs-type">Unfolding</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-57"></span><span id="smallEnoughToInline"><span class="annot"><span class="annottext">smallEnoughToInline :: UnfoldingOpts -&gt; Unfolding -&gt; Bool
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#smallEnoughToInline"><span class="hs-identifier hs-var hs-var">smallEnoughToInline</span></a></span></span><span> </span><span id="local-6989586621682623845"><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623845"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Core.html#CoreUnfolding"><span class="hs-identifier hs-type">CoreUnfolding</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">uf_guidance :: Unfolding -&gt; UnfoldingGuidance
+</span><a href="GHC.Core.html#uf_guidance"><span class="hs-identifier hs-var">uf_guidance</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623848"><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623848"><span class="hs-identifier hs-var">guidance</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623848"><span class="hs-identifier hs-var">guidance</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>       </span><span class="annot"><a href="GHC.Core.html#UnfIfGoodArgs"><span class="hs-identifier hs-type">UnfIfGoodArgs</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">ug_size :: UnfoldingGuidance -&gt; Int
+</span><a href="GHC.Core.html#ug_size"><span class="hs-identifier hs-var">ug_size</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623851"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623851"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623851"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Int
+</span><a href="GHC.Core.Unfold.html#unfoldingUseThreshold"><span class="hs-identifier hs-var">unfoldingUseThreshold</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623845"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-60"></span><span>       </span><span class="annot"><a href="GHC.Core.html#UnfWhen"><span class="hs-identifier hs-type">UnfWhen</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-61"></span><span>       </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="GHC.Core.html#UnfNever"><span class="hs-identifier hs-var">UnfNever</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#smallEnoughToInline"><span class="hs-identifier hs-var">smallEnoughToInline</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Unfolding
+</span><span class="hs-identifier">_</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection{callSiteInline}
+*                                                                      *
+************************************************************************
+
+This is the key function.  It decides whether to inline a variable at a call site
+
+callSiteInline is used at call sites, so it is a bit more generous.
+It's a very important function that embodies lots of heuristics.
+A non-WHNF can be inlined if it doesn't occur inside a lambda,
+and occurs exactly once or
+    occurs once in each branch of a case and is small
+
+If the thing is in WHNF, there's no danger of duplicating work,
+so we can inline if it occurs once, or is small
+
+NOTE: we don't want to inline top-level functions that always diverge.
+It just makes the code bigger.  Tt turns out that the convenient way to prevent
+them inlining is to give them a NOINLINE pragma, which we do in
+StrictAnal.addStrictnessInfoToTopId
+-}</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#callSiteInline"><span class="hs-identifier hs-type">callSiteInline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span>
+</span><span id="line-90"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#UnfoldingOpts"><span class="hs-identifier hs-type">UnfoldingOpts</span></a></span><span>
+</span><span id="line-91"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                   </span><span class="hs-comment">-- Case depth</span><span>
+</span><span id="line-92"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span>                    </span><span class="hs-comment">-- The Id</span><span>
+</span><span id="line-93"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>                  </span><span class="hs-comment">-- True &lt;=&gt; unfolding is active</span><span>
+</span><span id="line-94"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>                  </span><span class="hs-comment">-- True if there are no arguments at all (incl type args)</span><span>
+</span><span id="line-95"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Unfold.html#ArgSummary"><span class="hs-identifier hs-type">ArgSummary</span></a></span><span class="hs-special">]</span><span>          </span><span class="hs-comment">-- One for each value arg; True if it is interesting</span><span>
+</span><span id="line-96"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#CallCtxt"><span class="hs-identifier hs-type">CallCtxt</span></a></span><span>              </span><span class="hs-comment">-- True &lt;=&gt; continuation is interesting</span><span>
+</span><span id="line-97"></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>        </span><span class="hs-comment">-- Unfolding, if any</span><span>
+</span><span id="line-98"></span><span id="callSiteInline"><span class="annot"><span class="annottext">callSiteInline :: Logger
+-&gt; UnfoldingOpts
+-&gt; Int
+-&gt; Id
+-&gt; Bool
+-&gt; Bool
+-&gt; [ArgSummary]
+-&gt; CallCtxt
+-&gt; Maybe CoreExpr
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#callSiteInline"><span class="hs-identifier hs-var hs-var">callSiteInline</span></a></span></span><span> </span><span id="local-6989586621682623856"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623856"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682623857"><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623857"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621682623858"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623858"><span class="hs-identifier hs-var">case_depth</span></a></span></span><span> </span><span id="local-6989586621682623859"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623859"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621682623860"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623860"><span class="hs-identifier hs-var">active_unfolding</span></a></span></span><span> </span><span id="local-6989586621682623861"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623861"><span class="hs-identifier hs-var">lone_variable</span></a></span></span><span> </span><span id="local-6989586621682623862"><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623862"><span class="hs-identifier hs-var">arg_infos</span></a></span></span><span> </span><span id="local-6989586621682623863"><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623863"><span class="hs-identifier hs-var">cont_info</span></a></span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">IdUnfoldingFun
+</span><a href="GHC.Types.Id.html#idUnfolding"><span class="hs-identifier hs-var">idUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623859"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-comment">-- idUnfolding checks for loop-breakers, returning NoUnfolding</span><span>
+</span><span id="line-101"></span><span>      </span><span class="hs-comment">-- Things with an INLINE pragma may have an unfolding *and*</span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-comment">-- be a loop breaker  (maybe the knot is not yet untied)</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><a href="GHC.Core.html#CoreUnfolding"><span class="hs-identifier hs-type">CoreUnfolding</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">uf_tmpl :: Unfolding -&gt; CoreExpr
+</span><a href="GHC.Core.html#uf_tmpl"><span class="hs-identifier hs-var">uf_tmpl</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623866"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623866"><span class="hs-identifier hs-var">unf_template</span></a></span></span><span>
+</span><span id="line-104"></span><span>                      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">uf_cache :: Unfolding -&gt; UnfoldingCache
+</span><a href="GHC.Core.html#uf_cache"><span class="hs-identifier hs-var">uf_cache</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623868"><span class="annot"><span class="annottext">UnfoldingCache
+</span><a href="#local-6989586621682623868"><span class="hs-identifier hs-var">unf_cache</span></a></span></span><span>
+</span><span id="line-105"></span><span>                      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">uf_guidance :: Unfolding -&gt; UnfoldingGuidance
+</span><a href="GHC.Core.html#uf_guidance"><span class="hs-identifier hs-var">uf_guidance</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623869"><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623869"><span class="hs-identifier hs-var">guidance</span></a></span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-106"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623860"><span class="hs-identifier hs-var">active_unfolding</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Int
+-&gt; Id
+-&gt; Bool
+-&gt; [ArgSummary]
+-&gt; CallCtxt
+-&gt; CoreExpr
+-&gt; UnfoldingCache
+-&gt; UnfoldingGuidance
+-&gt; Maybe CoreExpr
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#tryUnfolding"><span class="hs-identifier hs-var">tryUnfolding</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623856"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623857"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623858"><span class="hs-identifier hs-var">case_depth</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623859"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623861"><span class="hs-identifier hs-var">lone_variable</span></a></span><span>
+</span><span id="line-107"></span><span>                                    </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623862"><span class="hs-identifier hs-var">arg_infos</span></a></span><span> </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623863"><span class="hs-identifier hs-var">cont_info</span></a></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623866"><span class="hs-identifier hs-var">unf_template</span></a></span><span>
+</span><span id="line-108"></span><span>                                    </span><span class="annot"><span class="annottext">UnfoldingCache
+</span><a href="#local-6989586621682623868"><span class="hs-identifier hs-var">unf_cache</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623869"><span class="hs-identifier hs-var">guidance</span></a></span><span>
+</span><span id="line-109"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623856"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623857"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623859"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Inactive unfolding:&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623859"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="GHC.Core.html#NoUnfolding"><span class="hs-identifier hs-var">NoUnfolding</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><span class="annottext">Unfolding
+</span><a href="GHC.Core.html#BootUnfolding"><span class="hs-identifier hs-var">BootUnfolding</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><a href="GHC.Core.html#OtherCon"><span class="hs-identifier hs-type">OtherCon</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><a href="GHC.Core.html#DFunUnfolding"><span class="hs-identifier hs-type">DFunUnfolding</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>     </span><span class="hs-comment">-- Never unfold a DFun</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><span class="hs-comment">-- | Report the inlining of an identifier's RHS to the user, if requested.</span></span><span>
+</span><span id="line-116"></span><span id="local-6989586621682623715"><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-type">traceInline</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#UnfoldingOpts"><span class="hs-identifier hs-type">UnfoldingOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#SDoc"><span class="hs-identifier hs-type">SDoc</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682623715"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682623715"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-117"></span><span id="traceInline"><span class="annot"><span class="annottext">traceInline :: forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var hs-var">traceInline</span></a></span></span><span> </span><span id="local-6989586621682623881"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623881"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682623882"><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623882"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621682623883"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623883"><span class="hs-identifier hs-var">inline_id</span></a></span></span><span> </span><span id="local-6989586621682623884"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623884"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span id="local-6989586621682623885"><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623885"><span class="hs-identifier hs-var">doc</span></a></span></span><span> </span><span id="local-6989586621682623886"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682623886"><span class="hs-identifier hs-var">result</span></a></span></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-comment">-- We take care to ensure that doc is used in only one branch, ensuring that</span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-comment">-- the simplifier can push its allocation into the branch. See Note [INLINE</span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-comment">-- conditional tracing utilities].</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623887"><span class="hs-identifier hs-var">enable</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Logger -&gt; String -&gt; SDoc -&gt; a -&gt; a
+forall a. Logger -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Utils.Logger.html#logTraceMsg"><span class="hs-identifier hs-var">logTraceMsg</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623881"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623884"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623885"><span class="hs-identifier hs-var">doc</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682623886"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682623886"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621682623887"><span class="annot"><span class="annottext">enable :: Bool
+</span><a href="#local-6989586621682623887"><span class="hs-identifier hs-var hs-var">enable</span></a></span></span><span>
+</span><span id="line-125"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Logger -&gt; DumpFlag -&gt; Bool
+</span><a href="GHC.Utils.Logger.html#logHasDumpFlag"><span class="hs-identifier hs-var">logHasDumpFlag</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623881"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="GHC.Driver.Flags.html#Opt_D_dump_verbose_inlinings"><span class="hs-identifier hs-var">Opt_D_dump_verbose_inlinings</span></a></span><span>
+</span><span id="line-126"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-127"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682623891"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623891"><span class="hs-identifier hs-var">prefix</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Maybe String
+</span><a href="GHC.Core.Unfold.html#unfoldingReportPrefix"><span class="hs-identifier hs-var">unfoldingReportPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623882"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623891"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; Bool
+</span><span class="hs-operator hs-var">`isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">OccName -&gt; String
+</span><a href="GHC.Types.Name.Occurrence.html#occNameString"><span class="hs-identifier hs-var">occNameString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; OccName
+forall a. NamedThing a =&gt; a -&gt; OccName
+</span><a href="GHC.Types.Name.html#getOccName"><span class="hs-identifier hs-var">getOccName</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623883"><span class="hs-identifier hs-var">inline_id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-131"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-pragma hs-type">traceInline</span></a></span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- see Note [INLINE conditional tracing utilities]</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">{- Note [Avoid inlining into deeply nested cases]
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Consider a function f like this:
+
+  f arg1 arg2 =
+    case ...
+      ... -&gt; g arg1
+      ... -&gt; g arg2
+
+This function is small. So should be safe to inline.
+However sometimes this doesn't quite work out like that.
+Consider this code:
+
+f1 arg1 arg2 ... = ...
+    case _foo of
+      alt1 -&gt; ... f2 arg1 ...
+      alt2 -&gt; ... f2 arg2 ...
+
+f2 arg1 arg2 ... = ...
+    case _foo of
+      alt1 -&gt; ... f3 arg1 ...
+      alt2 -&gt; ... f3 arg2 ...
+
+f3 arg1 arg2 ... = ...
+
+... repeats up to n times. And then f1 is
+applied to some arguments:
+
+foo = ... f1 &lt;interestingArgs&gt; ...
+
+Initially f2..fn are not interesting to inline so we don't.
+However we see that f1 is applied to interesting args.
+So it's an obvious choice to inline those:
+
+foo =
+    ...
+      case _foo of
+        alt1 -&gt; ... f2 &lt;interestingArg&gt; ...
+        alt2 -&gt; ... f2 &lt;interestingArg&gt; ...
+
+As a result we go and inline f2 both mentions of f2 in turn are now applied to interesting
+arguments and f2 is small:
+
+foo =
+    ...
+      case _foo of
+        alt1 -&gt; ... case _foo of
+            alt1 -&gt; ... f3 &lt;interestingArg&gt; ...
+            alt2 -&gt; ... f3 &lt;interestingArg&gt; ...
+
+        alt2 -&gt; ... case _foo of
+            alt1 -&gt; ... f3 &lt;interestingArg&gt; ...
+            alt2 -&gt; ... f3 &lt;interestingArg&gt; ...
+
+The same thing happens for each binding up to f_n, duplicating the amount of inlining
+done in each step. Until at some point we are either done or run out of simplifier
+ticks/RAM. This pattern happened #18730.
+
+To combat this we introduce one more heuristic when weighing inlining decision.
+We keep track of a &quot;case-depth&quot;. Which increases each time we look inside a case
+expression with more than one alternative.
+
+We then apply a penalty to inlinings based on the case-depth at which they would
+be inlined. Bounding the number of inlinings in such a scenario.
+
+The heuristic can be tuned in two ways:
+
+* We can ignore the first n levels of case nestings for inlining decisions using
+  -funfolding-case-threshold.
+* The penalty grows linear with the depth. It's computed as size*(depth-threshold)/scaling.
+  Scaling can be set with -funfolding-case-scaling.
+
+Some guidance on setting these defaults:
+
+* A low threshold (&lt;= 2) is needed to prevent exponential cases from spiraling out of
+  control. We picked 2 for no particular reason.
+* Scaling the penalty by any more than 30 means the reproducer from
+  T18730 won't compile even with reasonably small values of n. Instead
+  it will run out of runs/ticks. This means to positively affect the reproducer
+  a scaling &lt;= 30 is required.
+* A scaling of &gt;= 15 still causes a few very large regressions on some nofib benchmarks.
+  (+80% for gc/fulsom, +90% for real/ben-raytrace, +20% for spectral/fibheaps)
+* A scaling of &gt;= 25 showed no regressions on nofib. However it showed a number of
+  (small) regression for compiler perf benchmarks.
+
+The end result is that we are settling for a scaling of 30, with a threshold of 2.
+This gives us minimal compiler perf regressions. No nofib runtime regressions and
+will still avoid this pattern sometimes. This is a &quot;safe&quot; default, where we err on
+the side of compiler blowup instead of risking runtime regressions.
+
+For cases where the default falls short the flag can be changed to allow more/less inlining as
+needed on a per-module basis.
+
+-}</span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#tryUnfolding"><span class="hs-identifier hs-type">tryUnfolding</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#UnfoldingOpts"><span class="hs-identifier hs-type">UnfoldingOpts</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Unfold.html#ArgSummary"><span class="hs-identifier hs-type">ArgSummary</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#CallCtxt"><span class="hs-identifier hs-type">CallCtxt</span></a></span><span>
+</span><span id="line-230"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#UnfoldingCache"><span class="hs-identifier hs-type">UnfoldingCache</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.html#UnfoldingGuidance"><span class="hs-identifier hs-type">UnfoldingGuidance</span></a></span><span>
+</span><span id="line-231"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.Core.html#CoreExpr"><span class="hs-identifier hs-type">CoreExpr</span></a></span><span>
+</span><span id="line-232"></span><span id="tryUnfolding"><span class="annot"><span class="annottext">tryUnfolding :: Logger
+-&gt; UnfoldingOpts
+-&gt; Int
+-&gt; Id
+-&gt; Bool
+-&gt; [ArgSummary]
+-&gt; CallCtxt
+-&gt; CoreExpr
+-&gt; UnfoldingCache
+-&gt; UnfoldingGuidance
+-&gt; Maybe CoreExpr
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#tryUnfolding"><span class="hs-identifier hs-var hs-var">tryUnfolding</span></a></span></span><span> </span><span id="local-6989586621682623895"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682623896"><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621682623897"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623897"><span class="hs-identifier hs-var">case_depth</span></a></span></span><span> </span><span id="local-6989586621682623898"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span></span><span> </span><span id="local-6989586621682623899"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623899"><span class="hs-identifier hs-var">lone_variable</span></a></span></span><span> </span><span id="local-6989586621682623900"><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623900"><span class="hs-identifier hs-var">arg_infos</span></a></span></span><span>
+</span><span id="line-233"></span><span>             </span><span id="local-6989586621682623901"><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623901"><span class="hs-identifier hs-var">cont_info</span></a></span></span><span> </span><span id="local-6989586621682623902"><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623902"><span class="hs-identifier hs-var">unf_template</span></a></span></span><span> </span><span id="local-6989586621682623903"><span class="annot"><span class="annottext">UnfoldingCache
+</span><a href="#local-6989586621682623903"><span class="hs-identifier hs-var">unf_cache</span></a></span></span><span> </span><span id="local-6989586621682623904"><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623904"><span class="hs-identifier hs-var">guidance</span></a></span></span><span>
+</span><span id="line-234"></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623904"><span class="hs-identifier hs-var">guidance</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-235"></span><span>     </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="GHC.Core.html#UnfNever"><span class="hs-identifier hs-var">UnfNever</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;UnfNever&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span>     </span><span class="annot"><a href="GHC.Core.html#UnfWhen"><span class="hs-identifier hs-type">UnfWhen</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ug_arity :: UnfoldingGuidance -&gt; Int
+</span><a href="GHC.Core.html#ug_arity"><span class="hs-identifier hs-var">ug_arity</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623908"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623908"><span class="hs-identifier hs-var">uf_arity</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ug_unsat_ok :: UnfoldingGuidance -&gt; Bool
+</span><a href="GHC.Core.html#ug_unsat_ok"><span class="hs-identifier hs-var">ug_unsat_ok</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623910"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623910"><span class="hs-identifier hs-var">unsat_ok</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ug_boring_ok :: UnfoldingGuidance -&gt; Bool
+</span><a href="GHC.Core.html#ug_boring_ok"><span class="hs-identifier hs-var">ug_boring_ok</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623912"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623912"><span class="hs-identifier hs-var">boring_ok</span></a></span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-238"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623913"><span class="hs-identifier hs-var">enough_args</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623912"><span class="hs-identifier hs-var">boring_ok</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623916"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Bool
+</span><a href="GHC.Core.Unfold.html#unfoldingVeryAggressive"><span class="hs-identifier hs-var">unfoldingVeryAggressive</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>                </span><span class="hs-comment">-- See Note [INLINE for small functions] (3)</span><span>
+</span><span id="line-240"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var">mk_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623916"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; Maybe CoreExpr
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623902"><span class="hs-identifier hs-var">unf_template</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-242"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var">mk_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623916"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-243"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-244"></span><span>          </span><span id="local-6989586621682623916"><span class="annot"><span class="annottext">some_benefit :: Bool
+</span><a href="#local-6989586621682623916"><span class="hs-identifier hs-var hs-var">some_benefit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="#local-6989586621682623920"><span class="hs-identifier hs-var">calc_some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623908"><span class="hs-identifier hs-var">uf_arity</span></a></span><span>
+</span><span id="line-245"></span><span>          </span><span id="local-6989586621682623913"><span class="annot"><span class="annottext">enough_args :: Bool
+</span><a href="#local-6989586621682623913"><span class="hs-identifier hs-var hs-var">enough_args</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623921"><span class="hs-identifier hs-var">n_val_args</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623908"><span class="hs-identifier hs-var">uf_arity</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623910"><span class="hs-identifier hs-var">unsat_ok</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623921"><span class="hs-identifier hs-var">n_val_args</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span>     </span><span class="annot"><a href="GHC.Core.html#UnfIfGoodArgs"><span class="hs-identifier hs-type">UnfIfGoodArgs</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ug_args :: UnfoldingGuidance -&gt; [Int]
+</span><a href="GHC.Core.html#ug_args"><span class="hs-identifier hs-var">ug_args</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623924"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623924"><span class="hs-identifier hs-var">arg_discounts</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ug_res :: UnfoldingGuidance -&gt; Int
+</span><a href="GHC.Core.html#ug_res"><span class="hs-identifier hs-var">ug_res</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623926"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623926"><span class="hs-identifier hs-var">res_discount</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ug_size :: UnfoldingGuidance -&gt; Int
+</span><a href="GHC.Core.html#ug_size"><span class="hs-identifier hs-var">ug_size</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623927"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623927"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-248"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Bool
+</span><a href="GHC.Core.Unfold.html#unfoldingVeryAggressive"><span class="hs-identifier hs-var">unfoldingVeryAggressive</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-249"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var">mk_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623928"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623929"><span class="hs-identifier hs-var">extra_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; Maybe CoreExpr
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623902"><span class="hs-identifier hs-var">unf_template</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623930"><span class="hs-identifier hs-var">is_wf</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623928"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623931"><span class="hs-identifier hs-var">small_enough</span></a></span><span>
+</span><span id="line-251"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var">mk_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623928"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623929"><span class="hs-identifier hs-var">extra_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CoreExpr -&gt; Maybe CoreExpr
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">CoreExpr
+</span><a href="#local-6989586621682623902"><span class="hs-identifier hs-var">unf_template</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-253"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Logger
+-&gt; UnfoldingOpts
+-&gt; Id
+-&gt; String
+-&gt; SDoc
+-&gt; Maybe CoreExpr
+-&gt; Maybe CoreExpr
+forall a. Logger -&gt; UnfoldingOpts -&gt; Id -&gt; String -&gt; SDoc -&gt; a -&gt; a
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#traceInline"><span class="hs-identifier hs-var">traceInline</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var">str</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var">mk_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623928"><span class="hs-identifier hs-var">some_benefit</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623929"><span class="hs-identifier hs-var">extra_doc</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe CoreExpr
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-254"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-255"></span><span>          </span><span id="local-6989586621682623928"><span class="annot"><span class="annottext">some_benefit :: Bool
+</span><a href="#local-6989586621682623928"><span class="hs-identifier hs-var hs-var">some_benefit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Bool
+</span><a href="#local-6989586621682623920"><span class="hs-identifier hs-var">calc_some_benefit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623924"><span class="hs-identifier hs-var">arg_discounts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span><span>          </span><span class="hs-comment">-- See Note [Avoid inlining into deeply nested cases]</span><span>
+</span><span id="line-257"></span><span>          </span><span id="local-6989586621682623933"><span class="annot"><span class="annottext">depth_treshold :: Int
+</span><a href="#local-6989586621682623933"><span class="hs-identifier hs-var hs-var">depth_treshold</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Int
+</span><a href="GHC.Core.Unfold.html#unfoldingCaseThreshold"><span class="hs-identifier hs-var">unfoldingCaseThreshold</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-258"></span><span>          </span><span id="local-6989586621682623935"><span class="annot"><span class="annottext">depth_scaling :: Int
+</span><a href="#local-6989586621682623935"><span class="hs-identifier hs-var hs-var">depth_scaling</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Int
+</span><a href="GHC.Core.Unfold.html#unfoldingCaseScaling"><span class="hs-identifier hs-var">unfoldingCaseScaling</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-259"></span><span>          </span><span id="local-6989586621682623937"><span class="annot"><span class="annottext">depth_penalty :: Int
+</span><a href="#local-6989586621682623937"><span class="hs-identifier hs-var hs-var">depth_penalty</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623897"><span class="hs-identifier hs-var">case_depth</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623933"><span class="hs-identifier hs-var">depth_treshold</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-260"></span><span>                        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623927"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623897"><span class="hs-identifier hs-var">case_depth</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623933"><span class="hs-identifier hs-var">depth_treshold</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623935"><span class="hs-identifier hs-var">depth_scaling</span></a></span><span>
+</span><span id="line-261"></span><span>          </span><span id="local-6989586621682623940"><span class="annot"><span class="annottext">adjusted_size :: Int
+</span><a href="#local-6989586621682623940"><span class="hs-identifier hs-var hs-var">adjusted_size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623927"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623937"><span class="hs-identifier hs-var">depth_penalty</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623942"><span class="hs-identifier hs-var">discount</span></a></span><span>
+</span><span id="line-262"></span><span>          </span><span id="local-6989586621682623931"><span class="annot"><span class="annottext">small_enough :: Bool
+</span><a href="#local-6989586621682623931"><span class="hs-identifier hs-var hs-var">small_enough</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623940"><span class="hs-identifier hs-var">adjusted_size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts -&gt; Int
+</span><a href="GHC.Core.Unfold.html#unfoldingUseThreshold"><span class="hs-identifier hs-var">unfoldingUseThreshold</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingOpts
+</span><a href="#local-6989586621682623896"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-263"></span><span>          </span><span id="local-6989586621682623942"><span class="annot"><span class="annottext">discount :: Int
+</span><a href="#local-6989586621682623942"><span class="hs-identifier hs-var hs-var">discount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int -&gt; [ArgSummary] -&gt; CallCtxt -&gt; Int
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#computeDiscount"><span class="hs-identifier hs-var">computeDiscount</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623924"><span class="hs-identifier hs-var">arg_discounts</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623926"><span class="hs-identifier hs-var">res_discount</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623900"><span class="hs-identifier hs-var">arg_infos</span></a></span><span> </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623901"><span class="hs-identifier hs-var">cont_info</span></a></span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span>          </span><span id="local-6989586621682623929"><span class="annot"><span class="annottext">extra_doc :: SDoc
+</span><a href="#local-6989586621682623929"><span class="hs-identifier hs-var hs-var">extra_doc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;case depth =&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623897"><span class="hs-identifier hs-var">case_depth</span></a></span><span>
+</span><span id="line-266"></span><span>                           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;depth based penalty =&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623937"><span class="hs-identifier hs-var">depth_penalty</span></a></span><span>
+</span><span id="line-267"></span><span>                           </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;discounted size =&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc
+forall doc. IsLine doc =&gt; Int -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#int"><span class="hs-identifier hs-var">int</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623940"><span class="hs-identifier hs-var">adjusted_size</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-268"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-comment">-- Unpack the UnfoldingCache lazily because it may not be needed, and all</span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-comment">-- its fields are strict; so evaluating unf_cache at all forces all the</span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-comment">-- isWorkFree etc computations to take place.  That risks wasting effort for</span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-comment">-- Ids that are never going to inline anyway.</span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-comment">-- See Note [UnfoldingCache] in GHC.Core</span><span>
+</span><span id="line-274"></span><span>    </span><span class="annot"><a href="GHC.Core.html#UnfoldingCache"><span class="hs-identifier hs-type">UnfoldingCache</span></a></span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">uf_is_work_free :: UnfoldingCache -&gt; Bool
+</span><a href="GHC.Core.html#uf_is_work_free"><span class="hs-identifier hs-var">uf_is_work_free</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623930"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623930"><span class="hs-identifier hs-var">is_wf</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">uf_expandable :: UnfoldingCache -&gt; Bool
+</span><a href="GHC.Core.html#uf_expandable"><span class="hs-identifier hs-var">uf_expandable</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682623950"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623950"><span class="hs-identifier hs-var">is_exp</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnfoldingCache
+</span><a href="#local-6989586621682623903"><span class="hs-identifier hs-var">unf_cache</span></a></span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span>    </span><span id="local-6989586621682623918"><span class="annot"><span class="annottext">mk_doc :: Bool -&gt; SDoc -&gt; Bool -&gt; SDoc
+</span><a href="#local-6989586621682623918"><span class="hs-identifier hs-var hs-var">mk_doc</span></a></span></span><span> </span><span id="local-6989586621682623951"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623951"><span class="hs-identifier hs-var">some_benefit</span></a></span></span><span> </span><span id="local-6989586621682623952"><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623952"><span class="hs-identifier hs-var">extra_doc</span></a></span></span><span> </span><span id="local-6989586621682623953"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623953"><span class="hs-identifier hs-var">yes_or_no</span></a></span></span><span>
+</span><span id="line-277"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;arg infos&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary] -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623900"><span class="hs-identifier hs-var">arg_infos</span></a></span><span>
+</span><span id="line-278"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;interesting continuation&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">CallCtxt -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623901"><span class="hs-identifier hs-var">cont_info</span></a></span><span>
+</span><span id="line-279"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;some_benefit&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623951"><span class="hs-identifier hs-var">some_benefit</span></a></span><span>
+</span><span id="line-280"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;is exp:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623950"><span class="hs-identifier hs-var">is_exp</span></a></span><span>
+</span><span id="line-281"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;is work-free:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623930"><span class="hs-identifier hs-var">is_wf</span></a></span><span>
+</span><span id="line-282"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;guidance&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingGuidance -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">UnfoldingGuidance
+</span><a href="#local-6989586621682623904"><span class="hs-identifier hs-var">guidance</span></a></span><span>
+</span><span id="line-283"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="#local-6989586621682623952"><span class="hs-identifier hs-var">extra_doc</span></a></span><span>
+</span><span id="line-284"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ANSWER =&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623953"><span class="hs-identifier hs-var">yes_or_no</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;YES&quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NO&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-285"></span><span>
+</span><span id="line-286"></span><span>    </span><span id="local-6989586621682623954"><span class="annot"><span class="annottext">ctx :: SDocContext
+</span><a href="#local-6989586621682623954"><span class="hs-identifier hs-var hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogFlags -&gt; SDocContext
+</span><a href="GHC.Utils.Logger.html#log_default_dump_context"><span class="hs-identifier hs-var">log_default_dump_context</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Logger -&gt; LogFlags
+</span><a href="GHC.Utils.Logger.html#logFlags"><span class="hs-identifier hs-var">logFlags</span></a></span><span> </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682623895"><span class="hs-identifier hs-var">logger</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-287"></span><span>    </span><span id="local-6989586621682623905"><span class="annot"><span class="annottext">str :: String
+</span><a href="#local-6989586621682623905"><span class="hs-identifier hs-var hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Considering inlining: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">SDocContext -&gt; SDoc -&gt; String
+</span><a href="GHC.Utils.Outputable.html#showSDocOneLine"><span class="hs-identifier hs-var">showSDocOneLine</span></a></span><span> </span><span class="annot"><span class="annottext">SDocContext
+</span><a href="#local-6989586621682623954"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682623898"><span class="hs-identifier hs-var">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-288"></span><span>    </span><span id="local-6989586621682623921"><span class="annot"><span class="annottext">n_val_args :: Int
+</span><a href="#local-6989586621682623921"><span class="hs-identifier hs-var hs-var">n_val_args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ArgSummary] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623900"><span class="hs-identifier hs-var">arg_infos</span></a></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span>           </span><span class="hs-comment">-- some_benefit is used when the RHS is small enough</span><span>
+</span><span id="line-291"></span><span>           </span><span class="hs-comment">-- and the call has enough (or too many) value</span><span>
+</span><span id="line-292"></span><span>           </span><span class="hs-comment">-- arguments (ie n_val_args &gt;= arity). But there must</span><span>
+</span><span id="line-293"></span><span>           </span><span class="hs-comment">-- be *something* interesting about some argument, or the</span><span>
+</span><span id="line-294"></span><span>           </span><span class="hs-comment">-- result context, to make it worth inlining</span><span>
+</span><span id="line-295"></span><span>    </span><span class="annot"><a href="#local-6989586621682623920"><span class="hs-identifier hs-type">calc_some_benefit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier hs-type">Arity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>   </span><span class="hs-comment">-- The Arity is the number of args</span><span>
+</span><span id="line-296"></span><span>                                         </span><span class="hs-comment">-- expected by the unfolding</span><span>
+</span><span id="line-297"></span><span>    </span><span id="local-6989586621682623920"><span class="annot"><span class="annottext">calc_some_benefit :: Int -&gt; Bool
+</span><a href="#local-6989586621682623920"><span class="hs-identifier hs-var hs-var">calc_some_benefit</span></a></span></span><span> </span><span id="local-6989586621682623958"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span></span><span>
+</span><span id="line-298"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623960"><span class="hs-identifier hs-var">saturated</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623961"><span class="hs-identifier hs-var">interesting_args</span></a></span><span>       </span><span class="hs-comment">-- Under-saturated</span><span>
+</span><span id="line-299"></span><span>                                        </span><span class="hs-comment">-- Note [Unsaturated applications]</span><span>
+</span><span id="line-300"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623961"><span class="hs-identifier hs-var">interesting_args</span></a></span><span>   </span><span class="hs-comment">-- Saturated or over-saturated</span><span>
+</span><span id="line-301"></span><span>                  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623962"><span class="hs-identifier hs-var">interesting_call</span></a></span><span>
+</span><span id="line-302"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-303"></span><span>        </span><span id="local-6989586621682623960"><span class="annot"><span class="annottext">saturated :: Bool
+</span><a href="#local-6989586621682623960"><span class="hs-identifier hs-var hs-var">saturated</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623921"><span class="hs-identifier hs-var">n_val_args</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span><span>
+</span><span id="line-304"></span><span>        </span><span id="local-6989586621682623963"><span class="annot"><span class="annottext">over_saturated :: Bool
+</span><a href="#local-6989586621682623963"><span class="hs-identifier hs-var hs-var">over_saturated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623921"><span class="hs-identifier hs-var">n_val_args</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span><span>
+</span><span id="line-305"></span><span>        </span><span id="local-6989586621682623961"><span class="annot"><span class="annottext">interesting_args :: Bool
+</span><a href="#local-6989586621682623961"><span class="hs-identifier hs-var hs-var">interesting_args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ArgSummary -&gt; Bool) -&gt; [ArgSummary] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">ArgSummary -&gt; Bool
+</span><a href="GHC.Core.Unfold.html#nonTriv"><span class="hs-identifier hs-var">nonTriv</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623900"><span class="hs-identifier hs-var">arg_infos</span></a></span><span>
+</span><span id="line-306"></span><span>                </span><span class="hs-comment">-- NB: (any nonTriv arg_infos) looks at the</span><span>
+</span><span id="line-307"></span><span>                </span><span class="hs-comment">-- over-saturated args too which is &quot;wrong&quot;;</span><span>
+</span><span id="line-308"></span><span>                </span><span class="hs-comment">-- but if over-saturated we inline anyway.</span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span>        </span><span id="local-6989586621682623962"><span class="annot"><span class="annottext">interesting_call :: Bool
+</span><a href="#local-6989586621682623962"><span class="hs-identifier hs-var hs-var">interesting_call</span></a></span></span><span>
+</span><span id="line-311"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623963"><span class="hs-identifier hs-var">over_saturated</span></a></span><span>
+</span><span id="line-312"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-313"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-314"></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623901"><span class="hs-identifier hs-var">cont_info</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-315"></span><span>              </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#CaseCtxt"><span class="hs-identifier hs-var">CaseCtxt</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623899"><span class="hs-identifier hs-var">lone_variable</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682623950"><span class="hs-identifier hs-var">is_exp</span></a></span><span class="hs-special">)</span><span>  </span><span class="hs-comment">-- Note [Lone variables]</span><span>
+</span><span id="line-316"></span><span>              </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#ValAppCtxt"><span class="hs-identifier hs-var">ValAppCtxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>                           </span><span class="hs-comment">-- Note [Cast then apply]</span><span>
+</span><span id="line-317"></span><span>              </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#RuleArgCtxt"><span class="hs-identifier hs-var">RuleArgCtxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-comment">-- See Note [RHS of lets]</span><span>
+</span><span id="line-318"></span><span>              </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#DiscArgCtxt"><span class="hs-identifier hs-var">DiscArgCtxt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-comment">-- Note [Inlining in ArgCtxt]</span><span>
+</span><span id="line-319"></span><span>              </span><span class="annot"><a href="GHC.Core.Unfold.html#RhsCtxt"><span class="hs-identifier hs-type">RhsCtxt</span></a></span><span> </span><span class="annot"><span class="annottext">RecFlag
+</span><a href="GHC.Types.Basic.html#NonRecursive"><span class="hs-identifier hs-var">NonRecursive</span></a></span><span>
+</span><span id="line-320"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623958"><span class="hs-identifier hs-var">uf_arity</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>  </span><span class="hs-comment">-- See Note [RHS of lets]</span><span>
+</span><span id="line-321"></span><span>              </span><span id="local-6989586621682623972"><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623972"><span class="hs-identifier hs-var">_other</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>         </span><span class="hs-comment">-- See Note [Nested functions]</span><span>
+</span><span id="line-322"></span><span>
+</span><span id="line-323"></span><span>
+</span><span id="line-324"></span><span class="hs-comment">{- Note [RHS of lets]
+~~~~~~~~~~~~~~~~~~~~~
+When the call is the argument of a function with a RULE, or the RHS of a let,
+we are a little bit keener to inline (in tryUnfolding).  For example
+     f y = (y,y,y)
+     g y = let x = f y in ...(case x of (a,b,c) -&gt; ...) ...
+We'd inline 'f' if the call was in a case context, and it kind-of-is,
+only we can't see it.  Also
+     x = f v
+could be expensive whereas
+     x = case v of (a,b) -&gt; a
+is patently cheap and may allow more eta expansion.
+
+So, in `interesting_call` in `tryUnfolding`, we treat the RHS of a
+/non-recursive/ let as not-totally-boring.  A /recursive/ let isn't
+going be inlined so there is much less point.  Hence the (only reason
+for the) RecFlag in RhsCtxt
+
+Note [Unsaturated applications]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When a call is not saturated, we *still* inline if one of the
+arguments has interesting structure.  That's sometimes very important.
+A good example is the Ord instance for Bool in Base:
+
+ Rec {
+    $fOrdBool =GHC.Classes.D:Ord
+                 @ Bool
+                 ...
+                 $cmin_ajX
+
+    $cmin_ajX [Occ=LoopBreaker] :: Bool -&gt; Bool -&gt; Bool
+    $cmin_ajX = GHC.Classes.$dmmin @ Bool $fOrdBool
+  }
+
+But the defn of GHC.Classes.$dmmin is:
+
+  $dmmin :: forall a. GHC.Classes.Ord a =&gt; a -&gt; a -&gt; a
+    {- Arity: 3, HasNoCafRefs, Strictness: SLL,
+       Unfolding: (\ @ a $dOrd :: GHC.Classes.Ord a x :: a y :: a -&gt;
+                   case @ a GHC.Classes.&lt;= @ a $dOrd x y of wild {
+                     GHC.Types.False -&gt; y GHC.Types.True -&gt; x }) -}
+
+We *really* want to inline $dmmin, even though it has arity 3, in
+order to unravel the recursion.
+
+
+Note [Things to watch]
+~~~~~~~~~~~~~~~~~~~~~~
+*   { y = I# 3; x = y `cast` co; ...case (x `cast` co) of ... }
+    Assume x is exported, so not inlined unconditionally.
+    Then we want x to inline unconditionally; no reason for it
+    not to, and doing so avoids an indirection.
+
+*   { x = I# 3; ....f x.... }
+    Make sure that x does not inline unconditionally!
+    Lest we get extra allocation.
+
+Note [Nested functions]
+~~~~~~~~~~~~~~~~~~~~~~~
+At one time we treated a call of a non-top-level function as
+&quot;interesting&quot; (regardless of how boring the context) in the hope
+that inlining it would eliminate the binding, and its allocation.
+Specifically, in the default case of interesting_call we had
+   _other -&gt; not is_top &amp;&amp; uf_arity &gt; 0
+
+But actually postInlineUnconditionally does some of this and overall
+it makes virtually no difference to nofib.  So I simplified away this
+special case
+
+Note [Cast then apply]
+~~~~~~~~~~~~~~~~~~~~~~
+Consider
+   myIndex = __inline_me ( (/\a. &lt;blah&gt;) |&gt; co )
+   co :: (forall a. a -&gt; a) ~ (forall a. T a)
+     ... /\a.\x. case ((myIndex a) |&gt; sym co) x of { ... } ...
+
+We need to inline myIndex to unravel this; but the actual call (myIndex a) has
+no value arguments.  The ValAppCtxt gives it enough incentive to inline.
+
+Note [Inlining in ArgCtxt]
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+The condition (arity &gt; 0) here is very important, because otherwise
+we end up inlining top-level stuff into useless places; eg
+   x = I# 3#
+   f = \y.  g x
+This can make a very big difference: it adds 16% to nofib 'integer' allocs,
+and 20% to 'power'.
+
+At one stage I replaced this condition by 'True' (leading to the above
+slow-down).  The motivation was test eyeball/inline1.hs; but that seems
+to work ok now.
+
+NOTE: arguably, we should inline in ArgCtxt only if the result of the
+call is at least CONLIKE.  At least for the cases where we use ArgCtxt
+for the RHS of a 'let', we only profit from the inlining if we get a
+CONLIKE thing (modulo lets).
+
+Note [Lone variables]
+~~~~~~~~~~~~~~~~~~~~~
+See also Note [Interaction of exprIsWorkFree and lone variables]
+which appears below
+
+The &quot;lone-variable&quot; case is important.  I spent ages messing about
+with unsatisfactory variants, but this is nice.  The idea is that if a
+variable appears all alone
+
+        as an arg of lazy fn, or rhs    BoringCtxt
+        as scrutinee of a case          CaseCtxt
+        as arg of a fn                  ArgCtxt
+AND
+        it is bound to a cheap expression
+
+then we should not inline it (unless there is some other reason,
+e.g. it is the sole occurrence).  That is what is happening at
+the use of 'lone_variable' in 'interesting_call'.
+
+Why?  At least in the case-scrutinee situation, turning
+        let x = (a,b) in case x of y -&gt; ...
+into
+        let x = (a,b) in case (a,b) of y -&gt; ...
+and thence to
+        let x = (a,b) in let y = (a,b) in ...
+is bad if the binding for x will remain.
+
+Another example: I discovered that strings
+were getting inlined straight back into applications of 'error'
+because the latter is strict.
+        s = &quot;foo&quot;
+        f = \x -&gt; ...(error s)...
+
+Fundamentally such contexts should not encourage inlining because, provided
+the RHS is &quot;expandable&quot; (see Note [exprIsExpandable] in GHC.Core.Utils) the
+context can ``see'' the unfolding of the variable (e.g. case or a
+RULE) so there's no gain.
+
+However, watch out:
+
+ * Consider this:
+        foo = \n. [n])  {-# INLINE foo #-}
+        bar = foo 20    {-# INLINE bar #-}
+        baz = \n. case bar of { (m:_) -&gt; m + n }
+   Here we really want to inline 'bar' so that we can inline 'foo'
+   and the whole thing unravels as it should obviously do.  This is
+   important: in the NDP project, 'bar' generates a closure data
+   structure rather than a list.
+
+   So the non-inlining of lone_variables should only apply if the
+   unfolding is regarded as expandable; because that is when
+   exprIsConApp_maybe looks through the unfolding.  Hence the &quot;&amp;&amp;
+   is_exp&quot; in the CaseCtxt branch of interesting_call
+
+ * Even a type application or coercion isn't a lone variable.
+   Consider
+        case $fMonadST @ RealWorld of { :DMonad a b c -&gt; c }
+   We had better inline that sucker!  The case won't see through it.
+
+   For now, I'm treating treating a variable applied to types
+   in a *lazy* context &quot;lone&quot;. The motivating example was
+        f = /\a. \x. BIG
+        g = /\a. \y.  h (f a)
+   There's no advantage in inlining f here, and perhaps
+   a significant disadvantage.  Hence some_val_args in the Stop case
+
+Note [Interaction of exprIsWorkFree and lone variables]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The lone-variable test says &quot;don't inline if a case expression
+scrutinises a lone variable whose unfolding is cheap&quot;.  It's very
+important that, under these circumstances, exprIsConApp_maybe
+can spot a constructor application. So, for example, we don't
+consider
+        let x = e in (x,x)
+to be cheap, and that's good because exprIsConApp_maybe doesn't
+think that expression is a constructor application.
+
+In the 'not (lone_variable &amp;&amp; is_wf)' test, I used to test is_value
+rather than is_wf, which was utterly wrong, because the above
+expression responds True to exprIsHNF, which is what sets is_value.
+
+This kind of thing can occur if you have
+
+        {-# INLINE foo #-}
+        foo = let x = e in (x,x)
+
+which Roman did.
+
+
+-}</span><span>
+</span><span id="line-511"></span><span>
+</span><span id="line-512"></span><span class="annot"><a href="GHC.Core.Opt.Simplify.Inline.html#computeDiscount"><span class="hs-identifier hs-type">computeDiscount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Core.Unfold.html#ArgSummary"><span class="hs-identifier hs-type">ArgSummary</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Core.Unfold.html#CallCtxt"><span class="hs-identifier hs-type">CallCtxt</span></a></span><span>
+</span><span id="line-513"></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-514"></span><span id="computeDiscount"><span class="annot"><span class="annottext">computeDiscount :: [Int] -&gt; Int -&gt; [ArgSummary] -&gt; CallCtxt -&gt; Int
+</span><a href="GHC.Core.Opt.Simplify.Inline.html#computeDiscount"><span class="hs-identifier hs-var hs-var">computeDiscount</span></a></span></span><span> </span><span id="local-6989586621682623973"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623973"><span class="hs-identifier hs-var">arg_discounts</span></a></span></span><span> </span><span id="local-6989586621682623974"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623974"><span class="hs-identifier hs-var">res_discount</span></a></span></span><span> </span><span id="local-6989586621682623975"><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623975"><span class="hs-identifier hs-var">arg_infos</span></a></span></span><span> </span><span id="local-6989586621682623976"><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623976"><span class="hs-identifier hs-var">cont_info</span></a></span></span><span>
+</span><span id="line-515"></span><span>
+</span><span id="line-516"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span>          </span><span class="hs-comment">-- Discount of 10 because the result replaces the call</span><span>
+</span><span id="line-517"></span><span>                </span><span class="hs-comment">-- so we count 10 for the function itself</span><span>
+</span><span id="line-518"></span><span>
+</span><span id="line-519"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623977"><span class="hs-identifier hs-var">actual_arg_discounts</span></a></span><span>
+</span><span id="line-520"></span><span>               </span><span class="hs-comment">-- Discount of 10 for each arg supplied,</span><span>
+</span><span id="line-521"></span><span>               </span><span class="hs-comment">-- because the result replaces the call</span><span>
+</span><span id="line-522"></span><span>
+</span><span id="line-523"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623978"><span class="hs-identifier hs-var">total_arg_discount</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623979"><span class="hs-identifier hs-var">res_discount'</span></a></span><span>
+</span><span id="line-524"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-525"></span><span>    </span><span id="local-6989586621682623977"><span class="annot"><span class="annottext">actual_arg_discounts :: [Int]
+</span><a href="#local-6989586621682623977"><span class="hs-identifier hs-var hs-var">actual_arg_discounts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ArgSummary -&gt; Int) -&gt; [Int] -&gt; [ArgSummary] -&gt; [Int]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ArgSummary -&gt; Int
+forall {a}. Num a =&gt; a -&gt; ArgSummary -&gt; a
+</span><a href="#local-6989586621682623981"><span class="hs-identifier hs-var">mk_arg_discount</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623973"><span class="hs-identifier hs-var">arg_discounts</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623975"><span class="hs-identifier hs-var">arg_infos</span></a></span><span>
+</span><span id="line-526"></span><span>    </span><span id="local-6989586621682623978"><span class="annot"><span class="annottext">total_arg_discount :: Int
+</span><a href="#local-6989586621682623978"><span class="hs-identifier hs-var hs-var">total_arg_discount</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. Num a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Num a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">sum</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623977"><span class="hs-identifier hs-var">actual_arg_discounts</span></a></span><span>
+</span><span id="line-527"></span><span>
+</span><span id="line-528"></span><span>    </span><span id="local-6989586621682623981"><span class="annot"><span class="annottext">mk_arg_discount :: a -&gt; ArgSummary -&gt; a
+</span><a href="#local-6989586621682623981"><span class="hs-identifier hs-var hs-var">mk_arg_discount</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="annot"><span class="annottext">ArgSummary
+</span><a href="GHC.Core.Unfold.html#TrivArg"><span class="hs-identifier hs-var">TrivArg</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-529"></span><span>    </span><span class="annot"><a href="#local-6989586621682623981"><span class="hs-identifier hs-var">mk_arg_discount</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="annot"><span class="annottext">ArgSummary
+</span><a href="GHC.Core.Unfold.html#NonTrivArg"><span class="hs-identifier hs-var">NonTrivArg</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-530"></span><span>    </span><span class="annot"><a href="#local-6989586621682623981"><span class="hs-identifier hs-var">mk_arg_discount</span></a></span><span> </span><span id="local-6989586621682623988"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682623988"><span class="hs-identifier hs-var">discount</span></a></span></span><span> </span><span class="annot"><span class="annottext">ArgSummary
+</span><a href="GHC.Core.Unfold.html#ValueArg"><span class="hs-identifier hs-var">ValueArg</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682623988"><span class="hs-identifier hs-var">discount</span></a></span><span>
+</span><span id="line-531"></span><span>
+</span><span id="line-532"></span><span>    </span><span id="local-6989586621682623979"><span class="annot"><span class="annottext">res_discount' :: Int
+</span><a href="#local-6989586621682623979"><span class="hs-identifier hs-var hs-var">res_discount'</span></a></span></span><span>
+</span><span id="line-533"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621682623973"><span class="hs-identifier hs-var">arg_discounts</span></a></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [ArgSummary] -&gt; Ordering
+forall a b. [a] -&gt; [b] -&gt; Ordering
+</span><a href="GHC.Utils.Misc.html#compareLength"><span class="hs-operator hs-var">`compareLength`</span></a></span><span> </span><span class="annot"><span class="annottext">[ArgSummary]
+</span><a href="#local-6989586621682623975"><span class="hs-identifier hs-var">arg_infos</span></a></span><span>
+</span><span id="line-534"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623974"><span class="hs-identifier hs-var">res_discount</span></a></span><span>   </span><span class="hs-comment">-- Over-saturated</span><span>
+</span><span id="line-535"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-536"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="#local-6989586621682623976"><span class="hs-identifier hs-var">cont_info</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-537"></span><span>           </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#BoringCtxt"><span class="hs-identifier hs-var">BoringCtxt</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-538"></span><span>           </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#CaseCtxt"><span class="hs-identifier hs-var">CaseCtxt</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623974"><span class="hs-identifier hs-var">res_discount</span></a></span><span>  </span><span class="hs-comment">-- Presumably a constructor</span><span>
+</span><span id="line-539"></span><span>           </span><span class="annot"><span class="annottext">CallCtxt
+</span><a href="GHC.Core.Unfold.html#ValAppCtxt"><span class="hs-identifier hs-var">ValAppCtxt</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623974"><span class="hs-identifier hs-var">res_discount</span></a></span><span>  </span><span class="hs-comment">-- Presumably a function</span><span>
+</span><span id="line-540"></span><span>           </span><span class="annot"><span class="annottext">CallCtxt
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`min`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682623974"><span class="hs-identifier hs-var">res_discount</span></a></span><span>
+</span><span id="line-541"></span><span>                </span><span class="hs-comment">-- ToDo: this 40 `min` res_discount doesn't seem right</span><span>
+</span><span id="line-542"></span><span>                </span><span class="hs-comment">--   for DiscArgCtxt it shouldn't matter because the function will</span><span>
+</span><span id="line-543"></span><span>                </span><span class="hs-comment">--       get the arg discount for any non-triv arg</span><span>
+</span><span id="line-544"></span><span>                </span><span class="hs-comment">--   for RuleArgCtxt we do want to be keener to inline; but not only</span><span>
+</span><span id="line-545"></span><span>                </span><span class="hs-comment">--       constructor results</span><span>
+</span><span id="line-546"></span><span>                </span><span class="hs-comment">--   for RhsCtxt I suppose that exposing a data con is good in general</span><span>
+</span><span id="line-547"></span><span>                </span><span class="hs-comment">--   And 40 seems very arbitrary</span><span>
+</span><span id="line-548"></span><span>                </span><span class="hs-comment">--</span><span>
+</span><span id="line-549"></span><span>                </span><span class="hs-comment">-- res_discount can be very large when a function returns</span><span>
+</span><span id="line-550"></span><span>                </span><span class="hs-comment">-- constructors; but we only want to invoke that large discount</span><span>
+</span><span id="line-551"></span><span>                </span><span class="hs-comment">-- when there's a case continuation.</span><span>
+</span><span id="line-552"></span><span>                </span><span class="hs-comment">-- Otherwise we, rather arbitrarily, threshold it.  Yuk.</span><span>
+</span><span id="line-553"></span><span>                </span><span class="hs-comment">-- But we want to avoid inlining large functions that return</span><span>
+</span><span id="line-554"></span><span>                </span><span class="hs-comment">-- constructors into contexts that are simply &quot;interesting&quot;</span><span>
+</span><span id="line-555"></span></pre></body></html>

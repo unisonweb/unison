@@ -1,0 +1,456 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Optimized in every build, --fast too: minifying is slow without it</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -O2 #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | What the tool needs to know about an executable regardless of its</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- file format: its segments and sections, its symbols, where the loader</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- fixes pointers up, and which parts play which role in compaction. The</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Mach-O and ELF readers each produce a 'Loaded'.</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Minify.Format.html"><span class="hs-identifier">Minify.Format</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Minify.Format.html#Format"><span class="hs-identifier">Format</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Arch"><span class="hs-identifier">Arch</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Role"><span class="hs-identifier">Role</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Minify.Format.html#SegRole"><span class="hs-identifier">SegRole</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier">Section</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Minify.Format.html#SectRaw"><span class="hs-identifier">SectRaw</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Segment"><span class="hs-identifier">Segment</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Symbol"><span class="hs-identifier">Symbol</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Minify.Format.html#SymClass"><span class="hs-identifier">SymClass</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Loaded"><span class="hs-identifier">Loaded</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Minify.Format.html#Raw"><span class="hs-identifier">Raw</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Minify.Format.html#isCompactedSection"><span class="hs-identifier">isCompactedSection</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Minify.Format.html#isCode"><span class="hs-identifier">isCode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Minify.Format.html#hsKindSuffixes"><span class="hs-identifier">hsKindSuffixes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Minify.Format.html#hasHsKindSuffix"><span class="hs-identifier">hasHsKindSuffix</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Minify.Format.html#ghcLocalLabel"><span class="hs-identifier">ghcLocalLabel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BC</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isAlpha</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isAlphaNum</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="Format"><span class="annot"><a href="Minify.Format.html#Format"><span class="hs-identifier hs-var">Format</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MachOFormat"><span class="annot"><a href="Minify.Format.html#MachOFormat"><span class="hs-identifier hs-var">MachOFormat</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ElfFormat"><span class="annot"><a href="Minify.Format.html#ElfFormat"><span class="hs-identifier hs-var">ElfFormat</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140166"><span id="local-6989586621679140171"><span class="annot"><span class="annottext">Format -&gt; Format -&gt; Bool
+(Format -&gt; Format -&gt; Bool)
+-&gt; (Format -&gt; Format -&gt; Bool) -&gt; Eq Format
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Format -&gt; Format -&gt; Bool
+== :: Format -&gt; Format -&gt; Bool
+$c/= :: Format -&gt; Format -&gt; Bool
+/= :: Format -&gt; Format -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679140176"><span id="local-6989586621679140178"><span id="local-6989586621679140182"><span class="annot"><span class="annottext">Int -&gt; Format -&gt; ShowS
+[Format] -&gt; ShowS
+Format -&gt; String
+(Int -&gt; Format -&gt; ShowS)
+-&gt; (Format -&gt; String) -&gt; ([Format] -&gt; ShowS) -&gt; Show Format
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Format -&gt; ShowS
+showsPrec :: Int -&gt; Format -&gt; ShowS
+$cshow :: Format -&gt; String
+show :: Format -&gt; String
+$cshowList :: [Format] -&gt; ShowS
+showList :: [Format] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="Arch"><span class="annot"><a href="Minify.Format.html#Arch"><span class="hs-identifier hs-var">Arch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Arm64"><span class="annot"><a href="Minify.Format.html#Arm64"><span class="hs-identifier hs-var">Arm64</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="X86_64"><span class="annot"><a href="Minify.Format.html#X86_64"><span class="hs-identifier hs-var">X86_64</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140189"><span id="local-6989586621679140193"><span class="annot"><span class="annottext">Arch -&gt; Arch -&gt; Bool
+(Arch -&gt; Arch -&gt; Bool) -&gt; (Arch -&gt; Arch -&gt; Bool) -&gt; Eq Arch
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Arch -&gt; Arch -&gt; Bool
+== :: Arch -&gt; Arch -&gt; Bool
+$c/= :: Arch -&gt; Arch -&gt; Bool
+/= :: Arch -&gt; Arch -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679140197"><span id="local-6989586621679140199"><span id="local-6989586621679140203"><span class="annot"><span class="annottext">Int -&gt; Arch -&gt; ShowS
+[Arch] -&gt; ShowS
+Arch -&gt; String
+(Int -&gt; Arch -&gt; ShowS)
+-&gt; (Arch -&gt; String) -&gt; ([Arch] -&gt; ShowS) -&gt; Show Arch
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Arch -&gt; ShowS
+showsPrec :: Int -&gt; Arch -&gt; ShowS
+$cshow :: Arch -&gt; String
+show :: Arch -&gt; String
+$cshowList :: [Arch] -&gt; ShowS
+showList :: [Arch] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | A section's part in compaction: code, string literals, read-only</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- constants and static closures are compacted; anything else keeps its</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- bytes and addresses.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="Role"><span class="annot"><a href="Minify.Format.html#Role"><span class="hs-identifier hs-var">Role</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Code"><span class="annot"><a href="Minify.Format.html#Code"><span class="hs-identifier hs-var">Code</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Strings"><span class="annot"><a href="Minify.Format.html#Strings"><span class="hs-identifier hs-var">Strings</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Const"><span class="annot"><a href="Minify.Format.html#Const"><span class="hs-identifier hs-var">Const</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Data"><span class="annot"><a href="Minify.Format.html#Data"><span class="hs-identifier hs-var">Data</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Other"><span class="annot"><a href="Minify.Format.html#Other"><span class="hs-identifier hs-var">Other</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140211"><span id="local-6989586621679140215"><span class="annot"><span class="annottext">Role -&gt; Role -&gt; Bool
+(Role -&gt; Role -&gt; Bool) -&gt; (Role -&gt; Role -&gt; Bool) -&gt; Eq Role
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Role -&gt; Role -&gt; Bool
+== :: Role -&gt; Role -&gt; Bool
+$c/= :: Role -&gt; Role -&gt; Bool
+/= :: Role -&gt; Role -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679140218"><span id="local-6989586621679140220"><span id="local-6989586621679140224"><span class="annot"><span class="annottext">Int -&gt; Role -&gt; ShowS
+[Role] -&gt; ShowS
+Role -&gt; String
+(Int -&gt; Role -&gt; ShowS)
+-&gt; (Role -&gt; String) -&gt; ([Role] -&gt; ShowS) -&gt; Show Role
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Role -&gt; ShowS
+showsPrec :: Int -&gt; Role -&gt; ShowS
+$cshow :: Role -&gt; String
+show :: Role -&gt; String
+$cshowList :: [Role] -&gt; ShowS
+showList :: [Role] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="SegRole"><span class="annot"><a href="Minify.Format.html#SegRole"><span class="hs-identifier hs-var">SegRole</span></a></span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | the segment holding the code (and, in Mach-O, the file header)</span></span><span>
+</span><span id="line-44"></span><span>    </span><span id="SegText"><span class="annot"><a href="Minify.Format.html#SegText"><span class="hs-identifier hs-var">SegText</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SegData"><span class="annot"><a href="Minify.Format.html#SegData"><span class="hs-identifier hs-var">SegData</span></a></span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Mach-O's link-edit segment, rebuilt by the writer</span></span><span>
+</span><span id="line-47"></span><span>    </span><span id="SegLinkedit"><span class="annot"><a href="Minify.Format.html#SegLinkedit"><span class="hs-identifier hs-var">SegLinkedit</span></a></span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Mach-O's zero page: no file bytes</span></span><span>
+</span><span id="line-49"></span><span>    </span><span id="SegPageZero"><span class="annot"><a href="Minify.Format.html#SegPageZero"><span class="hs-identifier hs-var">SegPageZero</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SegOther"><span class="annot"><a href="Minify.Format.html#SegOther"><span class="hs-identifier hs-var">SegOther</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140232"><span id="local-6989586621679140236"><span class="annot"><span class="annottext">SegRole -&gt; SegRole -&gt; Bool
+(SegRole -&gt; SegRole -&gt; Bool)
+-&gt; (SegRole -&gt; SegRole -&gt; Bool) -&gt; Eq SegRole
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SegRole -&gt; SegRole -&gt; Bool
+== :: SegRole -&gt; SegRole -&gt; Bool
+$c/= :: SegRole -&gt; SegRole -&gt; Bool
+/= :: SegRole -&gt; SegRole -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679140240"><span id="local-6989586621679140242"><span id="local-6989586621679140246"><span class="annot"><span class="annottext">Int -&gt; SegRole -&gt; ShowS
+[SegRole] -&gt; ShowS
+SegRole -&gt; String
+(Int -&gt; SegRole -&gt; ShowS)
+-&gt; (SegRole -&gt; String) -&gt; ([SegRole] -&gt; ShowS) -&gt; Show SegRole
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SegRole -&gt; ShowS
+showsPrec :: Int -&gt; SegRole -&gt; ShowS
+$cshow :: SegRole -&gt; String
+show :: SegRole -&gt; String
+$cshowList :: [SegRole] -&gt; ShowS
+showList :: [SegRole] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="Section"><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-var">Section</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Section"><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-var">Section</span></a></span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="secName"><span class="annot"><span class="annottext">Section -&gt; ByteString
+</span><a href="Minify.Format.html#secName"><span class="hs-identifier hs-var hs-var">secName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-comment">-- | the segment's name (Mach-O), or a synthetic one for an ELF program header</span></span><span>
+</span><span id="line-56"></span><span>    </span><span id="secSegName"><span class="annot"><span class="annottext">Section -&gt; ByteString
+</span><a href="Minify.Format.html#secSegName"><span class="hs-identifier hs-var hs-var">secSegName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>    </span><span id="secAddr"><span class="annot"><span class="annottext">Section -&gt; Word64
+</span><a href="Minify.Format.html#secAddr"><span class="hs-identifier hs-var hs-var">secAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>    </span><span id="secSize"><span class="annot"><span class="annottext">Section -&gt; Word64
+</span><a href="Minify.Format.html#secSize"><span class="hs-identifier hs-var hs-var">secSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>    </span><span id="secOffset"><span class="annot"><span class="annottext">Section -&gt; Word64
+</span><a href="Minify.Format.html#secOffset"><span class="hs-identifier hs-var hs-var">secOffset</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="hs-comment">-- | no bytes in the file (zero fill)</span></span><span>
+</span><span id="line-61"></span><span>    </span><span id="secNoBits"><span class="annot"><span class="annottext">Section -&gt; Bool
+</span><a href="Minify.Format.html#secNoBits"><span class="hs-identifier hs-var hs-var">secNoBits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>    </span><span id="secRole"><span class="annot"><span class="annottext">Section -&gt; Role
+</span><a href="Minify.Format.html#secRole"><span class="hs-identifier hs-var hs-var">secRole</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-comment">-- | index in the format's own section list (Mach-O: n_sect - 1; ELF: the header index)</span></span><span>
+</span><span id="line-64"></span><span>    </span><span id="secOrig"><span class="annot"><span class="annottext">Section -&gt; Int
+</span><a href="Minify.Format.html#secOrig"><span class="hs-identifier hs-var hs-var">secOrig</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>    </span><span id="secRaw"><span class="annot"><span class="annottext">Section -&gt; SectRaw
+</span><a href="Minify.Format.html#secRaw"><span class="hs-identifier hs-var hs-var">secRaw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#SectRaw"><span class="hs-identifier hs-type">SectRaw</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140259"><span id="local-6989586621679140277"><span id="local-6989586621679140281"><span class="annot"><span class="annottext">Int -&gt; Section -&gt; ShowS
+[Section] -&gt; ShowS
+Section -&gt; String
+(Int -&gt; Section -&gt; ShowS)
+-&gt; (Section -&gt; String) -&gt; ([Section] -&gt; ShowS) -&gt; Show Section
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Section -&gt; ShowS
+showsPrec :: Int -&gt; Section -&gt; ShowS
+$cshow :: Section -&gt; String
+show :: Section -&gt; String
+$cshowList :: [Section] -&gt; ShowS
+showList :: [Section] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | The format-specific fields a writer has to reproduce.</span></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="SectRaw"><span class="annot"><a href="Minify.Format.html#SectRaw"><span class="hs-identifier hs-var">SectRaw</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="MachOSect"><span class="annot"><a href="Minify.Format.html#MachOSect"><span class="hs-identifier hs-var">MachOSect</span></a></span></span><span> </span><span class="hs-special">{</span><span id="msAlign"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msAlign"><span class="hs-identifier hs-var hs-var">msAlign</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msRelOff"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msRelOff"><span class="hs-identifier hs-var hs-var">msRelOff</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msNReloc"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msNReloc"><span class="hs-identifier hs-var hs-var">msNReloc</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msFlags"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msFlags"><span class="hs-identifier hs-var hs-var">msFlags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msReserved1"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msReserved1"><span class="hs-identifier hs-var hs-var">msReserved1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msReserved2"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msReserved2"><span class="hs-identifier hs-var hs-var">msReserved2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="msReserved3"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#msReserved3"><span class="hs-identifier hs-var hs-var">msReserved3</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">}</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ElfSect"><span class="annot"><a href="Minify.Format.html#ElfSect"><span class="hs-identifier hs-var">ElfSect</span></a></span></span><span> </span><span class="hs-special">{</span><span id="esType"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#esType"><span class="hs-identifier hs-var hs-var">esType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="esFlags"><span class="annot"><span class="annottext">SectRaw -&gt; Word64
+</span><a href="Minify.Format.html#esFlags"><span class="hs-identifier hs-var hs-var">esFlags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span id="esLink"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#esLink"><span class="hs-identifier hs-var hs-var">esLink</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="esInfo"><span class="annot"><span class="annottext">SectRaw -&gt; Word32
+</span><a href="Minify.Format.html#esInfo"><span class="hs-identifier hs-var hs-var">esInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span id="esAlign"><span class="annot"><span class="annottext">SectRaw -&gt; Word64
+</span><a href="Minify.Format.html#esAlign"><span class="hs-identifier hs-var hs-var">esAlign</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span id="esEntSize"><span class="annot"><span class="annottext">SectRaw -&gt; Word64
+</span><a href="Minify.Format.html#esEntSize"><span class="hs-identifier hs-var hs-var">esEntSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">}</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140299"><span id="local-6989586621679140317"><span id="local-6989586621679140320"><span class="annot"><span class="annottext">Int -&gt; SectRaw -&gt; ShowS
+[SectRaw] -&gt; ShowS
+SectRaw -&gt; String
+(Int -&gt; SectRaw -&gt; ShowS)
+-&gt; (SectRaw -&gt; String) -&gt; ([SectRaw] -&gt; ShowS) -&gt; Show SectRaw
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SectRaw -&gt; ShowS
+showsPrec :: Int -&gt; SectRaw -&gt; ShowS
+$cshow :: SectRaw -&gt; String
+show :: SectRaw -&gt; String
+$cshowList :: [SectRaw] -&gt; ShowS
+showList :: [SectRaw] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | A loadable region: a Mach-O segment or an ELF program header of type</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- PT_LOAD. Protections use the Mach-O encoding (1 read, 2 write, 4 execute).</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">data</span><span> </span><span id="Segment"><span class="annot"><a href="Minify.Format.html#Segment"><span class="hs-identifier hs-var">Segment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Segment"><span class="annot"><a href="Minify.Format.html#Segment"><span class="hs-identifier hs-var">Segment</span></a></span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="segName"><span class="annot"><span class="annottext">Segment -&gt; ByteString
+</span><a href="Minify.Format.html#segName"><span class="hs-identifier hs-var hs-var">segName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>    </span><span id="segRole"><span class="annot"><span class="annottext">Segment -&gt; SegRole
+</span><a href="Minify.Format.html#segRole"><span class="hs-identifier hs-var hs-var">segRole</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#SegRole"><span class="hs-identifier hs-type">SegRole</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>    </span><span id="segVmAddr"><span class="annot"><span class="annottext">Segment -&gt; Word64
+</span><a href="Minify.Format.html#segVmAddr"><span class="hs-identifier hs-var hs-var">segVmAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>    </span><span id="segVmSize"><span class="annot"><span class="annottext">Segment -&gt; Word64
+</span><a href="Minify.Format.html#segVmSize"><span class="hs-identifier hs-var hs-var">segVmSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>    </span><span id="segFileOff"><span class="annot"><span class="annottext">Segment -&gt; Word64
+</span><a href="Minify.Format.html#segFileOff"><span class="hs-identifier hs-var hs-var">segFileOff</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>    </span><span id="segFileSize"><span class="annot"><span class="annottext">Segment -&gt; Word64
+</span><a href="Minify.Format.html#segFileSize"><span class="hs-identifier hs-var hs-var">segFileSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>    </span><span id="segMaxProt"><span class="annot"><span class="annottext">Segment -&gt; Word32
+</span><a href="Minify.Format.html#segMaxProt"><span class="hs-identifier hs-var hs-var">segMaxProt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>    </span><span id="segInitProt"><span class="annot"><span class="annottext">Segment -&gt; Word32
+</span><a href="Minify.Format.html#segInitProt"><span class="hs-identifier hs-var hs-var">segInitProt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>    </span><span id="segFlags"><span class="annot"><span class="annottext">Segment -&gt; Word32
+</span><a href="Minify.Format.html#segFlags"><span class="hs-identifier hs-var hs-var">segFlags</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>    </span><span id="segSections"><span class="annot"><span class="annottext">Segment -&gt; [Section]
+</span><a href="Minify.Format.html#segSections"><span class="hs-identifier hs-var hs-var">segSections</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-type">Section</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>    </span><span id="segOrig"><span class="annot"><span class="annottext">Segment -&gt; Int
+</span><a href="Minify.Format.html#segOrig"><span class="hs-identifier hs-var hs-var">segOrig</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140335"><span id="local-6989586621679140351"><span id="local-6989586621679140355"><span class="annot"><span class="annottext">Int -&gt; Segment -&gt; ShowS
+[Segment] -&gt; ShowS
+Segment -&gt; String
+(Int -&gt; Segment -&gt; ShowS)
+-&gt; (Segment -&gt; String) -&gt; ([Segment] -&gt; ShowS) -&gt; Show Segment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Segment -&gt; ShowS
+showsPrec :: Int -&gt; Segment -&gt; ShowS
+$cshow :: Segment -&gt; String
+show :: Segment -&gt; String
+$cshowList :: [Segment] -&gt; ShowS
+showList :: [Segment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | How the carving treats a symbol.</span></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">data</span><span> </span><span id="SymClass"><span class="annot"><a href="Minify.Format.html#SymClass"><span class="hs-identifier hs-var">SymClass</span></a></span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | an external definition: begins a region, classified by its name</span></span><span>
+</span><span id="line-95"></span><span>    </span><span id="SymExternal"><span class="annot"><a href="Minify.Format.html#SymExternal"><span class="hs-identifier hs-var">SymExternal</span></a></span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | a local definition the C compiler made: begins a fixed region</span></span><span>
+</span><span id="line-97"></span><span>    </span><span id="SymLocalC"><span class="annot"><a href="Minify.Format.html#SymLocalC"><span class="hs-identifier hs-var">SymLocalC</span></a></span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | a local label GHC made (a return point, a local closure, a constructor</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-comment">-- name string): a Haskell definition without a module of its own</span><span>
+</span><span id="line-100"></span><span>    </span><span id="SymLocalHs"><span class="annot"><a href="Minify.Format.html#SymLocalHs"><span class="hs-identifier hs-var">SymLocalHs</span></a></span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | not a definition (a mapping symbol, a dead-strip marker)</span></span><span>
+</span><span id="line-102"></span><span>    </span><span id="SymIgnore"><span class="annot"><a href="Minify.Format.html#SymIgnore"><span class="hs-identifier hs-var">SymIgnore</span></a></span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140362"><span id="local-6989586621679140366"><span class="annot"><span class="annottext">SymClass -&gt; SymClass -&gt; Bool
+(SymClass -&gt; SymClass -&gt; Bool)
+-&gt; (SymClass -&gt; SymClass -&gt; Bool) -&gt; Eq SymClass
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SymClass -&gt; SymClass -&gt; Bool
+== :: SymClass -&gt; SymClass -&gt; Bool
+$c/= :: SymClass -&gt; SymClass -&gt; Bool
+/= :: SymClass -&gt; SymClass -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679140370"><span id="local-6989586621679140372"><span id="local-6989586621679140376"><span class="annot"><span class="annottext">Int -&gt; SymClass -&gt; ShowS
+[SymClass] -&gt; ShowS
+SymClass -&gt; String
+(Int -&gt; SymClass -&gt; ShowS)
+-&gt; (SymClass -&gt; String) -&gt; ([SymClass] -&gt; ShowS) -&gt; Show SymClass
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SymClass -&gt; ShowS
+showsPrec :: Int -&gt; SymClass -&gt; ShowS
+$cshow :: SymClass -&gt; String
+show :: SymClass -&gt; String
+$cshowList :: [SymClass] -&gt; ShowS
+showList :: [SymClass] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">data</span><span> </span><span id="Symbol"><span class="annot"><a href="Minify.Format.html#Symbol"><span class="hs-identifier hs-var">Symbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Symbol"><span class="annot"><a href="Minify.Format.html#Symbol"><span class="hs-identifier hs-var">Symbol</span></a></span></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="syName"><span class="annot"><span class="annottext">Symbol -&gt; ByteString
+</span><a href="Minify.Format.html#syName"><span class="hs-identifier hs-var hs-var">syName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span>
+</span><span id="line-107"></span><span>    </span><span id="syValue"><span class="annot"><span class="annottext">Symbol -&gt; Word64
+</span><a href="Minify.Format.html#syValue"><span class="hs-identifier hs-var hs-var">syValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="hs-comment">-- | defined in a section of this file</span></span><span>
+</span><span id="line-109"></span><span>    </span><span id="syDefined"><span class="annot"><span class="annottext">Symbol -&gt; Bool
+</span><a href="Minify.Format.html#syDefined"><span class="hs-identifier hs-var hs-var">syDefined</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-110"></span><span>    </span><span id="syClass"><span class="annot"><span class="annottext">Symbol -&gt; SymClass
+</span><a href="Minify.Format.html#syClass"><span class="hs-identifier hs-var hs-var">syClass</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#SymClass"><span class="hs-identifier hs-type">SymClass</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><span class="hs-comment">-- | index in the format's symbol table</span></span><span>
+</span><span id="line-112"></span><span>    </span><span id="syOrig"><span class="annot"><span class="annottext">Symbol -&gt; Int
+</span><a href="Minify.Format.html#syOrig"><span class="hs-identifier hs-var hs-var">syOrig</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679140385"><span id="local-6989586621679140393"><span id="local-6989586621679140397"><span class="annot"><span class="annottext">Int -&gt; Symbol -&gt; ShowS
+[Symbol] -&gt; ShowS
+Symbol -&gt; String
+(Int -&gt; Symbol -&gt; ShowS)
+-&gt; (Symbol -&gt; String) -&gt; ([Symbol] -&gt; ShowS) -&gt; Show Symbol
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Symbol -&gt; ShowS
+showsPrec :: Int -&gt; Symbol -&gt; ShowS
+$cshow :: Symbol -&gt; String
+show :: Symbol -&gt; String
+$cshowList :: [Symbol] -&gt; ShowS
+showList :: [Symbol] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">data</span><span> </span><span id="Raw"><span class="annot"><a href="Minify.Format.html#Raw"><span class="hs-identifier hs-var">Raw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RawMachO"><span class="annot"><a href="Minify.Format.html#RawMachO"><span class="hs-identifier hs-var">RawMachO</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="RawElf"><span class="annot"><a href="Minify.Format.html#RawElf"><span class="hs-identifier hs-var">RawElf</span></a></span></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- | What a reader produces. The raw format record stays with the reader's</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- module; 'ldRaw' only says which one it is.</span><span>
+</span><span id="line-120"></span><span class="hs-keyword">data</span><span> </span><span id="Loaded"><span class="annot"><a href="Minify.Format.html#Loaded"><span class="hs-identifier hs-var">Loaded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Loaded"><span class="annot"><a href="Minify.Format.html#Loaded"><span class="hs-identifier hs-var">Loaded</span></a></span></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="ldFormat"><span class="annot"><span class="annottext">Loaded -&gt; Format
+</span><a href="Minify.Format.html#ldFormat"><span class="hs-identifier hs-var hs-var">ldFormat</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#Format"><span class="hs-identifier hs-type">Format</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>    </span><span id="ldArch"><span class="annot"><span class="annottext">Loaded -&gt; Arch
+</span><a href="Minify.Format.html#ldArch"><span class="hs-identifier hs-var hs-var">ldArch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Minify.Format.html#Arch"><span class="hs-identifier hs-type">Arch</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-comment">-- | the file has an exact list of the pointer slots the loader fixes up</span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-comment">-- (Mach-O rebases, ELF relative relocations); when it does not, the</span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-comment">-- slots are found by parsing the static closures</span><span>
+</span><span id="line-126"></span><span>    </span><span id="ldSlots"><span class="annot"><span class="annottext">Loaded -&gt; Maybe [Word64]
+</span><a href="Minify.Format.html#ldSlots"><span class="hs-identifier hs-var hs-var">ldSlots</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="hs-comment">-- | slots the loader binds to a named symbol: (slot, symbol)</span></span><span>
+</span><span id="line-128"></span><span>    </span><span id="ldBinds"><span class="annot"><span class="annottext">Loaded -&gt; [(Word64, ByteString)]
+</span><a href="Minify.Format.html#ldBinds"><span class="hs-identifier hs-var hs-var">ldBinds</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-comment">-- | when the link kept its relocations: the addresses of every 32-bit</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-comment">-- absolute field in code, so that nothing else is taken for one</span><span>
+</span><span id="line-131"></span><span>    </span><span id="ldAbsFields"><span class="annot"><span class="annottext">Loaded -&gt; Maybe [Word64]
+</span><a href="Minify.Format.html#ldAbsFields"><span class="hs-identifier hs-var hs-var">ldAbsFields</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>    </span><span id="ldPageSize"><span class="annot"><span class="annottext">Loaded -&gt; Word64
+</span><a href="Minify.Format.html#ldPageSize"><span class="hs-identifier hs-var hs-var">ldPageSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-133"></span><span>    </span><span id="ldPie"><span class="annot"><span class="annottext">Loaded -&gt; Bool
+</span><a href="Minify.Format.html#ldPie"><span class="hs-identifier hs-var hs-var">ldPie</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-134"></span><span>    </span><span id="ldSegments"><span class="annot"><span class="annottext">Loaded -&gt; [Segment]
+</span><a href="Minify.Format.html#ldSegments"><span class="hs-identifier hs-var hs-var">ldSegments</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Minify.Format.html#Segment"><span class="hs-identifier hs-type">Segment</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><span class="hs-comment">-- | in the format's own order</span></span><span>
+</span><span id="line-136"></span><span>    </span><span id="ldSections"><span class="annot"><span class="annottext">Loaded -&gt; [Section]
+</span><a href="Minify.Format.html#ldSections"><span class="hs-identifier hs-var hs-var">ldSections</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-type">Section</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>    </span><span id="ldSymbols"><span class="annot"><span class="annottext">Loaded -&gt; [Symbol]
+</span><a href="Minify.Format.html#ldSymbols"><span class="hs-identifier hs-var hs-var">ldSymbols</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Minify.Format.html#Symbol"><span class="hs-identifier hs-type">Symbol</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>    </span><span id="ldRaw"><span class="annot"><span class="annottext">Loaded -&gt; Raw
+</span><a href="Minify.Format.html#ldRaw"><span class="hs-identifier hs-var hs-var">ldRaw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Format.html#Raw"><span class="hs-identifier hs-type">Raw</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Minify.Format.html#isCompactedSection"><span class="hs-identifier hs-type">isCompactedSection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-type">Section</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-142"></span><span id="isCompactedSection"><span class="annot"><span class="annottext">isCompactedSection :: Section -&gt; Bool
+</span><a href="Minify.Format.html#isCompactedSection"><span class="hs-identifier hs-var hs-var">isCompactedSection</span></a></span></span><span> </span><span id="local-6989586621679140412"><span class="annot"><span class="annottext">Section
+</span><a href="#local-6989586621679140412"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Section -&gt; Role
+</span><a href="Minify.Format.html#secRole"><span class="hs-identifier hs-var">secRole</span></a></span><span> </span><span class="annot"><span class="annottext">Section
+</span><a href="#local-6989586621679140412"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Role -&gt; Role -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="Minify.Format.html#Other"><span class="hs-identifier hs-var">Other</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="Minify.Format.html#isCode"><span class="hs-identifier hs-type">isCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Minify.Format.html#Section"><span class="hs-identifier hs-type">Section</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-145"></span><span id="isCode"><span class="annot"><span class="annottext">isCode :: Section -&gt; Bool
+</span><a href="Minify.Format.html#isCode"><span class="hs-identifier hs-var hs-var">isCode</span></a></span></span><span> </span><span id="local-6989586621679140414"><span class="annot"><span class="annottext">Section
+</span><a href="#local-6989586621679140414"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Section -&gt; Role
+</span><a href="Minify.Format.html#secRole"><span class="hs-identifier hs-var">secRole</span></a></span><span> </span><span class="annot"><span class="annottext">Section
+</span><a href="#local-6989586621679140414"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Role -&gt; Role -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="Minify.Format.html#Code"><span class="hs-identifier hs-var">Code</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><span class="hs-comment">-- | The suffixes GHC gives the symbols of a binding's parts.</span></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Minify.Format.html#hsKindSuffixes"><span class="hs-identifier hs-type">hsKindSuffixes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">]</span><span>
+</span><span id="line-149"></span><span id="hsKindSuffixes"><span class="annot"><span class="annottext">hsKindSuffixes :: [ByteString]
+</span><a href="Minify.Format.html#hsKindSuffixes"><span class="hs-identifier hs-var hs-var">hsKindSuffixes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_con_info&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_static_info&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_info&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_closure&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_entry&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_bytes&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_srt&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_slow&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_fast&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_str&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_ret&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_closure_tbl&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Minify.Format.html#hasHsKindSuffix"><span class="hs-identifier hs-type">hasHsKindSuffix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-152"></span><span id="hasHsKindSuffix"><span class="annot"><span class="annottext">hasHsKindSuffix :: ByteString -&gt; Bool
+</span><a href="Minify.Format.html#hasHsKindSuffix"><span class="hs-identifier hs-var hs-var">hasHsKindSuffix</span></a></span></span><span> </span><span id="local-6989586621679140415"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140415"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Bool) -&gt; [ByteString] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.isSuffixOf`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140415"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><a href="Minify.Format.html#hsKindSuffixes"><span class="hs-identifier hs-var">hsKindSuffixes</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | Whether a Mach-O local symbol's name is one GHC gives a local label on</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- Darwin: @L@, a unique of letters and digits, and a kind suffix</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- (@_Lc4py_info@, @_Lg1Kz_closure@). C's own local names have words</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- separated by underscores (@_mark_closure@) and no @L@. ELF readers use</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- the symbol's type instead: GHC's local labels are untyped there.</span><span>
+</span><span id="line-159"></span><span class="annot"><a href="Minify.Format.html#ghcLocalLabel"><span class="hs-identifier hs-type">ghcLocalLabel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-160"></span><span id="ghcLocalLabel"><span class="annot"><span class="annottext">ghcLocalLabel :: ByteString -&gt; Bool
+</span><a href="Minify.Format.html#ghcLocalLabel"><span class="hs-identifier hs-var hs-var">ghcLocalLabel</span></a></span></span><span> </span><span id="local-6989586621679140418"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140418"><span class="hs-identifier hs-var">n0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679140420"><span class="annot"><span class="annottext">n :: ByteString
+</span><a href="#local-6989586621679140420"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;_&quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.isPrefixOf`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140418"><span class="hs-identifier hs-var">n0</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140418"><span class="hs-identifier hs-var">n0</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140418"><span class="hs-identifier hs-var">n0</span></a></span><span>
+</span><span id="line-162"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140423"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679140423"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140423"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><a href="Minify.Format.html#hsKindSuffixes"><span class="hs-identifier hs-var">hsKindSuffixes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140423"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; Bool
+</span><span class="hs-operator hs-var">`B.isSuffixOf`</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140420"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-163"></span><span>        </span><span id="local-6989586621679140424"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140424"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-164"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679140427"><span class="annot"><span class="annottext">u :: String
+</span><a href="#local-6989586621679140427"><span class="hs-identifier hs-var hs-var">u</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; String
+</span><span class="hs-identifier hs-var">BC.unpack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140420"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140424"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679140420"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679140427"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>                </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'L'</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679140431"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679140431"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679140431"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlphaNum</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679140431"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-167"></span><span>                </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-168"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><a href="Minify.Format.html#_unusedFormat"><span class="hs-identifier hs-type">_unusedFormat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-171"></span><span id="_unusedFormat"><span class="annot"><span class="annottext">_unusedFormat :: Char -&gt; Bool
+</span><a href="Minify.Format.html#_unusedFormat"><span class="hs-identifier hs-var hs-var">_unusedFormat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isAlpha</span></span><span>
+</span><span id="line-172"></span></pre></body></html>

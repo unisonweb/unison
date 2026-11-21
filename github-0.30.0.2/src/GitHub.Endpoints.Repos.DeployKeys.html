@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     :  BSD-3-Clause</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  :  Todd Mohney &lt;toddmohney@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- The deploy keys API, as described at</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- &lt;https://developer.github.com/v3/repos/keys&gt;</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html"><span class="hs-identifier">GitHub.Endpoints.Repos.DeployKeys</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Querying deploy keys</span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeysForR"><span class="hs-identifier">deployKeysForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeyForR"><span class="hs-identifier">deployKeyForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Create</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#createRepoDeployKeyR"><span class="hs-identifier">createRepoDeployKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Delete</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deleteRepoDeployKeyR"><span class="hs-identifier">deleteRepoDeployKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | Querying deploy keys.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/keys/#list-deploy-keys&gt;</span><span>
+</span><span id="line-26"></span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeysForR"><span class="hs-identifier hs-type">deployKeysForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#RepoDeployKey"><span class="hs-identifier hs-type">RepoDeployKey</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span id="deployKeysForR"><span class="annot"><span class="annottext">deployKeysForR :: Name Owner
+-&gt; Name Repo -&gt; FetchCount -&gt; Request 'RA (Vector RepoDeployKey)
+</span><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeysForR"><span class="hs-identifier hs-var hs-var">deployKeysForR</span></a></span></span><span> </span><span id="local-6989586621679538785"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538785"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538786"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538786"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector RepoDeployKey)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538785"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538786"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Querying a deploy key.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/keys/#get-a-deploy-key&gt;</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeyForR"><span class="hs-identifier hs-type">deployKeyForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#RepoDeployKey"><span class="hs-identifier hs-type">RepoDeployKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#RepoDeployKey"><span class="hs-identifier hs-type">RepoDeployKey</span></a></span><span>
+</span><span id="line-33"></span><span id="deployKeyForR"><span class="annot"><span class="annottext">deployKeyForR :: Name Owner
+-&gt; Name Repo -&gt; Id RepoDeployKey -&gt; Request 'RA RepoDeployKey
+</span><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeyForR"><span class="hs-identifier hs-var hs-var">deployKeyForR</span></a></span></span><span> </span><span id="local-6989586621679538789"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538789"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538790"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538790"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538791"><span class="annot"><span class="annottext">Id RepoDeployKey
+</span><a href="#local-6989586621679538791"><span class="hs-identifier hs-var">keyId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request 'RA RepoDeployKey
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538789"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538790"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id RepoDeployKey -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id RepoDeployKey
+</span><a href="#local-6989586621679538791"><span class="hs-identifier hs-var">keyId</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Create a deploy key.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/keys/#add-a-new-deploy-key&gt;.</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#createRepoDeployKeyR"><span class="hs-identifier hs-type">createRepoDeployKeyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#NewRepoDeployKey"><span class="hs-identifier hs-type">NewRepoDeployKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#RepoDeployKey"><span class="hs-identifier hs-type">RepoDeployKey</span></a></span><span>
+</span><span id="line-39"></span><span id="createRepoDeployKeyR"><span class="annot"><span class="annottext">createRepoDeployKeyR :: Name Owner
+-&gt; Name Repo -&gt; NewRepoDeployKey -&gt; Request 'RW RepoDeployKey
+</span><a href="GitHub.Endpoints.Repos.DeployKeys.html#createRepoDeployKeyR"><span class="hs-identifier hs-var hs-var">createRepoDeployKeyR</span></a></span></span><span> </span><span id="local-6989586621679538793"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538793"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538794"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538794"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538795"><span class="annot"><span class="annottext">NewRepoDeployKey
+</span><a href="#local-6989586621679538795"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW RepoDeployKey
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538793"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538794"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NewRepoDeployKey -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">NewRepoDeployKey
+</span><a href="#local-6989586621679538795"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Delete a deploy key.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/keys/#remove-a-deploy-key&gt;</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deleteRepoDeployKeyR"><span class="hs-identifier hs-type">deleteRepoDeployKeyR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.DeployKeys.html#RepoDeployKey"><span class="hs-identifier hs-type">RepoDeployKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span id="deleteRepoDeployKeyR"><span class="annot"><span class="annottext">deleteRepoDeployKeyR :: Name Owner
+-&gt; Name Repo -&gt; Id RepoDeployKey -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Repos.DeployKeys.html#deleteRepoDeployKeyR"><span class="hs-identifier hs-var hs-var">deleteRepoDeployKeyR</span></a></span></span><span> </span><span id="local-6989586621679538799"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538799"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538800"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538800"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538801"><span class="annot"><span class="annottext">Id RepoDeployKey
+</span><a href="#local-6989586621679538801"><span class="hs-identifier hs-var">keyId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538799"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538800"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;keys&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id RepoDeployKey -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id RepoDeployKey
+</span><a href="#local-6989586621679538801"><span class="hs-identifier hs-var">keyId</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-47"></span></pre></body></html>

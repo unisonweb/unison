@@ -1,0 +1,462 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings, RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module     : Algebra.Graph.Export.Dot</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module defines functions for exporting graphs in the DOT file format.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html"><span class="hs-identifier">Algebra.Graph.Export.Dot</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph attributes and style</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier">Attribute</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Quoting"><span class="hs-identifier">Quoting</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier">Style</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#defaultStyle"><span class="hs-identifier">defaultStyle</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#defaultStyleViaShow"><span class="hs-identifier">defaultStyleViaShow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Export functions</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#export"><span class="hs-keyword">export</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#exportAsIs"><span class="hs-identifier">exportAsIs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#exportViaShow"><span class="hs-identifier">exportViaShow</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">map</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">null</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">intersperse</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unlines</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unlines</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html"><span class="hs-identifier">Algebra.Graph.ToGraph</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier">ToGraph</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html"><span class="hs-identifier">Algebra.Graph.Export</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#export"><span class="hs-keyword">export</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html"><span class="hs-identifier">Algebra.Graph.Export</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | An attribute is just a key-value pair, for example @&quot;shape&quot; := &quot;box&quot;@.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- Attributes are used to specify the style of graph elements during export.</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="Attribute"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-var">Attribute</span></a></span></span><span> </span><span id="local-6989586621679165546"><span class="annot"><a href="#local-6989586621679165546"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="%3A%3D"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#%3A%3D"><span class="hs-operator hs-var">(:=)</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679165546"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165546"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- TODO: Do we need other quoting styles, for example, 'SingleQuotes'?</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- TODO: Shall we use 'Quoting' for vertex names too?</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | The style of quoting used when exporting attributes; 'DoubleQuotes' is the</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- default.</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="Quoting"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Quoting"><span class="hs-identifier hs-var">Quoting</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DoubleQuotes"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#DoubleQuotes"><span class="hs-identifier hs-var">DoubleQuotes</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="NoQuotes"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#NoQuotes"><span class="hs-identifier hs-var">NoQuotes</span></a></span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | The record 'Style' @a@ @s@ specifies the style to use when exporting a</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- graph in the DOT format. Here @a@ is the type of the graph vertices, and @s@</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- is the type of string to represent the resulting DOT document (e.g. String,</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Text, etc.). The only field that has no obvious default value is</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- 'vertexName', which holds a function of type @a -&gt; s@ to compute vertex</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- names. See the function 'export' for an example.</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="Style"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-var">Style</span></a></span></span><span> </span><span id="local-6989586621679165453"><span class="annot"><a href="#local-6989586621679165453"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679165454"><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Style"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-var">Style</span></a></span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="graphName"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#graphName"><span class="hs-identifier hs-var hs-var">graphName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Name of the graph.</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="preamble"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; [s]
+</span><a href="Algebra.Graph.Export.Dot.html#preamble"><span class="hs-identifier hs-var hs-var">preamble</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Preamble (a list of lines) is added at the beginning of the DOT file body.</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="graphAttributes"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; [Attribute s]
+</span><a href="Algebra.Graph.Export.Dot.html#graphAttributes"><span class="hs-identifier hs-var hs-var">graphAttributes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Graph style, e.g. @[&quot;bgcolor&quot; := &quot;azure&quot;]@.</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="defaultVertexAttributes"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; [Attribute s]
+</span><a href="Algebra.Graph.Export.Dot.html#defaultVertexAttributes"><span class="hs-identifier hs-var hs-var">defaultVertexAttributes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Default vertex style, e.g. @[&quot;shape&quot; := &quot;diamond&quot;]@.</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="defaultEdgeAttributes"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; [Attribute s]
+</span><a href="Algebra.Graph.Export.Dot.html#defaultEdgeAttributes"><span class="hs-identifier hs-var hs-var">defaultEdgeAttributes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Default edge style, e.g. @[&quot;style&quot; := &quot;dashed&quot;]@.</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="vertexName"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; a -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#vertexName"><span class="hs-identifier hs-var hs-var">vertexName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679165453"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Compute a vertex name.</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="vertexAttributes"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; a -&gt; [Attribute s]
+</span><a href="Algebra.Graph.Export.Dot.html#vertexAttributes"><span class="hs-identifier hs-var hs-var">vertexAttributes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679165453"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Attributes of a specific vertex.</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="edgeAttributes"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; a -&gt; a -&gt; [Attribute s]
+</span><a href="Algebra.Graph.Export.Dot.html#edgeAttributes"><span class="hs-identifier hs-var hs-var">edgeAttributes</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679165453"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165453"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165454"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Attributes of a specific edge.</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="attributeQuoting"><span class="annot"><span class="annottext">forall a s. Style a s -&gt; Quoting
+</span><a href="Algebra.Graph.Export.Dot.html#attributeQuoting"><span class="hs-identifier hs-var hs-var">attributeQuoting</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Quoting"><span class="hs-identifier hs-type">Quoting</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The quoting style used for attributes.</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | Default style for exporting graphs. The 'vertexName' field is provided as</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- the only argument; the other fields are set to trivial defaults.</span><span>
+</span><span id="line-72"></span><span id="local-6989586621679165476"><span id="local-6989586621679165477"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#defaultStyle"><span class="hs-identifier hs-type">defaultStyle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165476"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679165477"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165476"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-type">Style</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165477"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165476"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-73"></span><span id="defaultStyle"><span class="annot"><span class="annottext">defaultStyle :: forall s a. Monoid s =&gt; (a -&gt; s) -&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#defaultStyle"><span class="hs-identifier hs-var hs-var">defaultStyle</span></a></span></span><span> </span><span id="local-6989586621679165562"><span class="annot"><span class="annottext">a -&gt; s
+</span><a href="#local-6989586621679165562"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s
+-&gt; [s]
+-&gt; [Attribute s]
+-&gt; [Attribute s]
+-&gt; [Attribute s]
+-&gt; (a -&gt; s)
+-&gt; (a -&gt; [Attribute s])
+-&gt; (a -&gt; a -&gt; [Attribute s])
+-&gt; Quoting
+-&gt; Style a s
+forall a s.
+s
+-&gt; [s]
+-&gt; [Attribute s]
+-&gt; [Attribute s]
+-&gt; [Attribute s]
+-&gt; (a -&gt; s)
+-&gt; (a -&gt; [Attribute s])
+-&gt; (a -&gt; a -&gt; [Attribute s])
+-&gt; Quoting
+-&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-var">Style</span></a></span><span> </span><span class="annot"><span class="annottext">s
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">a -&gt; s
+</span><a href="#local-6989586621679165562"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Attribute s] -&gt; a -&gt; [Attribute s]
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><a href="Algebra.Graph.Export.Dot.html#DoubleQuotes"><span class="hs-identifier hs-var">DoubleQuotes</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | Default style for exporting graphs with 'Show'-able vertices. The</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- 'vertexName' field is computed using 'show'; the other fields are set to</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- trivial defaults.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- defaultStyleViaShow = 'defaultStyle' ('fromString' . 'show')</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-82"></span><span id="local-6989586621679165484"><span id="local-6989586621679165485"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#defaultStyleViaShow"><span class="hs-identifier hs-type">defaultStyleViaShow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679165484"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165485"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165485"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-type">Style</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165484"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165485"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-83"></span><span id="defaultStyleViaShow"><span class="annot"><span class="annottext">defaultStyleViaShow :: forall a s. (Show a, IsString s, Monoid s) =&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#defaultStyleViaShow"><span class="hs-identifier hs-var hs-var">defaultStyleViaShow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; s) -&gt; Style a s
+forall s a. Monoid s =&gt; (a -&gt; s) -&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#defaultStyle"><span class="hs-identifier hs-var">defaultStyle</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; s
+forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; s) -&gt; (a -&gt; String) -&gt; a -&gt; s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | Export a graph with a given style.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- style :: 'Style' Int String</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- style = 'Style'</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--     { 'graphName'               = \&quot;Example\&quot;</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--     , 'preamble'                = [&quot;  // This is an example&quot;, &quot;&quot;]</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--     , 'graphAttributes'         = [&quot;label&quot; := \&quot;Example\&quot;, &quot;labelloc&quot; := &quot;top&quot;]</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--     , 'defaultVertexAttributes' = [&quot;shape&quot; := &quot;circle&quot;]</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--     , 'defaultEdgeAttributes'   = 'mempty'</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--     , 'vertexName'              = \\x   -&gt; &quot;v&quot; ++ 'show' x</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--     , 'vertexAttributes'        = \\x   -&gt; [&quot;color&quot; := &quot;blue&quot;   | 'odd' x      ]</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--     , 'edgeAttributes'          = \\x y -&gt; [&quot;style&quot; := &quot;dashed&quot; | 'odd' (x * y)]</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--     , 'attributeQuoting'        = 'DoubleQuotes' }</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- &gt; putStrLn $ export style (1 * 2 + 3 * 4 * 5 :: 'Graph' Int)</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- digraph Example</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- {</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--   // This is an example</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--   graph [label=\&quot;Example\&quot; labelloc=&quot;top&quot;]</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--   node [shape=&quot;circle&quot;]</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--   &quot;v1&quot; [color=&quot;blue&quot;]</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--   &quot;v2&quot;</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--   &quot;v3&quot; [color=&quot;blue&quot;]</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--   &quot;v4&quot;</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--   &quot;v5&quot; [color=&quot;blue&quot;]</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--   &quot;v1&quot; -&gt; &quot;v2&quot;</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--   &quot;v3&quot; -&gt; &quot;v4&quot;</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--   &quot;v3&quot; -&gt; &quot;v5&quot; [style=&quot;dashed&quot;]</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--   &quot;v4&quot; -&gt; &quot;v5&quot;</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- }</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-121"></span><span id="local-6989586621679165493"><span id="local-6989586621679165494"><span id="local-6989586621679165495"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#export"><span class="hs-keyword hs-type">export</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165493"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165493"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679165494"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier hs-type">ToGraph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165495"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165495"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679165494"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-type">Style</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165494"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165493"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165495"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165493"><span class="hs-identifier hs-type">s</span></a></span></span></span></span><span>
+</span><span id="line-122"></span><span id="export"><span class="annot"><span class="annottext">export :: forall s a g.
+(IsString s, Monoid s, Ord a, ToGraph g, ToVertex g ~ a) =&gt;
+Style a s -&gt; g -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#export"><span class="hs-keyword hs-var hs-var">export</span></a></span></span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Style"><span class="hs-identifier hs-type">Style</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679165618"><span id="local-6989586621679165619"><span id="local-6989586621679165620"><span id="local-6989586621679165621"><span id="local-6989586621679165622"><span id="local-6989586621679165623"><span id="local-6989586621679165624"><span id="local-6989586621679165625"><span id="local-6989586621679165626"><span class="annot"><span class="annottext">s
+[s]
+[Attribute s]
+Quoting
+a -&gt; s
+a -&gt; [Attribute s]
+a -&gt; a -&gt; [Attribute s]
+vertexName :: forall a s. Style a s -&gt; a -&gt; s
+graphName :: forall a s. Style a s -&gt; s
+preamble :: forall a s. Style a s -&gt; [s]
+graphAttributes :: forall a s. Style a s -&gt; [Attribute s]
+defaultVertexAttributes :: forall a s. Style a s -&gt; [Attribute s]
+defaultEdgeAttributes :: forall a s. Style a s -&gt; [Attribute s]
+vertexAttributes :: forall a s. Style a s -&gt; a -&gt; [Attribute s]
+edgeAttributes :: forall a s. Style a s -&gt; a -&gt; a -&gt; [Attribute s]
+attributeQuoting :: forall a s. Style a s -&gt; Quoting
+graphName :: s
+preamble :: [s]
+graphAttributes :: [Attribute s]
+defaultVertexAttributes :: [Attribute s]
+defaultEdgeAttributes :: [Attribute s]
+vertexName :: a -&gt; s
+vertexAttributes :: a -&gt; [Attribute s]
+edgeAttributes :: a -&gt; a -&gt; [Attribute s]
+attributeQuoting :: Quoting
+</span><a href="Algebra.Graph.Export.Dot.html#vertexName"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679165627"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679165627"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">(Doc s -&gt; s) -&gt; Doc s -&gt; s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165629"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165630"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;}\n&quot;</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621679165629"><span class="annot"><span class="annottext">header :: Doc s
+</span><a href="#local-6989586621679165629"><span class="hs-identifier hs-var hs-var">header</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;digraph&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall s. IsString s =&gt; Doc s -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679165618"><span class="hs-identifier hs-var">graphName</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;\n{\n&quot;</span></span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679165633"><span class="annot"><span class="annottext">with :: Doc s -&gt; [Attribute s] -&gt; Doc s
+</span><a href="#local-6989586621679165633"><span class="hs-identifier hs-var hs-var">with</span></a></span></span><span> </span><span id="local-6989586621679165634"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165634"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679165635"><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165635"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Attribute s] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165635"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Doc s
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165636"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall s. IsString s =&gt; Doc s -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Quoting -&gt; [Attribute s] -&gt; Doc s
+forall s. IsString s =&gt; Quoting -&gt; [Attribute s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-var">attributes</span></a></span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><a href="#local-6989586621679165626"><span class="hs-identifier hs-var">attributeQuoting</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165635"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679165636"><span class="annot"><span class="annottext">line :: Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165636"><span class="hs-identifier hs-var hs-var">line</span></a></span></span><span> </span><span id="local-6989586621679165642"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165642"><span class="hs-identifier hs-var">s</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Doc s -&gt; Doc s
+forall s. IsString s =&gt; Int -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#indent"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165642"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;\n&quot;</span></span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679165630"><span class="annot"><span class="annottext">body :: Doc s
+</span><a href="#local-6989586621679165630"><span class="hs-identifier hs-var hs-var">body</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Doc s] -&gt; Doc s
+forall s. IsString s =&gt; [Doc s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(s -&gt; Doc s) -&gt; [s] -&gt; [Doc s]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">[s]
+</span><a href="#local-6989586621679165619"><span class="hs-identifier hs-var">preamble</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>             </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;graph&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; [Attribute s] -&gt; Doc s
+</span><a href="#local-6989586621679165633"><span class="hs-operator hs-var">`with`</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165620"><span class="hs-identifier hs-var">graphAttributes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>             </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;node&quot;</span></span><span>  </span><span class="annot"><span class="annottext">Doc s -&gt; [Attribute s] -&gt; Doc s
+</span><a href="#local-6989586621679165633"><span class="hs-operator hs-var">`with`</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165621"><span class="hs-identifier hs-var">defaultVertexAttributes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>             </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;edge&quot;</span></span><span>  </span><span class="annot"><span class="annottext">Doc s -&gt; [Attribute s] -&gt; Doc s
+</span><a href="#local-6989586621679165633"><span class="hs-operator hs-var">`with`</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165622"><span class="hs-identifier hs-var">defaultEdgeAttributes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>             </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Doc s) -&gt; (a -&gt; a -&gt; Doc s) -&gt; g -&gt; Doc s
+forall a g s.
+(Ord a, ToGraph g, ToVertex g ~ a) =&gt;
+(a -&gt; Doc s) -&gt; (a -&gt; a -&gt; Doc s) -&gt; g -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#export"><span class="hs-identifier hs-var">E.export</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165645"><span class="hs-identifier hs-var">vDoc</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Doc s
+</span><a href="#local-6989586621679165646"><span class="hs-identifier hs-var">eDoc</span></a></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679165627"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679165647"><span class="annot"><span class="annottext">label :: a -&gt; Doc s
+</span><a href="#local-6989586621679165647"><span class="hs-keyword hs-var hs-var">label</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#doubleQuotes"><span class="hs-identifier hs-var">doubleQuotes</span></a></span><span> </span><span class="annot"><span class="annottext">(Doc s -&gt; Doc s) -&gt; (a -&gt; Doc s) -&gt; a -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Doc s) -&gt; (a -&gt; s) -&gt; a -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; s
+</span><a href="#local-6989586621679165623"><span class="hs-identifier hs-var">vertexName</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679165645"><span class="annot"><span class="annottext">vDoc :: a -&gt; Doc s
+</span><a href="#local-6989586621679165645"><span class="hs-identifier hs-var hs-var">vDoc</span></a></span></span><span> </span><span id="local-6989586621679165649"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165649"><span class="hs-identifier hs-var">x</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165636"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">(Doc s -&gt; Doc s) -&gt; Doc s -&gt; Doc s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165647"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165649"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall s. IsString s =&gt; Doc s -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span>                      </span><span class="annot"><span class="annottext">Quoting -&gt; [Attribute s] -&gt; Doc s
+forall s. IsString s =&gt; Quoting -&gt; [Attribute s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-var">attributes</span></a></span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><a href="#local-6989586621679165626"><span class="hs-identifier hs-var">attributeQuoting</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; [Attribute s]
+</span><a href="#local-6989586621679165624"><span class="hs-identifier hs-var">vertexAttributes</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165649"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621679165646"><span class="annot"><span class="annottext">eDoc :: a -&gt; a -&gt; Doc s
+</span><a href="#local-6989586621679165646"><span class="hs-identifier hs-var hs-var">eDoc</span></a></span></span><span> </span><span id="local-6989586621679165650"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165650"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679165651"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165651"><span class="hs-identifier hs-var">y</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165636"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">(Doc s -&gt; Doc s) -&gt; Doc s -&gt; Doc s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165647"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165650"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot; -&gt; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165647"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165651"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall s. IsString s =&gt; Doc s -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Quoting -&gt; [Attribute s] -&gt; Doc s
+forall s. IsString s =&gt; Quoting -&gt; [Attribute s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-var">attributes</span></a></span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><a href="#local-6989586621679165626"><span class="hs-identifier hs-var">attributeQuoting</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; [Attribute s]
+</span><a href="#local-6989586621679165625"><span class="hs-identifier hs-var">edgeAttributes</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165650"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679165651"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- | Export a list of attributes using a specified quoting style.</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- Example: @attributes DoubleQuotes [&quot;label&quot; := &quot;A label&quot;, &quot;shape&quot; := &quot;box&quot;]@</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- corresponds to document: @[label=&quot;A label&quot; shape=&quot;box&quot;]@.</span><span>
+</span><span id="line-139"></span><span id="local-6989586621679165518"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-type">attributes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165518"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Quoting"><span class="hs-identifier hs-type">Quoting</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165518"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165518"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-140"></span><span id="attributes"><span class="annot"><span class="annottext">attributes :: forall s. IsString s =&gt; Quoting -&gt; [Attribute s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-var hs-var">attributes</span></a></span></span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#attributes"><span class="hs-identifier hs-var">attributes</span></a></span><span> </span><span id="local-6989586621679165661"><span class="annot"><span class="annottext">Quoting
+</span><a href="#local-6989586621679165661"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span id="local-6989586621679165662"><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165662"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#brackets"><span class="hs-identifier hs-var">brackets</span></a></span><span> </span><span class="annot"><span class="annottext">(Doc s -&gt; Doc s) -&gt; ([Doc s] -&gt; Doc s) -&gt; [Doc s] -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Doc s] -&gt; Doc s
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">([Doc s] -&gt; Doc s) -&gt; ([Doc s] -&gt; [Doc s]) -&gt; [Doc s] -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; [Doc s] -&gt; [Doc s]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">intersperse</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">([Doc s] -&gt; Doc s) -&gt; [Doc s] -&gt; Doc s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Attribute s -&gt; Doc s) -&gt; [Attribute s] -&gt; [Doc s]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Attribute s -&gt; Doc s
+</span><a href="#local-6989586621679165664"><span class="hs-identifier hs-var">dot</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute s]
+</span><a href="#local-6989586621679165662"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-143"></span><span>    </span><span id="local-6989586621679165664"><span class="annot"><span class="annottext">dot :: Attribute s -&gt; Doc s
+</span><a href="#local-6989586621679165664"><span class="hs-identifier hs-var hs-var">dot</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679165665"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679165665"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><a href="Algebra.Graph.Export.Dot.html#%3A%3D"><span class="hs-operator hs-type">:=</span></a></span><span> </span><span id="local-6989586621679165666"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679165666"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679165665"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;=&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165667"><span class="hs-identifier hs-var">quote</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679165666"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679165667"><span class="annot"><span class="annottext">quote :: Doc s -&gt; Doc s
+</span><a href="#local-6989586621679165667"><span class="hs-identifier hs-var hs-var">quote</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Quoting
+</span><a href="#local-6989586621679165661"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-145"></span><span>        </span><span class="annot"><span class="annottext">Quoting
+</span><a href="Algebra.Graph.Export.Dot.html#DoubleQuotes"><span class="hs-identifier hs-var">DoubleQuotes</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall {s}. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#doubleQuotes"><span class="hs-identifier hs-var">doubleQuotes</span></a></span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><span class="annottext">Quoting
+</span><a href="Algebra.Graph.Export.Dot.html#NoQuotes"><span class="hs-identifier hs-var">NoQuotes</span></a></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- | Export a graph whose vertices are represented simply by their names.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- &gt; Text.putStrLn $ exportAsIs ('Algebra.Graph.AdjacencyMap.circuit' [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] :: 'Algebra.Graph.AdjacencyMap.AdjacencyMap' Text)</span><span>
+</span><span id="line-154"></span><span class="hs-comment">--</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- digraph</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- {</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--   &quot;a&quot;</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--   &quot;b&quot;</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--   &quot;c&quot;</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--   &quot;a&quot; -&gt; &quot;b&quot;</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--   &quot;b&quot; -&gt; &quot;c&quot;</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--   &quot;c&quot; -&gt; &quot;a&quot;</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- }</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-165"></span><span id="local-6989586621679165529"><span id="local-6989586621679165530"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#exportAsIs"><span class="hs-identifier hs-type">exportAsIs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165529"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165529"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165530"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier hs-type">ToGraph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165530"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165530"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679165529"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165530"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165529"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-166"></span><span id="exportAsIs"><span class="annot"><span class="annottext">exportAsIs :: forall s g.
+(IsString s, Monoid s, Ord (ToVertex g), ToGraph g,
+ ToVertex g ~ s) =&gt;
+g -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#exportAsIs"><span class="hs-identifier hs-var hs-var">exportAsIs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Style s s -&gt; g -&gt; s
+forall s a g.
+(IsString s, Monoid s, Ord a, ToGraph g, ToVertex g ~ a) =&gt;
+Style a s -&gt; g -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#export"><span class="hs-keyword hs-var">export</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(s -&gt; s) -&gt; Style s s
+forall s a. Monoid s =&gt; (a -&gt; s) -&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#defaultStyle"><span class="hs-identifier hs-var">defaultStyle</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; s
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | Export a graph using the 'defaultStyleViaShow'.</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- &gt; putStrLn $ exportViaShow (1 + 2 * (3 + 4) :: 'Algebra.Graph.Graph' Int)</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- digraph</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- {</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--   &quot;1&quot;</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--   &quot;2&quot;</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--   &quot;3&quot;</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--   &quot;4&quot;</span><span>
+</span><span id="line-181"></span><span class="hs-comment">--   &quot;2&quot; -&gt; &quot;3&quot;</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--   &quot;2&quot; -&gt; &quot;4&quot;</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- }</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-185"></span><span id="local-6989586621679165533"><span id="local-6989586621679165534"><span class="annot"><a href="Algebra.Graph.Export.Dot.html#exportViaShow"><span class="hs-identifier hs-type">exportViaShow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165533"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165533"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165534"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165534"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier hs-type">ToGraph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165534"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165534"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165533"><span class="hs-identifier hs-type">s</span></a></span></span></span><span>
+</span><span id="line-186"></span><span id="exportViaShow"><span class="annot"><span class="annottext">exportViaShow :: forall s g.
+(IsString s, Monoid s, Ord (ToVertex g), Show (ToVertex g),
+ ToGraph g) =&gt;
+g -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#exportViaShow"><span class="hs-identifier hs-var hs-var">exportViaShow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Style (ToVertex g) s -&gt; g -&gt; s
+forall s a g.
+(IsString s, Monoid s, Ord a, ToGraph g, ToVertex g ~ a) =&gt;
+Style a s -&gt; g -&gt; s
+</span><a href="Algebra.Graph.Export.Dot.html#export"><span class="hs-keyword hs-var">export</span></a></span><span> </span><span class="annot"><span class="annottext">Style (ToVertex g) s
+forall a s. (Show a, IsString s, Monoid s) =&gt; Style a s
+</span><a href="Algebra.Graph.Export.Dot.html#defaultStyleViaShow"><span class="hs-identifier hs-var">defaultStyleViaShow</span></a></span><span>
+</span><span id="line-187"></span></pre></body></html>

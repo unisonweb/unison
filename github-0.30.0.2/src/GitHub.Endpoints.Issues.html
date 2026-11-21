@@ -1,0 +1,214 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The issues API as described on &lt;http://developer.github.com/v3/issues/&gt;.</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.html"><span class="hs-identifier">GitHub.Endpoints.Issues</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#currentUserIssuesR"><span class="hs-identifier">currentUserIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#organizationIssuesR"><span class="hs-identifier">organizationIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#issueR"><span class="hs-identifier">issueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#issuesForRepoR"><span class="hs-identifier">issuesForRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#createIssueR"><span class="hs-identifier">createIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#newIssue"><span class="hs-identifier">newIssue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#editIssueR"><span class="hs-identifier">editIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#editOfIssue"><span class="hs-identifier">editOfIssue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/#list-issues&gt;.</span></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="GitHub.Endpoints.Issues.html#currentUserIssuesR"><span class="hs-identifier hs-type">currentUserIssuesR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Options.html#IssueMod"><span class="hs-identifier hs-type">IssueMod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span id="currentUserIssuesR"><span class="annot"><span class="annottext">currentUserIssuesR :: IssueMod -&gt; FetchCount -&gt; Request 'RA (Vector Issue)
+</span><a href="GitHub.Endpoints.Issues.html#currentUserIssuesR"><span class="hs-identifier hs-var hs-var">currentUserIssuesR</span></a></span></span><span> </span><span id="local-6989586621679565326"><span class="annot"><span class="annottext">IssueMod
+</span><a href="#local-6989586621679565326"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector Issue)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IssueMod -&gt; QueryString
+</span><a href="GitHub.Data.Options.html#issueModToQueryString"><span class="hs-identifier hs-var">issueModToQueryString</span></a></span><span> </span><span class="annot"><span class="annottext">IssueMod
+</span><a href="#local-6989586621679565326"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/#list-issues&gt;.</span></span><span>
+</span><span id="line-26"></span><span id="local-6989586621679565272"><span class="annot"><a href="GitHub.Endpoints.Issues.html#organizationIssuesR"><span class="hs-identifier hs-type">organizationIssuesR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Options.html#IssueMod"><span class="hs-identifier hs-type">IssueMod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679565272"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-27"></span><span id="organizationIssuesR"><span class="annot"><span class="annottext">organizationIssuesR :: forall (k :: RW).
+Name Organization
+-&gt; IssueMod -&gt; FetchCount -&gt; Request k (Vector Issue)
+</span><a href="GitHub.Endpoints.Issues.html#organizationIssuesR"><span class="hs-identifier hs-var hs-var">organizationIssuesR</span></a></span></span><span> </span><span id="local-6989586621679565333"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679565333"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span id="local-6989586621679565334"><span class="annot"><span class="annottext">IssueMod
+</span><a href="#local-6989586621679565334"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector Issue)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679565333"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IssueMod -&gt; QueryString
+</span><a href="GitHub.Data.Options.html#issueModToQueryString"><span class="hs-identifier hs-var">issueModToQueryString</span></a></span><span> </span><span class="annot"><span class="annottext">IssueMod
+</span><a href="#local-6989586621679565334"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Query a single issue.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/#get-a-single-issue&gt;</span><span>
+</span><span id="line-32"></span><span id="local-6989586621679565275"><span class="annot"><a href="GitHub.Endpoints.Issues.html#issueR"><span class="hs-identifier hs-type">issueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueNumber"><span class="hs-identifier hs-type">IssueNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679565275"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span></span><span>
+</span><span id="line-33"></span><span id="issueR"><span class="annot"><span class="annottext">issueR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; IssueNumber -&gt; Request k Issue
+</span><a href="GitHub.Endpoints.Issues.html#issueR"><span class="hs-identifier hs-var hs-var">issueR</span></a></span></span><span> </span><span id="local-6989586621679565341"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565341"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679565342"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565342"><span class="hs-identifier hs-var">reqRepoName</span></a></span></span><span> </span><span id="local-6989586621679565343"><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679565343"><span class="hs-identifier hs-var">reqIssueNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Issue
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565341"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565342"><span class="hs-identifier hs-var">reqRepoName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IssueNumber -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679565343"><span class="hs-identifier hs-var">reqIssueNumber</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | List issues for a repository.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/#list-issues-for-a-repository&gt;</span><span>
+</span><span id="line-38"></span><span id="local-6989586621679565281"><span class="annot"><a href="GitHub.Endpoints.Issues.html#issuesForRepoR"><span class="hs-identifier hs-type">issuesForRepoR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Options.html#IssueRepoMod"><span class="hs-identifier hs-type">IssueRepoMod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679565281"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-39"></span><span id="issuesForRepoR"><span class="annot"><span class="annottext">issuesForRepoR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; IssueRepoMod
+-&gt; FetchCount
+-&gt; Request k (Vector Issue)
+</span><a href="GitHub.Endpoints.Issues.html#issuesForRepoR"><span class="hs-identifier hs-var hs-var">issuesForRepoR</span></a></span></span><span> </span><span id="local-6989586621679565350"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565350"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679565351"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565351"><span class="hs-identifier hs-var">reqRepoName</span></a></span></span><span> </span><span id="local-6989586621679565352"><span class="annot"><span class="annottext">IssueRepoMod
+</span><a href="#local-6989586621679565352"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector Issue)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565350"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565351"><span class="hs-identifier hs-var">reqRepoName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">QueryString
+</span><a href="#local-6989586621679565353"><span class="hs-identifier hs-var">qs</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679565353"><span class="annot"><span class="annottext">qs :: QueryString
+</span><a href="#local-6989586621679565353"><span class="hs-identifier hs-var hs-var">qs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IssueRepoMod -&gt; QueryString
+</span><a href="GitHub.Data.Options.html#issueRepoModToQueryString"><span class="hs-identifier hs-var">issueRepoModToQueryString</span></a></span><span> </span><span class="annot"><span class="annottext">IssueRepoMod
+</span><a href="#local-6989586621679565352"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- Creating new issues.</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="GitHub.Endpoints.Issues.html#newIssue"><span class="hs-identifier hs-type">newIssue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#NewIssue"><span class="hs-identifier hs-type">NewIssue</span></a></span><span>
+</span><span id="line-47"></span><span id="newIssue"><span class="annot"><span class="annottext">newIssue :: Text -&gt; NewIssue
+</span><a href="GitHub.Endpoints.Issues.html#newIssue"><span class="hs-identifier hs-var hs-var">newIssue</span></a></span></span><span> </span><span id="local-6989586621679565355"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679565355"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+-&gt; Maybe Text
+-&gt; Vector (Name User)
+-&gt; Maybe (Id Milestone)
+-&gt; Maybe (Vector (Name IssueLabel))
+-&gt; NewIssue
+</span><a href="GitHub.Data.Issues.html#NewIssue"><span class="hs-identifier hs-var">NewIssue</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679565355"><span class="hs-identifier hs-var">title</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Vector (Name User)
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Id Milestone)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Vector (Name IssueLabel))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Create an issue.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/#create-an-issue&gt;</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="GitHub.Endpoints.Issues.html#createIssueR"><span class="hs-identifier hs-type">createIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#NewIssue"><span class="hs-identifier hs-type">NewIssue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span>
+</span><span id="line-52"></span><span id="createIssueR"><span class="annot"><span class="annottext">createIssueR :: Name Owner -&gt; Name Repo -&gt; NewIssue -&gt; Request 'RW Issue
+</span><a href="GitHub.Endpoints.Issues.html#createIssueR"><span class="hs-identifier hs-var hs-var">createIssueR</span></a></span></span><span> </span><span id="local-6989586621679565357"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565357"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679565358"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565358"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Issue
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565357"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565358"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW Issue)
+-&gt; (NewIssue -&gt; ByteString) -&gt; NewIssue -&gt; Request 'RW Issue
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">NewIssue -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- Editing issues.</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GitHub.Endpoints.Issues.html#editOfIssue"><span class="hs-identifier hs-type">editOfIssue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#EditIssue"><span class="hs-identifier hs-type">EditIssue</span></a></span><span>
+</span><span id="line-58"></span><span id="editOfIssue"><span class="annot"><span class="annottext">editOfIssue :: EditIssue
+</span><a href="GitHub.Endpoints.Issues.html#editOfIssue"><span class="hs-identifier hs-var hs-var">editOfIssue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+-&gt; Maybe Text
+-&gt; Maybe (Vector (Name User))
+-&gt; Maybe IssueState
+-&gt; Maybe (Id Milestone)
+-&gt; Maybe (Vector (Name IssueLabel))
+-&gt; EditIssue
+</span><a href="GitHub.Data.Issues.html#EditIssue"><span class="hs-identifier hs-var">EditIssue</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Vector (Name User))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe IssueState
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Id Milestone)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe (Vector (Name IssueLabel))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | Edit an issue.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/#edit-an-issue&gt;</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GitHub.Endpoints.Issues.html#editIssueR"><span class="hs-identifier hs-type">editIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueNumber"><span class="hs-identifier hs-type">IssueNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#EditIssue"><span class="hs-identifier hs-type">EditIssue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span>
+</span><span id="line-63"></span><span id="editIssueR"><span class="annot"><span class="annottext">editIssueR :: Name Owner
+-&gt; Name Repo -&gt; IssueNumber -&gt; EditIssue -&gt; Request 'RW Issue
+</span><a href="GitHub.Endpoints.Issues.html#editIssueR"><span class="hs-identifier hs-var hs-var">editIssueR</span></a></span></span><span> </span><span id="local-6989586621679565364"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565364"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679565365"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565365"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679565366"><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679565366"><span class="hs-identifier hs-var">iss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Issue
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679565364"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679565365"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IssueNumber -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">IssueNumber
+</span><a href="#local-6989586621679565366"><span class="hs-identifier hs-var">iss</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW Issue)
+-&gt; (EditIssue -&gt; ByteString) -&gt; EditIssue -&gt; Request 'RW Issue
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">EditIssue -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-65"></span></pre></body></html>

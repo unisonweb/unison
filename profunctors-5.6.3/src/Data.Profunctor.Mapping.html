@@ -1,0 +1,1010 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (C) 2015-2018 Edward Kmett</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  Edward Kmett &lt;ekmett@gmail.com&gt;</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html"><span class="hs-identifier">Data.Profunctor.Mapping</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier">Mapping</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier">CofreeMapping</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier">FreeMapping</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Traversing in terms of Mapping</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#wanderMapping"><span class="hs-identifier">wanderMapping</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Closed in terms of Mapping</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#traverseMapping"><span class="hs-identifier">traverseMapping</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#closedMapping"><span class="hs-identifier">closedMapping</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Kleisli</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor.Tannen</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Distributive</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Compose</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Choice.html"><span class="hs-identifier">Data.Profunctor.Choice</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Closed.html"><span class="hs-identifier">Data.Profunctor.Closed</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Monad.html"><span class="hs-identifier">Data.Profunctor.Monad</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Strong.html"><span class="hs-identifier">Data.Profunctor.Strong</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Traversing.html"><span class="hs-identifier">Data.Profunctor.Traversing</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Types.html"><span class="hs-identifier">Data.Profunctor.Types</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Profunctor.Unsafe.html"><span class="hs-identifier">Data.Profunctor.Unsafe</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Traversing.html#Traversing"><span class="hs-identifier hs-type">Traversing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Closed.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Mapping"><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-var">Mapping</span></a></span></span><span> </span><span id="local-6989586621679112376"><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-comment">-- | Laws:</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-comment">-- 'map'' '.' 'rmap' f &#8801; 'rmap' ('fmap' f) '.' 'map''</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-comment">-- 'map'' '.' 'map'' &#8801; 'dimap' 'Data.Functor.Compose.Compose' 'Data.Functor.Compose.getCompose' '.' 'map''</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-comment">-- 'dimap' 'Data.Functor.Identity.Identity' 'Data.Functor.Identity.runIdentity' '.' 'map'' &#8801; 'id'</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">-- @</span><span>
+</span><span id="line-47"></span><span>  </span><span id="map%27"><span class="annot"><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-type">map'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679112380"><span id="local-6989586621679112381"><span id="local-6989586621679112382"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112380"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112381"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112382"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112380"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112381"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112380"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112382"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679112809"><span class="annot"><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var">map'</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; f a -&gt; f b) -&gt; p a b -&gt; p (f a) (f b)
+forall a b s t. ((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+forall (p :: * -&gt; * -&gt; *) a b s t.
+Mapping p =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var">roam</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; f a -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>  </span><span id="roam"><span class="annot"><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-type">roam</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679112386"><span id="local-6989586621679112387"><span id="local-6989586621679112388"><span id="local-6989586621679112389"><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112386"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112387"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112388"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112389"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112386"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112387"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112376"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112388"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112389"><span class="hs-identifier hs-type">t</span></a></span></span></span></span></span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679112814"><span class="annot"><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var hs-var">roam</span></a></span><span> </span><span id="local-6989586621679112822"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112822"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; Bar t b a)
+-&gt; (Bar t b b -&gt; t) -&gt; p (Bar t b a) (Bar t b b) -&gt; p s t
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var">dimap</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679112824"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679112824"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; t) -&gt; Bar t b a
+forall t b a. ((a -&gt; b) -&gt; t) -&gt; Bar t b a
+</span><a href="Data.Profunctor.Mapping.html#Bar"><span class="hs-identifier hs-var">Bar</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; b) -&gt; t) -&gt; Bar t b a) -&gt; ((a -&gt; b) -&gt; t) -&gt; Bar t b a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679112826"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112826"><span class="hs-identifier hs-var">ab</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112822"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112826"><span class="hs-identifier hs-var">ab</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679112824"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bar t b b -&gt; t
+forall t a. Bar t a a -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#lent"><span class="hs-identifier hs-var">lent</span></a></span><span> </span><span class="annot"><span class="annottext">(p (Bar t b a) (Bar t b b) -&gt; p s t)
+-&gt; (p a b -&gt; p (Bar t b a) (Bar t b b)) -&gt; p a b -&gt; p s t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p a b -&gt; p (Bar t b a) (Bar t b b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; p a b -&gt; p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">newtype</span><span> </span><span id="Bar"><span class="annot"><a href="Data.Profunctor.Mapping.html#Bar"><span class="hs-identifier hs-var">Bar</span></a></span></span><span> </span><span id="local-6989586621679112409"><span class="annot"><a href="#local-6989586621679112409"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679112408"><span class="annot"><a href="#local-6989586621679112408"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span id="local-6989586621679112407"><span class="annot"><a href="#local-6989586621679112407"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Bar"><span class="annot"><a href="Data.Profunctor.Mapping.html#Bar"><span class="hs-identifier hs-var">Bar</span></a></span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="runBar"><span class="annot"><span class="annottext">forall t b a. Bar t b a -&gt; (a -&gt; b) -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#runBar"><span class="hs-identifier hs-var hs-var">runBar</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112407"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112408"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112409"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679112831"><span id="local-6989586621679112833"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Bar t b a -&gt; Bar t b b)
+-&gt; (forall a b. a -&gt; Bar t b b -&gt; Bar t b a) -&gt; Functor (Bar t b)
+forall a b. a -&gt; Bar t b b -&gt; Bar t b a
+forall a b. (a -&gt; b) -&gt; Bar t b a -&gt; Bar t b b
+forall t b a b. a -&gt; Bar t b b -&gt; Bar t b a
+forall t b a b. (a -&gt; b) -&gt; Bar t b a -&gt; Bar t b b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall t b a b. (a -&gt; b) -&gt; Bar t b a -&gt; Bar t b b
+fmap :: forall a b. (a -&gt; b) -&gt; Bar t b a -&gt; Bar t b b
+$c&lt;$ :: forall t b a b. a -&gt; Bar t b b -&gt; Bar t b a
+&lt;$ :: forall a b. a -&gt; Bar t b b -&gt; Bar t b a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679112414"><span id="local-6989586621679112415"><span class="annot"><a href="Data.Profunctor.Mapping.html#lent"><span class="hs-identifier hs-type">lent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Bar"><span class="hs-identifier hs-type">Bar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112414"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112415"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112415"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112414"><span class="hs-identifier hs-type">t</span></a></span></span></span><span>
+</span><span id="line-59"></span><span id="lent"><span class="annot"><span class="annottext">lent :: forall t a. Bar t a a -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#lent"><span class="hs-identifier hs-var hs-var">lent</span></a></span></span><span> </span><span id="local-6989586621679112836"><span class="annot"><span class="annottext">Bar t a a
+</span><a href="#local-6989586621679112836"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bar t a a -&gt; (a -&gt; a) -&gt; t
+forall t b a. Bar t b a -&gt; (a -&gt; b) -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#runBar"><span class="hs-identifier hs-var">runBar</span></a></span><span> </span><span class="annot"><span class="annottext">Bar t a a
+</span><a href="#local-6989586621679112836"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-&gt;</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679112850"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; f a -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679112851"><span class="annot"><span class="annottext">roam :: forall a b s t. ((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var hs-var hs-var">roam</span></a></span></span><span> </span><span id="local-6989586621679112852"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112852"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112852"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112441"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679112441"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distributive</span></span><span> </span><span class="annot"><a href="#local-6989586621679112441"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Kleisli</span></span><span> </span><span class="annot"><a href="#local-6989586621679112441"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span id="local-6989586621679112867"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+Kleisli m a b -&gt; Kleisli m (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Kleisli</span></span><span> </span><span id="local-6989586621679112869"><span class="annot"><span class="annottext">a -&gt; m b
+</span><a href="#local-6989586621679112869"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f a -&gt; m (f b)) -&gt; Kleisli m (f a) (f b)
+forall (m :: * -&gt; *) a b. (a -&gt; m b) -&gt; Kleisli m a b
+</span><span class="hs-identifier hs-var">Kleisli</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m b) -&gt; f a -&gt; m (f b)
+forall (g :: * -&gt; *) (f :: * -&gt; *) a b.
+(Distributive g, Functor f) =&gt;
+(a -&gt; g b) -&gt; f a -&gt; g (f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; m b) -&gt; f a -&gt; m (f b)
+</span><span class="hs-identifier hs-var">collect</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+</span><a href="#local-6989586621679112869"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679112877"><span class="annot"><span class="annottext">roam :: forall a b s t.
+((a -&gt; b) -&gt; s -&gt; t) -&gt; Kleisli m a b -&gt; Kleisli m s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var hs-var hs-var">roam</span></a></span></span><span> </span><span id="local-6989586621679112878"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112878"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; m t) -&gt; Kleisli m s t
+forall (m :: * -&gt; *) a b. (a -&gt; m b) -&gt; Kleisli m a b
+</span><span class="hs-identifier hs-var">Kleisli</span></span><span> </span><span class="annot"><span class="annottext">((s -&gt; m t) -&gt; Kleisli m s t)
+-&gt; ((a -&gt; m b) -&gt; s -&gt; m t) -&gt; (a -&gt; m b) -&gt; Kleisli m s t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; m b) -&gt; s -&gt; m t
+forall (f :: * -&gt; *) a b s t.
+Distributive f =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Data.Profunctor.Mapping.html#genMap"><span class="hs-identifier hs-var">genMap</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112878"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m b) -&gt; Kleisli m s t)
+-&gt; (Kleisli m a b -&gt; a -&gt; m b) -&gt; Kleisli m a b -&gt; Kleisli m s t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">Kleisli m a b -&gt; a -&gt; m b
+forall (m :: * -&gt; *) a b. Kleisli m a b -&gt; a -&gt; m b
+</span><span class="hs-identifier hs-var">runKleisli</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="local-6989586621679112463"><span id="local-6989586621679112464"><span id="local-6989586621679112465"><span id="local-6989586621679112466"><span id="local-6989586621679112467"><span class="annot"><a href="Data.Profunctor.Mapping.html#genMap"><span class="hs-identifier hs-type">genMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distributive</span></span><span> </span><span class="annot"><a href="#local-6989586621679112463"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112464"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112465"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112466"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112467"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112464"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112463"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112465"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112466"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112463"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112467"><span class="hs-identifier hs-type">t</span></a></span></span></span></span></span></span><span>
+</span><span id="line-70"></span><span id="genMap"><span class="annot"><span class="annottext">genMap :: forall (f :: * -&gt; *) a b s t.
+Distributive f =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Data.Profunctor.Mapping.html#genMap"><span class="hs-identifier hs-var hs-var">genMap</span></a></span></span><span> </span><span id="local-6989586621679112890"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112890"><span class="hs-identifier hs-var">abst</span></a></span></span><span> </span><span id="local-6989586621679112891"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679112891"><span class="hs-identifier hs-var">afb</span></a></span></span><span> </span><span id="local-6989586621679112892"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679112892"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; t) -&gt; f (a -&gt; b) -&gt; f t
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679112893"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112893"><span class="hs-identifier hs-var">ab</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112890"><span class="hs-identifier hs-var">abst</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112893"><span class="hs-identifier hs-var">ab</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679112892"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; f (a -&gt; b)
+forall (g :: * -&gt; *) (f :: * -&gt; *) a.
+(Distributive g, Functor f) =&gt;
+f (g a) -&gt; g (f a)
+forall (f :: * -&gt; *) a. Functor f =&gt; f (f a) -&gt; f (f a)
+</span><span class="hs-identifier hs-var">distribute</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679112891"><span class="hs-identifier hs-var">afb</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- see &lt;https://github.com/ekmett/distributive/issues/12&gt;</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112487"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679112487"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distributive</span></span><span> </span><span class="annot"><a href="#local-6989586621679112487"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Types.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112487"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679112909"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+Star m a b -&gt; Star m (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Types.html#Star"><span class="hs-identifier hs-type">Star</span></a></span><span> </span><span id="local-6989586621679112911"><span class="annot"><span class="annottext">a -&gt; m b
+</span><a href="#local-6989586621679112911"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f a -&gt; m (f b)) -&gt; Star m (f a) (f b)
+forall {k} (f :: k -&gt; *) d (c :: k). (d -&gt; f c) -&gt; Star f d c
+</span><a href="Data.Profunctor.Types.html#Star"><span class="hs-identifier hs-var">Star</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m b) -&gt; f a -&gt; m (f b)
+forall (g :: * -&gt; *) (f :: * -&gt; *) a b.
+(Distributive g, Functor f) =&gt;
+(a -&gt; g b) -&gt; f a -&gt; g (f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; m b) -&gt; f a -&gt; m (f b)
+</span><span class="hs-identifier hs-var">collect</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+</span><a href="#local-6989586621679112911"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621679112917"><span class="annot"><span class="annottext">roam :: forall a b s t. ((a -&gt; b) -&gt; s -&gt; t) -&gt; Star m a b -&gt; Star m s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var hs-var hs-var">roam</span></a></span></span><span> </span><span id="local-6989586621679112918"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112918"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; m t) -&gt; Star m s t
+forall {k} (f :: k -&gt; *) d (c :: k). (d -&gt; f c) -&gt; Star f d c
+</span><a href="Data.Profunctor.Types.html#Star"><span class="hs-identifier hs-var">Star</span></a></span><span> </span><span class="annot"><span class="annottext">((s -&gt; m t) -&gt; Star m s t)
+-&gt; ((a -&gt; m b) -&gt; s -&gt; m t) -&gt; (a -&gt; m b) -&gt; Star m s t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; m b) -&gt; s -&gt; m t
+forall (f :: * -&gt; *) a b s t.
+Distributive f =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="Data.Profunctor.Mapping.html#genMap"><span class="hs-identifier hs-var">genMap</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679112918"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; m b) -&gt; Star m s t)
+-&gt; (Star m a b -&gt; a -&gt; m b) -&gt; Star m a b -&gt; Star m s t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">Star m a b -&gt; a -&gt; m b
+forall {k} (f :: k -&gt; *) d (c :: k). Star f d c -&gt; d -&gt; f c
+</span><a href="Data.Profunctor.Types.html#runStar"><span class="hs-identifier hs-var">runStar</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112510"><span id="local-6989586621679112511"><span id="local-6989586621679112932"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112510"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112511"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Tannen</span></span><span> </span><span class="annot"><a href="#local-6989586621679112510"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112511"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621679112939"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+Tannen f p a b -&gt; Tannen f p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f (p (f a) (f b)) -&gt; Tannen f p (f a) (f b)
+forall {k} {k1} {k2} (f :: k -&gt; *) (p :: k1 -&gt; k2 -&gt; k) (a :: k1)
+       (b :: k2).
+f (p a b) -&gt; Tannen f p a b
+</span><span class="hs-identifier hs-var">Tannen</span></span><span> </span><span class="annot"><span class="annottext">(f (p (f a) (f b)) -&gt; Tannen f p (f a) (f b))
+-&gt; (Tannen f p a b -&gt; f (p (f a) (f b)))
+-&gt; Tannen f p a b
+-&gt; Tannen f p (f a) (f b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(p a b -&gt; p (f a) (f b)) -&gt; f (p a b) -&gt; f (p (f a) (f b))
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">p a b -&gt; p (f a) (f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; p a b -&gt; p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span> </span><span class="annot"><span class="annottext">(f (p a b) -&gt; f (p (f a) (f b)))
+-&gt; (Tannen f p a b -&gt; f (p a b))
+-&gt; Tannen f p a b
+-&gt; f (p (f a) (f b))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Tannen f p a b -&gt; f (p a b)
+forall {k1} {k2} {k3} (f :: k1 -&gt; *) (p :: k2 -&gt; k3 -&gt; k1)
+       (a :: k2) (b :: k3).
+Tannen f p a b -&gt; f (p a b)
+</span><span class="hs-identifier hs-var">runTannen</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679112529"><span id="local-6989586621679112531"><span id="local-6989586621679112532"><span id="local-6989586621679112533"><span id="local-6989586621679112534"><span class="annot"><a href="Data.Profunctor.Mapping.html#wanderMapping"><span class="hs-identifier hs-type">wanderMapping</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112529"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679112530"><span class="annot"><a href="#local-6989586621679112530"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679112530"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112531"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112530"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112532"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112533"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112530"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112534"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112529"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112531"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112532"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112529"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112533"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112534"><span class="hs-identifier hs-type">t</span></a></span></span></span></span></span></span><span>
+</span><span id="line-81"></span><span id="wanderMapping"><span class="annot"><span class="annottext">wanderMapping :: forall (p :: * -&gt; * -&gt; *) a b s t.
+Mapping p =&gt;
+(forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t)
+-&gt; p a b -&gt; p s t
+</span><a href="Data.Profunctor.Mapping.html#wanderMapping"><span class="hs-identifier hs-var hs-var">wanderMapping</span></a></span></span><span> </span><span id="local-6989586621679112950"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679112950"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+forall a b s t. ((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+forall (p :: * -&gt; * -&gt; *) a b s t.
+Mapping p =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var">roam</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity t -&gt; t
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity t -&gt; t) -&gt; (s -&gt; Identity t) -&gt; s -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((s -&gt; Identity t) -&gt; s -&gt; t)
+-&gt; ((a -&gt; Identity b) -&gt; s -&gt; Identity t)
+-&gt; (a -&gt; Identity b)
+-&gt; s
+-&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Identity b) -&gt; s -&gt; Identity t
+forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679112950"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; Identity b) -&gt; s -&gt; t)
+-&gt; ((a -&gt; b) -&gt; a -&gt; Identity b) -&gt; (a -&gt; b) -&gt; s -&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Identity b
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Identity b) -&gt; (a -&gt; b) -&gt; a -&gt; Identity b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="local-6989586621679112543"><span id="local-6989586621679112544"><span id="local-6989586621679112545"><span id="local-6989586621679112546"><span class="annot"><a href="Data.Profunctor.Mapping.html#traverseMapping"><span class="hs-identifier hs-type">traverseMapping</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112543"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112544"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112543"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112545"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112546"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112543"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112544"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112545"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112544"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112546"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-84"></span><span id="traverseMapping"><span class="annot"><span class="annottext">traverseMapping :: forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#traverseMapping"><span class="hs-identifier hs-var hs-var">traverseMapping</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p a b -&gt; p (f a) (f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; p a b -&gt; p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span id="local-6989586621679112551"><span id="local-6989586621679112552"><span id="local-6989586621679112553"><span id="local-6989586621679112554"><span class="annot"><a href="Data.Profunctor.Mapping.html#closedMapping"><span class="hs-identifier hs-type">closedMapping</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112551"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112551"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112552"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112553"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112551"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112554"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112552"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112554"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112553"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-87"></span><span id="closedMapping"><span class="annot"><span class="annottext">closedMapping :: forall (p :: * -&gt; * -&gt; *) a b x.
+Mapping p =&gt;
+p a b -&gt; p (x -&gt; a) (x -&gt; b)
+</span><a href="Data.Profunctor.Mapping.html#closedMapping"><span class="hs-identifier hs-var hs-var">closedMapping</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">p a b -&gt; p (x -&gt; a) (x -&gt; b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; p a b -&gt; p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">newtype</span><span> </span><span id="CofreeMapping"><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span></span><span> </span><span id="local-6989586621679112559"><span class="annot"><a href="#local-6989586621679112559"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679112560"><span class="annot"><a href="#local-6989586621679112560"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679112561"><span class="annot"><a href="#local-6989586621679112561"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CofreeMapping"><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runCofreeMapping"><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b.
+CofreeMapping p a b
+-&gt; forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#runCofreeMapping"><span class="hs-identifier hs-var hs-var">runCofreeMapping</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679112563"><span class="annot"><a href="#local-6989586621679112563"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679112563"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112559"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112563"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112560"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112563"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112561"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112579"><span id="local-6989586621679112969"><span id="local-6989586621679112976"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112579"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112579"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679112982"><span class="annot"><span class="annottext">lmap :: forall a b c.
+(a -&gt; b) -&gt; CofreeMapping p b c -&gt; CofreeMapping p a c
+</span><a href="#local-6989586621679112982"><span class="hs-identifier hs-var hs-var hs-var">lmap</span></a></span></span><span> </span><span id="local-6989586621679112984"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112984"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679112985"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f b) (f c)
+</span><a href="#local-6989586621679112985"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f c))
+-&gt; CofreeMapping p a c
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f a -&gt; f b) -&gt; p (f b) (f c) -&gt; p (f a) (f c)
+forall a b c. (a -&gt; b) -&gt; p b c -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) a b c.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; p b c -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#lmap"><span class="hs-identifier hs-var">lmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; f a -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112984"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p (f b) (f c)
+forall (f :: * -&gt; *). Functor f =&gt; p (f b) (f c)
+</span><a href="#local-6989586621679112985"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679112990"><span class="annot"><span class="annottext">rmap :: forall b c a.
+(b -&gt; c) -&gt; CofreeMapping p a b -&gt; CofreeMapping p a c
+</span><a href="#local-6989586621679112990"><span class="hs-identifier hs-var hs-var hs-var">rmap</span></a></span></span><span> </span><span id="local-6989586621679112992"><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679112992"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679112993"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679112993"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f c))
+-&gt; CofreeMapping p a c
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f b -&gt; f c) -&gt; p (f a) (f b) -&gt; p (f a) (f c)
+forall b c a. (b -&gt; c) -&gt; p a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) b c a.
+Profunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#rmap"><span class="hs-identifier hs-var">rmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; c) -&gt; f b -&gt; f c
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679112992"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p (f a) (f b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679112993"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span id="local-6989586621679112998"><span class="annot"><span class="annottext">dimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; CofreeMapping p b c -&gt; CofreeMapping p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var hs-var hs-var">dimap</span></a></span></span><span> </span><span id="local-6989586621679112999"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112999"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679113000"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679113000"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113001"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f b) (f c)
+</span><a href="#local-6989586621679113001"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f d))
+-&gt; CofreeMapping p a d
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f a -&gt; f b) -&gt; (f c -&gt; f d) -&gt; p (f b) (f c) -&gt; p (f a) (f d)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var">dimap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; f a -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679112999"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; f c -&gt; f d
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679113000"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p (f b) (f c)
+forall (f :: * -&gt; *). Functor f =&gt; p (f b) (f c)
+</span><a href="#local-6989586621679113001"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112602"><span id="local-6989586621679113011"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112602"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Strong.html#Strong"><span class="hs-identifier hs-type">Strong</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112602"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621679113020"><span class="annot"><span class="annottext">second' :: forall a b c. CofreeMapping p a b -&gt; CofreeMapping p (c, a) (c, b)
+</span><a href="#local-6989586621679113020"><span class="hs-identifier hs-var hs-var hs-var">second'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CofreeMapping p a b -&gt; CofreeMapping p (c, a) (c, b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112617"><span id="local-6989586621679113026"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112617"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Choice.html#Choice"><span class="hs-identifier hs-type">Choice</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112617"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679113034"><span class="annot"><span class="annottext">right' :: forall a b c.
+CofreeMapping p a b -&gt; CofreeMapping p (Either c a) (Either c b)
+</span><a href="#local-6989586621679113034"><span class="hs-identifier hs-var hs-var hs-var">right'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CofreeMapping p a b -&gt; CofreeMapping p (Either c a) (Either c b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112626"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112626"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Closed.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112626"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679113044"><span class="annot"><span class="annottext">closed :: forall a b x.
+CofreeMapping p a b -&gt; CofreeMapping p (x -&gt; a) (x -&gt; b)
+</span><a href="#local-6989586621679113044"><span class="hs-identifier hs-var hs-var hs-var">closed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CofreeMapping p a b -&gt; CofreeMapping p (x -&gt; a) (x -&gt; b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112640"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112640"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Traversing.html#Traversing"><span class="hs-identifier hs-type">Traversing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112640"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621679113060"><span class="annot"><span class="annottext">traverse' :: forall (f :: * -&gt; *) a b.
+Traversable f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+</span><a href="#local-6989586621679113060"><span class="hs-identifier hs-var hs-var hs-var">traverse'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679113068"><span class="annot"><span class="annottext">wander :: forall a b s t.
+(forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t)
+-&gt; CofreeMapping p a b -&gt; CofreeMapping p s t
+</span><a href="#local-6989586621679113068"><span class="hs-identifier hs-var hs-var hs-var">wander</span></a></span></span><span> </span><span id="local-6989586621679113070"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679113070"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; s -&gt; t) -&gt; CofreeMapping p a b -&gt; CofreeMapping p s t
+forall a b s t.
+((a -&gt; b) -&gt; s -&gt; t) -&gt; CofreeMapping p a b -&gt; CofreeMapping p s t
+forall (p :: * -&gt; * -&gt; *) a b s t.
+Mapping p =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var">roam</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; b) -&gt; s -&gt; t)
+ -&gt; CofreeMapping p a b -&gt; CofreeMapping p s t)
+-&gt; ((a -&gt; b) -&gt; s -&gt; t)
+-&gt; CofreeMapping p a b
+-&gt; CofreeMapping p s t
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity t -&gt; t
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity t -&gt; t) -&gt; (s -&gt; Identity t) -&gt; s -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((s -&gt; Identity t) -&gt; s -&gt; t)
+-&gt; ((a -&gt; Identity b) -&gt; s -&gt; Identity t)
+-&gt; (a -&gt; Identity b)
+-&gt; s
+-&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Identity b) -&gt; s -&gt; Identity t
+forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679113070"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; Identity b) -&gt; s -&gt; t)
+-&gt; ((a -&gt; b) -&gt; a -&gt; Identity b) -&gt; (a -&gt; b) -&gt; s -&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Identity b
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Identity b) -&gt; (a -&gt; b) -&gt; a -&gt; Identity b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112605"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112605"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112605"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-comment">-- !@(#*&amp;() Compose isn't representational in its second arg or we could use #. and .#</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679113079"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+CofreeMapping p a b -&gt; CofreeMapping p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113080"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113080"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f (f a)) (f (f b)))
+-&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f (f a) -&gt; Compose f f a)
+-&gt; (Compose f f b -&gt; f (f b))
+-&gt; p (Compose f f a) (Compose f f b)
+-&gt; p (f (f a)) (f (f b))
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var">dimap</span></a></span><span> </span><span class="annot"><span class="annottext">f (f a) -&gt; Compose f f a
+forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="annot"><span class="annottext">Compose f f b -&gt; f (f b)
+forall {k1} {k2} (f :: k1 -&gt; *) (g :: k2 -&gt; k1) (a :: k2).
+Compose f g a -&gt; f (g a)
+</span><span class="hs-identifier hs-var">getCompose</span></span><span> </span><span class="annot"><span class="annottext">p (Compose f f a) (Compose f f b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113080"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621679113087"><span class="annot"><span class="annottext">roam :: forall a b s t.
+((a -&gt; b) -&gt; s -&gt; t) -&gt; CofreeMapping p a b -&gt; CofreeMapping p s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var hs-var hs-var">roam</span></a></span></span><span> </span><span id="local-6989586621679113088"><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679113088"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113089"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113089"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>     </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f s) (f t))
+-&gt; CofreeMapping p s t
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (f :: * -&gt; *). Functor f =&gt; p (f s) (f t))
+ -&gt; CofreeMapping p s t)
+-&gt; (forall (f :: * -&gt; *). Functor f =&gt; p (f s) (f t))
+-&gt; CofreeMapping p s t
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-114"></span><span>       </span><span class="annot"><span class="annottext">(f s -&gt; Compose f (Bar t b) a)
+-&gt; (Compose f (Bar t b) b -&gt; f t)
+-&gt; p (Compose f (Bar t b) a) (Compose f (Bar t b) b)
+-&gt; p (f s) (f t)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var">dimap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (Bar t b a) -&gt; Compose f (Bar t b) a
+forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="annot"><span class="annottext">(f (Bar t b a) -&gt; Compose f (Bar t b) a)
+-&gt; (f s -&gt; f (Bar t b a)) -&gt; f s -&gt; Compose f (Bar t b) a
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Bar t b a) -&gt; f s -&gt; f (Bar t b a)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679113100"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679113100"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; t) -&gt; Bar t b a
+forall t b a. ((a -&gt; b) -&gt; t) -&gt; Bar t b a
+</span><a href="Data.Profunctor.Mapping.html#Bar"><span class="hs-identifier hs-var">Bar</span></a></span><span> </span><span class="annot"><span class="annottext">(((a -&gt; b) -&gt; t) -&gt; Bar t b a) -&gt; ((a -&gt; b) -&gt; t) -&gt; Bar t b a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679113101"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113101"><span class="hs-identifier hs-var">ab</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; s -&gt; t
+</span><a href="#local-6989586621679113088"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113101"><span class="hs-identifier hs-var">ab</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679113100"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Bar t b b -&gt; t) -&gt; f (Bar t b b) -&gt; f t
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Bar t b b -&gt; t
+forall t a. Bar t a a -&gt; t
+</span><a href="Data.Profunctor.Mapping.html#lent"><span class="hs-identifier hs-var">lent</span></a></span><span> </span><span class="annot"><span class="annottext">(f (Bar t b b) -&gt; f t)
+-&gt; (Compose f (Bar t b) b -&gt; f (Bar t b b))
+-&gt; Compose f (Bar t b) b
+-&gt; f t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">Compose f (Bar t b) b -&gt; f (Bar t b b)
+forall {k1} {k2} (f :: k1 -&gt; *) (g :: k2 -&gt; k1) (a :: k2).
+Compose f g a -&gt; f (g a)
+</span><span class="hs-identifier hs-var">getCompose</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p (Compose f (Bar t b) a) (Compose f (Bar t b) b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113089"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Profunctor.Monad.html#ProfunctorFunctor"><span class="hs-identifier hs-type">ProfunctorFunctor</span></a></span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679113106"><span class="annot"><span class="annottext">promap :: forall (p :: * -&gt; * -&gt; *) (q :: * -&gt; * -&gt; *).
+Profunctor p =&gt;
+(p :-&gt; q) -&gt; CofreeMapping p :-&gt; CofreeMapping q
+</span><a href="#local-6989586621679113106"><span class="hs-identifier hs-var hs-var hs-var">promap</span></a></span></span><span> </span><span id="local-6989586621679113108"><span class="annot"><span class="annottext">p :-&gt; q
+</span><a href="#local-6989586621679113108"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113109"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113109"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; q (f a) (f b))
+-&gt; CofreeMapping q a b
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p (f a) (f b) -&gt; q (f a) (f b)
+p :-&gt; q
+</span><a href="#local-6989586621679113108"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p (f a) (f b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113109"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Profunctor.Monad.html#ProfunctorComonad"><span class="hs-identifier hs-type">ProfunctorComonad</span></a></span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>  </span><span id="local-6989586621679113125"><span class="annot"><span class="annottext">proextract :: forall (p :: * -&gt; * -&gt; *). Profunctor p =&gt; CofreeMapping p :-&gt; p
+</span><a href="#local-6989586621679113125"><span class="hs-identifier hs-var hs-var hs-var">proextract</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113127"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113127"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity b -&gt; b
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity b -&gt; b)
+-&gt; p (Identity a) (Identity b) -&gt; p (Identity a) b
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; p a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">p (Identity a) (Identity b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113127"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">p (Identity a) b -&gt; (a -&gt; Identity a) -&gt; p a b
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+p b c -&gt; q a b -&gt; p a c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679113129"><span class="annot"><span class="annottext">produplicate :: forall (p :: * -&gt; * -&gt; *).
+Profunctor p =&gt;
+CofreeMapping p :-&gt; CofreeMapping (CofreeMapping p)
+</span><a href="#local-6989586621679113129"><span class="hs-identifier hs-var hs-var hs-var">produplicate</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-type">CofreeMapping</span></a></span><span> </span><span id="local-6989586621679113131"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113131"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; CofreeMapping p (f a) (f b))
+-&gt; CofreeMapping (CofreeMapping p) a b
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall (f :: * -&gt; *). Functor f =&gt; p (f (f a)) (f (f b)))
+-&gt; CofreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) a b.
+(forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b))
+-&gt; CofreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#CofreeMapping"><span class="hs-identifier hs-var">CofreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f (f a) -&gt; Compose f f a)
+-&gt; (Compose f f b -&gt; f (f b))
+-&gt; p (Compose f f a) (Compose f f b)
+-&gt; p (f (f a)) (f (f b))
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var">dimap</span></a></span><span> </span><span class="annot"><span class="annottext">f (f a) -&gt; Compose f f a
+forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="annot"><span class="annottext">Compose f f b -&gt; f (f b)
+forall {k1} {k2} (f :: k1 -&gt; *) (g :: k2 -&gt; k1) (a :: k2).
+Compose f g a -&gt; f (g a)
+</span><span class="hs-identifier hs-var">getCompose</span></span><span> </span><span class="annot"><span class="annottext">p (Compose f f a) (Compose f f b)
+forall (f :: * -&gt; *). Functor f =&gt; p (f a) (f b)
+</span><a href="#local-6989586621679113131"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><span class="hs-comment">-- | @FreeMapping -| CofreeMapping@</span></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">data</span><span> </span><span id="FreeMapping"><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span></span><span> </span><span id="local-6989586621679113136"><span class="annot"><a href="#local-6989586621679113136"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679113137"><span class="annot"><a href="#local-6989586621679113137"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679113138"><span class="annot"><a href="#local-6989586621679113138"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679112708"><span id="local-6989586621679112709"><span id="local-6989586621679112711"><span id="local-6989586621679113139"><span id="local-6989586621679113140"><span id="local-6989586621679113141"><span id="FreeMapping"><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679113139"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679113139"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679113140"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112708"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679112709"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679113141"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679113140"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679112711"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679113139"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679113141"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112709"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112711"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112708"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span></span></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112699"><span id="local-6989586621679112700"><span id="local-6989586621679113145"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112699"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112700"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>  </span><span id="local-6989586621679113148"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; FreeMapping p a a -&gt; FreeMapping p a b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679113149"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113149"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113152"><span class="annot"><span class="annottext">f y -&gt; a
+</span><a href="#local-6989586621679113152"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113153"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113153"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113154"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113154"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113149"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (f y -&gt; a) -&gt; f y -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f y -&gt; a
+</span><a href="#local-6989586621679113152"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113153"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113154"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112713"><span class="annot"><a href="Data.Profunctor.Unsafe.html#Profunctor"><span class="hs-identifier hs-type">Profunctor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112713"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679113161"><span class="annot"><span class="annottext">lmap :: forall a b c. (a -&gt; b) -&gt; FreeMapping p b c -&gt; FreeMapping p a c
+</span><a href="Data.Profunctor.Unsafe.html#lmap"><span class="hs-identifier hs-var hs-var hs-var">lmap</span></a></span></span><span> </span><span id="local-6989586621679113162"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113162"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113165"><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113165"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113166"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113166"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113167"><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113167"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; c) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a c
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113165"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113166"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113167"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f x) -&gt; (a -&gt; b) -&gt; a -&gt; f x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113162"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621679113168"><span class="annot"><span class="annottext">rmap :: forall b c a. (b -&gt; c) -&gt; FreeMapping p a b -&gt; FreeMapping p a c
+</span><a href="Data.Profunctor.Unsafe.html#rmap"><span class="hs-identifier hs-var hs-var hs-var">rmap</span></a></span></span><span> </span><span id="local-6989586621679113169"><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679113169"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113172"><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113172"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113173"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113173"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113174"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113174"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; c) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a c
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; c
+</span><a href="#local-6989586621679113169"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; c) -&gt; (f y -&gt; b) -&gt; f y -&gt; c
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113172"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113173"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113174"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621679113175"><span class="annot"><span class="annottext">dimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; FreeMapping p b c -&gt; FreeMapping p a d
+</span><a href="Data.Profunctor.Unsafe.html#dimap"><span class="hs-identifier hs-var hs-var hs-var">dimap</span></a></span></span><span> </span><span id="local-6989586621679113176"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113176"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679113177"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679113177"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113180"><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113180"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113181"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113181"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113182"><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113182"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; d) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a d
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679113177"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; (f y -&gt; c) -&gt; f y -&gt; d
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113180"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113181"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113182"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f x) -&gt; (a -&gt; b) -&gt; a -&gt; f x
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679113176"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621679113185"><span class="annot"><span class="annottext">q b c
+</span><a href="#local-6989586621679113185"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679113186"><span class="annot"><span class="annottext">#. :: forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; FreeMapping p a b -&gt; FreeMapping p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var hs-var hs-var">#.</span></a></span></span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113191"><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113191"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113192"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113192"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113193"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113193"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; c) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a c
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">q b c
+</span><a href="#local-6989586621679113185"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">q b c -&gt; (f y -&gt; b) -&gt; f y -&gt; c
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113191"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113192"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113193"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113200"><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113200"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113201"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113201"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113202"><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113202"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679113203"><span class="annot"><span class="annottext">.# :: forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+FreeMapping p b c -&gt; q a b -&gt; FreeMapping p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var hs-var hs-var">.#</span></a></span></span><span> </span><span id="local-6989586621679113204"><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679113204"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; c) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a c
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="annot"><span class="annottext">f y -&gt; c
+</span><a href="#local-6989586621679113200"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113201"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; f x
+</span><a href="#local-6989586621679113202"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f x) -&gt; q a b -&gt; a -&gt; f x
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">q a b
+</span><a href="#local-6989586621679113204"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112748"><span id="local-6989586621679113208"><span class="annot"><a href="Data.Profunctor.Strong.html#Strong"><span class="hs-identifier hs-type">Strong</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112748"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621679113215"><span class="annot"><span class="annottext">second' :: forall a b c. FreeMapping p a b -&gt; FreeMapping p (c, a) (c, b)
+</span><a href="Data.Profunctor.Strong.html#second%27"><span class="hs-identifier hs-var hs-var hs-var">second'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeMapping p a b -&gt; FreeMapping p (c, a) (c, b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112754"><span id="local-6989586621679113219"><span class="annot"><a href="Data.Profunctor.Choice.html#Choice"><span class="hs-identifier hs-type">Choice</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112754"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679113225"><span class="annot"><span class="annottext">right' :: forall a b c.
+FreeMapping p a b -&gt; FreeMapping p (Either c a) (Either c b)
+</span><a href="Data.Profunctor.Choice.html#right%27"><span class="hs-identifier hs-var hs-var hs-var">right'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeMapping p a b -&gt; FreeMapping p (Either c a) (Either c b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112759"><span class="annot"><a href="Data.Profunctor.Closed.html#Closed"><span class="hs-identifier hs-type">Closed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112759"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span id="local-6989586621679113232"><span class="annot"><span class="annottext">closed :: forall a b x. FreeMapping p a b -&gt; FreeMapping p (x -&gt; a) (x -&gt; b)
+</span><a href="Data.Profunctor.Closed.html#closed"><span class="hs-identifier hs-var hs-var hs-var">closed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeMapping p a b -&gt; FreeMapping p (x -&gt; a) (x -&gt; b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112764"><span class="annot"><a href="Data.Profunctor.Traversing.html#Traversing"><span class="hs-identifier hs-type">Traversing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112764"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621679113244"><span class="annot"><span class="annottext">traverse' :: forall (f :: * -&gt; *) a b.
+Traversable f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+</span><a href="Data.Profunctor.Traversing.html#traverse%27"><span class="hs-identifier hs-var hs-var hs-var">traverse'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+forall (p :: * -&gt; * -&gt; *) (f :: * -&gt; *) a b.
+(Mapping p, Functor f) =&gt;
+p a b -&gt; p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var">map'</span></a></span><span>
+</span><span id="line-148"></span><span>  </span><span id="local-6989586621679113251"><span class="annot"><span class="annottext">wander :: forall a b s t.
+(forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t)
+-&gt; FreeMapping p a b -&gt; FreeMapping p s t
+</span><a href="Data.Profunctor.Traversing.html#wander"><span class="hs-identifier hs-var hs-var hs-var">wander</span></a></span></span><span> </span><span id="local-6989586621679113252"><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679113252"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; b) -&gt; s -&gt; t) -&gt; FreeMapping p a b -&gt; FreeMapping p s t
+forall a b s t.
+((a -&gt; b) -&gt; s -&gt; t) -&gt; FreeMapping p a b -&gt; FreeMapping p s t
+forall (p :: * -&gt; * -&gt; *) a b s t.
+Mapping p =&gt;
+((a -&gt; b) -&gt; s -&gt; t) -&gt; p a b -&gt; p s t
+</span><a href="Data.Profunctor.Mapping.html#roam"><span class="hs-identifier hs-var">roam</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity t -&gt; t
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity t -&gt; t) -&gt; (s -&gt; Identity t) -&gt; s -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((s -&gt; Identity t) -&gt; s -&gt; t)
+-&gt; ((a -&gt; Identity b) -&gt; s -&gt; Identity t)
+-&gt; (a -&gt; Identity b)
+-&gt; s
+-&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Identity b) -&gt; s -&gt; Identity t
+forall (f :: * -&gt; *). Applicative f =&gt; (a -&gt; f b) -&gt; s -&gt; f t
+</span><a href="#local-6989586621679113252"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a -&gt; Identity b) -&gt; s -&gt; t)
+-&gt; ((a -&gt; b) -&gt; a -&gt; Identity b) -&gt; (a -&gt; b) -&gt; s -&gt; t
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; Identity b
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Identity b) -&gt; (a -&gt; b) -&gt; a -&gt; Identity b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679112750"><span id="local-6989586621679113259"><span class="annot"><a href="Data.Profunctor.Mapping.html#Mapping"><span class="hs-identifier hs-type">Mapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679112750"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-151"></span><span>  </span><span id="local-6989586621679113262"><span class="annot"><span class="annottext">map' :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+FreeMapping p a b -&gt; FreeMapping p (f a) (f b)
+</span><a href="Data.Profunctor.Mapping.html#map%27"><span class="hs-identifier hs-var hs-var hs-var">map'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113271"><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113271"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113272"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113272"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113273"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113273"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Compose f f y -&gt; f b)
+-&gt; p x y -&gt; (f a -&gt; Compose f f x) -&gt; FreeMapping p (f a) (f b)
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f y -&gt; b) -&gt; f (f y) -&gt; f b
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113271"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">(f (f y) -&gt; f b)
+-&gt; (Compose f f y -&gt; f (f y)) -&gt; Compose f f y -&gt; f b
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">Compose f f y -&gt; f (f y)
+forall {k1} {k2} (f :: k1 -&gt; *) (g :: k2 -&gt; k1) (a :: k2).
+Compose f g a -&gt; f (g a)
+</span><span class="hs-identifier hs-var">getCompose</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113272"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (f x) -&gt; Compose f f x
+forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="annot"><span class="annottext">(f (f x) -&gt; Compose f f x)
+-&gt; (f a -&gt; f (f x)) -&gt; f a -&gt; Compose f f x
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f x) -&gt; f a -&gt; f (f x)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113273"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Profunctor.Monad.html#ProfunctorFunctor"><span class="hs-identifier hs-type">ProfunctorFunctor</span></a></span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-154"></span><span>  </span><span id="local-6989586621679113277"><span class="annot"><span class="annottext">promap :: forall (p :: * -&gt; * -&gt; *) (q :: * -&gt; * -&gt; *).
+Profunctor p =&gt;
+(p :-&gt; q) -&gt; FreeMapping p :-&gt; FreeMapping q
+</span><a href="Data.Profunctor.Monad.html#promap"><span class="hs-identifier hs-var hs-var hs-var">promap</span></a></span></span><span> </span><span id="local-6989586621679113278"><span class="annot"><span class="annottext">p :-&gt; q
+</span><a href="#local-6989586621679113278"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113281"><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113281"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679113282"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113282"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113283"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113283"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f y -&gt; b) -&gt; q x y -&gt; (a -&gt; f x) -&gt; FreeMapping q a b
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113281"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">p x y -&gt; q x y
+p :-&gt; q
+</span><a href="#local-6989586621679113278"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113282"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113283"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Profunctor.Monad.html#ProfunctorMonad"><span class="hs-identifier hs-type">ProfunctorMonad</span></a></span><span> </span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-157"></span><span>  </span><span id="local-6989586621679113292"><span class="annot"><span class="annottext">proreturn :: forall (p :: * -&gt; * -&gt; *). Profunctor p =&gt; p :-&gt; FreeMapping p
+</span><a href="#local-6989586621679113292"><span class="hs-identifier hs-var hs-var hs-var">proreturn</span></a></span></span><span> </span><span id="local-6989586621679113294"><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679113294"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Identity b -&gt; b)
+-&gt; p a b -&gt; (a -&gt; Identity a) -&gt; FreeMapping p a b
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="annot"><span class="annottext">Identity b -&gt; b
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">p a b
+</span><a href="#local-6989586621679113294"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621679113296"><span class="annot"><span class="annottext">projoin :: forall (p :: * -&gt; * -&gt; *).
+Profunctor p =&gt;
+FreeMapping (FreeMapping p) :-&gt; FreeMapping p
+</span><a href="#local-6989586621679113296"><span class="hs-identifier hs-var hs-var hs-var">projoin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113299"><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113299"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-type">FreeMapping</span></a></span><span> </span><span id="local-6989586621679113308"><span class="annot"><span class="annottext">f y -&gt; y
+</span><a href="#local-6989586621679113308"><span class="hs-identifier hs-var">l'</span></a></span></span><span> </span><span id="local-6989586621679113309"><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113309"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679113310"><span class="annot"><span class="annottext">x -&gt; f x
+</span><a href="#local-6989586621679113310"><span class="hs-identifier hs-var">r'</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679113311"><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113311"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Compose f f y -&gt; b)
+-&gt; p x y -&gt; (a -&gt; Compose f f x) -&gt; FreeMapping p a b
+forall (f :: * -&gt; *) y b (p :: * -&gt; * -&gt; *) x a.
+Functor f =&gt;
+(f y -&gt; b) -&gt; p x y -&gt; (a -&gt; f x) -&gt; FreeMapping p a b
+</span><a href="Data.Profunctor.Mapping.html#FreeMapping"><span class="hs-identifier hs-var">FreeMapping</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">f y -&gt; b
+</span><a href="#local-6989586621679113299"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">(f y -&gt; b) -&gt; (f (f y) -&gt; f y) -&gt; f (f y) -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(f y -&gt; y) -&gt; f (f y) -&gt; f y
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">f y -&gt; y
+</span><a href="#local-6989586621679113308"><span class="hs-identifier hs-var">l'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(f (f y) -&gt; b) -&gt; (Compose f f y -&gt; f (f y)) -&gt; Compose f f y -&gt; b
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible b a =&gt;
+(b -&gt; c) -&gt; q a b -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible b a) =&gt;
+p b c -&gt; q a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#.%23"><span class="hs-operator hs-var">.#</span></a></span><span> </span><span class="annot"><span class="annottext">Compose f f y -&gt; f (f y)
+forall {k1} {k2} (f :: k1 -&gt; *) (g :: k2 -&gt; k1) (a :: k2).
+Compose f g a -&gt; f (g a)
+</span><span class="hs-identifier hs-var">getCompose</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">p x y
+</span><a href="#local-6989586621679113309"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f (f x) -&gt; Compose f f x
+forall {k} {k1} (f :: k -&gt; *) (g :: k1 -&gt; k) (a :: k1).
+f (g a) -&gt; Compose f g a
+</span><span class="hs-identifier hs-var">Compose</span></span><span> </span><span class="annot"><span class="annottext">(f (f x) -&gt; Compose f f x) -&gt; (a -&gt; f (f x)) -&gt; a -&gt; Compose f f x
+forall a b c (q :: * -&gt; * -&gt; *).
+Coercible c b =&gt;
+q b c -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall (p :: * -&gt; * -&gt; *) a b c (q :: * -&gt; * -&gt; *).
+(Profunctor p, Coercible c b) =&gt;
+q b c -&gt; p a b -&gt; p a c
+</span><a href="Data.Profunctor.Unsafe.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(x -&gt; f x) -&gt; f x -&gt; f (f x)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">x -&gt; f x
+</span><a href="#local-6989586621679113310"><span class="hs-identifier hs-var">r'</span></a></span><span> </span><span class="annot"><span class="annottext">(f x -&gt; f (f x)) -&gt; (a -&gt; f x) -&gt; a -&gt; f (f x)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f x
+</span><a href="#local-6989586621679113311"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span></pre></body></html>

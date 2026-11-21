@@ -1,0 +1,151 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The organization members API as described on</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/orgs/members/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html"><span class="hs-identifier">GitHub.Endpoints.Organizations.Members</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfR"><span class="hs-identifier">membersOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfWithR"><span class="hs-identifier">membersOfWithR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#isMemberOfR"><span class="hs-identifier">isMemberOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgInvitationsR"><span class="hs-identifier">orgInvitationsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgMembershipR"><span class="hs-identifier">orgMembershipR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | All the users who are members of the specified organization.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/members/#members-list&gt;</span><span>
+</span><span id="line-21"></span><span id="local-6989586621679555973"><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfR"><span class="hs-identifier hs-type">membersOfR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679555973"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-22"></span><span id="membersOfR"><span class="annot"><span class="annottext">membersOfR :: forall (k :: RW).
+Name Organization -&gt; FetchCount -&gt; Request k (Vector SimpleUser)
+</span><a href="GitHub.Endpoints.Organizations.Members.html#membersOfR"><span class="hs-identifier hs-var hs-var">membersOfR</span></a></span></span><span> </span><span id="local-6989586621679556021"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556021"><span class="hs-identifier hs-var">organization</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector SimpleUser)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556021"><span class="hs-identifier hs-var">organization</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;members&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | 'membersOfR' with filters.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/members/#members-list&gt;</span><span>
+</span><span id="line-28"></span><span id="local-6989586621679555987"><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfWithR"><span class="hs-identifier hs-type">membersOfWithR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#OrgMemberFilter"><span class="hs-identifier hs-type">OrgMemberFilter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#OrgMemberRole"><span class="hs-identifier hs-type">OrgMemberRole</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679555987"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-29"></span><span id="membersOfWithR"><span class="annot"><span class="annottext">membersOfWithR :: forall (k :: RW).
+Name Organization
+-&gt; OrgMemberFilter
+-&gt; OrgMemberRole
+-&gt; FetchCount
+-&gt; Request k (Vector SimpleUser)
+</span><a href="GitHub.Endpoints.Organizations.Members.html#membersOfWithR"><span class="hs-identifier hs-var hs-var">membersOfWithR</span></a></span></span><span> </span><span id="local-6989586621679556031"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556031"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span id="local-6989586621679556032"><span class="annot"><span class="annottext">OrgMemberFilter
+</span><a href="#local-6989586621679556032"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679556033"><span class="annot"><span class="annottext">OrgMemberRole
+</span><a href="#local-6989586621679556033"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector SimpleUser)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556031"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;members&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;filter&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679556034"><span class="hs-identifier hs-var">f'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;role&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679556035"><span class="hs-identifier hs-var">r'</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679556034"><span class="annot"><span class="annottext">f' :: ByteString
+</span><a href="#local-6989586621679556034"><span class="hs-identifier hs-var hs-var">f'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OrgMemberFilter
+</span><a href="#local-6989586621679556032"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">OrgMemberFilter
+</span><a href="GitHub.Data.Definitions.html#OrgMemberFilter2faDisabled"><span class="hs-identifier hs-var">OrgMemberFilter2faDisabled</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;2fa_disabled&quot;</span></span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><span class="annottext">OrgMemberFilter
+</span><a href="GitHub.Data.Definitions.html#OrgMemberFilterAll"><span class="hs-identifier hs-var">OrgMemberFilterAll</span></a></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;all&quot;</span></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679556035"><span class="annot"><span class="annottext">r' :: ByteString
+</span><a href="#local-6989586621679556035"><span class="hs-identifier hs-var hs-var">r'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OrgMemberRole
+</span><a href="#local-6989586621679556033"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">OrgMemberRole
+</span><a href="GitHub.Data.Definitions.html#OrgMemberRoleAll"><span class="hs-identifier hs-var">OrgMemberRoleAll</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;all&quot;</span></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">OrgMemberRole
+</span><a href="GitHub.Data.Definitions.html#OrgMemberRoleAdmin"><span class="hs-identifier hs-var">OrgMemberRoleAdmin</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;admin&quot;</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">OrgMemberRole
+</span><a href="GitHub.Data.Definitions.html#OrgMemberRoleMember"><span class="hs-identifier hs-var">OrgMemberRoleMember</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;member&quot;</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Check if a user is a member of an organization.</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/members/#check-membership&gt;</span><span>
+</span><span id="line-43"></span><span id="local-6989586621679555991"><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#isMemberOfR"><span class="hs-identifier hs-type">isMemberOfR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#User"><span class="hs-identifier hs-type">User</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtStatus"><span class="hs-identifier hs-type">MtStatus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679555991"><span class="hs-identifier hs-type">rw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-44"></span><span id="isMemberOfR"><span class="annot"><span class="annottext">isMemberOfR :: forall (rw :: RW).
+Name User -&gt; Name Organization -&gt; GenRequest 'MtStatus rw Bool
+</span><a href="GitHub.Endpoints.Organizations.Members.html#isMemberOfR"><span class="hs-identifier hs-var hs-var">isMemberOfR</span></a></span></span><span> </span><span id="local-6989586621679556050"><span class="annot"><span class="annottext">Name User
+</span><a href="#local-6989586621679556050"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679556051"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556051"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; GenRequest 'MtStatus rw Bool
+forall (mt :: MediaType (*)) (rw :: RW) a.
+Paths -&gt; QueryString -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#Query"><span class="hs-identifier hs-var">Query</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556051"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;members&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name User -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name User
+</span><a href="#local-6989586621679556050"><span class="hs-identifier hs-var">user</span></a></span><span> </span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- | List pending organization invitations</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/members/#list-pending-organization-invitations&gt;</span><span>
+</span><span id="line-50"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgInvitationsR"><span class="hs-identifier hs-type">orgInvitationsR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Invitation.html#Invitation"><span class="hs-identifier hs-type">Invitation</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span id="orgInvitationsR"><span class="annot"><span class="annottext">orgInvitationsR :: Name Organization -&gt; FetchCount -&gt; Request 'RA (Vector Invitation)
+</span><a href="GitHub.Endpoints.Organizations.Members.html#orgInvitationsR"><span class="hs-identifier hs-var hs-var">orgInvitationsR</span></a></span></span><span> </span><span id="local-6989586621679556053"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556053"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector Invitation)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556053"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;invitations&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- | Get user membership information in an organization</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- See &lt;https://docs.github.com/en/rest/orgs/members#get-organization-membership-for-a-user&gt;</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgMembershipR"><span class="hs-identifier hs-type">orgMembershipR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#User"><span class="hs-identifier hs-type">User</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Membership"><span class="hs-identifier hs-type">Membership</span></a></span><span>
+</span><span id="line-57"></span><span id="orgMembershipR"><span class="annot"><span class="annottext">orgMembershipR :: Name User -&gt; Name Organization -&gt; Request 'RA Membership
+</span><a href="GitHub.Endpoints.Organizations.Members.html#orgMembershipR"><span class="hs-identifier hs-var hs-var">orgMembershipR</span></a></span></span><span> </span><span id="local-6989586621679556054"><span class="annot"><span class="annottext">Name User
+</span><a href="#local-6989586621679556054"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679556055"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556055"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request 'RA Membership
+forall (mt :: MediaType (*)) (rw :: RW) a.
+Paths -&gt; QueryString -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#Query"><span class="hs-identifier hs-var">Query</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679556055"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;memberships&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name User -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name User
+</span><a href="#local-6989586621679556054"><span class="hs-identifier hs-var">user</span></a></span><span> </span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span></pre></body></html>

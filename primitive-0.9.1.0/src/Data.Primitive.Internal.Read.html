@@ -1,0 +1,51 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Primitive.Internal.Read.html"><span class="hs-identifier">Data.Primitive.Internal.Read</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Primitive.Internal.Read.html#Tag"><span class="hs-identifier">Tag</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Primitive.Internal.Read.html#lexTag"><span class="hs-identifier">lexTag</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isDigit</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.ParserCombinators.ReadP</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Tag"><span class="annot"><a href="Data.Primitive.Internal.Read.html#Tag"><span class="hs-identifier hs-var">Tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FromListTag"><span class="annot"><a href="Data.Primitive.Internal.Read.html#FromListTag"><span class="hs-identifier hs-var">FromListTag</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="FromListNTag"><span class="annot"><a href="Data.Primitive.Internal.Read.html#FromListNTag"><span class="hs-identifier hs-var">FromListNTag</span></a></span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Why don't we just use lexP? The general problem with lexP is that</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- it doesn't always fail as fast as we might like. It will</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- happily read to the end of an absurdly long lexeme (e.g., a 200MB string</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- literal) before returning, at which point we'll immediately discard</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- the result because it's not an identifier. Doing the job ourselves, we</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- can see very quickly when we've run into a problem. We should also get</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- a slight efficiency boost by going through the string just once.</span><span>
+</span><span id="line-18"></span><span class="annot"><a href="Data.Primitive.Internal.Read.html#lexTag"><span class="hs-identifier hs-type">lexTag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReadP</span></span><span> </span><span class="annot"><a href="Data.Primitive.Internal.Read.html#Tag"><span class="hs-identifier hs-type">Tag</span></a></span><span>
+</span><span id="line-19"></span><span id="lexTag"><span class="annot"><span class="annottext">lexTag :: ReadP Tag
+</span><a href="Data.Primitive.Internal.Read.html#lexTag"><span class="hs-identifier hs-var hs-var">lexTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadP String
+</span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;fromList&quot;</span></span><span>
+</span><span id="line-21"></span><span>  </span><span id="local-6989586621679111490"><span class="annot"><a href="#local-6989586621679111490"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">look</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679111490"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'N'</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679111492"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679111492"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span>
+</span><span id="line-24"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679111492"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-25"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ReadP Tag
+forall a. String -&gt; ReadP a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-comment">-- We have fromListN3 or similar</span><span>
+</span><span id="line-26"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Tag
+</span><a href="Data.Primitive.Internal.Read.html#FromListNTag"><span class="hs-identifier hs-var">FromListNTag</span></a></span><span> </span><span class="annot"><span class="annottext">Tag -&gt; ReadP Char -&gt; ReadP Tag
+forall a b. a -&gt; ReadP b -&gt; ReadP a
+forall (f :: * -&gt; *) a b. Functor f =&gt; a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;$</span></span><span> </span><span class="annot"><span class="annottext">ReadP Char
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="hs-comment">-- Skip the 'N'</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Tag -&gt; ReadP Tag
+forall a. a -&gt; ReadP a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Tag
+</span><a href="Data.Primitive.Internal.Read.html#FromListTag"><span class="hs-identifier hs-var">FromListTag</span></a></span><span>
+</span><span id="line-28"></span></pre></body></html>

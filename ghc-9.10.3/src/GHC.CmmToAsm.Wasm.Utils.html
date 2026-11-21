@@ -1,0 +1,72 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Strict #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html"><span class="hs-identifier">GHC.CmmToAsm.Wasm.Utils</span></a></span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#widthMax"><span class="hs-identifier">widthMax</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUFM"><span class="hs-identifier">detEltsUFM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUniqMap"><span class="hs-identifier">detEltsUniqMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#builderCommas"><span class="hs-identifier">builderCommas</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.html"><span class="hs-identifier">Data.ByteString.Builder</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">intersperse</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sortOn</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.html"><span class="hs-identifier">GHC.Cmm</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html"><span class="hs-identifier">GHC.Types.Unique.FM</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html"><span class="hs-identifier">GHC.Types.Unique.Map</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#widthMax"><span class="hs-identifier hs-type">widthMax</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Cmm.Type.html#Width"><span class="hs-identifier hs-type">Width</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-20"></span><span id="widthMax"><span class="annot"><span class="annottext">widthMax :: Width -&gt; Integer
+</span><a href="GHC.CmmToAsm.Wasm.Utils.html#widthMax"><span class="hs-identifier hs-var hs-var">widthMax</span></a></span></span><span> </span><span id="local-6989586621682635295"><span class="annot"><span class="annottext">Width
+</span><a href="#local-6989586621682635295"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Integer
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-operator hs-var">`shiftL`</span></a></span><span> </span><span class="annot"><span class="annottext">Width -&gt; Int
+</span><a href="GHC.Cmm.Type.html#widthInBits"><span class="hs-identifier hs-var">widthInBits</span></a></span><span> </span><span class="annot"><span class="annottext">Width
+</span><a href="#local-6989586621682635295"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span id="local-6989586621682635250"><span id="local-6989586621682635251"><span id="local-6989586621682635252"><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUFM"><span class="hs-identifier hs-type">detEltsUFM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621682635250"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.FM.html#UniqFM"><span class="hs-identifier hs-type">UniqFM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635251"><span class="hs-identifier hs-type">k0</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682635250"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682635252"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682635250"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682635252"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span></span><span>
+</span><span id="line-23"></span><span id="detEltsUFM"><span class="annot"><span class="annottext">detEltsUFM :: forall {k} k (k0 :: k) a. Ord k =&gt; UniqFM k0 (k, a) -&gt; [(k, a)]
+</span><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUFM"><span class="hs-identifier hs-var hs-var">detEltsUFM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((k, a) -&gt; k) -&gt; [(k, a)] -&gt; [(k, a)]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortOn</span></span><span> </span><span class="annot"><span class="annottext">(k, a) -&gt; k
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(k, a)] -&gt; [(k, a)])
+-&gt; (UniqFM k0 (k, a) -&gt; [(k, a)]) -&gt; UniqFM k0 (k, a) -&gt; [(k, a)]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">UniqFM k0 (k, a) -&gt; [(k, a)]
+forall {k} (key :: k) elt. UniqFM key elt -&gt; [elt]
+</span><a href="GHC.Types.Unique.FM.html#nonDetEltsUFM"><span class="hs-identifier hs-var">nonDetEltsUFM</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span id="local-6989586621682635268"><span id="local-6989586621682635269"><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUniqMap"><span class="hs-identifier hs-type">detEltsUniqMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621682635268"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html#UniqMap"><span class="hs-identifier hs-type">UniqMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635268"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682635269"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682635268"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682635269"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-26"></span><span id="detEltsUniqMap"><span class="annot"><span class="annottext">detEltsUniqMap :: forall k a. Ord k =&gt; UniqMap k a -&gt; [(k, a)]
+</span><a href="GHC.CmmToAsm.Wasm.Utils.html#detEltsUniqMap"><span class="hs-identifier hs-var hs-var">detEltsUniqMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((k, a) -&gt; k) -&gt; [(k, a)] -&gt; [(k, a)]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortOn</span></span><span> </span><span class="annot"><span class="annottext">(k, a) -&gt; k
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(k, a)] -&gt; [(k, a)])
+-&gt; (UniqMap k a -&gt; [(k, a)]) -&gt; UniqMap k a -&gt; [(k, a)]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">UniqMap k a -&gt; [(k, a)]
+forall k a. UniqMap k a -&gt; [(k, a)]
+</span><a href="GHC.Types.Unique.Map.html#nonDetUniqMapToList"><span class="hs-identifier hs-var">nonDetUniqMapToList</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span id="local-6989586621682635275"><span class="annot"><a href="GHC.CmmToAsm.Wasm.Utils.html#builderCommas"><span class="hs-identifier hs-type">builderCommas</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682635275"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682635275"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span></span><span>
+</span><span id="line-29"></span><span id="builderCommas"><span class="annot"><span class="annottext">builderCommas :: forall a. (a -&gt; Builder) -&gt; [a] -&gt; Builder
+</span><a href="GHC.CmmToAsm.Wasm.Utils.html#builderCommas"><span class="hs-identifier hs-var hs-var">builderCommas</span></a></span></span><span> </span><span id="local-6989586621682635310"><span class="annot"><span class="annottext">a -&gt; Builder
+</span><a href="#local-6989586621682635310"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682635311"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682635311"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Builder] -&gt; Builder
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder -&gt; [Builder] -&gt; [Builder]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">intersperse</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><span class="hs-string">&quot;, &quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Builder) -&gt; [a] -&gt; [Builder]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Builder
+</span><a href="#local-6989586621682635310"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621682635311"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span></pre></body></html>

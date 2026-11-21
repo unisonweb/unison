@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTag.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CompletionItemTag</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">{-|
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="CompletionItemTagOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-var">CompletionItemTagOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CompletionItemTagOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-var">CompletionItemTagOptions</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The tags supported by the client.
+  -}</span></span><span>
+</span><span id="line-29"></span><span>  </span><span id="_valueSet"><span class="annot"><span class="annottext">CompletionItemTagOptions -&gt; [CompletionItemTag]
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#_valueSet"><span class="hs-identifier hs-var hs-var">_valueSet</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTag.html#CompletionItemTag"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.CompletionItemTag.CompletionItemTag</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682592461"><span id="local-6989586621682592468"><span id="local-6989586621682592472"><span class="annot"><span class="annottext">Int -&gt; CompletionItemTagOptions -&gt; ShowS
+[CompletionItemTagOptions] -&gt; ShowS
+CompletionItemTagOptions -&gt; String
+(Int -&gt; CompletionItemTagOptions -&gt; ShowS)
+-&gt; (CompletionItemTagOptions -&gt; String)
+-&gt; ([CompletionItemTagOptions] -&gt; ShowS)
+-&gt; Show CompletionItemTagOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CompletionItemTagOptions -&gt; ShowS
+showsPrec :: Int -&gt; CompletionItemTagOptions -&gt; ShowS
+$cshow :: CompletionItemTagOptions -&gt; String
+show :: CompletionItemTagOptions -&gt; String
+$cshowList :: [CompletionItemTagOptions] -&gt; ShowS
+showList :: [CompletionItemTagOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682592478"><span id="local-6989586621682592483"><span class="annot"><span class="annottext">CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+(CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; (CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; Eq CompletionItemTagOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+== :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+$c/= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+/= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682592491"><span id="local-6989586621682592496"><span id="local-6989586621682592500"><span id="local-6989586621682592504"><span id="local-6989586621682592507"><span id="local-6989586621682592510"><span id="local-6989586621682592513"><span class="annot"><span class="annottext">Eq CompletionItemTagOptions
+Eq CompletionItemTagOptions =&gt;
+(CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Ordering)
+-&gt; (CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; (CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; (CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; (CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool)
+-&gt; (CompletionItemTagOptions
+    -&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions)
+-&gt; (CompletionItemTagOptions
+    -&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions)
+-&gt; Ord CompletionItemTagOptions
+CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Ordering
+CompletionItemTagOptions
+-&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Ordering
+compare :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Ordering
+$c&lt; :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+&lt; :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+$c&lt;= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+&lt;= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+$c&gt; :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+&gt; :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+$c&gt;= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+&gt;= :: CompletionItemTagOptions -&gt; CompletionItemTagOptions -&gt; Bool
+$cmax :: CompletionItemTagOptions
+-&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions
+max :: CompletionItemTagOptions
+-&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions
+$cmin :: CompletionItemTagOptions
+-&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions
+min :: CompletionItemTagOptions
+-&gt; CompletionItemTagOptions -&gt; CompletionItemTagOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682592522"><span id="local-6989586621682592524"><span class="annot"><span class="annottext">(forall x.
+ CompletionItemTagOptions -&gt; Rep CompletionItemTagOptions x)
+-&gt; (forall x.
+    Rep CompletionItemTagOptions x -&gt; CompletionItemTagOptions)
+-&gt; Generic CompletionItemTagOptions
+forall x.
+Rep CompletionItemTagOptions x -&gt; CompletionItemTagOptions
+forall x.
+CompletionItemTagOptions -&gt; Rep CompletionItemTagOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+CompletionItemTagOptions -&gt; Rep CompletionItemTagOptions x
+from :: forall x.
+CompletionItemTagOptions -&gt; Rep CompletionItemTagOptions x
+$cto :: forall x.
+Rep CompletionItemTagOptions x -&gt; CompletionItemTagOptions
+to :: forall x.
+Rep CompletionItemTagOptions x -&gt; CompletionItemTagOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682592530"><span class="annot"><span class="annottext">CompletionItemTagOptions -&gt; ()
+(CompletionItemTagOptions -&gt; ()) -&gt; NFData CompletionItemTagOptions
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: CompletionItemTagOptions -&gt; ()
+rnf :: CompletionItemTagOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682592549"><span id="local-6989586621682592556"><span class="annot"><span class="annottext">Eq CompletionItemTagOptions
+Eq CompletionItemTagOptions =&gt;
+(Int -&gt; CompletionItemTagOptions -&gt; Int)
+-&gt; (CompletionItemTagOptions -&gt; Int)
+-&gt; Hashable CompletionItemTagOptions
+Int -&gt; CompletionItemTagOptions -&gt; Int
+CompletionItemTagOptions -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; CompletionItemTagOptions -&gt; Int
+hashWithSalt :: Int -&gt; CompletionItemTagOptions -&gt; Int
+$chash :: CompletionItemTagOptions -&gt; Int
+hash :: CompletionItemTagOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682592569"><span id="local-6989586621682592575"><span class="annot"><span class="annottext">(forall ann. CompletionItemTagOptions -&gt; Doc ann)
+-&gt; (forall ann. [CompletionItemTagOptions] -&gt; Doc ann)
+-&gt; Pretty CompletionItemTagOptions
+forall ann. [CompletionItemTagOptions] -&gt; Doc ann
+forall ann. CompletionItemTagOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. CompletionItemTagOptions -&gt; Doc ann
+pretty :: forall ann. CompletionItemTagOptions -&gt; Doc ann
+$cprettyList :: forall ann. [CompletionItemTagOptions] -&gt; Doc ann
+prettyList :: forall ann. [CompletionItemTagOptions] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-type">CompletionItemTagOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682592586"><span id="local-6989586621682592589"><span id="local-6989586621682592592"><span id="local-6989586621682592595"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-type">CompletionItemTagOptions</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682592610"><span class="annot"><span class="annottext">toJSON :: CompletionItemTagOptions -&gt; Value
+</span><a href="#local-6989586621682592610"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-type">CompletionItemTagOptions</span></a></span><span> </span><span id="local-6989586621682592612"><span class="annot"><span class="annottext">[CompletionItemTag]
+</span><a href="#local-6989586621682592612"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;valueSet&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; [CompletionItemTag] -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">[CompletionItemTag]
+</span><a href="#local-6989586621682592612"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682592618"><span id="local-6989586621682592622"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-type">CompletionItemTagOptions</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621682592632"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser CompletionItemTagOptions
+</span><a href="#local-6989586621682592632"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser CompletionItemTagOptions)
+-&gt; Value
+-&gt; Parser CompletionItemTagOptions
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CompletionItemTagOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser CompletionItemTagOptions)
+ -&gt; Value -&gt; Parser CompletionItemTagOptions)
+-&gt; (Object -&gt; Parser CompletionItemTagOptions)
+-&gt; Value
+-&gt; Parser CompletionItemTagOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682592635"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682592635"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[CompletionItemTag] -&gt; CompletionItemTagOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-var">CompletionItemTagOptions</span></a></span><span> </span><span class="annot"><span class="annottext">([CompletionItemTag] -&gt; CompletionItemTagOptions)
+-&gt; Parser [CompletionItemTag] -&gt; Parser CompletionItemTagOptions
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682592635"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [CompletionItemTag]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;valueSet&quot;</span></span><span>
+</span><span id="line-40"></span></pre></body></html>

@@ -1,0 +1,990 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module     : Algebra.Graph.HigherKinded.Class</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This module defines the core type class 'Graph', a few graph subclasses, and</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- basic polymorphic graph construction primitives. Functions that cannot be</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- implemented fully polymorphically and require the use of an intermediate data</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- type are not included. For example, to compute the size of a 'Graph'</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- expression you will need to use a concrete data type, such as &quot;Algebra.Graph&quot;.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- See &quot;Algebra.Graph.Class&quot; for alternative definitions where the core type</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- class is not higher-kinded and permits more instances.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html"><span class="hs-identifier">Algebra.Graph.HigherKinded.Class</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The core type class</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier">Graph</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier">vertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-identifier">overlay</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Undirected graphs</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Undirected"><span class="hs-identifier">Undirected</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Reflexive graphs</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Reflexive"><span class="hs-identifier">Reflexive</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Transitive graphs</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Transitive"><span class="hs-identifier">Transitive</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Preorders</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Preorder"><span class="hs-identifier">Preorder</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Basic graph construction primitives</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier">edge</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier">vertices</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#edges"><span class="hs-identifier">edges</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier">overlays</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier">connects</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Relations on graphs</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#isSubgraphOf"><span class="hs-identifier">isSubgraphOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph properties</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#hasEdge"><span class="hs-identifier">hasEdge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Standard families of graphs</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#path"><span class="hs-identifier">path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#circuit"><span class="hs-identifier">circuit</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#clique"><span class="hs-identifier">clique</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#biclique"><span class="hs-identifier">biclique</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier">star</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#stars"><span class="hs-identifier">stars</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#tree"><span class="hs-identifier">tree</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#forest"><span class="hs-identifier">forest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier">mesh</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#torus"><span class="hs-identifier">torus</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#deBruijn"><span class="hs-identifier">deBruijn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph transformation</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#removeVertex"><span class="hs-identifier">removeVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#replaceVertex"><span class="hs-identifier">replaceVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mergeVertices"><span class="hs-identifier">mergeVertices</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#splitVertex"><span class="hs-identifier">splitVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#induce"><span class="hs-identifier">induce</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alternative</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;|&gt;)</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadPlus</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mfilter</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.html"><span class="hs-identifier">Algebra.Graph</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">G</span></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">{-|
+The core type class for constructing algebraic graphs is defined by introducing
+the 'connect' method to the standard 'MonadPlus' class and reusing the following
+existing methods:
+
+* The 'empty' method comes from the 'Control.Applicative.Alternative' class and
+corresponds to the /empty graph/. This module simply re-exports it.
+
+* The 'vertex' graph construction primitive is an alias for 'pure' of the
+'Applicative' type class.
+
+* Graph 'overlay' is an alias for 'mplus' of the 'MonadPlus' type class.
+
+The 'Graph' type class is characterised by the following minimal set of axioms.
+In equations we use @+@ and @*@ as convenient shortcuts for 'overlay' and
+'connect', respectively.
+
+    * 'overlay' is commutative and associative:
+
+        &gt;       x + y == y + x
+        &gt; x + (y + z) == (x + y) + z
+
+    * 'connect' is associative and has 'empty' as the identity:
+
+        &gt;   x * empty == x
+        &gt;   empty * x == x
+        &gt; x * (y * z) == (x * y) * z
+
+    * 'connect' distributes over 'overlay':
+
+        &gt; x * (y + z) == x * y + x * z
+        &gt; (x + y) * z == x * z + y * z
+
+    * 'connect' can be decomposed:
+
+        &gt; x * y * z == x * y + x * z + y * z
+
+The following useful theorems can be proved from the above set of axioms.
+
+    * 'overlay' has 'empty' as the identity and is idempotent:
+
+        &gt;   x + empty == x
+        &gt;   empty + x == x
+        &gt;       x + x == x
+
+    * Absorption and saturation of 'connect':
+
+        &gt; x * y + x + y == x * y
+        &gt;     x * x * x == x * x
+
+The core type class 'Graph' corresponds to unlabelled directed graphs.
+'Undirected', 'Reflexive', 'Transitive' and 'Preorder' graphs can be obtained
+by extending the minimal set of axioms.
+
+When specifying the time and memory complexity of graph algorithms, /n/ will
+denote the number of vertices in the graph, /m/ will denote the number of
+edges in the graph, and /s/ will denote the /size/ of the corresponding
+'Graph' expression.
+-}</span></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="annot"><a href="#local-6989586621679152013"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Graph"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-var">Graph</span></a></span></span><span> </span><span id="local-6989586621679152013"><span class="annot"><a href="#local-6989586621679152013"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-comment">-- | Connect two graphs.</span><span>
+</span><span id="line-122"></span><span>    </span><span id="connect"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-identifier hs-type">connect</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679152017"><span class="annot"><a href="#local-6989586621679152013"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152017"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152013"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152017"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152013"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152017"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.html#Graph"><span class="hs-identifier hs-type">G.Graph</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679152214"><span class="annot"><span class="annottext">connect :: forall a. Graph a -&gt; Graph a -&gt; Graph a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-identifier hs-var hs-var hs-var">connect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Graph a -&gt; Graph a -&gt; Graph a
+forall a. Graph a -&gt; Graph a -&gt; Graph a
+</span><a href="Algebra.Graph.html#connect"><span class="hs-identifier hs-var">G.connect</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="annot"><span class="hs-comment">-- | Construct the graph comprising a single isolated vertex. An alias for 'pure'.</span></span><span>
+</span><span id="line-128"></span><span id="local-6989586621679152019"><span id="local-6989586621679152020"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-type">vertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152019"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152020"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152019"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152020"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-129"></span><span id="vertex"><span class="annot"><span class="annottext">vertex :: forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var hs-var">vertex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall a. a -&gt; g a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><span class="hs-comment">-- | Overlay two graphs. An alias for '&lt;|&gt;'.</span></span><span>
+</span><span id="line-132"></span><span id="local-6989586621679152028"><span id="local-6989586621679152029"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-identifier hs-type">overlay</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152028"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152028"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152029"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152028"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152029"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152028"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152029"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-133"></span><span id="overlay"><span class="annot"><span class="annottext">overlay :: forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-identifier hs-var hs-var">overlay</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall a. g a -&gt; g a -&gt; g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">(&lt;|&gt;)</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">{-|
+The class of /undirected graphs/ that satisfy the following additional axiom.
+
+    * 'connect' is commutative:
+
+        &gt; x * y == y * x
+-}</span></span><span>
+</span><span id="line-142"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152033"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Undirected"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Undirected"><span class="hs-identifier hs-var">Undirected</span></a></span></span><span> </span><span id="local-6989586621679152033"><span class="annot"><a href="#local-6989586621679152033"><span class="hs-identifier hs-type">g</span></a></span></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><span class="hs-comment">{-|
+The class of /reflexive graphs/ that satisfy the following additional axiom.
+
+    * Each vertex has a /self-loop/:
+
+        &gt; vertex x == vertex x * vertex x
+
+    Or, alternatively, if we remember that 'vertex' is an alias for 'pure':
+
+        &gt; pure x == pure x * pure x
+
+Note that by applying the axiom in the reverse direction, one can always remove
+all self-loops resulting in an /irreflexive graph/. This type class can
+therefore be also used in the context of irreflexive graphs.
+-}</span></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152035"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Reflexive"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Reflexive"><span class="hs-identifier hs-var">Reflexive</span></a></span></span><span> </span><span id="local-6989586621679152035"><span class="annot"><a href="#local-6989586621679152035"><span class="hs-identifier hs-type">g</span></a></span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">{-|
+The class of /transitive graphs/ that satisfy the following additional axiom.
+
+    * The /closure/ axiom: graphs with equal transitive closures are equal.
+
+        &gt; y /= empty ==&gt; x * y + x * z + y * z == x * y + y * z
+
+By repeated application of the axiom one can turn any graph into its transitive
+closure or transitive reduction.
+-}</span></span><span>
+</span><span id="line-171"></span><span class="hs-keyword">class</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152037"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Transitive"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Transitive"><span class="hs-identifier hs-var">Transitive</span></a></span></span><span> </span><span id="local-6989586621679152037"><span class="annot"><a href="#local-6989586621679152037"><span class="hs-identifier hs-type">g</span></a></span></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><span class="hs-comment">{-|
+The class of /preorder graphs/ that are both reflexive and transitive.
+-}</span></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Reflexive"><span class="hs-identifier hs-type">Reflexive</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152039"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Transitive"><span class="hs-identifier hs-type">Transitive</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152039"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Preorder"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Preorder"><span class="hs-identifier hs-var">Preorder</span></a></span></span><span> </span><span id="local-6989586621679152039"><span class="annot"><a href="#local-6989586621679152039"><span class="hs-identifier hs-type">g</span></a></span></span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | Construct the graph comprising a single edge.</span><span>
+</span><span id="line-179"></span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- edge x y               == 'connect' ('vertex' x) ('vertex' y)</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- 'vertexCount' (edge 1 1) == 1</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- 'vertexCount' (edge 1 2) == 2</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-185"></span><span id="local-6989586621679152041"><span id="local-6989586621679152042"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier hs-type">edge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152041"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152042"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152042"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152041"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152042"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-186"></span><span id="edge"><span class="annot"><span class="annottext">edge :: forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier hs-var hs-var">edge</span></a></span></span><span> </span><span id="local-6989586621679152236"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152236"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679152237"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152237"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall a. g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-identifier hs-var">connect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152236"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152237"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- | Construct the graph comprising a given list of isolated vertices.</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-191"></span><span class="hs-comment">--</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- vertices []            == 'empty'</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- vertices [x]           == 'vertex' x</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- vertices               == 'overlays' . map 'vertex'</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- 'hasVertex' x . vertices == 'elem' x</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- 'vertexCount' . vertices == 'length' . 'Data.List.nub'</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- 'vertexSet'   . vertices == Set.'Set.fromList'</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-200"></span><span id="local-6989586621679152045"><span id="local-6989586621679152046"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-type">vertices</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152045"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152046"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152045"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152046"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-201"></span><span id="vertices"><span class="annot"><span class="annottext">vertices :: forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var hs-var">vertices</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-202"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679152248"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152248"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152248"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-203"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152249"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152249"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152250"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152250"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152249"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-operator hs-var">`overlay`</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152250"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- | Construct the graph from a list of edges.</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- edges []      == 'empty'</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- edges [(x,y)] == 'edge' x y</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-213"></span><span id="local-6989586621679152050"><span id="local-6989586621679152051"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#edges"><span class="hs-identifier hs-type">edges</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152050"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152051"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679152051"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152050"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152051"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-214"></span><span id="edges"><span class="annot"><span class="annottext">edges :: forall (g :: * -&gt; *) a. Graph g =&gt; [(a, a)] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edges"><span class="hs-identifier hs-var hs-var">edges</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="annot"><span class="annottext">([g a] -&gt; g a) -&gt; ([(a, a)] -&gt; [g a]) -&gt; [(a, a)] -&gt; g a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((a, a) -&gt; g a) -&gt; [(a, a)] -&gt; [g a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a -&gt; g a) -&gt; (a, a) -&gt; g a
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier hs-var">edge</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | Overlay a given list of graphs.</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- of the given list, and /S/ is the sum of sizes of the graphs in the list.</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- overlays []        == 'empty'</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- overlays [x]       == x</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- overlays [x,y]     == 'overlay' x y</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- overlays           == 'foldr' 'overlay' 'empty'</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- 'isEmpty' . overlays == 'all' 'isEmpty'</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-227"></span><span id="local-6989586621679152054"><span id="local-6989586621679152055"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-type">overlays</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152054"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152054"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152055"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152054"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152055"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-228"></span><span id="overlays"><span class="annot"><span class="annottext">overlays :: forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var hs-var">overlays</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-229"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679152264"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152264"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152264"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-230"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152265"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152265"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152266"><span class="annot"><span class="annottext">[g a]
+</span><a href="#local-6989586621679152266"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152265"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-operator hs-var">`overlay`</span></a></span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="annot"><span class="annottext">[g a]
+</span><a href="#local-6989586621679152266"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- | Connect a given list of graphs.</span><span>
+</span><span id="line-233"></span><span class="hs-comment">-- Complexity: /O(L)/ time and memory, and /O(S)/ size, where /L/ is the length</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- of the given list, and /S/ is the sum of sizes of the graphs in the list.</span><span>
+</span><span id="line-235"></span><span class="hs-comment">--</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- connects []        == 'empty'</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- connects [x]       == x</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- connects [x,y]     == 'connect' x y</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- connects           == 'foldr' 'connect' 'empty'</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- 'isEmpty' . connects == 'all' 'isEmpty'</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-243"></span><span id="local-6989586621679152267"><span id="local-6989586621679152268"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-type">connects</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152267"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152267"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152268"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152267"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152268"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-244"></span><span id="connects"><span class="annot"><span class="annottext">connects :: forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-var hs-var">connects</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-245"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-var">connects</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679152275"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152275"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152275"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-246"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-var">connects</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152276"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152276"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152277"><span class="annot"><span class="annottext">[g a]
+</span><a href="#local-6989586621679152277"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152276"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall a. g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-operator hs-var">`connect`</span></a></span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-var">connects</span></a></span><span> </span><span class="annot"><span class="annottext">[g a]
+</span><a href="#local-6989586621679152277"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- | The 'isSubgraphOf' function takes two graphs and returns 'True' if the</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- first graph is a /subgraph/ of the second. Here is the current implementation:</span><span>
+</span><span id="line-250"></span><span class="hs-comment">--</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- isSubgraphOf x y = 'overlay' x y == y</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- The complexity therefore depends on the complexity of equality testing of</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- the specific graph instance.</span><span>
+</span><span id="line-256"></span><span class="hs-comment">--</span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- isSubgraphOf 'empty'         x             == True</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- isSubgraphOf ('vertex' x)    'empty'         == False</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- isSubgraphOf x             ('overlay' x y) == True</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- isSubgraphOf ('overlay' x y) ('connect' x y) == True</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- isSubgraphOf ('path' xs)     ('circuit' xs)  == True</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-264"></span><span id="local-6989586621679152068"><span id="local-6989586621679152069"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#isSubgraphOf"><span class="hs-identifier hs-type">isSubgraphOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152068"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152068"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152069"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152068"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152069"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152068"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152069"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-265"></span><span id="isSubgraphOf"><span class="annot"><span class="annottext">isSubgraphOf :: forall (g :: * -&gt; *) a. (Graph g, Eq (g a)) =&gt; g a -&gt; g a -&gt; Bool
+</span><a href="Algebra.Graph.HigherKinded.Class.html#isSubgraphOf"><span class="hs-identifier hs-var hs-var">isSubgraphOf</span></a></span></span><span> </span><span id="local-6989586621679152282"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152282"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679152283"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152283"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-identifier hs-var">overlay</span></a></span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152282"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152283"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152283"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-266"></span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- | Check if a graph contains a given edge.</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- Complexity: /O(s)/ time.</span><span>
+</span><span id="line-269"></span><span class="hs-comment">--</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- hasEdge x y 'empty'            == False</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- hasEdge x y ('vertex' z)       == False</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- hasEdge x y ('edge' x y)       == True</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- hasEdge x y                  == 'elem' (x,y) . 'edgeList'</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-276"></span><span id="local-6989586621679152073"><span id="local-6989586621679152074"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#hasEdge"><span class="hs-identifier hs-type">hasEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152073"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152074"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152073"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679152074"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152074"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152074"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152073"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152074"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-277"></span><span id="hasEdge"><span class="annot"><span class="annottext">hasEdge :: forall (g :: * -&gt; *) a.
+(Eq (g a), Graph g, Ord a) =&gt;
+a -&gt; a -&gt; g a -&gt; Bool
+</span><a href="Algebra.Graph.HigherKinded.Class.html#hasEdge"><span class="hs-identifier hs-var hs-var">hasEdge</span></a></span></span><span> </span><span id="local-6989586621679152295"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152295"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679152296"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152296"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152295"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152296"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; Bool
+forall (g :: * -&gt; *) a. (Graph g, Eq (g a)) =&gt; g a -&gt; g a -&gt; Bool
+</span><a href="Algebra.Graph.HigherKinded.Class.html#isSubgraphOf"><span class="hs-operator hs-var">`isSubgraphOf`</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(g a -&gt; Bool) -&gt; (g a -&gt; g a) -&gt; g a -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; (a -&gt; Bool) -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#induce"><span class="hs-identifier hs-var">induce</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679152297"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152297"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152297"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152295"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152297"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152296"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-278"></span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- | The /path/ on a list of vertices.</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-282"></span><span class="hs-comment">--</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- path []    == 'empty'</span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- path [x]   == 'vertex' x</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- path [x,y] == 'edge' x y</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-288"></span><span id="local-6989586621679152299"><span id="local-6989586621679152300"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#path"><span class="hs-identifier hs-type">path</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152299"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152300"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152299"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152300"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-289"></span><span id="path"><span class="annot"><span class="annottext">path :: forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#path"><span class="hs-identifier hs-var hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679152307"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152307"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152307"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">g a
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-290"></span><span>                     </span><span class="hs-special">[</span><span id="local-6989586621679152308"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152308"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152308"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-291"></span><span>                     </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152309"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152309"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[(a, a)] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [(a, a)] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edges"><span class="hs-identifier hs-var">edges</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [(a, a)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152307"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152309"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- | The /circuit/ on a list of vertices.</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- circuit []    == 'empty'</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- circuit [x]   == 'edge' x x</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- circuit [x,y] == 'edges' [(x,y), (y,x)]</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-302"></span><span id="local-6989586621679152310"><span id="local-6989586621679152311"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#circuit"><span class="hs-identifier hs-type">circuit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152310"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152310"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152311"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-303"></span><span id="circuit"><span class="annot"><span class="annottext">circuit :: forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#circuit"><span class="hs-identifier hs-var hs-var">circuit</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-304"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#circuit"><span class="hs-identifier hs-var">circuit</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152317"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152317"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152318"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152318"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#path"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; g a) -&gt; [a] -&gt; g a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152317"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152318"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152317"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- | The /clique/ on a list of vertices.</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- clique []         == 'empty'</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- clique [x]        == 'vertex' x</span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- clique [x,y]      == 'edge' x y</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- clique [x,y,z]    == 'edges' [(x,y), (x,z), (y,z)]</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- clique (xs ++ ys) == 'connect' (clique xs) (clique ys)</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-317"></span><span id="local-6989586621679152319"><span id="local-6989586621679152320"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#clique"><span class="hs-identifier hs-type">clique</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152319"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152320"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152319"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152320"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-318"></span><span id="clique"><span class="annot"><span class="annottext">clique :: forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#clique"><span class="hs-identifier hs-var hs-var">clique</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connects"><span class="hs-identifier hs-var">connects</span></a></span><span> </span><span class="annot"><span class="annottext">([g a] -&gt; g a) -&gt; ([a] -&gt; [g a]) -&gt; [a] -&gt; g a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; g a) -&gt; [a] -&gt; [g a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span>
+</span><span id="line-319"></span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- | The /biclique/ on two lists of vertices.</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- Complexity: /O(L1 + L2)/ time, memory and size, where /L1/ and /L2/ are the</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- lengths of the given lists.</span><span>
+</span><span id="line-323"></span><span class="hs-comment">--</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- biclique []      []      == 'empty'</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- biclique [x]     []      == 'vertex' x</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- biclique []      [y]     == 'vertex' y</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- biclique [x1,x2] [y1,y2] == 'edges' [(x1,y1), (x1,y2), (x2,y1), (x2,y2)]</span><span>
+</span><span id="line-329"></span><span class="hs-comment">-- biclique xs      ys      == 'connect' ('vertices' xs) ('vertices' ys)</span><span>
+</span><span id="line-330"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-331"></span><span id="local-6989586621679152093"><span id="local-6989586621679152094"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#biclique"><span class="hs-identifier hs-type">biclique</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152093"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152094"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152094"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152093"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152094"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-332"></span><span id="biclique"><span class="annot"><span class="annottext">biclique :: forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#biclique"><span class="hs-identifier hs-var hs-var">biclique</span></a></span></span><span> </span><span id="local-6989586621679152330"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152330"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152330"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-333"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#biclique"><span class="hs-identifier hs-var">biclique</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span id="local-6989586621679152331"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152331"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152331"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-334"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#biclique"><span class="hs-identifier hs-var">biclique</span></a></span><span> </span><span id="local-6989586621679152332"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152332"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679152333"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152333"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall a. g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-identifier hs-var">connect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152332"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152333"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-335"></span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- | The /star/ formed by a centre vertex connected to a list of leaves.</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the length of the</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-339"></span><span class="hs-comment">--</span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-- star x []    == 'vertex' x</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- star x [y]   == 'edge' x y</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- star x [y,z] == 'edges' [(x,y), (x,z)]</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- star x ys    == 'connect' ('vertex' x) ('vertices' ys)</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-346"></span><span id="local-6989586621679152097"><span id="local-6989586621679152098"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier hs-type">star</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152097"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152098"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152098"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152097"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152098"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-347"></span><span id="star"><span class="annot"><span class="annottext">star :: forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier hs-var hs-var">star</span></a></span></span><span> </span><span id="local-6989586621679152339"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152339"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152339"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-348"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier hs-var">star</span></a></span><span> </span><span id="local-6989586621679152340"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152340"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679152341"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152341"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall a. g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#connect"><span class="hs-identifier hs-var">connect</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152340"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152341"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-349"></span><span>
+</span><span id="line-350"></span><span class="hs-comment">-- | The /stars/ formed by overlaying a list of 'star's. An inverse of</span><span>
+</span><span id="line-351"></span><span class="hs-comment">-- 'adjacencyList'.</span><span>
+</span><span id="line-352"></span><span class="hs-comment">-- Complexity: /O(L)/ time, memory and size, where /L/ is the total size of the</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-- input.</span><span>
+</span><span id="line-354"></span><span class="hs-comment">--</span><span>
+</span><span id="line-355"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-356"></span><span class="hs-comment">-- stars []                      == 'empty'</span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- stars [(x, [])]               == 'vertex' x</span><span>
+</span><span id="line-358"></span><span class="hs-comment">-- stars [(x, [y])]              == 'edge' x y</span><span>
+</span><span id="line-359"></span><span class="hs-comment">-- stars [(x, ys)]               == 'star' x ys</span><span>
+</span><span id="line-360"></span><span class="hs-comment">-- stars                         == 'overlays' . 'map' ('uncurry' 'star')</span><span>
+</span><span id="line-361"></span><span class="hs-comment">-- stars . 'adjacencyList'         == id</span><span>
+</span><span id="line-362"></span><span class="hs-comment">-- 'overlay' (stars xs) (stars ys) == stars (xs ++ ys)</span><span>
+</span><span id="line-363"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-364"></span><span id="local-6989586621679152101"><span id="local-6989586621679152102"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#stars"><span class="hs-identifier hs-type">stars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152101"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152102"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152102"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152101"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152102"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-365"></span><span id="stars"><span class="annot"><span class="annottext">stars :: forall (g :: * -&gt; *) a. Graph g =&gt; [(a, [a])] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#stars"><span class="hs-identifier hs-var hs-var">stars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="annot"><span class="annottext">([g a] -&gt; g a) -&gt; ([(a, [a])] -&gt; [g a]) -&gt; [(a, [a])] -&gt; g a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((a, [a]) -&gt; g a) -&gt; [(a, [a])] -&gt; [g a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; [a] -&gt; g a) -&gt; (a, [a]) -&gt; g a
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier hs-var">star</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-366"></span><span>
+</span><span id="line-367"></span><span class="hs-comment">-- | The /tree graph/ constructed from a given 'Tree' data structure.</span><span>
+</span><span id="line-368"></span><span class="hs-comment">-- Complexity: /O(T)/ time, memory and size, where /T/ is the size of the</span><span>
+</span><span id="line-369"></span><span class="hs-comment">-- given tree (i.e. the number of vertices in the tree).</span><span>
+</span><span id="line-370"></span><span class="hs-comment">--</span><span>
+</span><span id="line-371"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-372"></span><span class="hs-comment">-- tree (Node x [])                                         == 'vertex' x</span><span>
+</span><span id="line-373"></span><span class="hs-comment">-- tree (Node x [Node y [Node z []]])                       == 'path' [x,y,z]</span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- tree (Node x [Node y [], Node z []])                     == 'star' x [y,z]</span><span>
+</span><span id="line-375"></span><span class="hs-comment">-- tree (Node 1 [Node 2 [], Node 3 [Node 4 [], Node 5 []]]) == 'edges' [(1,2), (1,3), (3,4), (3,5)]</span><span>
+</span><span id="line-376"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-377"></span><span id="local-6989586621679152105"><span id="local-6989586621679152106"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#tree"><span class="hs-identifier hs-type">tree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152105"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tree</span></span><span> </span><span class="annot"><a href="#local-6989586621679152106"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152105"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152106"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-378"></span><span id="tree"><span class="annot"><span class="annottext">tree :: forall (g :: * -&gt; *) a. Graph g =&gt; Tree a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#tree"><span class="hs-identifier hs-var hs-var">tree</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span id="local-6989586621679152353"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152353"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152353"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-379"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#tree"><span class="hs-identifier hs-var">tree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span id="local-6989586621679152354"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152354"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679152355"><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679152355"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#star"><span class="hs-identifier hs-var">star</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152354"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Tree a -&gt; a) -&gt; [Tree a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; a
+forall a. Tree a -&gt; a
+</span><span class="hs-identifier hs-var">rootLabel</span></span><span> </span><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679152355"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-380"></span><span>         </span><span class="annot"><span class="annottext">g a -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; g a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlay"><span class="hs-operator hs-var">`overlay`</span></a></span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; Forest a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#forest"><span class="hs-identifier hs-var">forest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Tree a -&gt; Bool) -&gt; [Tree a] -&gt; [Tree a]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Tree a -&gt; Bool) -&gt; Tree a -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Tree a] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">([Tree a] -&gt; Bool) -&gt; (Tree a -&gt; [Tree a]) -&gt; Tree a -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [Tree a]
+forall a. Tree a -&gt; [Tree a]
+</span><span class="hs-identifier hs-var">subForest</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Tree a]
+</span><a href="#local-6989586621679152355"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-381"></span><span>
+</span><span id="line-382"></span><span class="hs-comment">-- | The /forest graph/ constructed from a given 'Forest' data structure.</span><span>
+</span><span id="line-383"></span><span class="hs-comment">-- Complexity: /O(F)/ time, memory and size, where /F/ is the size of the</span><span>
+</span><span id="line-384"></span><span class="hs-comment">-- given forest (i.e. the number of vertices in the forest).</span><span>
+</span><span id="line-385"></span><span class="hs-comment">--</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- forest []                                                  == 'empty'</span><span>
+</span><span id="line-388"></span><span class="hs-comment">-- forest [x]                                                 == 'tree' x</span><span>
+</span><span id="line-389"></span><span class="hs-comment">-- forest [Node 1 [Node 2 [], Node 3 []], Node 4 [Node 5 []]] == 'edges' [(1,2), (1,3), (4,5)]</span><span>
+</span><span id="line-390"></span><span class="hs-comment">-- forest                                                     == 'overlays' . 'map' 'tree'</span><span>
+</span><span id="line-391"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-392"></span><span id="local-6989586621679152111"><span id="local-6989586621679152112"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#forest"><span class="hs-identifier hs-type">forest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152111"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><a href="#local-6989586621679152112"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152111"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152112"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-393"></span><span id="forest"><span class="annot"><span class="annottext">forest :: forall (g :: * -&gt; *) a. Graph g =&gt; Forest a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#forest"><span class="hs-identifier hs-var hs-var">forest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[g a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [g a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="annot"><span class="annottext">([g a] -&gt; g a) -&gt; (Forest a -&gt; [g a]) -&gt; Forest a -&gt; g a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Tree a -&gt; g a) -&gt; Forest a -&gt; [g a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; Tree a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#tree"><span class="hs-identifier hs-var">tree</span></a></span><span>
+</span><span id="line-394"></span><span>
+</span><span id="line-395"></span><span class="hs-comment">-- | Construct a /mesh graph/ from two lists of vertices.</span><span>
+</span><span id="line-396"></span><span class="hs-comment">-- Complexity: /O(L1 * L2)/ time, memory and size, where /L1/ and /L2/ are the</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- lengths of the given lists.</span><span>
+</span><span id="line-398"></span><span class="hs-comment">--</span><span>
+</span><span id="line-399"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-400"></span><span class="hs-comment">-- mesh xs     []   == 'empty'</span><span>
+</span><span id="line-401"></span><span class="hs-comment">-- mesh []     ys   == 'empty'</span><span>
+</span><span id="line-402"></span><span class="hs-comment">-- mesh [x]    [y]  == 'vertex' (x, y)</span><span>
+</span><span id="line-403"></span><span class="hs-comment">-- mesh xs     ys   == 'box' ('path' xs) ('path' ys)</span><span>
+</span><span id="line-404"></span><span class="hs-comment">-- mesh [1..3] &quot;ab&quot; == 'edges' [ ((1,\'a\'),(1,\'b\')), ((1,\'a\'),(2,\'a\')), ((1,\'b\'),(2,\'b\')), ((2,\'a\'),(2,\'b\'))</span><span>
+</span><span id="line-405"></span><span class="hs-comment">--                           , ((2,\'a\'),(3,\'a\')), ((2,\'b\'),(3,\'b\')), ((3,\'a\'),(3,\'b\')) ]</span><span>
+</span><span id="line-406"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-407"></span><span id="local-6989586621679152120"><span id="local-6989586621679152121"><span id="local-6989586621679152122"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier hs-type">mesh</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152120"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152121"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152120"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152121"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679152122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-408"></span><span id="mesh"><span class="annot"><span class="annottext">mesh :: forall (g :: * -&gt; *) a b. Graph g =&gt; [a] -&gt; [b] -&gt; g (a, b)
+</span><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier hs-var hs-var">mesh</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>  </span><span class="annot"><span class="annottext">[b]
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (a, b)
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-409"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier hs-var">mesh</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span>   </span><span class="hs-special">[</span><span class="hs-special">]</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (a, b)
+forall a. g a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-410"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier hs-var">mesh</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679152378"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152378"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span id="local-6989586621679152379"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152379"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b) -&gt; g (a, b)
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152378"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152379"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-411"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mesh"><span class="hs-identifier hs-var">mesh</span></a></span><span> </span><span id="local-6989586621679152380"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152380"><span class="hs-identifier hs-var">xs</span></a></span></span><span>  </span><span id="local-6989586621679152381"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679152381"><span class="hs-identifier hs-var">ys</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[((a, b), [(a, b)])] -&gt; g (a, b)
+forall (g :: * -&gt; *) a. Graph g =&gt; [(a, [a])] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#stars"><span class="hs-identifier hs-var">stars</span></a></span><span> </span><span class="annot"><span class="annottext">([((a, b), [(a, b)])] -&gt; g (a, b))
+-&gt; [((a, b), [(a, b)])] -&gt; g (a, b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152382"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152383"><span class="hs-identifier hs-var">b1</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152382"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152384"><span class="hs-identifier hs-var">b2</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152385"><span class="hs-identifier hs-var">a2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152383"><span class="hs-identifier hs-var">b1</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152382"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152382"><span class="hs-identifier hs-var">a1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679152385"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152385"><span class="hs-identifier hs-var">a2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(a, a)]
+</span><a href="#local-6989586621679152386"><span class="hs-identifier hs-var">ipxs</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152383"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152383"><span class="hs-identifier hs-var">b1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679152384"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152384"><span class="hs-identifier hs-var">b2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(b, b)]
+</span><a href="#local-6989586621679152387"><span class="hs-identifier hs-var">ipys</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-412"></span><span>                     </span><span class="annot"><span class="annottext">[((a, b), [(a, b)])]
+-&gt; [((a, b), [(a, b)])] -&gt; [((a, b), [(a, b)])]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152388"><span class="hs-identifier hs-var">lx</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152389"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152388"><span class="hs-identifier hs-var">lx</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152390"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152389"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152389"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679152390"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152390"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(b, b)]
+</span><a href="#local-6989586621679152387"><span class="hs-identifier hs-var">ipys</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-413"></span><span>                     </span><span class="annot"><span class="annottext">[((a, b), [(a, b)])]
+-&gt; [((a, b), [(a, b)])] -&gt; [((a, b), [(a, b)])]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152391"><span class="hs-identifier hs-var">x1</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152392"><span class="hs-identifier hs-var">ly</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152393"><span class="hs-identifier hs-var">x2</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152392"><span class="hs-identifier hs-var">ly</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152391"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152391"><span class="hs-identifier hs-var">x1</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679152393"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152393"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(a, a)]
+</span><a href="#local-6989586621679152386"><span class="hs-identifier hs-var">ipxs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-414"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-415"></span><span>    </span><span id="local-6989586621679152388"><span class="annot"><span class="annottext">lx :: a
+</span><a href="#local-6989586621679152388"><span class="hs-identifier hs-var hs-var">lx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; a
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152380"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-416"></span><span>    </span><span id="local-6989586621679152392"><span class="annot"><span class="annottext">ly :: b
+</span><a href="#local-6989586621679152392"><span class="hs-identifier hs-var hs-var">ly</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; b
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">last</span></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679152381"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-417"></span><span>    </span><span id="local-6989586621679152386"><span class="annot"><span class="annottext">ipxs :: [(a, a)]
+</span><a href="#local-6989586621679152386"><span class="hs-identifier hs-var hs-var">ipxs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, a)] -&gt; [(a, a)]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">init</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [(a, a)]
+forall a. [a] -&gt; [(a, a)]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var">pairs</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152380"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-418"></span><span>    </span><span id="local-6989586621679152387"><span class="annot"><span class="annottext">ipys :: [(b, b)]
+</span><a href="#local-6989586621679152387"><span class="hs-identifier hs-var hs-var">ipys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(b, b)] -&gt; [(b, b)]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">init</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[b] -&gt; [(b, b)]
+forall a. [a] -&gt; [(a, a)]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var">pairs</span></a></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679152381"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-419"></span><span>
+</span><span id="line-420"></span><span class="hs-comment">-- | Construct a /torus graph/ from two lists of vertices.</span><span>
+</span><span id="line-421"></span><span class="hs-comment">-- Complexity: /O(L1 * L2)/ time, memory and size, where /L1/ and /L2/ are the</span><span>
+</span><span id="line-422"></span><span class="hs-comment">-- lengths of the given lists.</span><span>
+</span><span id="line-423"></span><span class="hs-comment">--</span><span>
+</span><span id="line-424"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-425"></span><span class="hs-comment">-- torus xs    []   == 'empty'</span><span>
+</span><span id="line-426"></span><span class="hs-comment">-- torus []    ys   == 'empty'</span><span>
+</span><span id="line-427"></span><span class="hs-comment">-- torus [x]   [y]  == 'edge' (x,y) (x,y)</span><span>
+</span><span id="line-428"></span><span class="hs-comment">-- torus xs    ys   == 'box' ('circuit' xs) ('circuit' ys)</span><span>
+</span><span id="line-429"></span><span class="hs-comment">-- torus [1,2] &quot;ab&quot; == 'edges' [ ((1,\'a\'),(1,\'b\')), ((1,\'a\'),(2,\'a\')), ((1,\'b\'),(1,\'a\')), ((1,\'b\'),(2,\'b\'))</span><span>
+</span><span id="line-430"></span><span class="hs-comment">--                           , ((2,\'a\'),(1,\'a\')), ((2,\'a\'),(2,\'b\')), ((2,\'b\'),(1,\'b\')), ((2,\'b\'),(2,\'a\')) ]</span><span>
+</span><span id="line-431"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-432"></span><span id="local-6989586621679152397"><span id="local-6989586621679152398"><span id="local-6989586621679152399"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#torus"><span class="hs-identifier hs-type">torus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152397"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152398"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152399"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152397"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152398"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679152399"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-433"></span><span id="torus"><span class="annot"><span class="annottext">torus :: forall (g :: * -&gt; *) a b. Graph g =&gt; [a] -&gt; [b] -&gt; g (a, b)
+</span><a href="Algebra.Graph.HigherKinded.Class.html#torus"><span class="hs-identifier hs-var hs-var">torus</span></a></span></span><span> </span><span id="local-6989586621679152402"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152402"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679152403"><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679152403"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[((a, b), [(a, b)])] -&gt; g (a, b)
+forall (g :: * -&gt; *) a. Graph g =&gt; [(a, [a])] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#stars"><span class="hs-identifier hs-var">stars</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152404"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152405"><span class="hs-identifier hs-var">b1</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152404"><span class="hs-identifier hs-var">a1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152406"><span class="hs-identifier hs-var">b2</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152407"><span class="hs-identifier hs-var">a2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152405"><span class="hs-identifier hs-var">b1</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152404"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152404"><span class="hs-identifier hs-var">a1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679152407"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152407"><span class="hs-identifier hs-var">a2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [(a, a)]
+forall a. [a] -&gt; [(a, a)]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var">pairs</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152402"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679152405"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152405"><span class="hs-identifier hs-var">b1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679152406"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679152406"><span class="hs-identifier hs-var">b2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; [(b, b)]
+forall a. [a] -&gt; [(a, a)]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var">pairs</span></a></span><span> </span><span class="annot"><span class="annottext">[b]
+</span><a href="#local-6989586621679152403"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-434"></span><span>
+</span><span id="line-435"></span><span class="annot"><span class="hs-comment">-- | Auxiliary function for 'mesh' and 'torus'</span></span><span>
+</span><span id="line-436"></span><span id="local-6989586621679152129"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-type">pairs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152129"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152129"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679152129"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-437"></span><span id="pairs"><span class="annot"><span class="annottext">pairs :: forall a. [a] -&gt; [(a, a)]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var hs-var">pairs</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-438"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#pairs"><span class="hs-identifier hs-var">pairs</span></a></span><span> </span><span id="local-6989586621679152408"><span class="annot"><span class="annottext">as :: [a]
+</span><a href="#local-6989586621679152408"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679152409"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152409"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679152410"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152410"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [(a, a)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152408"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152410"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152409"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-439"></span><span>
+</span><span id="line-440"></span><span class="hs-comment">-- | Construct a /De Bruijn graph/ of a given non-negative dimension using symbols</span><span>
+</span><span id="line-441"></span><span class="hs-comment">-- from a given alphabet.</span><span>
+</span><span id="line-442"></span><span class="hs-comment">-- Complexity: /O(A^(D + 1))/ time, memory and size, where /A/ is the size of the</span><span>
+</span><span id="line-443"></span><span class="hs-comment">-- alphabet and /D/ is the dimension of the graph.</span><span>
+</span><span id="line-444"></span><span class="hs-comment">--</span><span>
+</span><span id="line-445"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-446"></span><span class="hs-comment">--           deBruijn 0 xs               == 'edge' [] []</span><span>
+</span><span id="line-447"></span><span class="hs-comment">-- n &gt; 0 ==&gt; deBruijn n []               == 'empty'</span><span>
+</span><span id="line-448"></span><span class="hs-comment">--           deBruijn 1 [0,1]            == 'edges' [ ([0],[0]), ([0],[1]), ([1],[0]), ([1],[1]) ]</span><span>
+</span><span id="line-449"></span><span class="hs-comment">--           deBruijn 2 &quot;0&quot;              == 'edge' &quot;00&quot; &quot;00&quot;</span><span>
+</span><span id="line-450"></span><span class="hs-comment">--           deBruijn 2 &quot;01&quot;             == 'edges' [ (&quot;00&quot;,&quot;00&quot;), (&quot;00&quot;,&quot;01&quot;), (&quot;01&quot;,&quot;10&quot;), (&quot;01&quot;,&quot;11&quot;)</span><span>
+</span><span id="line-451"></span><span class="hs-comment">--                                                , (&quot;10&quot;,&quot;00&quot;), (&quot;10&quot;,&quot;01&quot;), (&quot;11&quot;,&quot;10&quot;), (&quot;11&quot;,&quot;11&quot;) ]</span><span>
+</span><span id="line-452"></span><span class="hs-comment">--           transpose   (deBruijn n xs) == 'fmap' 'reverse' $ deBruijn n xs</span><span>
+</span><span id="line-453"></span><span class="hs-comment">--           'vertexCount' (deBruijn n xs) == ('length' $ 'Data.List.nub' xs)^n</span><span>
+</span><span id="line-454"></span><span class="hs-comment">-- n &gt; 0 ==&gt; 'edgeCount'   (deBruijn n xs) == ('length' $ 'Data.List.nub' xs)^(n + 1)</span><span>
+</span><span id="line-455"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-456"></span><span id="local-6989586621679152135"><span id="local-6989586621679152136"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#deBruijn"><span class="hs-identifier hs-type">deBruijn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152135"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152136"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152135"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152136"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-457"></span><span id="deBruijn"><span class="annot"><span class="annottext">deBruijn :: forall (g :: * -&gt; *) a. Graph g =&gt; Int -&gt; [a] -&gt; g [a]
+</span><a href="Algebra.Graph.HigherKinded.Class.html#deBruijn"><span class="hs-identifier hs-var hs-var">deBruijn</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>   </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; g [a]
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edge"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-458"></span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#deBruijn"><span class="hs-identifier hs-var">deBruijn</span></a></span><span> </span><span id="local-6989586621679152431"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152431"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679152432"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152432"><span class="hs-identifier hs-var">alphabet</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (Either [a] [a])
+</span><a href="#local-6989586621679152433"><span class="hs-identifier hs-var">skeleton</span></a></span><span> </span><span class="annot"><span class="annottext">g (Either [a] [a]) -&gt; (Either [a] [a] -&gt; g [a]) -&gt; g [a]
+forall a b. g a -&gt; (a -&gt; g b) -&gt; g b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Either [a] [a] -&gt; g [a]
+</span><a href="#local-6989586621679152434"><span class="hs-identifier hs-var">expand</span></a></span><span>
+</span><span id="line-459"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-460"></span><span>    </span><span id="local-6989586621679152435"><span class="annot"><span class="annottext">overlaps :: [[a]]
+</span><a href="#local-6989586621679152435"><span class="hs-identifier hs-var hs-var">overlaps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; [a]) -&gt; [Int] -&gt; [[a]]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Int -&gt; [a]
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152432"><span class="hs-identifier hs-var">alphabet</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-glyph">..</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679152431"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-461"></span><span>    </span><span id="local-6989586621679152433"><span class="annot"><span class="annottext">skeleton :: g (Either [a] [a])
+</span><a href="#local-6989586621679152433"><span class="hs-identifier hs-var hs-var">skeleton</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Either [a] [a], Either [a] [a])] -&gt; g (Either [a] [a])
+forall (g :: * -&gt; *) a. Graph g =&gt; [(a, a)] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#edges"><span class="hs-identifier hs-var">edges</span></a></span><span>    </span><span class="hs-special">[</span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Either [a] [a]
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152438"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Either [a] [a]
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152438"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679152438"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152438"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[[a]]
+</span><a href="#local-6989586621679152435"><span class="hs-identifier hs-var">overlaps</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-462"></span><span>    </span><span id="local-6989586621679152434"><span class="annot"><span class="annottext">expand :: Either [a] [a] -&gt; g [a]
+</span><a href="#local-6989586621679152434"><span class="hs-identifier hs-var hs-var">expand</span></a></span></span><span> </span><span id="local-6989586621679152439"><span class="annot"><span class="annottext">Either [a] [a]
+</span><a href="#local-6989586621679152439"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[[a]] -&gt; g [a]
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [a]) -&gt; ([a] -&gt; [a]) -&gt; Either [a] [a] -&gt; [a]
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152441"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152441"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Either [a] [a]
+</span><a href="#local-6989586621679152439"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679152441"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152441"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152432"><span class="hs-identifier hs-var">alphabet</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-463"></span><span>
+</span><span id="line-464"></span><span class="hs-comment">-- | Construct the /induced subgraph/ of a given graph by removing the</span><span>
+</span><span id="line-465"></span><span class="hs-comment">-- vertices that do not satisfy a given predicate.</span><span>
+</span><span id="line-466"></span><span class="hs-comment">-- Complexity: /O(s)/ time, memory and size, assuming that the predicate takes</span><span>
+</span><span id="line-467"></span><span class="hs-comment">-- constant time.</span><span>
+</span><span id="line-468"></span><span class="hs-comment">--</span><span>
+</span><span id="line-469"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-470"></span><span class="hs-comment">-- induce ('const' True ) x      == x</span><span>
+</span><span id="line-471"></span><span class="hs-comment">-- induce ('const' False) x      == 'empty'</span><span>
+</span><span id="line-472"></span><span class="hs-comment">-- induce (/= x)               == 'removeVertex' x</span><span>
+</span><span id="line-473"></span><span class="hs-comment">-- induce p . induce q         == induce (\\x -&gt; p x &amp;&amp; q x)</span><span>
+</span><span id="line-474"></span><span class="hs-comment">-- 'isSubgraphOf' (induce p x) x == True</span><span>
+</span><span id="line-475"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-476"></span><span id="local-6989586621679152078"><span id="local-6989586621679152079"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#induce"><span class="hs-identifier hs-type">induce</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152078"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152079"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152078"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152079"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152078"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152079"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-477"></span><span id="induce"><span class="annot"><span class="annottext">induce :: forall (g :: * -&gt; *) a. Graph g =&gt; (a -&gt; Bool) -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#induce"><span class="hs-identifier hs-var hs-var">induce</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; g a -&gt; g a
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; (a -&gt; Bool) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">mfilter</span></span><span>
+</span><span id="line-478"></span><span>
+</span><span id="line-479"></span><span class="hs-comment">-- | Remove a vertex from a given graph.</span><span>
+</span><span id="line-480"></span><span class="hs-comment">-- Complexity: /O(s)/ time, memory and size.</span><span>
+</span><span id="line-481"></span><span class="hs-comment">--</span><span>
+</span><span id="line-482"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-483"></span><span class="hs-comment">-- removeVertex x ('vertex' x)       == 'empty'</span><span>
+</span><span id="line-484"></span><span class="hs-comment">-- removeVertex 1 ('vertex' 2)       == 'vertex' 2</span><span>
+</span><span id="line-485"></span><span class="hs-comment">-- removeVertex x ('edge' x x)       == 'empty'</span><span>
+</span><span id="line-486"></span><span class="hs-comment">-- removeVertex 1 ('edge' 1 2)       == 'vertex' 2</span><span>
+</span><span id="line-487"></span><span class="hs-comment">-- removeVertex x . removeVertex x == removeVertex x</span><span>
+</span><span id="line-488"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-489"></span><span id="local-6989586621679152159"><span id="local-6989586621679152160"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#removeVertex"><span class="hs-identifier hs-type">removeVertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679152159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152160"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152159"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152160"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152159"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152160"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152159"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-490"></span><span id="removeVertex"><span class="annot"><span class="annottext">removeVertex :: forall a (g :: * -&gt; *). (Eq a, Graph g) =&gt; a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#removeVertex"><span class="hs-identifier hs-var hs-var">removeVertex</span></a></span></span><span> </span><span id="local-6989586621679152449"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152449"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; g a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; (a -&gt; Bool) -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#induce"><span class="hs-identifier hs-var">induce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152449"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-491"></span><span>
+</span><span id="line-492"></span><span class="hs-comment">-- | The function @'replaceVertex' x y@ replaces vertex @x@ with vertex @y@ in a</span><span>
+</span><span id="line-493"></span><span class="hs-comment">-- given 'Graph'. If @y@ already exists, @x@ and @y@ will be merged.</span><span>
+</span><span id="line-494"></span><span class="hs-comment">-- Complexity: /O(s)/ time, memory and size.</span><span>
+</span><span id="line-495"></span><span class="hs-comment">--</span><span>
+</span><span id="line-496"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-497"></span><span class="hs-comment">-- replaceVertex x x            == id</span><span>
+</span><span id="line-498"></span><span class="hs-comment">-- replaceVertex x y ('vertex' x) == 'vertex' y</span><span>
+</span><span id="line-499"></span><span class="hs-comment">-- replaceVertex x y            == 'mergeVertices' (== x) y</span><span>
+</span><span id="line-500"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-501"></span><span id="local-6989586621679152163"><span id="local-6989586621679152164"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#replaceVertex"><span class="hs-identifier hs-type">replaceVertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679152163"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152164"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152163"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152163"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152164"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152163"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152164"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152163"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-502"></span><span id="replaceVertex"><span class="annot"><span class="annottext">replaceVertex :: forall a (g :: * -&gt; *). (Eq a, Graph g) =&gt; a -&gt; a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#replaceVertex"><span class="hs-identifier hs-var hs-var">replaceVertex</span></a></span></span><span> </span><span id="local-6989586621679152460"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152460"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679152461"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152461"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; g a -&gt; g a
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; a) -&gt; g a -&gt; g a) -&gt; (a -&gt; a) -&gt; g a -&gt; g a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679152462"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152462"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152462"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152460"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152461"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152462"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-503"></span><span>
+</span><span id="line-504"></span><span class="hs-comment">-- | Merge vertices satisfying a given predicate into a given vertex.</span><span>
+</span><span id="line-505"></span><span class="hs-comment">-- Complexity: /O(s)/ time, memory and size, assuming that the predicate takes</span><span>
+</span><span id="line-506"></span><span class="hs-comment">-- constant time.</span><span>
+</span><span id="line-507"></span><span class="hs-comment">--</span><span>
+</span><span id="line-508"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-509"></span><span class="hs-comment">-- mergeVertices ('const' False) x    == id</span><span>
+</span><span id="line-510"></span><span class="hs-comment">-- mergeVertices (== x) y           == 'replaceVertex' x y</span><span>
+</span><span id="line-511"></span><span class="hs-comment">-- mergeVertices 'even' 1 (0 * 2)     == 1 * 1</span><span>
+</span><span id="line-512"></span><span class="hs-comment">-- mergeVertices 'odd'  1 (3 + 4 * 5) == 4 * 1</span><span>
+</span><span id="line-513"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-514"></span><span id="local-6989586621679152170"><span id="local-6989586621679152171"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#mergeVertices"><span class="hs-identifier hs-type">mergeVertices</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152170"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679152171"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152171"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152170"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152171"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152170"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152171"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-515"></span><span id="mergeVertices"><span class="annot"><span class="annottext">mergeVertices :: forall (g :: * -&gt; *) a. Graph g =&gt; (a -&gt; Bool) -&gt; a -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#mergeVertices"><span class="hs-identifier hs-var hs-var">mergeVertices</span></a></span></span><span> </span><span id="local-6989586621679152471"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679152471"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679152472"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152472"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; g a -&gt; g a
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">((a -&gt; a) -&gt; g a -&gt; g a) -&gt; (a -&gt; a) -&gt; g a -&gt; g a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679152473"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152473"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679152471"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152473"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152472"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152473"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-516"></span><span>
+</span><span id="line-517"></span><span class="hs-comment">-- | Split a vertex into a list of vertices with the same connectivity.</span><span>
+</span><span id="line-518"></span><span class="hs-comment">-- Complexity: /O(s + k * L)/ time, memory and size, where /k/ is the number of</span><span>
+</span><span id="line-519"></span><span class="hs-comment">-- occurrences of the vertex in the expression and /L/ is the length of the</span><span>
+</span><span id="line-520"></span><span class="hs-comment">-- given list.</span><span>
+</span><span id="line-521"></span><span class="hs-comment">--</span><span>
+</span><span id="line-522"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-523"></span><span class="hs-comment">-- splitVertex x []                  == 'removeVertex' x</span><span>
+</span><span id="line-524"></span><span class="hs-comment">-- splitVertex x [x]                 == id</span><span>
+</span><span id="line-525"></span><span class="hs-comment">-- splitVertex x [y]                 == 'replaceVertex' x y</span><span>
+</span><span id="line-526"></span><span class="hs-comment">-- splitVertex 1 [0,1] $ 1 * (2 + 3) == (0 + 1) * (2 + 3)</span><span>
+</span><span id="line-527"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-528"></span><span id="local-6989586621679152174"><span id="local-6989586621679152175"><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#splitVertex"><span class="hs-identifier hs-type">splitVertex</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679152174"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.HigherKinded.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152175"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152174"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679152174"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152175"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152174"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679152175"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679152174"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-529"></span><span id="splitVertex"><span class="annot"><span class="annottext">splitVertex :: forall a (g :: * -&gt; *). (Eq a, Graph g) =&gt; a -&gt; [a] -&gt; g a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#splitVertex"><span class="hs-identifier hs-var hs-var">splitVertex</span></a></span></span><span> </span><span id="local-6989586621679152482"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152482"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679152483"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152483"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621679152484"><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152484"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g a
+</span><a href="#local-6989586621679152484"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">g a -&gt; (a -&gt; g a) -&gt; g a
+forall a b. g a -&gt; (a -&gt; g b) -&gt; g b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679152485"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152485"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152485"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152482"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; [a] -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertices"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679152483"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a -&gt; g a
+forall (g :: * -&gt; *) a. Graph g =&gt; a -&gt; g a
+</span><a href="Algebra.Graph.HigherKinded.Class.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679152485"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-530"></span></pre></body></html>

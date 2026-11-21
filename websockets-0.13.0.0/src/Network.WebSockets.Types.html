@@ -1,0 +1,462 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | Primary types</span></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html"><span class="hs-identifier">Network.WebSockets.Types</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#Message"><span class="hs-identifier">Message</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ControlMessage"><span class="hs-identifier">ControlMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#DataMessage"><span class="hs-identifier">DataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier">WebSocketsData</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Http.html#HandshakeException"><span class="hs-identifier">HandshakeException</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionException"><span class="hs-identifier">ConnectionException</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionType"><span class="hs-identifier">ConnectionType</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#decodeUtf8Lenient"><span class="hs-identifier">decodeUtf8Lenient</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#decodeUtf8Strict"><span class="hs-identifier">decodeUtf8Strict</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throw</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">try</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding.Error</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TL</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy</span></span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TL</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Lazy.Encoding</span></span><span>  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TL</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word16</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Http.html"><span class="hs-identifier">Network.WebSockets.Http</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-39"></span><span class="annot"><span class="hs-comment">-- | The kind of message a server application typically deals with</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="Message"><span class="annot"><a href="Network.WebSockets.Types.html#Message"><span class="hs-identifier hs-var">Message</span></a></span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="ControlMessage"><span class="annot"><a href="Network.WebSockets.Types.html#ControlMessage"><span class="hs-identifier hs-var">ControlMessage</span></a></span></span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Reserved bits, actual message</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="DataMessage"><span class="annot"><a href="Network.WebSockets.Types.html#DataMessage"><span class="hs-identifier hs-var">DataMessage</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#DataMessage"><span class="hs-identifier hs-type">DataMessage</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088966"><span id="local-6989586621679088979"><span class="annot"><span class="annottext">Message -&gt; Message -&gt; Bool
+(Message -&gt; Message -&gt; Bool)
+-&gt; (Message -&gt; Message -&gt; Bool) -&gt; Eq Message
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Message -&gt; Message -&gt; Bool
+== :: Message -&gt; Message -&gt; Bool
+$c/= :: Message -&gt; Message -&gt; Bool
+/= :: Message -&gt; Message -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679088984"><span id="local-6989586621679088997"><span id="local-6989586621679089001"><span class="annot"><span class="annottext">Int -&gt; Message -&gt; ShowS
+[Message] -&gt; ShowS
+Message -&gt; String
+(Int -&gt; Message -&gt; ShowS)
+-&gt; (Message -&gt; String) -&gt; ([Message] -&gt; ShowS) -&gt; Show Message
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Message -&gt; ShowS
+showsPrec :: Int -&gt; Message -&gt; ShowS
+$cshow :: Message -&gt; String
+show :: Message -&gt; String
+$cshowList :: [Message] -&gt; ShowS
+showList :: [Message] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | Different control messages</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="ControlMessage"><span class="annot"><a href="Network.WebSockets.Types.html#ControlMessage"><span class="hs-identifier hs-var">ControlMessage</span></a></span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Close"><span class="annot"><a href="Network.WebSockets.Types.html#Close"><span class="hs-identifier hs-var">Close</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Ping"><span class="annot"><a href="Network.WebSockets.Types.html#Ping"><span class="hs-identifier hs-var">Ping</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Pong"><span class="annot"><a href="Network.WebSockets.Types.html#Pong"><span class="hs-identifier hs-var">Pong</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679089009"><span id="local-6989586621679089019"><span class="annot"><span class="annottext">ControlMessage -&gt; ControlMessage -&gt; Bool
+(ControlMessage -&gt; ControlMessage -&gt; Bool)
+-&gt; (ControlMessage -&gt; ControlMessage -&gt; Bool) -&gt; Eq ControlMessage
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ControlMessage -&gt; ControlMessage -&gt; Bool
+== :: ControlMessage -&gt; ControlMessage -&gt; Bool
+$c/= :: ControlMessage -&gt; ControlMessage -&gt; Bool
+/= :: ControlMessage -&gt; ControlMessage -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679089022"><span id="local-6989586621679089033"><span id="local-6989586621679089036"><span class="annot"><span class="annottext">Int -&gt; ControlMessage -&gt; ShowS
+[ControlMessage] -&gt; ShowS
+ControlMessage -&gt; String
+(Int -&gt; ControlMessage -&gt; ShowS)
+-&gt; (ControlMessage -&gt; String)
+-&gt; ([ControlMessage] -&gt; ShowS)
+-&gt; Show ControlMessage
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ControlMessage -&gt; ShowS
+showsPrec :: Int -&gt; ControlMessage -&gt; ShowS
+$cshow :: ControlMessage -&gt; String
+show :: ControlMessage -&gt; String
+$cshowList :: [ControlMessage] -&gt; ShowS
+showList :: [ControlMessage] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | For an end-user of this library, dealing with 'Frame's would be a bit</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- low-level. This is why define another type on top of it, which represents</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- data for the application layer.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- There are currently two kinds of data messages supported by the WebSockets</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- protocol:</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- * Textual UTF-8 encoded data.  This corresponds roughly to sending a String</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- in JavaScript.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- * Binary data.  This corresponds roughly to send an ArrayBuffer in</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- JavaScript.</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">data</span><span> </span><span id="DataMessage"><span class="annot"><a href="Network.WebSockets.Types.html#DataMessage"><span class="hs-identifier hs-var">DataMessage</span></a></span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">-- | A textual message.  The second field /might/ contain the decoded UTF-8</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">-- text for caching reasons.  This field is computed lazily so if it's not</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-comment">-- accessed, it should have no performance impact.</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Text"><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-var">Text</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="hs-comment">-- | A binary message.</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="Binary"><span class="annot"><a href="Network.WebSockets.Types.html#Binary"><span class="hs-identifier hs-var">Binary</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679089041"><span id="local-6989586621679089050"><span class="annot"><span class="annottext">DataMessage -&gt; DataMessage -&gt; Bool
+(DataMessage -&gt; DataMessage -&gt; Bool)
+-&gt; (DataMessage -&gt; DataMessage -&gt; Bool) -&gt; Eq DataMessage
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: DataMessage -&gt; DataMessage -&gt; Bool
+== :: DataMessage -&gt; DataMessage -&gt; Bool
+$c/= :: DataMessage -&gt; DataMessage -&gt; Bool
+/= :: DataMessage -&gt; DataMessage -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679089054"><span id="local-6989586621679089063"><span id="local-6989586621679089066"><span class="annot"><span class="annottext">Int -&gt; DataMessage -&gt; ShowS
+[DataMessage] -&gt; ShowS
+DataMessage -&gt; String
+(Int -&gt; DataMessage -&gt; ShowS)
+-&gt; (DataMessage -&gt; String)
+-&gt; ([DataMessage] -&gt; ShowS)
+-&gt; Show DataMessage
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; DataMessage -&gt; ShowS
+showsPrec :: Int -&gt; DataMessage -&gt; ShowS
+$cshow :: DataMessage -&gt; String
+show :: DataMessage -&gt; String
+$cshowList :: [DataMessage] -&gt; ShowS
+showList :: [DataMessage] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | In order to have an even more high-level API, we define a typeclass for</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- values the user can receive from and send to the socket. A few warnings</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- apply:</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- * Natively, everything is represented as a 'BL.ByteString', so this is the</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--   fastest instance</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- * You should only use the 'TL.Text' or the 'T.Text' instance when you are</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--   sure that the data is UTF-8 encoded (which is the case for 'Text'</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--   messages).</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- * Messages can be very large. If this is the case, it might be inefficient to</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--   use the strict 'B.ByteString' and 'T.Text' instances.</span><span>
+</span><span id="line-93"></span><span class="hs-keyword">class</span><span> </span><span id="WebSocketsData"><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier hs-var">WebSocketsData</span></a></span></span><span> </span><span id="local-6989586621679088923"><span class="annot"><a href="#local-6989586621679088923"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>    </span><span id="fromDataMessage"><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-type">fromDataMessage</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#DataMessage"><span class="hs-identifier hs-type">DataMessage</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679088923"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>    </span><span id="fromLazyByteString"><span class="annot"><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-type">fromLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679088923"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span id="toLazyByteString"><span class="annot"><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-type">toLazyByteString</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679088923"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier hs-type">WebSocketsData</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>    </span><span id="local-6989586621679089077"><span class="annot"><span class="annottext">fromDataMessage :: DataMessage -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var hs-var hs-var">fromDataMessage</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span id="local-6989586621679089078"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089078"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089078"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679089079"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089079"><span class="hs-identifier hs-var">bl</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089079"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>    </span><span id="local-6989586621679089080"><span class="annot"><span class="annottext">fromLazyByteString :: ByteString -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">fromLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679089082"><span class="annot"><span class="annottext">toLazyByteString :: ByteString -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">toLazyByteString</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier hs-type">WebSocketsData</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621679089089"><span class="annot"><span class="annottext">fromDataMessage :: DataMessage -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var hs-var hs-var">fromDataMessage</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span id="local-6989586621679089090"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089090"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089090"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679089091"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089091"><span class="hs-identifier hs-var">bl</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089091"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621679089092"><span class="annot"><span class="annottext">fromLazyByteString :: ByteString -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">fromLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span> </span><span class="annot"><span class="annottext">([ByteString] -&gt; ByteString)
+-&gt; (ByteString -&gt; [ByteString]) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString]
+</span><span class="hs-identifier hs-var">BL.toChunks</span></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679089098"><span class="annot"><span class="annottext">toLazyByteString :: ByteString -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">toLazyByteString</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.fromChunks</span></span><span> </span><span class="annot"><span class="annottext">([ByteString] -&gt; ByteString)
+-&gt; (ByteString -&gt; [ByteString]) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString]
+forall a. a -&gt; [a]
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-119"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier hs-type">WebSocketsData</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621679089106"><span class="annot"><span class="annottext">fromDataMessage :: DataMessage -&gt; Text
+</span><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var hs-var hs-var">fromDataMessage</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089107"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089107"><span class="hs-identifier hs-var">tl</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089107"><span class="hs-identifier hs-var">tl</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span id="local-6989586621679089108"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089108"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089108"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679089109"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089109"><span class="hs-identifier hs-var">bl</span></a></span></span><span class="hs-special">)</span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089109"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679089110"><span class="annot"><span class="annottext">fromLazyByteString :: ByteString -&gt; Text
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">fromLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">TL.decodeUtf8</span></span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679089112"><span class="annot"><span class="annottext">toLazyByteString :: Text -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">toLazyByteString</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TL.encodeUtf8</span></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-130"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#WebSocketsData"><span class="hs-identifier hs-type">WebSocketsData</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679089120"><span class="annot"><span class="annottext">fromDataMessage :: DataMessage -&gt; Text
+</span><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var hs-var hs-var">fromDataMessage</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679089121"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089121"><span class="hs-identifier hs-var">tl</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.concat</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">TL.toChunks</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089121"><span class="hs-identifier hs-var">tl</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>   </span><span id="local-6989586621679089124"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089124"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089124"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Types.html#fromDataMessage"><span class="hs-identifier hs-var">fromDataMessage</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Types.html#Binary"><span class="hs-identifier hs-type">Binary</span></a></span><span> </span><span id="local-6989586621679089125"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089125"><span class="hs-identifier hs-var">bl</span></a></span></span><span class="hs-special">)</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089125"><span class="hs-identifier hs-var">bl</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679089127"><span class="annot"><span class="annottext">fromLazyByteString :: ByteString -&gt; Text
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">fromLazyByteString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">T.concat</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Text) -&gt; (ByteString -&gt; [Text]) -&gt; ByteString -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">TL.toChunks</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; [Text]) -&gt; (ByteString -&gt; Text) -&gt; ByteString -&gt; [Text]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Text
+forall a. WebSocketsData a =&gt; ByteString -&gt; a
+</span><a href="Network.WebSockets.Types.html#fromLazyByteString"><span class="hs-identifier hs-var">fromLazyByteString</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span id="local-6989586621679089130"><span class="annot"><span class="annottext">toLazyByteString :: Text -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-var hs-var hs-var">toLazyByteString</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+forall a. WebSocketsData a =&gt; a -&gt; ByteString
+</span><a href="Network.WebSockets.Types.html#toLazyByteString"><span class="hs-identifier hs-var">toLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString) -&gt; (Text -&gt; Text) -&gt; Text -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+</span><span class="hs-identifier hs-var">TL.fromChunks</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Text) -&gt; (Text -&gt; [Text]) -&gt; Text -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text]
+forall a. a -&gt; [a]
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-140"></span><span class="annot"><span class="hs-comment">-- | Various exceptions that can occur while receiving or transmitting messages</span></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">data</span><span> </span><span id="ConnectionException"><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionException"><span class="hs-identifier hs-var">ConnectionException</span></a></span></span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-comment">-- | The peer has requested that the connection be closed, and included</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-comment">-- a close code and a reason for closing.  When receiving this exception,</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-comment">-- no more messages can be sent.  Also, the server is responsible for</span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-comment">-- closing the TCP connection once this exception is received.</span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-comment">-- See &lt;http://tools.ietf.org/html/rfc6455#section-7.4&gt; for a list of close</span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-comment">-- codes.</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="CloseRequest"><span class="annot"><a href="Network.WebSockets.Types.html#CloseRequest"><span class="hs-identifier hs-var">CloseRequest</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-comment">-- | The peer unexpectedly closed the connection while we were trying to</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">-- receive some data.  This is a violation of the websocket RFC since the</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-comment">-- TCP connection should only be closed after sending and receiving close</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-comment">-- control messages.</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ConnectionClosed"><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionClosed"><span class="hs-identifier hs-var">ConnectionClosed</span></a></span></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="hs-comment">-- | The client sent garbage, i.e. we could not parse the WebSockets stream.</span></span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ParseException"><span class="annot"><a href="Network.WebSockets.Types.html#ParseException"><span class="hs-identifier hs-var">ParseException</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-comment">-- | The client sent invalid UTF-8.  Note that this exception will only be</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-comment">-- thrown if strict decoding is set in the connection options.</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnicodeException"><span class="annot"><a href="Network.WebSockets.Types.html#UnicodeException"><span class="hs-identifier hs-var">UnicodeException</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679089137"><span id="local-6989586621679089147"><span class="annot"><span class="annottext">ConnectionException -&gt; ConnectionException -&gt; Bool
+(ConnectionException -&gt; ConnectionException -&gt; Bool)
+-&gt; (ConnectionException -&gt; ConnectionException -&gt; Bool)
+-&gt; Eq ConnectionException
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ConnectionException -&gt; ConnectionException -&gt; Bool
+== :: ConnectionException -&gt; ConnectionException -&gt; Bool
+$c/= :: ConnectionException -&gt; ConnectionException -&gt; Bool
+/= :: ConnectionException -&gt; ConnectionException -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679089152"><span id="local-6989586621679089163"><span id="local-6989586621679089167"><span class="annot"><span class="annottext">Int -&gt; ConnectionException -&gt; ShowS
+[ConnectionException] -&gt; ShowS
+ConnectionException -&gt; String
+(Int -&gt; ConnectionException -&gt; ShowS)
+-&gt; (ConnectionException -&gt; String)
+-&gt; ([ConnectionException] -&gt; ShowS)
+-&gt; Show ConnectionException
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ConnectionException -&gt; ShowS
+showsPrec :: Int -&gt; ConnectionException -&gt; ShowS
+$cshow :: ConnectionException -&gt; String
+show :: ConnectionException -&gt; String
+$cshowList :: [ConnectionException] -&gt; ShowS
+showList :: [ConnectionException] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679089175"><span id="local-6989586621679089178"><span id="local-6989586621679089181"><span id="local-6989586621679089184"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionException"><span class="hs-identifier hs-type">ConnectionException</span></a></span></span></span></span></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-171"></span><span class="hs-keyword">data</span><span> </span><span id="ConnectionType"><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionType"><span class="hs-identifier hs-var">ConnectionType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerConnection"><span class="annot"><a href="Network.WebSockets.Types.html#ServerConnection"><span class="hs-identifier hs-var">ServerConnection</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ClientConnection"><span class="annot"><a href="Network.WebSockets.Types.html#ClientConnection"><span class="hs-identifier hs-var">ClientConnection</span></a></span></span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679089190"><span id="local-6989586621679089194"><span class="annot"><span class="annottext">ConnectionType -&gt; ConnectionType -&gt; Bool
+(ConnectionType -&gt; ConnectionType -&gt; Bool)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; Bool) -&gt; Eq ConnectionType
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ConnectionType -&gt; ConnectionType -&gt; Bool
+== :: ConnectionType -&gt; ConnectionType -&gt; Bool
+$c/= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+/= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679089200"><span id="local-6989586621679089202"><span id="local-6989586621679089204"><span id="local-6989586621679089208"><span id="local-6989586621679089211"><span id="local-6989586621679089214"><span id="local-6989586621679089217"><span class="annot"><span class="annottext">Eq ConnectionType
+Eq ConnectionType =&gt;
+(ConnectionType -&gt; ConnectionType -&gt; Ordering)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; Bool)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; Bool)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; Bool)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; Bool)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; ConnectionType)
+-&gt; (ConnectionType -&gt; ConnectionType -&gt; ConnectionType)
+-&gt; Ord ConnectionType
+ConnectionType -&gt; ConnectionType -&gt; Bool
+ConnectionType -&gt; ConnectionType -&gt; Ordering
+ConnectionType -&gt; ConnectionType -&gt; ConnectionType
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ConnectionType -&gt; ConnectionType -&gt; Ordering
+compare :: ConnectionType -&gt; ConnectionType -&gt; Ordering
+$c&lt; :: ConnectionType -&gt; ConnectionType -&gt; Bool
+&lt; :: ConnectionType -&gt; ConnectionType -&gt; Bool
+$c&lt;= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+&lt;= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+$c&gt; :: ConnectionType -&gt; ConnectionType -&gt; Bool
+&gt; :: ConnectionType -&gt; ConnectionType -&gt; Bool
+$c&gt;= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+&gt;= :: ConnectionType -&gt; ConnectionType -&gt; Bool
+$cmax :: ConnectionType -&gt; ConnectionType -&gt; ConnectionType
+max :: ConnectionType -&gt; ConnectionType -&gt; ConnectionType
+$cmin :: ConnectionType -&gt; ConnectionType -&gt; ConnectionType
+min :: ConnectionType -&gt; ConnectionType -&gt; ConnectionType
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679089225"><span id="local-6989586621679089227"><span id="local-6989586621679089231"><span class="annot"><span class="annottext">Int -&gt; ConnectionType -&gt; ShowS
+[ConnectionType] -&gt; ShowS
+ConnectionType -&gt; String
+(Int -&gt; ConnectionType -&gt; ShowS)
+-&gt; (ConnectionType -&gt; String)
+-&gt; ([ConnectionType] -&gt; ShowS)
+-&gt; Show ConnectionType
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ConnectionType -&gt; ShowS
+showsPrec :: Int -&gt; ConnectionType -&gt; ShowS
+$cshow :: ConnectionType -&gt; String
+show :: ConnectionType -&gt; String
+$cshowList :: [ConnectionType] -&gt; ShowS
+showList :: [ConnectionType] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- | Replace an invalid input byte with the Unicode replacement character</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- U+FFFD.</span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Network.WebSockets.Types.html#decodeUtf8Lenient"><span class="hs-identifier hs-type">decodeUtf8Lenient</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span>
+</span><span id="line-179"></span><span id="decodeUtf8Lenient"><span class="annot"><span class="annottext">decodeUtf8Lenient :: ByteString -&gt; Text
+</span><a href="Network.WebSockets.Types.html#decodeUtf8Lenient"><span class="hs-identifier hs-var hs-var">decodeUtf8Lenient</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnDecodeError -&gt; ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">TL.decodeUtf8With</span></span><span> </span><span class="annot"><span class="annottext">OnDecodeError
+</span><span class="hs-identifier hs-var">TL.lenientDecode</span></span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-183"></span><span class="annot"><span class="hs-comment">-- | Throw an error if there is an invalid input byte.</span></span><span>
+</span><span id="line-184"></span><span class="annot"><a href="Network.WebSockets.Types.html#decodeUtf8Strict"><span class="hs-identifier hs-type">decodeUtf8Strict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Types.html#ConnectionException"><span class="hs-identifier hs-type">ConnectionException</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TL.Text</span></span><span>
+</span><span id="line-185"></span><span id="decodeUtf8Strict"><span class="annot"><span class="annottext">decodeUtf8Strict :: ByteString -&gt; Either ConnectionException Text
+</span><a href="Network.WebSockets.Types.html#decodeUtf8Strict"><span class="hs-identifier hs-var hs-var">decodeUtf8Strict</span></a></span></span><span> </span><span id="local-6989586621679089235"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089235"><span class="hs-identifier hs-var">bl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Either ConnectionException Text)
+-&gt; Either ConnectionException Text
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Either ConnectionException Text)
+ -&gt; Either ConnectionException Text)
+-&gt; IO (Either ConnectionException Text)
+-&gt; Either ConnectionException Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO Text -&gt; IO (Either ConnectionException Text)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="annot"><span class="annottext">(IO Text -&gt; IO (Either ConnectionException Text))
+-&gt; IO Text -&gt; IO (Either ConnectionException Text)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679089239"><span class="annot"><span class="annottext">txt :: Text
+</span><a href="#local-6989586621679089239"><span class="hs-identifier hs-var hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OnDecodeError -&gt; ByteString -&gt; Text
+</span><span class="hs-identifier hs-var">TL.decodeUtf8With</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679089240"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089240"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; Maybe Char
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ConnectionException
+</span><a href="Network.WebSockets.Types.html#UnicodeException"><span class="hs-identifier hs-var">UnicodeException</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679089240"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679089235"><span class="hs-identifier hs-var">bl</span></a></span><span> </span><span class="hs-keyword">in</span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><span class="annottext">Text -&gt; Int64
+</span><span class="hs-identifier hs-var">TL.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089239"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; IO Text -&gt; IO Text
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; IO Text
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679089239"><span class="hs-identifier hs-var">txt</span></a></span><span>
+</span><span id="line-188"></span></pre></body></html>

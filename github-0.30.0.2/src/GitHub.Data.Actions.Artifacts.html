@@ -1,0 +1,903 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679523913"><span id="local-6989586621679523914"><span id="local-6989586621679523915"><span id="local-6989586621679523916"></span></span></span></span><span class="hs-pragma">{-# LANGUAGE DataKinds         #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures    #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html"><span class="hs-identifier">GitHub.Data.Actions.Artifacts</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier">Artifact</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier">ArtifactWorkflowRun</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Common.html"><span class="hs-identifier">GitHub.Data.Actions.Common</span></a></span><span>       </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.WorkflowRuns.html"><span class="hs-identifier">GitHub.Data.Actions.WorkflowRuns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.WorkflowRuns.html#WorkflowRun"><span class="hs-identifier">WorkflowRun</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html"><span class="hs-identifier">GitHub.Data.Repos</span></a></span><span>                </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier">Repo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Artifact</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="ArtifactWorkflowRun"><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier hs-var">ArtifactWorkflowRun</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ArtifactWorkflowRun"><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier hs-var">ArtifactWorkflowRun</span></a></span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="artifactWorkflowRunWorkflowRunId"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; Id WorkflowRun
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRunWorkflowRunId"><span class="hs-identifier hs-var hs-var">artifactWorkflowRunWorkflowRunId</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.WorkflowRuns.html#WorkflowRun"><span class="hs-identifier hs-type">WorkflowRun</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactWorkflowRunRepositoryId"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; Id Repo
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRunRepositoryId"><span class="hs-identifier hs-var hs-var">artifactWorkflowRunRepositoryId</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactWorkflowRunHeadRepositoryId"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; Id Repo
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRunHeadRepositoryId"><span class="hs-identifier hs-var hs-var">artifactWorkflowRunHeadRepositoryId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactWorkflowRunHeadBranch"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; Text
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRunHeadBranch"><span class="hs-identifier hs-var hs-var">artifactWorkflowRunHeadBranch</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactWorkflowRunHeadSha"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; Text
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRunHeadSha"><span class="hs-identifier hs-var hs-var">artifactWorkflowRunHeadSha</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679523925"><span id="local-6989586621679523936"><span id="local-6989586621679523940"><span class="annot"><span class="annottext">Int -&gt; ArtifactWorkflowRun -&gt; ShowS
+[ArtifactWorkflowRun] -&gt; ShowS
+ArtifactWorkflowRun -&gt; String
+(Int -&gt; ArtifactWorkflowRun -&gt; ShowS)
+-&gt; (ArtifactWorkflowRun -&gt; String)
+-&gt; ([ArtifactWorkflowRun] -&gt; ShowS)
+-&gt; Show ArtifactWorkflowRun
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ArtifactWorkflowRun -&gt; ShowS
+showsPrec :: Int -&gt; ArtifactWorkflowRun -&gt; ShowS
+$cshow :: ArtifactWorkflowRun -&gt; String
+show :: ArtifactWorkflowRun -&gt; String
+$cshowList :: [ArtifactWorkflowRun] -&gt; ShowS
+showList :: [ArtifactWorkflowRun] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523947"><span id="local-6989586621679523958"><span id="local-6989586621679523967"><span id="local-6989586621679523969"><span id="local-6989586621679523971"><span id="local-6989586621679523977"><span id="local-6989586621679523982"><span id="local-6989586621679523985"><span id="local-6989586621679523988"><span id="local-6989586621679523991"><span id="local-6989586621679523994"><span id="local-6989586621679523997"><span id="local-6989586621679524002"><span id="local-6989586621679524007"><span class="annot"><span class="annottext">Typeable ArtifactWorkflowRun
+Typeable ArtifactWorkflowRun =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; ArtifactWorkflowRun
+ -&gt; c ArtifactWorkflowRun)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ArtifactWorkflowRun)
+-&gt; (ArtifactWorkflowRun -&gt; Constr)
+-&gt; (ArtifactWorkflowRun -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ArtifactWorkflowRun))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c ArtifactWorkflowRun))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun)
+-&gt; Data ArtifactWorkflowRun
+ArtifactWorkflowRun -&gt; Constr
+ArtifactWorkflowRun -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; u
+forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ArtifactWorkflowRun
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; ArtifactWorkflowRun
+-&gt; c ArtifactWorkflowRun
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ArtifactWorkflowRun)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ArtifactWorkflowRun)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; ArtifactWorkflowRun
+-&gt; c ArtifactWorkflowRun
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; ArtifactWorkflowRun
+-&gt; c ArtifactWorkflowRun
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ArtifactWorkflowRun
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ArtifactWorkflowRun
+$ctoConstr :: ArtifactWorkflowRun -&gt; Constr
+toConstr :: ArtifactWorkflowRun -&gt; Constr
+$cdataTypeOf :: ArtifactWorkflowRun -&gt; DataType
+dataTypeOf :: ArtifactWorkflowRun -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ArtifactWorkflowRun)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ArtifactWorkflowRun)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ArtifactWorkflowRun)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ArtifactWorkflowRun)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ArtifactWorkflowRun -&gt; r
+$cgmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; [u]
+gmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ArtifactWorkflowRun -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ArtifactWorkflowRun -&gt; m ArtifactWorkflowRun
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524019"><span id="local-6989586621679524028"><span class="annot"><span class="annottext">ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+(ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; (ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; Eq ArtifactWorkflowRun
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+== :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+$c/= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+/= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524035"><span id="local-6989586621679524044"><span id="local-6989586621679524051"><span id="local-6989586621679524055"><span id="local-6989586621679524058"><span id="local-6989586621679524061"><span id="local-6989586621679524064"><span class="annot"><span class="annottext">Eq ArtifactWorkflowRun
+Eq ArtifactWorkflowRun =&gt;
+(ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Ordering)
+-&gt; (ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; (ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; (ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; (ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool)
+-&gt; (ArtifactWorkflowRun
+    -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun)
+-&gt; (ArtifactWorkflowRun
+    -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun)
+-&gt; Ord ArtifactWorkflowRun
+ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Ordering
+ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Ordering
+compare :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Ordering
+$c&lt; :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+&lt; :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+$c&lt;= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+&lt;= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+$c&gt; :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+&gt; :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+$c&gt;= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+&gt;= :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; Bool
+$cmax :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+max :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+$cmin :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+min :: ArtifactWorkflowRun -&gt; ArtifactWorkflowRun -&gt; ArtifactWorkflowRun
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524072"><span id="local-6989586621679524074"><span class="annot"><span class="annottext">(forall x. ArtifactWorkflowRun -&gt; Rep ArtifactWorkflowRun x)
+-&gt; (forall x. Rep ArtifactWorkflowRun x -&gt; ArtifactWorkflowRun)
+-&gt; Generic ArtifactWorkflowRun
+forall x. Rep ArtifactWorkflowRun x -&gt; ArtifactWorkflowRun
+forall x. ArtifactWorkflowRun -&gt; Rep ArtifactWorkflowRun x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ArtifactWorkflowRun -&gt; Rep ArtifactWorkflowRun x
+from :: forall x. ArtifactWorkflowRun -&gt; Rep ArtifactWorkflowRun x
+$cto :: forall x. Rep ArtifactWorkflowRun x -&gt; ArtifactWorkflowRun
+to :: forall x. Rep ArtifactWorkflowRun x -&gt; ArtifactWorkflowRun
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="Artifact"><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-var">Artifact</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Artifact"><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-var">Artifact</span></a></span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="artifactArchiveDownloadUrl"><span class="annot"><span class="annottext">Artifact -&gt; URL
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactArchiveDownloadUrl"><span class="hs-identifier hs-var hs-var">artifactArchiveDownloadUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactCreatedAt"><span class="annot"><span class="annottext">Artifact -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactCreatedAt"><span class="hs-identifier hs-var hs-var">artifactCreatedAt</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactExpired"><span class="annot"><span class="annottext">Artifact -&gt; Bool
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactExpired"><span class="hs-identifier hs-var hs-var">artifactExpired</span></a></span></span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactExpiresAt"><span class="annot"><span class="annottext">Artifact -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactExpiresAt"><span class="hs-identifier hs-var hs-var">artifactExpiresAt</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactId"><span class="annot"><span class="annottext">Artifact -&gt; Id Artifact
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactId"><span class="hs-identifier hs-var hs-var">artifactId</span></a></span></span><span>                 </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-type">Artifact</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactName"><span class="annot"><span class="annottext">Artifact -&gt; Text
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactName"><span class="hs-identifier hs-var hs-var">artifactName</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactNodeId"><span class="annot"><span class="annottext">Artifact -&gt; Text
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactNodeId"><span class="hs-identifier hs-var hs-var">artifactNodeId</span></a></span></span><span>             </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactSizeInBytes"><span class="annot"><span class="annottext">Artifact -&gt; Int
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactSizeInBytes"><span class="hs-identifier hs-var hs-var">artifactSizeInBytes</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactUpdatedAt"><span class="annot"><span class="annottext">Artifact -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactUpdatedAt"><span class="hs-identifier hs-var hs-var">artifactUpdatedAt</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactUrl"><span class="annot"><span class="annottext">Artifact -&gt; URL
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactUrl"><span class="hs-identifier hs-var hs-var">artifactUrl</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="artifactWorkflowRun"><span class="annot"><span class="annottext">Artifact -&gt; ArtifactWorkflowRun
+</span><a href="GitHub.Data.Actions.Artifacts.html#artifactWorkflowRun"><span class="hs-identifier hs-var hs-var">artifactWorkflowRun</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier hs-type">ArtifactWorkflowRun</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679524092"><span id="local-6989586621679524110"><span id="local-6989586621679524114"><span class="annot"><span class="annottext">Int -&gt; Artifact -&gt; ShowS
+[Artifact] -&gt; ShowS
+Artifact -&gt; String
+(Int -&gt; Artifact -&gt; ShowS)
+-&gt; (Artifact -&gt; String) -&gt; ([Artifact] -&gt; ShowS) -&gt; Show Artifact
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Artifact -&gt; ShowS
+showsPrec :: Int -&gt; Artifact -&gt; ShowS
+$cshow :: Artifact -&gt; String
+show :: Artifact -&gt; String
+$cshowList :: [Artifact] -&gt; ShowS
+showList :: [Artifact] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524119"><span id="local-6989586621679524137"><span id="local-6989586621679524151"><span id="local-6989586621679524153"><span id="local-6989586621679524155"><span id="local-6989586621679524161"><span id="local-6989586621679524166"><span id="local-6989586621679524169"><span id="local-6989586621679524172"><span id="local-6989586621679524175"><span id="local-6989586621679524178"><span id="local-6989586621679524181"><span id="local-6989586621679524186"><span id="local-6989586621679524191"><span class="annot"><span class="annottext">Typeable Artifact
+Typeable Artifact =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Artifact -&gt; c Artifact)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Artifact)
+-&gt; (Artifact -&gt; Constr)
+-&gt; (Artifact -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Artifact))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Artifact))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Artifact -&gt; Artifact)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact)
+-&gt; Data Artifact
+Artifact -&gt; Constr
+Artifact -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Artifact -&gt; Artifact
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Artifact
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Artifact -&gt; c Artifact
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Artifact)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Artifact)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Artifact -&gt; c Artifact
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Artifact -&gt; c Artifact
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Artifact
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Artifact
+$ctoConstr :: Artifact -&gt; Constr
+toConstr :: Artifact -&gt; Constr
+$cdataTypeOf :: Artifact -&gt; DataType
+dataTypeOf :: Artifact -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Artifact)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Artifact)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Artifact)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Artifact)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Artifact -&gt; Artifact
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Artifact -&gt; Artifact
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Artifact -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Artifact -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Artifact -&gt; m Artifact
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524196"><span id="local-6989586621679524213"><span class="annot"><span class="annottext">Artifact -&gt; Artifact -&gt; Bool
+(Artifact -&gt; Artifact -&gt; Bool)
+-&gt; (Artifact -&gt; Artifact -&gt; Bool) -&gt; Eq Artifact
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Artifact -&gt; Artifact -&gt; Bool
+== :: Artifact -&gt; Artifact -&gt; Bool
+$c/= :: Artifact -&gt; Artifact -&gt; Bool
+/= :: Artifact -&gt; Artifact -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524219"><span id="local-6989586621679524235"><span id="local-6989586621679524248"><span id="local-6989586621679524252"><span id="local-6989586621679524255"><span id="local-6989586621679524258"><span id="local-6989586621679524261"><span class="annot"><span class="annottext">Eq Artifact
+Eq Artifact =&gt;
+(Artifact -&gt; Artifact -&gt; Ordering)
+-&gt; (Artifact -&gt; Artifact -&gt; Bool)
+-&gt; (Artifact -&gt; Artifact -&gt; Bool)
+-&gt; (Artifact -&gt; Artifact -&gt; Bool)
+-&gt; (Artifact -&gt; Artifact -&gt; Bool)
+-&gt; (Artifact -&gt; Artifact -&gt; Artifact)
+-&gt; (Artifact -&gt; Artifact -&gt; Artifact)
+-&gt; Ord Artifact
+Artifact -&gt; Artifact -&gt; Bool
+Artifact -&gt; Artifact -&gt; Ordering
+Artifact -&gt; Artifact -&gt; Artifact
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Artifact -&gt; Artifact -&gt; Ordering
+compare :: Artifact -&gt; Artifact -&gt; Ordering
+$c&lt; :: Artifact -&gt; Artifact -&gt; Bool
+&lt; :: Artifact -&gt; Artifact -&gt; Bool
+$c&lt;= :: Artifact -&gt; Artifact -&gt; Bool
+&lt;= :: Artifact -&gt; Artifact -&gt; Bool
+$c&gt; :: Artifact -&gt; Artifact -&gt; Bool
+&gt; :: Artifact -&gt; Artifact -&gt; Bool
+$c&gt;= :: Artifact -&gt; Artifact -&gt; Bool
+&gt;= :: Artifact -&gt; Artifact -&gt; Bool
+$cmax :: Artifact -&gt; Artifact -&gt; Artifact
+max :: Artifact -&gt; Artifact -&gt; Artifact
+$cmin :: Artifact -&gt; Artifact -&gt; Artifact
+min :: Artifact -&gt; Artifact -&gt; Artifact
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679524264"><span id="local-6989586621679524266"><span class="annot"><span class="annottext">(forall x. Artifact -&gt; Rep Artifact x)
+-&gt; (forall x. Rep Artifact x -&gt; Artifact) -&gt; Generic Artifact
+forall x. Rep Artifact x -&gt; Artifact
+forall x. Artifact -&gt; Rep Artifact x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Artifact -&gt; Rep Artifact x
+from :: forall x. Artifact -&gt; Rep Artifact x
+$cto :: forall x. Rep Artifact x -&gt; Artifact
+to :: forall x. Rep Artifact x -&gt; Artifact
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- JSON instances</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524270"><span id="local-6989586621679524274"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier hs-type">ArtifactWorkflowRun</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679524297"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ArtifactWorkflowRun
+</span><a href="#local-6989586621679524297"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ArtifactWorkflowRun)
+-&gt; Value
+-&gt; Parser ArtifactWorkflowRun
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ArtifactWorkflowRun&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ArtifactWorkflowRun)
+ -&gt; Value -&gt; Parser ArtifactWorkflowRun)
+-&gt; (Object -&gt; Parser ArtifactWorkflowRun)
+-&gt; Value
+-&gt; Parser ArtifactWorkflowRun
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679524300"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id WorkflowRun
+-&gt; Id Repo -&gt; Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun
+</span><a href="GitHub.Data.Actions.Artifacts.html#ArtifactWorkflowRun"><span class="hs-identifier hs-var">ArtifactWorkflowRun</span></a></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">(Id WorkflowRun
+ -&gt; Id Repo -&gt; Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun)
+-&gt; Parser (Id WorkflowRun)
+-&gt; Parser
+     (Id Repo -&gt; Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id WorkflowRun)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">Parser (Id Repo -&gt; Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun)
+-&gt; Parser (Id Repo)
+-&gt; Parser (Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Repo)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repository_id&quot;</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">Parser (Id Repo -&gt; Text -&gt; Text -&gt; ArtifactWorkflowRun)
+-&gt; Parser (Id Repo) -&gt; Parser (Text -&gt; Text -&gt; ArtifactWorkflowRun)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Repo)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;head_repository_id&quot;</span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Text -&gt; ArtifactWorkflowRun)
+-&gt; Parser Text -&gt; Parser (Text -&gt; ArtifactWorkflowRun)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;head_branch&quot;</span></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; ArtifactWorkflowRun)
+-&gt; Parser Text -&gt; Parser ArtifactWorkflowRun
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524300"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;head_sha&quot;</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524305"><span id="local-6989586621679524309"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-type">Artifact</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679524348"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Artifact
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Artifact) -&gt; Value -&gt; Parser Artifact
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Artifact&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Artifact) -&gt; Value -&gt; Parser Artifact)
+-&gt; (Object -&gt; Parser Artifact) -&gt; Value -&gt; Parser Artifact
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679524349"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">URL
+-&gt; UTCTime
+-&gt; Bool
+-&gt; UTCTime
+-&gt; Id Artifact
+-&gt; Text
+-&gt; Text
+-&gt; Int
+-&gt; UTCTime
+-&gt; URL
+-&gt; ArtifactWorkflowRun
+-&gt; Artifact
+</span><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-var">Artifact</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">(URL
+ -&gt; UTCTime
+ -&gt; Bool
+ -&gt; UTCTime
+ -&gt; Id Artifact
+ -&gt; Text
+ -&gt; Text
+ -&gt; Int
+ -&gt; UTCTime
+ -&gt; URL
+ -&gt; ArtifactWorkflowRun
+ -&gt; Artifact)
+-&gt; Parser URL
+-&gt; Parser
+     (UTCTime
+      -&gt; Bool
+      -&gt; UTCTime
+      -&gt; Id Artifact
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; ArtifactWorkflowRun
+      -&gt; Artifact)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;archive_download_url&quot;</span></span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; Bool
+   -&gt; UTCTime
+   -&gt; Id Artifact
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; ArtifactWorkflowRun
+   -&gt; Artifact)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (Bool
+      -&gt; UTCTime
+      -&gt; Id Artifact
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; ArtifactWorkflowRun
+      -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Bool
+   -&gt; UTCTime
+   -&gt; Id Artifact
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; ArtifactWorkflowRun
+   -&gt; Artifact)
+-&gt; Parser Bool
+-&gt; Parser
+     (UTCTime
+      -&gt; Id Artifact
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; ArtifactWorkflowRun
+      -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;expired&quot;</span></span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; Id Artifact
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; ArtifactWorkflowRun
+   -&gt; Artifact)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (Id Artifact
+      -&gt; Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; ArtifactWorkflowRun
+      -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;expires_at&quot;</span></span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Id Artifact
+   -&gt; Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; ArtifactWorkflowRun
+   -&gt; Artifact)
+-&gt; Parser (Id Artifact)
+-&gt; Parser
+     (Text
+      -&gt; Text
+      -&gt; Int
+      -&gt; UTCTime
+      -&gt; URL
+      -&gt; ArtifactWorkflowRun
+      -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Artifact)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Text
+   -&gt; Int
+   -&gt; UTCTime
+   -&gt; URL
+   -&gt; ArtifactWorkflowRun
+   -&gt; Artifact)
+-&gt; Parser Text
+-&gt; Parser
+     (Text -&gt; Int -&gt; UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text -&gt; Int -&gt; UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+-&gt; Parser Text
+-&gt; Parser
+     (Int -&gt; UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;node_id&quot;</span></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+-&gt; Parser Int
+-&gt; Parser (UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;size_in_bytes&quot;</span></span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+-&gt; Parser UTCTime
+-&gt; Parser (URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-70"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; ArtifactWorkflowRun -&gt; Artifact)
+-&gt; Parser URL -&gt; Parser (ArtifactWorkflowRun -&gt; Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">Parser (ArtifactWorkflowRun -&gt; Artifact)
+-&gt; Parser ArtifactWorkflowRun -&gt; Parser Artifact
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524349"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser ArtifactWorkflowRun
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;workflow_run&quot;</span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679524352"><span id="local-6989586621679524356"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-type">WithTotalCount</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Artifacts.html#Artifact"><span class="hs-identifier hs-type">Artifact</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679524366"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (WithTotalCount Artifact)
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (WithTotalCount Artifact))
+-&gt; Value
+-&gt; Parser (WithTotalCount Artifact)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ArtifactList&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (WithTotalCount Artifact))
+ -&gt; Value -&gt; Parser (WithTotalCount Artifact))
+-&gt; (Object -&gt; Parser (WithTotalCount Artifact))
+-&gt; Value
+-&gt; Parser (WithTotalCount Artifact)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679524367"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524367"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Artifact -&gt; Int -&gt; WithTotalCount Artifact
+forall a. Vector a -&gt; Int -&gt; WithTotalCount a
+</span><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-var">WithTotalCount</span></a></span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><span class="annottext">(Vector Artifact -&gt; Int -&gt; WithTotalCount Artifact)
+-&gt; Parser (Vector Artifact)
+-&gt; Parser (Int -&gt; WithTotalCount Artifact)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524367"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Vector Artifact)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;artifacts&quot;</span></span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; WithTotalCount Artifact)
+-&gt; Parser Int -&gt; Parser (WithTotalCount Artifact)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679524367"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-77"></span></pre></body></html>

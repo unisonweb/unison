@@ -1,0 +1,1603 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679516265"><span id="local-6989586621679516266"><span id="local-6989586621679516267"><span id="local-6989586621679516268"><span id="local-6989586621679516269"><span id="local-6989586621679516270"><span id="local-6989586621679516271"><span id="local-6989586621679516272"><span id="local-6989586621679516273"><span id="local-6989586621679516274"></span></span></span></span></span></span></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html"><span class="hs-identifier">GitHub.Data.Comments</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Comment"><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Comment"><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="commentPosition"><span class="annot"><span class="annottext">Comment -&gt; Maybe Int
+</span><a href="GitHub.Data.Comments.html#commentPosition"><span class="hs-identifier hs-var hs-var">commentPosition</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentLine"><span class="annot"><span class="annottext">Comment -&gt; Maybe Int
+</span><a href="GitHub.Data.Comments.html#commentLine"><span class="hs-identifier hs-var hs-var">commentLine</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentBody"><span class="annot"><span class="annottext">Comment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#commentBody"><span class="hs-identifier hs-var hs-var">commentBody</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentCommitId"><span class="annot"><span class="annottext">Comment -&gt; Maybe Text
+</span><a href="GitHub.Data.Comments.html#commentCommitId"><span class="hs-identifier hs-var hs-var">commentCommitId</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentUpdatedAt"><span class="annot"><span class="annottext">Comment -&gt; UTCTime
+</span><a href="GitHub.Data.Comments.html#commentUpdatedAt"><span class="hs-identifier hs-var hs-var">commentUpdatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentHtmlUrl"><span class="annot"><span class="annottext">Comment -&gt; Maybe URL
+</span><a href="GitHub.Data.Comments.html#commentHtmlUrl"><span class="hs-identifier hs-var hs-var">commentHtmlUrl</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentUrl"><span class="annot"><span class="annottext">Comment -&gt; URL
+</span><a href="GitHub.Data.Comments.html#commentUrl"><span class="hs-identifier hs-var hs-var">commentUrl</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentCreatedAt"><span class="annot"><span class="annottext">Comment -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Comments.html#commentCreatedAt"><span class="hs-identifier hs-var hs-var">commentCreatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentPath"><span class="annot"><span class="annottext">Comment -&gt; Maybe Text
+</span><a href="GitHub.Data.Comments.html#commentPath"><span class="hs-identifier hs-var hs-var">commentPath</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentUser"><span class="annot"><span class="annottext">Comment -&gt; SimpleUser
+</span><a href="GitHub.Data.Comments.html#commentUser"><span class="hs-identifier hs-var hs-var">commentUser</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="commentId"><span class="annot"><span class="annottext">Comment -&gt; Id Comment
+</span><a href="GitHub.Data.Comments.html#commentId"><span class="hs-identifier hs-var hs-var">commentId</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679516288"><span id="local-6989586621679516310"><span id="local-6989586621679516314"><span class="annot"><span class="annottext">Int -&gt; Comment -&gt; ShowS
+[Comment] -&gt; ShowS
+Comment -&gt; String
+(Int -&gt; Comment -&gt; ShowS)
+-&gt; (Comment -&gt; String) -&gt; ([Comment] -&gt; ShowS) -&gt; Show Comment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Comment -&gt; ShowS
+showsPrec :: Int -&gt; Comment -&gt; ShowS
+$cshow :: Comment -&gt; String
+show :: Comment -&gt; String
+$cshowList :: [Comment] -&gt; ShowS
+showList :: [Comment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516323"><span id="local-6989586621679516344"><span id="local-6989586621679516361"><span id="local-6989586621679516363"><span id="local-6989586621679516365"><span id="local-6989586621679516371"><span id="local-6989586621679516376"><span id="local-6989586621679516379"><span id="local-6989586621679516382"><span id="local-6989586621679516385"><span id="local-6989586621679516388"><span id="local-6989586621679516391"><span id="local-6989586621679516396"><span id="local-6989586621679516401"><span class="annot"><span class="annottext">Typeable Comment
+Typeable Comment =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Comment -&gt; c Comment)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Comment)
+-&gt; (Comment -&gt; Constr)
+-&gt; (Comment -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Comment))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Comment))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Comment -&gt; Comment)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment)
+-&gt; Data Comment
+Comment -&gt; Constr
+Comment -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Comment -&gt; Comment
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Comment
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Comment -&gt; c Comment
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Comment)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Comment)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Comment -&gt; c Comment
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Comment -&gt; c Comment
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Comment
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Comment
+$ctoConstr :: Comment -&gt; Constr
+toConstr :: Comment -&gt; Constr
+$cdataTypeOf :: Comment -&gt; DataType
+dataTypeOf :: Comment -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Comment)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Comment)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Comment)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Comment)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Comment -&gt; Comment
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Comment -&gt; Comment
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Comment -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Comment -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Comment -&gt; m Comment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516414"><span id="local-6989586621679516434"><span class="annot"><span class="annottext">Comment -&gt; Comment -&gt; Bool
+(Comment -&gt; Comment -&gt; Bool)
+-&gt; (Comment -&gt; Comment -&gt; Bool) -&gt; Eq Comment
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Comment -&gt; Comment -&gt; Bool
+== :: Comment -&gt; Comment -&gt; Bool
+$c/= :: Comment -&gt; Comment -&gt; Bool
+/= :: Comment -&gt; Comment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516443"><span id="local-6989586621679516463"><span id="local-6989586621679516478"><span id="local-6989586621679516482"><span id="local-6989586621679516485"><span id="local-6989586621679516488"><span id="local-6989586621679516491"><span class="annot"><span class="annottext">Eq Comment
+Eq Comment =&gt;
+(Comment -&gt; Comment -&gt; Ordering)
+-&gt; (Comment -&gt; Comment -&gt; Bool)
+-&gt; (Comment -&gt; Comment -&gt; Bool)
+-&gt; (Comment -&gt; Comment -&gt; Bool)
+-&gt; (Comment -&gt; Comment -&gt; Bool)
+-&gt; (Comment -&gt; Comment -&gt; Comment)
+-&gt; (Comment -&gt; Comment -&gt; Comment)
+-&gt; Ord Comment
+Comment -&gt; Comment -&gt; Bool
+Comment -&gt; Comment -&gt; Ordering
+Comment -&gt; Comment -&gt; Comment
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Comment -&gt; Comment -&gt; Ordering
+compare :: Comment -&gt; Comment -&gt; Ordering
+$c&lt; :: Comment -&gt; Comment -&gt; Bool
+&lt; :: Comment -&gt; Comment -&gt; Bool
+$c&lt;= :: Comment -&gt; Comment -&gt; Bool
+&lt;= :: Comment -&gt; Comment -&gt; Bool
+$c&gt; :: Comment -&gt; Comment -&gt; Bool
+&gt; :: Comment -&gt; Comment -&gt; Bool
+$c&gt;= :: Comment -&gt; Comment -&gt; Bool
+&gt;= :: Comment -&gt; Comment -&gt; Bool
+$cmax :: Comment -&gt; Comment -&gt; Comment
+max :: Comment -&gt; Comment -&gt; Comment
+$cmin :: Comment -&gt; Comment -&gt; Comment
+min :: Comment -&gt; Comment -&gt; Comment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516500"><span id="local-6989586621679516502"><span class="annot"><span class="annottext">(forall x. Comment -&gt; Rep Comment x)
+-&gt; (forall x. Rep Comment x -&gt; Comment) -&gt; Generic Comment
+forall x. Rep Comment x -&gt; Comment
+forall x. Comment -&gt; Rep Comment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Comment -&gt; Rep Comment x
+from :: forall x. Comment -&gt; Rep Comment x
+$cto :: forall x. Rep Comment x -&gt; Comment
+to :: forall x. Rep Comment x -&gt; Comment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516508"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516567"><span id="local-6989586621679516574"><span id="local-6989586621679516580"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span></span></span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516680"><span id="local-6989586621679516684"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-type">Comment</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>    </span><span id="local-6989586621679516730"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Comment
+</span><a href="#local-6989586621679516730"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Comment) -&gt; Value -&gt; Parser Comment
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Comment&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Comment) -&gt; Value -&gt; Parser Comment)
+-&gt; (Object -&gt; Parser Comment) -&gt; Value -&gt; Parser Comment
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679516733"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+-&gt; Maybe Int
+-&gt; Text
+-&gt; Maybe Text
+-&gt; UTCTime
+-&gt; Maybe URL
+-&gt; URL
+-&gt; Maybe UTCTime
+-&gt; Maybe Text
+-&gt; SimpleUser
+-&gt; Id Comment
+-&gt; Comment
+</span><a href="GitHub.Data.Comments.html#Comment"><span class="hs-identifier hs-var">Comment</span></a></span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">(Maybe Int
+ -&gt; Maybe Int
+ -&gt; Text
+ -&gt; Maybe Text
+ -&gt; UTCTime
+ -&gt; Maybe URL
+ -&gt; URL
+ -&gt; Maybe UTCTime
+ -&gt; Maybe Text
+ -&gt; SimpleUser
+ -&gt; Id Comment
+ -&gt; Comment)
+-&gt; Parser (Maybe Int)
+-&gt; Parser
+     (Maybe Int
+      -&gt; Text
+      -&gt; Maybe Text
+      -&gt; UTCTime
+      -&gt; Maybe URL
+      -&gt; URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Int)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe Int
+   -&gt; Text
+   -&gt; Maybe Text
+   -&gt; UTCTime
+   -&gt; Maybe URL
+   -&gt; URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser (Maybe Int)
+-&gt; Parser
+     (Text
+      -&gt; Maybe Text
+      -&gt; UTCTime
+      -&gt; Maybe URL
+      -&gt; URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Int)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;line&quot;</span></span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text
+   -&gt; Maybe Text
+   -&gt; UTCTime
+   -&gt; Maybe URL
+   -&gt; URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser Text
+-&gt; Parser
+     (Maybe Text
+      -&gt; UTCTime
+      -&gt; Maybe URL
+      -&gt; URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe Text
+   -&gt; UTCTime
+   -&gt; Maybe URL
+   -&gt; URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser (Maybe Text)
+-&gt; Parser
+     (UTCTime
+      -&gt; Maybe URL
+      -&gt; URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commit_id&quot;</span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; Maybe URL
+   -&gt; URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (Maybe URL
+      -&gt; URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe URL
+   -&gt; URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser (Maybe URL)
+-&gt; Parser
+     (URL
+      -&gt; Maybe UTCTime
+      -&gt; Maybe Text
+      -&gt; SimpleUser
+      -&gt; Id Comment
+      -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe URL)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (URL
+   -&gt; Maybe UTCTime
+   -&gt; Maybe Text
+   -&gt; SimpleUser
+   -&gt; Id Comment
+   -&gt; Comment)
+-&gt; Parser URL
+-&gt; Parser
+     (Maybe UTCTime
+      -&gt; Maybe Text -&gt; SimpleUser -&gt; Id Comment -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe UTCTime
+   -&gt; Maybe Text -&gt; SimpleUser -&gt; Id Comment -&gt; Comment)
+-&gt; Parser (Maybe UTCTime)
+-&gt; Parser (Maybe Text -&gt; SimpleUser -&gt; Id Comment -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; SimpleUser -&gt; Id Comment -&gt; Comment)
+-&gt; Parser (Maybe Text)
+-&gt; Parser (SimpleUser -&gt; Id Comment -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;path&quot;</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><span class="annottext">Parser (SimpleUser -&gt; Id Comment -&gt; Comment)
+-&gt; Parser SimpleUser -&gt; Parser (Id Comment -&gt; Comment)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><span class="annottext">Parser (Id Comment -&gt; Comment)
+-&gt; Parser (Id Comment) -&gt; Parser Comment
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679516733"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Comment)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">data</span><span> </span><span id="NewComment"><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-var">NewComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewComment"><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-var">NewComment</span></a></span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newCommentBody"><span class="annot"><span class="annottext">NewComment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#newCommentBody"><span class="hs-identifier hs-var hs-var">newCommentBody</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679516740"><span id="local-6989586621679516744"><span id="local-6989586621679516748"><span class="annot"><span class="annottext">Int -&gt; NewComment -&gt; ShowS
+[NewComment] -&gt; ShowS
+NewComment -&gt; String
+(Int -&gt; NewComment -&gt; ShowS)
+-&gt; (NewComment -&gt; String)
+-&gt; ([NewComment] -&gt; ShowS)
+-&gt; Show NewComment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewComment -&gt; ShowS
+showsPrec :: Int -&gt; NewComment -&gt; ShowS
+$cshow :: NewComment -&gt; String
+show :: NewComment -&gt; String
+$cshowList :: [NewComment] -&gt; ShowS
+showList :: [NewComment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516753"><span id="local-6989586621679516756"><span id="local-6989586621679516759"><span id="local-6989586621679516761"><span id="local-6989586621679516763"><span id="local-6989586621679516769"><span id="local-6989586621679516774"><span id="local-6989586621679516777"><span id="local-6989586621679516780"><span id="local-6989586621679516783"><span id="local-6989586621679516786"><span id="local-6989586621679516789"><span id="local-6989586621679516794"><span id="local-6989586621679516799"><span class="annot"><span class="annottext">Typeable NewComment
+Typeable NewComment =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewComment -&gt; c NewComment)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewComment)
+-&gt; (NewComment -&gt; Constr)
+-&gt; (NewComment -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewComment))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewComment))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewComment -&gt; NewComment)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment)
+-&gt; Data NewComment
+NewComment -&gt; Constr
+NewComment -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewComment -&gt; NewComment
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewComment
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewComment -&gt; c NewComment
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewComment)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewComment)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewComment -&gt; c NewComment
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewComment -&gt; c NewComment
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewComment
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewComment
+$ctoConstr :: NewComment -&gt; Constr
+toConstr :: NewComment -&gt; Constr
+$cdataTypeOf :: NewComment -&gt; DataType
+dataTypeOf :: NewComment -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewComment)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewComment)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewComment)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewComment)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewComment -&gt; NewComment
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewComment -&gt; NewComment
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewComment -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewComment -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewComment -&gt; m NewComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516804"><span id="local-6989586621679516807"><span class="annot"><span class="annottext">NewComment -&gt; NewComment -&gt; Bool
+(NewComment -&gt; NewComment -&gt; Bool)
+-&gt; (NewComment -&gt; NewComment -&gt; Bool) -&gt; Eq NewComment
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewComment -&gt; NewComment -&gt; Bool
+== :: NewComment -&gt; NewComment -&gt; Bool
+$c/= :: NewComment -&gt; NewComment -&gt; Bool
+/= :: NewComment -&gt; NewComment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516813"><span id="local-6989586621679516816"><span id="local-6989586621679516819"><span id="local-6989586621679516823"><span id="local-6989586621679516826"><span id="local-6989586621679516829"><span id="local-6989586621679516832"><span class="annot"><span class="annottext">Eq NewComment
+Eq NewComment =&gt;
+(NewComment -&gt; NewComment -&gt; Ordering)
+-&gt; (NewComment -&gt; NewComment -&gt; Bool)
+-&gt; (NewComment -&gt; NewComment -&gt; Bool)
+-&gt; (NewComment -&gt; NewComment -&gt; Bool)
+-&gt; (NewComment -&gt; NewComment -&gt; Bool)
+-&gt; (NewComment -&gt; NewComment -&gt; NewComment)
+-&gt; (NewComment -&gt; NewComment -&gt; NewComment)
+-&gt; Ord NewComment
+NewComment -&gt; NewComment -&gt; Bool
+NewComment -&gt; NewComment -&gt; Ordering
+NewComment -&gt; NewComment -&gt; NewComment
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewComment -&gt; NewComment -&gt; Ordering
+compare :: NewComment -&gt; NewComment -&gt; Ordering
+$c&lt; :: NewComment -&gt; NewComment -&gt; Bool
+&lt; :: NewComment -&gt; NewComment -&gt; Bool
+$c&lt;= :: NewComment -&gt; NewComment -&gt; Bool
+&lt;= :: NewComment -&gt; NewComment -&gt; Bool
+$c&gt; :: NewComment -&gt; NewComment -&gt; Bool
+&gt; :: NewComment -&gt; NewComment -&gt; Bool
+$c&gt;= :: NewComment -&gt; NewComment -&gt; Bool
+&gt;= :: NewComment -&gt; NewComment -&gt; Bool
+$cmax :: NewComment -&gt; NewComment -&gt; NewComment
+max :: NewComment -&gt; NewComment -&gt; NewComment
+$cmin :: NewComment -&gt; NewComment -&gt; NewComment
+min :: NewComment -&gt; NewComment -&gt; NewComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516835"><span id="local-6989586621679516837"><span class="annot"><span class="annottext">(forall x. NewComment -&gt; Rep NewComment x)
+-&gt; (forall x. Rep NewComment x -&gt; NewComment) -&gt; Generic NewComment
+forall x. Rep NewComment x -&gt; NewComment
+forall x. NewComment -&gt; Rep NewComment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewComment -&gt; Rep NewComment x
+from :: forall x. NewComment -&gt; Rep NewComment x
+$cto :: forall x. Rep NewComment x -&gt; NewComment
+to :: forall x. Rep NewComment x -&gt; NewComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516840"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-type">NewComment</span></a></span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516851"><span id="local-6989586621679516858"><span id="local-6989586621679516864"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-type">NewComment</span></a></span></span></span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679516876"><span id="local-6989586621679516880"><span id="local-6989586621679516883"><span id="local-6989586621679516886"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-type">NewComment</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679516896"><span class="annot"><span class="annottext">toJSON :: NewComment -&gt; Value
+</span><a href="#local-6989586621679516896"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Comments.html#NewComment"><span class="hs-identifier hs-type">NewComment</span></a></span><span> </span><span id="local-6989586621679516898"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679516898"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679516898"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">data</span><span> </span><span id="EditComment"><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-var">EditComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="EditComment"><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-var">EditComment</span></a></span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="editCommentBody"><span class="annot"><span class="annottext">EditComment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#editCommentBody"><span class="hs-identifier hs-var hs-var">editCommentBody</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679516904"><span id="local-6989586621679516908"><span id="local-6989586621679516912"><span class="annot"><span class="annottext">Int -&gt; EditComment -&gt; ShowS
+[EditComment] -&gt; ShowS
+EditComment -&gt; String
+(Int -&gt; EditComment -&gt; ShowS)
+-&gt; (EditComment -&gt; String)
+-&gt; ([EditComment] -&gt; ShowS)
+-&gt; Show EditComment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; EditComment -&gt; ShowS
+showsPrec :: Int -&gt; EditComment -&gt; ShowS
+$cshow :: EditComment -&gt; String
+show :: EditComment -&gt; String
+$cshowList :: [EditComment] -&gt; ShowS
+showList :: [EditComment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516917"><span id="local-6989586621679516920"><span id="local-6989586621679516923"><span id="local-6989586621679516925"><span id="local-6989586621679516927"><span id="local-6989586621679516933"><span id="local-6989586621679516938"><span id="local-6989586621679516941"><span id="local-6989586621679516944"><span id="local-6989586621679516947"><span id="local-6989586621679516950"><span id="local-6989586621679516953"><span id="local-6989586621679516958"><span id="local-6989586621679516963"><span class="annot"><span class="annottext">Typeable EditComment
+Typeable EditComment =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; EditComment -&gt; c EditComment)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c EditComment)
+-&gt; (EditComment -&gt; Constr)
+-&gt; (EditComment -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c EditComment))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c EditComment))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; EditComment -&gt; EditComment)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment)
+-&gt; Data EditComment
+EditComment -&gt; Constr
+EditComment -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; EditComment -&gt; EditComment
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c EditComment
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; EditComment -&gt; c EditComment
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c EditComment)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c EditComment)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; EditComment -&gt; c EditComment
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; EditComment -&gt; c EditComment
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c EditComment
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c EditComment
+$ctoConstr :: EditComment -&gt; Constr
+toConstr :: EditComment -&gt; Constr
+$cdataTypeOf :: EditComment -&gt; DataType
+dataTypeOf :: EditComment -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c EditComment)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c EditComment)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c EditComment)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c EditComment)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; EditComment -&gt; EditComment
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; EditComment -&gt; EditComment
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; EditComment -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; EditComment -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; EditComment -&gt; m EditComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516968"><span id="local-6989586621679516971"><span class="annot"><span class="annottext">EditComment -&gt; EditComment -&gt; Bool
+(EditComment -&gt; EditComment -&gt; Bool)
+-&gt; (EditComment -&gt; EditComment -&gt; Bool) -&gt; Eq EditComment
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: EditComment -&gt; EditComment -&gt; Bool
+== :: EditComment -&gt; EditComment -&gt; Bool
+$c/= :: EditComment -&gt; EditComment -&gt; Bool
+/= :: EditComment -&gt; EditComment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516977"><span id="local-6989586621679516980"><span id="local-6989586621679516983"><span id="local-6989586621679516987"><span id="local-6989586621679516990"><span id="local-6989586621679516993"><span id="local-6989586621679516996"><span class="annot"><span class="annottext">Eq EditComment
+Eq EditComment =&gt;
+(EditComment -&gt; EditComment -&gt; Ordering)
+-&gt; (EditComment -&gt; EditComment -&gt; Bool)
+-&gt; (EditComment -&gt; EditComment -&gt; Bool)
+-&gt; (EditComment -&gt; EditComment -&gt; Bool)
+-&gt; (EditComment -&gt; EditComment -&gt; Bool)
+-&gt; (EditComment -&gt; EditComment -&gt; EditComment)
+-&gt; (EditComment -&gt; EditComment -&gt; EditComment)
+-&gt; Ord EditComment
+EditComment -&gt; EditComment -&gt; Bool
+EditComment -&gt; EditComment -&gt; Ordering
+EditComment -&gt; EditComment -&gt; EditComment
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: EditComment -&gt; EditComment -&gt; Ordering
+compare :: EditComment -&gt; EditComment -&gt; Ordering
+$c&lt; :: EditComment -&gt; EditComment -&gt; Bool
+&lt; :: EditComment -&gt; EditComment -&gt; Bool
+$c&lt;= :: EditComment -&gt; EditComment -&gt; Bool
+&lt;= :: EditComment -&gt; EditComment -&gt; Bool
+$c&gt; :: EditComment -&gt; EditComment -&gt; Bool
+&gt; :: EditComment -&gt; EditComment -&gt; Bool
+$c&gt;= :: EditComment -&gt; EditComment -&gt; Bool
+&gt;= :: EditComment -&gt; EditComment -&gt; Bool
+$cmax :: EditComment -&gt; EditComment -&gt; EditComment
+max :: EditComment -&gt; EditComment -&gt; EditComment
+$cmin :: EditComment -&gt; EditComment -&gt; EditComment
+min :: EditComment -&gt; EditComment -&gt; EditComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679516999"><span id="local-6989586621679517001"><span class="annot"><span class="annottext">(forall x. EditComment -&gt; Rep EditComment x)
+-&gt; (forall x. Rep EditComment x -&gt; EditComment)
+-&gt; Generic EditComment
+forall x. Rep EditComment x -&gt; EditComment
+forall x. EditComment -&gt; Rep EditComment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. EditComment -&gt; Rep EditComment x
+from :: forall x. EditComment -&gt; Rep EditComment x
+$cto :: forall x. Rep EditComment x -&gt; EditComment
+to :: forall x. Rep EditComment x -&gt; EditComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517004"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-type">EditComment</span></a></span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517015"><span id="local-6989586621679517022"><span id="local-6989586621679517028"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-type">EditComment</span></a></span></span></span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517040"><span id="local-6989586621679517044"><span id="local-6989586621679517047"><span id="local-6989586621679517050"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-type">EditComment</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679517057"><span class="annot"><span class="annottext">toJSON :: EditComment -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Comments.html#EditComment"><span class="hs-identifier hs-type">EditComment</span></a></span><span> </span><span id="local-6989586621679517058"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517058"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517058"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">data</span><span> </span><span id="NewPullComment"><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-var">NewPullComment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewPullComment"><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-var">NewPullComment</span></a></span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newPullCommentCommit"><span class="annot"><span class="annottext">NewPullComment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#newPullCommentCommit"><span class="hs-identifier hs-var hs-var">newPullCommentCommit</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newPullCommentPath"><span class="annot"><span class="annottext">NewPullComment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#newPullCommentPath"><span class="hs-identifier hs-var hs-var">newPullCommentPath</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newPullCommentPosition"><span class="annot"><span class="annottext">NewPullComment -&gt; Int
+</span><a href="GitHub.Data.Comments.html#newPullCommentPosition"><span class="hs-identifier hs-var hs-var">newPullCommentPosition</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newPullCommentBody"><span class="annot"><span class="annottext">NewPullComment -&gt; Text
+</span><a href="GitHub.Data.Comments.html#newPullCommentBody"><span class="hs-identifier hs-var hs-var">newPullCommentBody</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679517065"><span id="local-6989586621679517072"><span id="local-6989586621679517076"><span class="annot"><span class="annottext">Int -&gt; NewPullComment -&gt; ShowS
+[NewPullComment] -&gt; ShowS
+NewPullComment -&gt; String
+(Int -&gt; NewPullComment -&gt; ShowS)
+-&gt; (NewPullComment -&gt; String)
+-&gt; ([NewPullComment] -&gt; ShowS)
+-&gt; Show NewPullComment
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewPullComment -&gt; ShowS
+showsPrec :: Int -&gt; NewPullComment -&gt; ShowS
+$cshow :: NewPullComment -&gt; String
+show :: NewPullComment -&gt; String
+$cshowList :: [NewPullComment] -&gt; ShowS
+showList :: [NewPullComment] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517081"><span id="local-6989586621679517087"><span id="local-6989586621679517093"><span id="local-6989586621679517095"><span id="local-6989586621679517097"><span id="local-6989586621679517103"><span id="local-6989586621679517108"><span id="local-6989586621679517111"><span id="local-6989586621679517114"><span id="local-6989586621679517117"><span id="local-6989586621679517120"><span id="local-6989586621679517123"><span id="local-6989586621679517128"><span id="local-6989586621679517133"><span class="annot"><span class="annottext">Typeable NewPullComment
+Typeable NewPullComment =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewPullComment -&gt; c NewPullComment)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPullComment)
+-&gt; (NewPullComment -&gt; Constr)
+-&gt; (NewPullComment -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPullComment))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewPullComment))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; NewPullComment -&gt; NewPullComment)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPullComment -&gt; m NewPullComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPullComment -&gt; m NewPullComment)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NewPullComment -&gt; m NewPullComment)
+-&gt; Data NewPullComment
+NewPullComment -&gt; Constr
+NewPullComment -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewPullComment -&gt; NewPullComment
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPullComment
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPullComment -&gt; c NewPullComment
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPullComment)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPullComment)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPullComment -&gt; c NewPullComment
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewPullComment -&gt; c NewPullComment
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPullComment
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewPullComment
+$ctoConstr :: NewPullComment -&gt; Constr
+toConstr :: NewPullComment -&gt; Constr
+$cdataTypeOf :: NewPullComment -&gt; DataType
+dataTypeOf :: NewPullComment -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPullComment)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewPullComment)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPullComment)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewPullComment)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewPullComment -&gt; NewPullComment
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewPullComment -&gt; NewPullComment
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewPullComment -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewPullComment -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NewPullComment -&gt; m NewPullComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517138"><span id="local-6989586621679517144"><span class="annot"><span class="annottext">NewPullComment -&gt; NewPullComment -&gt; Bool
+(NewPullComment -&gt; NewPullComment -&gt; Bool)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; Bool) -&gt; Eq NewPullComment
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewPullComment -&gt; NewPullComment -&gt; Bool
+== :: NewPullComment -&gt; NewPullComment -&gt; Bool
+$c/= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+/= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517150"><span id="local-6989586621679517156"><span id="local-6989586621679517162"><span id="local-6989586621679517166"><span id="local-6989586621679517169"><span id="local-6989586621679517172"><span id="local-6989586621679517175"><span class="annot"><span class="annottext">Eq NewPullComment
+Eq NewPullComment =&gt;
+(NewPullComment -&gt; NewPullComment -&gt; Ordering)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; Bool)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; Bool)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; Bool)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; Bool)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; NewPullComment)
+-&gt; (NewPullComment -&gt; NewPullComment -&gt; NewPullComment)
+-&gt; Ord NewPullComment
+NewPullComment -&gt; NewPullComment -&gt; Bool
+NewPullComment -&gt; NewPullComment -&gt; Ordering
+NewPullComment -&gt; NewPullComment -&gt; NewPullComment
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewPullComment -&gt; NewPullComment -&gt; Ordering
+compare :: NewPullComment -&gt; NewPullComment -&gt; Ordering
+$c&lt; :: NewPullComment -&gt; NewPullComment -&gt; Bool
+&lt; :: NewPullComment -&gt; NewPullComment -&gt; Bool
+$c&lt;= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+&lt;= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+$c&gt; :: NewPullComment -&gt; NewPullComment -&gt; Bool
+&gt; :: NewPullComment -&gt; NewPullComment -&gt; Bool
+$c&gt;= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+&gt;= :: NewPullComment -&gt; NewPullComment -&gt; Bool
+$cmax :: NewPullComment -&gt; NewPullComment -&gt; NewPullComment
+max :: NewPullComment -&gt; NewPullComment -&gt; NewPullComment
+$cmin :: NewPullComment -&gt; NewPullComment -&gt; NewPullComment
+min :: NewPullComment -&gt; NewPullComment -&gt; NewPullComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517178"><span id="local-6989586621679517180"><span class="annot"><span class="annottext">(forall x. NewPullComment -&gt; Rep NewPullComment x)
+-&gt; (forall x. Rep NewPullComment x -&gt; NewPullComment)
+-&gt; Generic NewPullComment
+forall x. Rep NewPullComment x -&gt; NewPullComment
+forall x. NewPullComment -&gt; Rep NewPullComment x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewPullComment -&gt; Rep NewPullComment x
+from :: forall x. NewPullComment -&gt; Rep NewPullComment x
+$cto :: forall x. Rep NewPullComment x -&gt; NewPullComment
+to :: forall x. Rep NewPullComment x -&gt; NewPullComment
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517183"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-type">NewPullComment</span></a></span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517202"><span id="local-6989586621679517209"><span id="local-6989586621679517215"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-type">NewPullComment</span></a></span></span></span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517243"><span id="local-6989586621679517247"><span id="local-6989586621679517250"><span id="local-6989586621679517253"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-type">NewPullComment</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679517270"><span class="annot"><span class="annottext">toJSON :: NewPullComment -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Comments.html#NewPullComment"><span class="hs-identifier hs-type">NewPullComment</span></a></span><span> </span><span id="local-6989586621679517271"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517271"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679517272"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517272"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679517273"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679517273"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span id="local-6989586621679517274"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517274"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517274"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-77"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commit_id&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517271"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-78"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;path&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517272"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-79"></span><span>               </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;position&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Int -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679517273"><span class="hs-identifier hs-var">pos</span></a></span><span>
+</span><span id="line-80"></span><span>               </span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">data</span><span> </span><span id="PullCommentReply"><span class="annot"><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-var">PullCommentReply</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PullCommentReply"><span class="annot"><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-var">PullCommentReply</span></a></span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="pullCommentReplyBody"><span class="annot"><span class="annottext">PullCommentReply -&gt; Text
+</span><a href="GitHub.Data.Comments.html#pullCommentReplyBody"><span class="hs-identifier hs-var hs-var">pullCommentReplyBody</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679517278"><span id="local-6989586621679517282"><span id="local-6989586621679517286"><span class="annot"><span class="annottext">Int -&gt; PullCommentReply -&gt; ShowS
+[PullCommentReply] -&gt; ShowS
+PullCommentReply -&gt; String
+(Int -&gt; PullCommentReply -&gt; ShowS)
+-&gt; (PullCommentReply -&gt; String)
+-&gt; ([PullCommentReply] -&gt; ShowS)
+-&gt; Show PullCommentReply
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PullCommentReply -&gt; ShowS
+showsPrec :: Int -&gt; PullCommentReply -&gt; ShowS
+$cshow :: PullCommentReply -&gt; String
+show :: PullCommentReply -&gt; String
+$cshowList :: [PullCommentReply] -&gt; ShowS
+showList :: [PullCommentReply] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517291"><span id="local-6989586621679517294"><span id="local-6989586621679517297"><span id="local-6989586621679517299"><span id="local-6989586621679517301"><span id="local-6989586621679517307"><span id="local-6989586621679517312"><span id="local-6989586621679517315"><span id="local-6989586621679517318"><span id="local-6989586621679517321"><span id="local-6989586621679517324"><span id="local-6989586621679517327"><span id="local-6989586621679517332"><span id="local-6989586621679517337"><span class="annot"><span class="annottext">Typeable PullCommentReply
+Typeable PullCommentReply =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; PullCommentReply -&gt; c PullCommentReply)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PullCommentReply)
+-&gt; (PullCommentReply -&gt; Constr)
+-&gt; (PullCommentReply -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PullCommentReply))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c PullCommentReply))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; PullCommentReply -&gt; PullCommentReply)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PullCommentReply -&gt; m PullCommentReply)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PullCommentReply -&gt; m PullCommentReply)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; PullCommentReply -&gt; m PullCommentReply)
+-&gt; Data PullCommentReply
+PullCommentReply -&gt; Constr
+PullCommentReply -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; PullCommentReply -&gt; PullCommentReply
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PullCommentReply
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PullCommentReply -&gt; c PullCommentReply
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PullCommentReply)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PullCommentReply)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PullCommentReply -&gt; c PullCommentReply
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; PullCommentReply -&gt; c PullCommentReply
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PullCommentReply
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c PullCommentReply
+$ctoConstr :: PullCommentReply -&gt; Constr
+toConstr :: PullCommentReply -&gt; Constr
+$cdataTypeOf :: PullCommentReply -&gt; DataType
+dataTypeOf :: PullCommentReply -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PullCommentReply)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c PullCommentReply)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PullCommentReply)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c PullCommentReply)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; PullCommentReply -&gt; PullCommentReply
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; PullCommentReply -&gt; PullCommentReply
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; PullCommentReply -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; PullCommentReply -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; PullCommentReply -&gt; m PullCommentReply
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517342"><span id="local-6989586621679517345"><span class="annot"><span class="annottext">PullCommentReply -&gt; PullCommentReply -&gt; Bool
+(PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; Eq PullCommentReply
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+== :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+$c/= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+/= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517351"><span id="local-6989586621679517354"><span id="local-6989586621679517357"><span id="local-6989586621679517361"><span id="local-6989586621679517364"><span id="local-6989586621679517367"><span id="local-6989586621679517370"><span class="annot"><span class="annottext">Eq PullCommentReply
+Eq PullCommentReply =&gt;
+(PullCommentReply -&gt; PullCommentReply -&gt; Ordering)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; Bool)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply)
+-&gt; (PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply)
+-&gt; Ord PullCommentReply
+PullCommentReply -&gt; PullCommentReply -&gt; Bool
+PullCommentReply -&gt; PullCommentReply -&gt; Ordering
+PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PullCommentReply -&gt; PullCommentReply -&gt; Ordering
+compare :: PullCommentReply -&gt; PullCommentReply -&gt; Ordering
+$c&lt; :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+&lt; :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+$c&lt;= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+&lt;= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+$c&gt; :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+&gt; :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+$c&gt;= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+&gt;= :: PullCommentReply -&gt; PullCommentReply -&gt; Bool
+$cmax :: PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply
+max :: PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply
+$cmin :: PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply
+min :: PullCommentReply -&gt; PullCommentReply -&gt; PullCommentReply
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517373"><span id="local-6989586621679517375"><span class="annot"><span class="annottext">(forall x. PullCommentReply -&gt; Rep PullCommentReply x)
+-&gt; (forall x. Rep PullCommentReply x -&gt; PullCommentReply)
+-&gt; Generic PullCommentReply
+forall x. Rep PullCommentReply x -&gt; PullCommentReply
+forall x. PullCommentReply -&gt; Rep PullCommentReply x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. PullCommentReply -&gt; Rep PullCommentReply x
+from :: forall x. PullCommentReply -&gt; Rep PullCommentReply x
+$cto :: forall x. Rep PullCommentReply x -&gt; PullCommentReply
+to :: forall x. Rep PullCommentReply x -&gt; PullCommentReply
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517378"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-type">PullCommentReply</span></a></span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517390"><span id="local-6989586621679517394"><span id="local-6989586621679517397"><span id="local-6989586621679517400"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-type">PullCommentReply</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621679517407"><span class="annot"><span class="annottext">toJSON :: PullCommentReply -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Comments.html#PullCommentReply"><span class="hs-identifier hs-type">PullCommentReply</span></a></span><span> </span><span id="local-6989586621679517408"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517408"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;body&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679517408"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-92"></span><span>               </span><span class="hs-special">]</span><span>
+</span><span id="line-93"></span></pre></body></html>
