@@ -17,7 +17,8 @@
 --   anything.
 -- * A tuple, which is nested pairs ending in `()`, is `(x, y)` when the lets
 --   of its inner pairs are used only there; they are folded into it.
--- * Building a closure (partial application) is `f = g a b -- closure`.
+-- * Building a closure, a function with some of its arguments, without
+--   calling it, is `f = partialApply g a b`.
 -- * A force is `x()`; a continuation call is like a function call.
 -- * A primitive operation or foreign function is shown as the builtin it
 --   is, `x Nat.+ y` (`prim.OP` for an operation no builtin is,
@@ -220,7 +221,7 @@ block irn vns tm = case tm of
   TLets _ vs _ bn bo ->
     binding Nothing (lhsVars vs) "=" (block irn vns bn) : block irn vns bo
   TName v f as bo ->
-    Stmt False (var vns v <> " " <> kw "=" <> " " <> app (nameHead f) (map (var vns) as) <> "  " <> comment "closure")
+    Stmt False (var vns v <> " " <> kw "=" <> " " <> app (Head False (kw "partialApply")) (headText (nameHead f) : map (var vns) as))
       : block irn vns bo
   TMatch v bs ->
     [Stmt True $ (kw "match" <> " " <> var vns v <> " " <> kw "with") `above` P.indentN 2 (P.lines $ branches irn vns bs)]

@@ -183,7 +183,7 @@ scratch/main> ir runCounter
   runCounter p =
     v1 = 0
     v2 = runCounter$h v1
-    v3 = runCounter$Lambda0 p  -- closure
+    v3 = partialApply runCounter$Lambda0 p
     v2 v3
 
   runCounter$h n x1 =
@@ -191,14 +191,14 @@ scratch/main> ir runCounter
       match v2 with
         {bump} ->
           shift {Counter} v3 ->
-            p1 = (builtin ##jumpCont) v3  -- closure
+            p1 = partialApply (builtin ##jumpCont) v3
             v4 = 1
             v5 = (builtin Nat.+) n v4
             v6 = runCounter$h v5
-            v7 = runCounter$h$Lambda0 p1 n  -- closure
+            v7 = partialApply runCounter$h$Lambda0 p1 n
             v6 v7
         {p2} -> p2
-    v1 = f1 n  -- closure
+    v1 = partialApply f1 n
     handle {Counter}
       x1()
     with v1
@@ -213,7 +213,7 @@ scratch/main> ir.optimized runCounter
 
   runCounter p =
     v1 = 0
-    v2 = runCounter$Lambda0 p  -- closure
+    v2 = partialApply runCounter$Lambda0 p
     runCounter$h v1 v2
 
   runCounter$h n x1 =
@@ -221,10 +221,10 @@ scratch/main> ir.optimized runCounter
       match v3 with
         {bump} ->
           shift {Counter} v4 ->
-            p1 = (builtin ##jumpCont) v4  -- closure
+            p1 = partialApply (builtin ##jumpCont) v4
             v5 = 1
             v6 = n Nat.+ v5
-            v1 = f1 v6  -- closure
+            v1 = partialApply f1 v6
             handle {Counter}
               p1 n
             with v1
@@ -235,12 +235,12 @@ scratch/main> ir.optimized runCounter
           local v7 ->
             v5 = 1
             v6 = n Nat.+ v5
-            v1 = f2 v6 v7  -- closure
+            v1 = partialApply f2 v6 v7
             update v7 v1
             n
         {p2} -> p2
-    v1 = f1 n  -- closure
-    v2 = f2 n  -- closure
+    v1 = partialApply f1 n
+    v2 = partialApply f2 n
     handle {Counter}
       x1()
     with v1  -- affine: v2
