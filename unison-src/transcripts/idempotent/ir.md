@@ -80,6 +80,22 @@ scratch/main> ir fib
 
   fib n =
     v1 = 2
+    v2 = (builtin <) n v1
+    match v2 with
+      false ->
+        v3 = 1
+        v4 = (builtin Nat.drop) n v3
+        v5 = fib v4
+        v6 = 2
+        v7 = (builtin Nat.drop) n v6
+        v8 = fib v7
+        (builtin Nat.+) v5 v8
+      _ -> n
+
+scratch/main> ir.optimized fib
+
+  fib n =
+    v1 = 2
     v2 = n < v1
     match v2 with
       false ->
@@ -91,22 +107,6 @@ scratch/main> ir fib
         v8 = fib v7
         v5 Nat.+ v8
       _ -> n
-
-scratch/main> ir.optimized fib
-
-  fib n =
-    v1 = 2
-    v2 = prim.LESU n v1
-    match v2 with
-      false ->
-        v3 = 1
-        v4 = prim.DRPN n v3
-        v5 = fib v4
-        v6 = 2
-        v7 = prim.DRPN n v6
-        v8 = fib v7
-        prim.ADDN v5 v8
-      _ -> n
 ```
 
 A term in a cycle shows the whole cycle.
@@ -116,21 +116,21 @@ scratch/main> ir even
 
   even x =
     v1 = 0
-    v2 = x == v1
+    v2 = (builtin ==) x v1
     match v2 with
       false ->
         v3 = 1
-        v4 = Nat.drop x v3
+        v4 = (builtin Nat.drop) x v3
         odd v4
       _ -> true
 
   odd x =
     v1 = 0
-    v2 = x == v1
+    v2 = (builtin ==) x v1
     match v2 with
       false ->
         v3 = 1
-        v4 = Nat.drop x v3
+        v4 = (builtin Nat.drop) x v3
         even v4
       _ -> false
 ```
@@ -144,7 +144,7 @@ scratch/main> ir addAll
     v1 = addAll$Lambda0 k
     List.map v1 xs
 
-  addAll$Lambda0 k x = x Nat.+ k
+  addAll$Lambda0 k x = (builtin Nat.+) x k
 
 scratch/main> ir sumWith
 
@@ -153,11 +153,11 @@ scratch/main> ir sumWith
     sumWith$go k v1 xs
 
   sumWith$go k acc x1 =
-    v1 = ##List.viewl x1
+    v1 = (builtin ##List.viewl) x1
     match v1 with
       VElem p1 p2 ->
-        v2 = p1 Nat.* k
-        v3 = acc Nat.+ v2
+        v2 = (builtin Nat.*) p1 k
+        v3 = (builtin Nat.+) acc v2
         sumWith$go k v3 p2
       VEmpty -> acc
 
@@ -170,8 +170,8 @@ scratch/main> ir describe
           0 -> "zero"
           _ ->
             v1 = "some "
-            v2 = Nat.toText p1
-            v1 Text.++ v2
+            v2 = (builtin Nat.toText) p1
+            (builtin Text.++) v1 v2
       None -> "none"
 ```
 
@@ -191,9 +191,9 @@ scratch/main> ir runCounter
       match v2 with
         {bump} ->
           shift {Counter} v3 ->
-            p1 = ##jumpCont v3  -- closure
+            p1 = (builtin ##jumpCont) v3  -- closure
             v4 = 1
-            v5 = n Nat.+ v4
+            v5 = (builtin Nat.+) n v4
             v6 = runCounter$h v5
             v7 = runCounter$h$Lambda0 p1 n  -- closure
             v6 v7
@@ -221,9 +221,9 @@ scratch/main> ir.optimized runCounter
       match v3 with
         {bump} ->
           shift {Counter} v4 ->
-            p1 = ##jumpCont v4  -- closure
+            p1 = (builtin ##jumpCont) v4  -- closure
             v5 = 1
-            v6 = prim.ADDN n v5
+            v6 = n Nat.+ v5
             v1 = f1 v6  -- closure
             handle {Counter}
               p1 n
@@ -234,7 +234,7 @@ scratch/main> ir.optimized runCounter
         {bump} ->
           local v7 ->
             v5 = 1
-            v6 = prim.ADDN n v5
+            v6 = n Nat.+ v5
             v1 = f2 v6 v7  -- closure
             update v7 v1
             n
@@ -263,7 +263,7 @@ scratch/main> ir.optimized sumCount
     sumCount$go#spec1 v1 v2 xs
 
   sumCount$go st x1 =
-    v1 = prim.VWLS x1
+    v1 = ##List.viewl x1
     match v1 with
       VElem p1 p2 ->
         match st with
@@ -272,9 +272,9 @@ scratch/main> ir.optimized sumCount
               Cons p5 p6 ->
                 match p6 with
                   () ->
-                    v2 = prim.ADDN p3 p1
+                    v2 = p3 Nat.+ p1
                     v3 = 1
-                    v4 = prim.ADDN p5 v3
+                    v4 = p5 Nat.+ v3
                     sumCount$go#spec1 v2 v4 p2
       VEmpty ->
         match st with
@@ -282,17 +282,17 @@ scratch/main> ir.optimized sumCount
             match p8 with
               Cons p9 p10 ->
                 match p10 with
-                  () -> prim.ADDN p7 p9
+                  () -> p7 Nat.+ p9
 
   sumCount$go#spec1 eta1 eta2 x1 =
-    v1 = prim.VWLS x1
+    v1 = ##List.viewl x1
     match v1 with
       VElem p1 p2 ->
-        v2 = prim.ADDN eta1 p1
+        v2 = eta1 Nat.+ p1
         v3 = 1
-        v4 = prim.ADDN eta2 v3
+        v4 = eta2 Nat.+ v3
         sumCount$go#spec1 v2 v4 p2
-      VEmpty -> prim.ADDN eta1 eta2
+      VEmpty -> eta1 Nat.+ eta2
 ```
 
 A function that returns a pair gets a worker that returns the two values without building it (`#return`): its tails `yield (# q, r #)`, several values rather than a pair. A caller that takes the pair apart calls it and binds the values, `(# q, r #) = ...`; the entry still builds the pair, for the callers that keep it.
@@ -301,26 +301,26 @@ A function that returns a pair gets a worker that returns the two values without
 scratch/main> ir.optimized divMod
 
   divMod a b =
-    v1 = prim.LESU a b
+    v1 = a < b
     match v1 with
       false ->
-        v2 = prim.DRPN a b
+        v2 = Nat.drop a b
         (# eta1, eta2 #) = divMod#return v2 b
         v3 = 1
-        v4 = prim.ADDN eta1 v3
+        v4 = eta1 Nat.+ v3
         (v4, eta2)
       _ ->
         v7 = 0
         (v7, a)
 
   divMod#return a b =
-    v1 = prim.LESU a b
+    v1 = a < b
     match v1 with
       false ->
-        v2 = prim.DRPN a b
+        v2 = Nat.drop a b
         (# eta1, eta2 #) = divMod#return v2 b
         v3 = 1
-        v4 = prim.ADDN eta1 v3
+        v4 = eta1 Nat.+ v3
         yield (# v4, eta2 #)
       _ ->
         v7 = 0
@@ -331,7 +331,7 @@ scratch/main> ir.optimized useDivMod
   useDivMod n =
     v1 = 7
     (# eta1, eta2 #) = divMod#return n v1
-    prim.ADDN eta1 eta2
+    eta1 Nat.+ eta2
 ```
 
 A match on a constructor built on the spot, or on the result of a match whose arms build constructors, is resolved where the constructor is known:
@@ -339,18 +339,18 @@ A match on a constructor built on the spot, or on the result of a match whose ar
 ``` ucm
 scratch/main> ir.optimized swapSum
 
-  swapSum a b = prim.ADDN b a
+  swapSum a b = b Nat.+ a
 
 scratch/main> ir.optimized classify
 
   classify n =
     v1 = 10
-    v2 = prim.LESU n v1
+    v2 = n < v1
     match v2 with
       false -> 0
       _ ->
         v3 = 1
-        prim.ADDN n v3
+        n Nat.+ v3
 ```
 
 Builtins have intermediate code too.
@@ -358,7 +358,7 @@ Builtins have intermediate code too.
 ``` ucm
 scratch/main> ir Nat.+
 
-  (Nat.+) v1 v2 = prim.ADDN v1 v2
+  (Nat.+) v1 v2 = v1 Nat.+ v2
 ```
 
 Constructors don't.

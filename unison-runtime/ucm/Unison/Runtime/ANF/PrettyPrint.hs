@@ -19,10 +19,12 @@
 --   of its inner pairs are used only there; they are folded into it.
 -- * Building a closure (partial application) is `f = g a b -- closure`.
 -- * A force is `x()`; a continuation call is like a function call.
--- * A primitive operation is `prim.OP` (`prim.ADDN`), and a foreign function
---   `foreign.` and its builtin's name, so that a call of a builtin function
---   (`Nat.+ x y`) and the instruction inlined for it (`prim.ADDN x y`) look
---   different.
+-- * A primitive operation or foreign function is shown as the builtin it
+--   is, `x Nat.+ y` (`prim.OP` for an operation no builtin is,
+--   'builtinPrimNames'), since a call of a builtin with all its arguments
+--   is inlined as it. A call of the builtin's function, which is what is
+--   left when it is not (a partial application, or a builtin passed as a
+--   value), is `(builtin Nat.+) x y`, always prefix.
 -- * A let that binds nothing is its binding alone, like an action in a
 --   Unison block.
 -- * A wide variable (Unison.Runtime.MCode.Wide: laid out in several slots,
@@ -59,11 +61,11 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv, termName, typeName)
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.ANF
-import Unison.Runtime.Builtin (builtinForeignNames)
+import Unison.Runtime.Builtin (builtinForeignNames, builtinPrimNames)
 import Unison.Runtime.Builtin.Decls (pairRef, unitRef)
 import Unison.Runtime.Wide (wideOn)
 import Unison.Symbol (Symbol)
@@ -240,6 +242,7 @@ block irn vns tm = case tm of
     lhsVars [v] = var vns v
     lhsVars vs = values (map (var vns) vs)
     -- prefix even for an operator: a closure is not a call
+    nameHead (Left r@(Builtin _)) = builtinFunction irn r
     nameHead (Left r) = case refHead irn (combName irn r) of
       Head True op -> Head False (P.parenthesize op)
       h -> h
@@ -268,15 +271,15 @@ func :: IRNames -> Names -> Func Reference Symbol -> [Pretty SyntaxText] -> Pret
 func irn vns f as = case f of
   FVar v -> app (Head False $ var vns v) as
   FCont v -> app (Head False $ var vns v) as
+  FComb r@(Builtin _) -> app (builtinFunction irn r) as
   FComb r -> app (refHead irn $ combName irn r) as
   FCon r t
     | r == Ty.booleanRef, [] <- as -> fmt S.BooleanLiteral (if rawTag t == 0 then "false" else "true")
     | r == unitRef, [] <- as -> fmt S.Unit "()"
     | otherwise -> app (constructor irn CT.Data r t) as
   FReq r t -> app (constructor irn CT.Effect r t) as
-  FPrim (Left op) -> app (Head False . fmt S.ControlKeyword . P.text $ "prim." <> tShow op) as
-  FPrim (Right ff) ->
-    app (Head False . fmt S.ControlKeyword . P.text $ "foreign." <> Map.findWithDefault (tShow ff) ff builtinForeignNames) as
+  FPrim (Left op) -> app (primitive irn ("prim." <> tShow op) (Map.lookup op builtinPrimNames)) as
+  FPrim (Right ff) -> app (primitive irn ("foreign." <> tShow ff) (Map.lookup ff builtinForeignNames)) as
   FRec (RecordSchema fields) ->
     record [fieldName fld <> ": " <> a | (fld, a) <- zip (Set.toList fields) as]
   FRecSet fld
@@ -286,6 +289,18 @@ func irn vns f as = case f of
   FYield -> kw "yield" <> " " <> values as
   where
     record ps = "{ " <> P.sep ", " ps <> " }"
+
+-- | A primitive operation or foreign function, as the builtin it is, or
+-- the fallback when it is none.
+primitive :: IRNames -> Text -> Maybe Text -> Head
+primitive irn _ (Just name) = refHead irn . Right . termName (ppe irn) . Referent.Ref $ Builtin name
+primitive _ fallback Nothing = Head False . fmt S.ControlKeyword $ P.text fallback
+
+-- | A builtin's function, called (or closed over) rather than inlined:
+-- `(builtin Nat.+)`, prefix.
+builtinFunction :: IRNames -> Reference -> Head
+builtinFunction irn r =
+  Head False . P.parenthesize $ kw "builtin" <> " " <> headText (refHead irn (combName irn r))
 
 app :: Head -> [Pretty SyntaxText] -> Pretty SyntaxText
 app (Head True op) [x, y] = P.sep " " [x, op, y]
