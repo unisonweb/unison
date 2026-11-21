@@ -33,8 +33,12 @@
 --   until it is boxed, `v = box #v`, after which it is an ordinary value,
 --   `v`. Shown only when the wide convention is on: with it off nothing is
 --   laid out wide, though the binders are still marked.
--- * `shift`, `handle`, `local`, `discard` and `update` are the runtime's
---   own constructs for abilities and affine handlers, shown by name.
+-- * `shift k -> e` captures the continuation up to the handler, and
+--   `handle e with h` installs a handler; `with h or affine h'` when the
+--   optimizer made an affine matcher too (Unison.Runtime.ANF.Optimize). An
+--   affine matcher's case runs `inHandlerEnv aff -> e`, with the handlers
+--   in force where its handler was installed, and stores the next handler
+--   with `setHandler aff h`; `aff` is its affine cell. `discard` drops one.
 --
 -- Generated variables are renamed `v1`, `v2`, ... per definition; user
 -- variables keep their names, numbered when two would clash.
@@ -135,7 +139,7 @@ prettyIRCombs irn0 ref locals cmbs =
     (localCmbs, others) = partition ((`elem` localIndices') . fst) rest
     localIndices' = take (length locals) localIndices
     localNames = zip localIndices' locals
-    vnames = nameVars locals (concatMap (superBinders . snd) cmbs)
+    vnames = nameVars (foldMap (affineCells . snd) cmbs) locals (concatMap (superBinders . snd) cmbs)
     irn = irn0 {localName = \r i -> if r == ref then lookupLocal vnames localNames i else localName irn0 r i}
     base = refHead irn (combName irn ref)
     local (i, sn) = case lookup i localNames of
@@ -232,11 +236,11 @@ block irn vns tm = case tm of
         P.lines
           [ kw "handle" <> " " <> abilities irn rs,
             indentBlock (block irn vns bo),
-            kw "with" <> " " <> var vns nh <> maybe mempty (\a -> "  " <> comment ("affine: " <> var vns a)) ah
+            kw "with" <> " " <> var vns nh <> maybe mempty (\a -> " " <> kw "or affine" <> " " <> var vns a) ah
           ]
     ]
   TLocal h bo ->
-    [binding Nothing (kw "local" <> " " <> var vns h) "->" (block irn vns bo)]
+    [binding Nothing (kw "inHandlerEnv" <> " " <> var vns h) "->" (block irn vns bo)]
   _ -> [Stmt False (expr irn vns tm)]
   where
     lhsVars [] = "_"
@@ -263,7 +267,7 @@ expr irn vns tm = case tm of
         P.parenthesizeCommas (map (var vns) (a : es))
   TApp f as -> func irn vns f (map (var vns) as)
   TDiscard h -> kw "discard" <> " " <> var vns h
-  TUpdate _ h v -> kw "update" <> " " <> var vns h <> " " <> var vns v
+  TUpdate _ h v -> kw "setHandler" <> " " <> var vns h <> " " <> var vns v
   TBox v -> kw "box" <> " " <> var vns v
   -- the multi-line forms, should one be nested in an expression
   _ -> P.lines [p | Stmt _ p <- block irn vns tm]
@@ -487,12 +491,28 @@ binders (ABTN.Term _ abt) = case abt of
   ABTN.Abs v bd -> v : binders bd
   ABTN.Tm f -> bifoldMap (const []) binders f
 
--- | Display names for the variables of a definition, given its local
--- functions and then the variables it binds: a user's variable keeps its
--- name unless that is taken, a generated one is `v1`, `v2`, ... (`f1`, ...
--- for a local function).
-nameVars :: [Symbol] -> [Symbol] -> Names
-nameVars fs vs =
+-- | The affine cells of a lambda: the variables `inHandlerEnv`,
+-- `setHandler` and `discard` act on.
+affineCells :: SuperNormal Reference Symbol -> Set Symbol
+affineCells (Lambda _ tm) = go tm
+  where
+    go t@(ABTN.Term _ abt) = here t <> below abt
+    here = \case
+      TLocal h _ -> Set.singleton h
+      TUpdate _ h _ -> Set.singleton h
+      TDiscard h -> Set.singleton h
+      _ -> mempty
+    below = \case
+      ABTN.Abs _ bd -> go bd
+      ABTN.Tm f -> bifoldMap (const mempty) go f
+
+-- | Display names for the variables of a definition, given its affine
+-- cells, its local functions and then the variables it binds: a user's
+-- variable keeps its name unless that is taken, an affine cell is `aff`,
+-- and another generated one is `v1`, `v2`, ... (`f1`, ... for a local
+-- function).
+nameVars :: Set Symbol -> [Symbol] -> [Symbol] -> Names
+nameVars cells fs vs =
   Names (evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty) mempty mempty
   where
     add :: Text -> Map Symbol (Pretty SyntaxText) -> Symbol -> State (Set Text) (Map Symbol (Pretty SyntaxText))
@@ -501,13 +521,15 @@ nameVars fs vs =
       | otherwise = do
           n <- fresh (base dflt v)
           pure $ Map.insert v (fmt S.Var $ P.text n) m
-    base dflt v = case Var.typeOf v of
-      Var.User n
-        | generatedName n -> ("x", True)
-        | otherwise -> (n, False)
-      Var.Pattern -> ("p", True)
-      Var.Eta -> ("eta", True)
-      _ -> (dflt, True)
+    base dflt v
+      | Set.member v cells = ("aff", False)
+      | otherwise = case Var.typeOf v of
+          Var.User n
+            | generatedName n -> ("x", True)
+            | otherwise -> (n, False)
+          Var.Pattern -> ("p", True)
+          Var.Eta -> ("eta", True)
+          _ -> (dflt, True)
     -- the parser names the arguments of a `cases` function with ten
     -- characters of base32hex and a number (TermParser.lamCase)
     generatedName n =

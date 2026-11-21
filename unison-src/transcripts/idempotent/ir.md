@@ -175,7 +175,7 @@ scratch/main> ir describe
       None -> "none"
 ```
 
-Optimization recognizes `runCounter`'s handler as affine and adds a second matcher for it.
+Optimization recognizes `runCounter`'s handler as affine (each case resumes the continuation at most once, in tail position, with the same handler) and adds a second matcher for it, installed by `with h or affine h'`. The general matcher captures the continuation (`shift`) and resumes it (`jumpCont` makes it a function); the affine one captures nothing: it runs with the handlers in force where its handler was installed (`inHandlerEnv aff`), stores the next handler in its cell (`setHandler aff`), and returns the request's result to the requester.
 
 ``` ucm
 scratch/main> ir runCounter
@@ -229,21 +229,21 @@ scratch/main> ir.optimized runCounter
               p1 n
             with v1
         {p2} -> p2
-    f2 n v7 v3 =
+    f2 n aff v3 =
       match v3 with
         {bump} ->
-          local v7 ->
+          inHandlerEnv aff ->
             v5 = 1
             v6 = n Nat.+ v5
-            v1 = partialApply f2 v6 v7
-            update v7 v1
+            v1 = partialApply f2 v6 aff
+            setHandler aff v1
             n
         {p2} -> p2
     v1 = partialApply f1 n
     v2 = partialApply f2 n
     handle {Counter}
       x1()
-    with v1  -- affine: v2
+    with v1 or affine v2
 
   runCounter$h$Lambda0 k n = k n
 
