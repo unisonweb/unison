@@ -101,11 +101,9 @@ scratch/main> ir.optimized fib
       false ->
         v3 = 1
         v4 = prim.DRPN n v3
-        -- wide
         v5 = fib v4
         v6 = 2
         v7 = prim.DRPN n v6
-        -- wide
         v8 = fib v7
         prim.ADDN v5 v8
       _ -> n
@@ -238,7 +236,7 @@ scratch/main> ir.optimized runCounter
             v5 = 1
             v6 = prim.ADDN n v5
             v1 = f2 v6 v7  -- closure
-            _ = update v7 v1
+            update v7 v1
             n
         {p2} -> p2
     v1 = f1 n  -- closure

@@ -23,9 +23,15 @@
 --   `foreign.` and its builtin's name, so that a call of a builtin function
 --   (`Nat.+ x y`) and the instruction inlined for it (`prim.ADDN x y`) look
 --   different.
--- * `shift`, `handle`, `local`, `discard`, `update` and `box` are the
---   runtime's own constructs for abilities and affine handlers, shown by
---   name.
+-- * A let that binds nothing is its binding alone, like an action in a
+--   Unison block.
+-- * A wide variable (Unison.Runtime.MCode.Wide: laid out in several slots,
+--   a small constructor unboxed in them) is `#v`, from its let, `#v = e`,
+--   until it is boxed, `v = box #v`, after which it is an ordinary value,
+--   `v`. Shown only when the wide convention is on: with it off nothing is
+--   laid out wide, though the binders are still marked.
+-- * `shift`, `handle`, `local`, `discard` and `update` are the runtime's
+--   own constructs for abilities and affine handlers, shown by name.
 --
 -- Generated variables are renamed `v1`, `v2`, ... per definition; user
 -- variables keep their names, numbered when two would clash.
@@ -59,6 +65,7 @@ import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.ANF
 import Unison.Runtime.Builtin (builtinForeignNames)
 import Unison.Runtime.Builtin.Decls (pairRef, unitRef)
+import Unison.Runtime.Wide (wideOn)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified)
@@ -97,7 +104,10 @@ data Names = Names
   { varNames :: Map Symbol (Pretty SyntaxText),
     -- | the variables of a lambda bound to the inner pairs of a tuple
     -- shown as one ('tupleSugar'), with the elements of each
-    tupleTails :: Map Symbol [Symbol]
+    tupleTails :: Map Symbol [Symbol],
+    -- | the variables wide where this code is: bound by a wide let and not
+    -- boxed yet on this path
+    wideVars :: Set Symbol
   }
 
 -- | A group (one top-level function and its local functions), as the
@@ -192,13 +202,21 @@ block :: IRNames -> Names -> ANormal Reference Symbol -> [Stmt]
 block irn vns tm = case tm of
   -- the inner pair of a tuple shown as one ('tupleSugar')
   TLets _ [v] _ _ bo | Map.member v (tupleTails vns) -> block irn vns bo
-  TLets _ vs ms bn bo ->
-    binding wideNote (lhsVars vs) "=" (block irn vns bn) : block irn vns bo
+  -- a box: the variable is an ordinary value from here on
+  TLets _ [] _ (TBox v) bo ->
+    Stmt False (var vns' v <> " " <> kw "=" <> " " <> kw "box" <> " " <> var vns v)
+      : block irn vns' bo
     where
-      -- laid out wide (Unison.Runtime.MCode.Wide)
-      wideNote
-        | WD `elem` ms = Just (comment "wide")
-        | otherwise = Nothing
+      vns' = vns {wideVars = Set.delete v (wideVars vns)}
+  -- a let that binds nothing: its binding, as an action
+  TLets _ [] _ bn bo -> block irn vns bn ++ block irn vns bo
+  -- a wide variable (Unison.Runtime.MCode.Wide)
+  TLets _ [v] [WD] bn bo
+    | wideOn ->
+        let vns' = vns {wideVars = Set.insert v (wideVars vns)}
+         in binding Nothing (var vns' v) "=" (block irn vns bn) : block irn vns' bo
+  TLets _ vs _ bn bo ->
+    binding Nothing (lhsVars vs) "=" (block irn vns bn) : block irn vns bo
   TName v f as bo ->
     Stmt False (var vns v <> " " <> kw "=" <> " " <> app (nameHead f) (map (var vns) as) <> "  " <> comment "closure")
       : block irn vns bo
@@ -358,7 +376,11 @@ fieldName :: Text -> Pretty SyntaxText
 fieldName = fmt (S.RecordFieldName "") . P.text
 
 var :: Names -> Symbol -> Pretty SyntaxText
-var vns v = fromMaybe (fmt S.Var . P.text $ Var.name v) (Map.lookup v (varNames vns))
+var vns v
+  | Set.member v (wideVars vns) = fmt S.Var "#" <> plain
+  | otherwise = plain
+  where
+    plain = fromMaybe (fmt S.Var . P.text $ Var.name v) (Map.lookup v (varNames vns))
 
 -- | Several values, not a tuple: `(# x, y #)`.
 values :: [Pretty SyntaxText] -> Pretty SyntaxText
@@ -455,7 +477,7 @@ binders (ABTN.Term _ abt) = case abt of
 -- for a local function).
 nameVars :: [Symbol] -> [Symbol] -> Names
 nameVars fs vs =
-  Names (evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty) mempty
+  Names (evalState (foldM (add "f") mempty fs >>= \m -> foldM (add "v") m vs) mempty) mempty mempty
   where
     add :: Text -> Map Symbol (Pretty SyntaxText) -> Symbol -> State (Set Text) (Map Symbol (Pretty SyntaxText))
     add dflt m v
