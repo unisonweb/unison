@@ -482,7 +482,7 @@ add'final =
   where
     (fp, fin, unit, lz) = fresh
 
--- FFI.newCallback : FFI.Spec a -> a ->{IO} FFI.FunctionPtr a
+-- FFI.newCallback : FFI.Spec a -> a ->{IO} FFI.Func a
 -- The Unison function is passed straight through to the primitive, which
 -- builds a C-callable closure that applies it to the C-provided arguments.
 mk'callback :: SuperNormal Reference Symbol

@@ -268,7 +268,7 @@ builtinTypesSrc =
     B' "Int16" CT.Data,
     B' "Int32" CT.Data,
     B' "Float32" CT.Data,
-    B' "FFI.FunctionPtr" CT.Data,
+    B' "FFI.Func" CT.Data,
     B' "FFI.ForeignPtr" CT.Data,
     B' "IO.signal.Signal" CT.Data,
     B' "IO.signal.Subscription" CT.Data
