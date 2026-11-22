@@ -6,13 +6,16 @@
 # interpreter, with the JIT on and eager. Prints every result line; exits 1
 # if any says FAIL or a run does not finish. Needs the jit testing codebase
 # (scripts/testing-codebase.sh jit) and a build (stack build; set
-# STACK_WORK_DIR for an optimized one, e.g. .stack-work-opt).
+# STACK_WORK_DIR for an optimized one, e.g. .stack-work-opt). UCM=path runs
+# that binary instead of `stack exec unison` (CI, where the binary is a
+# downloaded artifact).
 set -u
 cd "$(dirname "$0")/.."
 CB=$(scripts/testing-codebase.sh jit)
 T=unison-src/transcripts-manual/jit-continuations.md
 DIR=$(mktemp -d)
 WORK=${STACK_WORK_DIR:+--work-dir $STACK_WORK_DIR}
+ucm() { if [ -n "${UCM:-}" ]; then "$UCM" "$@"; else stack exec $WORK unison -- "$@"; fi; }
 status=0
 setting() {
   case $1 in
@@ -28,7 +31,7 @@ run() {
   echo "=== UNISON_JIT=$jit $role $label (UNISON_OPTIMIZATIONS=$(setting $label))"
   local out
   out=$(UNISON_JIT=$jit UNISON_OPTIMIZATIONS="$(setting $label)" UNISON_CONT_DIR=$DIR UNISON_CONT_ROLE=$role UNISON_CONT_LABEL=$label \
-    stack exec $WORK unison -- -C "$CB" transcript.fork $T 2>&1 | tr '\r' '\n' | sed 's/.*Processing stanza [0-9]* of [0-9]*\.//')
+    ucm -C "$CB" transcript.fork $T 2>&1 | tr '\r' '\n' | sed 's/.*Processing stanza [0-9]* of [0-9]*\.//')
   # the result lines (the transcript's own text, echoed on an error, also says FAIL)
   echo "$out" | grep -E "^[A-Za-z]+ [0-9]+ (sent by|from) "
   if ! echo "$out" | grep -q "Completed transcript"; then echo "=== DID NOT FINISH"; echo "$out" | grep -A3 "runtime error\|unhandled exception\|error is" | tail -8; status=1; fi
