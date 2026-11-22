@@ -10,7 +10,9 @@ Most examples use definitions in the scratch file, which don't need to be added 
 scratch/main> builtins.mergeio
 ```
 
-Every intermediate value gets a name:
+Unison's intermediate representation is in A-normal form, which means that function calls never take composite expressions as arguments. Each argument is a variable. So `fib (drop n 1)` becomes two steps: first `v4 = (builtin Nat.drop) n v3`, then `fib v4`. Even a constant like `2` gets its own binding, `v1 = 2`, before it's used.
+
+Every intermediate value gets a name this way:
 
   - Variables you named keep their names, like `n`.
   - Others are numbered `v1`, `v2`, ... within each definition.
