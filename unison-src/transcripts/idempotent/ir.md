@@ -267,6 +267,51 @@ scratch/main> ir.optimized runCounter
     p v1
 ```
 
+A handler case that never resumes is affine too. In the affine version, `affine.discard aff` drops the code that made the request, and the case's result, `default`, becomes the result of the whole `handle`. The general version gets the same effect by capturing the continuation and never calling it.
+
+``` unison :hide
+ability Stop where
+  stop : x
+
+orElse : Nat -> '{Stop} Nat -> Nat
+orElse default p =
+  handle p() with cases
+    { n } -> n
+    { stop -> _ } -> default
+```
+
+``` ucm
+scratch/main> ir.optimized orElse
+
+  orElse default p =
+    v1 = partialApply orElse$Lambda1 p
+    orElse$Lambda0 default v1
+
+  orElse$Lambda0 default x1 =
+    f1 default v3 =
+      match v3 with
+        {stop} ->
+          cont1 = shift {Stop}
+          p1 = partialApply (builtin ##jumpCont) cont1
+          default
+        {n} -> n
+    f2 default aff v3 =
+      match v3 with
+        {stop} ->
+          affine.discard aff
+          default
+        {n} -> n
+    v1 = partialApply f1 default
+    v2 = partialApply f2 default
+    handle {Stop}
+      x1()
+    with if handle.env.allAffine then v2 else v1
+
+  orElse$Lambda1 p =
+    v1 = ()
+    p v1
+```
+
 `ir.optimized` also shows the extra functions optimization creates. Each one is named after its original function, plus a label: `#spec1`, `#return` or `#join1`.
 
 Here, the loop's state is a tuple, so optimization makes `sumCount$go#spec1`, which takes the two numbers as separate arguments instead.
