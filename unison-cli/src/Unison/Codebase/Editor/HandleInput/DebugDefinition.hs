@@ -11,9 +11,8 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (getLatestTypecheckedFile)
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output (Output (..))
-import Unison.Codebase.Execute qualified as Codebase (codebaseToCodeLookup)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -75,20 +74,18 @@ debugDecl hqName = do
 -- before the codebase's.
 intermediateCode :: Bool -> HQ.HashQualified Name -> Cli ()
 intermediateCode optimized hqName = do
-  Cli.Env {codebase, runtime} <- ask
+  Cli.Env {runtime} <- ask
   file <- Cli.getLatestTypecheckedFile
   codebaseNames <- Cli.currentNames
   let names = maybe codebaseNames (`UF.addNamesFromTypeCheckedUnisonFile` codebaseNames) file
       ppe = (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)).suffixifiedPPE
-      codeLookup =
-        foldMap (void . CL.fromTypecheckedUnisonFile) file
-          <> (() <$ Codebase.codebaseToCodeLookup codebase)
       matches = toList (Names.lookupHQTerm Names.IncludeSuffixes hqName names)
       refs = [r | Referent.Ref r <- matches]
   when (null matches) $ Cli.returnEarly (SearchTermsNotFound [hqName])
   -- a constructor is code the runtime builds in, not a group of its own
   when (null refs) . Cli.returnEarly . Literal . P.wrap $
     P.text (HQ.toText hqName) <> " is a constructor, which has no intermediate code of its own."
+  codeLookup <- void <$> RuntimeUtils.latestFileCodeLookup
   for_ refs \ref ->
     liftIO (Runtime.intermediateCode runtime codeLookup ppe optimized ref)
       >>= either (Cli.returnEarly . EvaluationFailure id) (Cli.respond . Literal)

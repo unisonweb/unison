@@ -56,6 +56,7 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation qualified as R
@@ -137,11 +138,16 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
         (mFails, mOks) = passFails m
     Cli.respondNumbered $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
 
+-- | Run one IO test. It can be one of the latest typechecked file's, not
+-- added yet: as for `run`, the file's names shadow the codebase's, and its
+-- code is looked up before the codebase's.
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
   let mode = Permissive NoProf
   runtime <- RuntimeUtils.selectRuntime mode
-  names <- Cli.currentNames
+  codebaseNames <- Cli.currentNames
+  file <- Cli.getLatestTypecheckedFile
+  let names = maybe codebaseNames (`UF.addNamesFromTypeCheckedUnisonFile` codebaseNames) file
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
@@ -253,7 +259,7 @@ runIOTest ppe ref = do
   let a = ABT.annotation tm
       tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
-  tm' <- RuntimeUtils.evalUnisonTerm (Permissive NoProf) ppe False tm
+  tm' <- RuntimeUtils.evalUnisonTermWithLatestFile (Permissive NoProf) ppe tm
   pure $ partitionTestResults tm'
 
 partitionTestResults :: Term Symbol Ann -> ([Text {- fails -}], [Text {- oks -}])
