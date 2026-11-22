@@ -454,10 +454,12 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    [`specialize.md`](../../../../unison-src/transcripts/idempotent/specialize.md): the
    arity cases, effects in `f x`, equality, the version 5 round trip, a mutable value as
    `x`, and `runtime.ir`.
-2. **Running known code.** Call a known closure on known arguments on the interpreter,
-   after the check for effects and mutable state, under fuel and a time limit, returning
-   the result or "can't". Tested on its own: a pure call, an effect, a mutable read, a loop that runs
-   out of fuel, a `bug`.
+2. **Running known code.** Done: [`runKnown`](Machine.hs) calls a known closure on known
+   arguments on the interpreter, after the check for effects and mutable state
+   (`knownRunnable`), under fuel and a time limit, returning the result or "can't".
+   Tested in [`Specialize.hs`](../../../tests/Unison/Test/Runtime/Specialize.hs): a pure
+   loop, a tracked builtin, a mutable read on a branch never taken, a `bug`, a loop that
+   runs out of fuel, and fewer or all arguments.
 3. **First-order partial evaluator.** The walker over ANF with `Known` and `Con`: matches
    on known values, calls run with step 2 when everything is known, unfolding, residual
    functions keyed and memoized, budgets, and loading through `cacheAdd0`.
