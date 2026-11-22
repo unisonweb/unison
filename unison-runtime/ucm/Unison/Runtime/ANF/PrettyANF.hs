@@ -203,11 +203,17 @@ block irn vns tm = case tm of
             kw "with" <> " " <> case ah of
               Nothing -> var vns nh
               Just a ->
-                kw "if" <> " noNonAffineHandlers " <> kw "then" <> " " <> var vns a <> " " <> kw "else" <> " " <> var vns nh
+                kw "if" <> " handle.env.allAffine " <> kw "then" <> " " <> var vns a <> " " <> kw "else" <> " " <> var vns nh
           ]
     ]
   TLocal h bo ->
-    [binding Nothing (kw "inHandlerEnv" <> " " <> var vns h) "->" (block irn vns bo)]
+    [ Stmt True $
+        P.lines
+          [ kw "handle.affine",
+            indentBlock (block irn vns bo),
+            kw "with" <> " " <> var vns h
+          ]
+    ]
   _ -> [Stmt False (expr irn vns tm)]
   where
     lhsVars [] = "_"
@@ -233,8 +239,8 @@ expr irn vns tm = case tm of
       Just es <- Map.lookup w (tupleTails vns) ->
         P.parenthesizeCommas (map (var vns) (a : es))
   TApp f as -> func irn vns f (map (var vns) as)
-  TDiscard h -> kw "discard" <> " " <> var vns h
-  TUpdate _ h v -> kw "setHandler" <> " " <> var vns h <> " " <> var vns v
+  TDiscard h -> kw "handler.affine.discard" <> " " <> var vns h
+  TUpdate _ h v -> kw "handler.affine.set" <> " " <> var vns h <> " " <> var vns v
   TBox v -> kw "box" <> " " <> var vns v
   -- the multi-line forms, should one be nested in an expression
   _ -> P.lines [p | Stmt _ p <- block irn vns tm]
@@ -458,8 +464,8 @@ binders (ABTN.Term _ abt) = case abt of
   ABTN.Abs v bd -> v : binders bd
   ABTN.Tm f -> bifoldMap (const []) binders f
 
--- | The affine cells of a lambda: the variables `inHandlerEnv`,
--- `setHandler` and `discard` act on.
+-- | The affine cells of a lambda: the variables `handle.affine`,
+-- `handler.affine.set` and `handler.affine.discard` act on.
 affineCells :: SuperNormal Reference Symbol -> Set Symbol
 affineCells (Lambda _ tm) = go tm
   where

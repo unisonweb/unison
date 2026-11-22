@@ -168,10 +168,16 @@ Handlers:
   - In a handler, `{bump}` matches the request `bump`, and `{a}` matches the value returned without a request.
   - A helper function shows up inside the function that uses it, like `f1` here.
 
-Optimization notices that this handler resumes each request at most once, as its last step. That makes it *affine*, and the optimizer adds a faster second version of the handler, `v2`. Which version runs is decided when `handle` runs: `with if noNonAffineHandlers then v2 else v1`.
+Optimization notices that this handler resumes each request at most once, as its last step. That makes it *affine*, and the optimizer adds a faster second version of the handler, `v2`. Which version runs is decided when `handle` runs: `with if handle.env.allAffine then v2 else v1`. The affine version is used when every handler already in effect is affine too.
 
   - The general version, `f1`, saves the rest of the computation as `cont1 = shift {Counter}`, then resumes it through `k`.
-  - The affine version, `f2`, saves nothing. It handles the request in place (`inHandlerEnv aff`), stores the handler for the next request (`setHandler aff`), and returns `n` to the code that asked.
+  - The affine version, `f2`, saves nothing. It runs right where the request was made, and returns `n` straight to the code that asked.
+
+The affine version takes one extra argument, `aff`, which the runtime supplies when `handle` installs it. `aff` is the affine handler environment. It holds the handlers that were in effect where `handle` ran, and the handler function to call for the next request.
+
+  - `handle.affine <block> with aff` runs the block in `aff`'s handler environment. In Unison a handler case runs outside its own `handle` block, so the block's own requests go to the handlers around that `handle`.
+  - `handler.affine.set aff v1` sets the handler that `aff`'s next request goes to. It's the affine version of the general case's `handle k n with v1`.
+  - `handler.affine.discard aff` is for a case that doesn't resume. It drops the requesting code, and the case's result becomes the result of the whole `handle`.
 
 ``` unison :hide
 ability Counter where
@@ -240,18 +246,19 @@ scratch/main> ir.optimized runCounter
     f2 n aff v3 =
       match v3 with
         {bump} ->
-          inHandlerEnv aff ->
+          handle.affine
             v4 = 1
             v5 = n Nat.+ v4
             v1 = partialApply f2 v5 aff
-            setHandler aff v1
+            handler.affine.set aff v1
             n
+          with aff
         {a} -> a
     v1 = partialApply f1 n
     v2 = partialApply f2 n
     handle {Counter}
       x1()
-    with if noNonAffineHandlers then v2 else v1
+    with if handle.env.allAffine then v2 else v1
 
   runCounter$h$Lambda0 k n = k n
 
@@ -489,9 +496,9 @@ scratch/main> ir.optimized quadruple
 | `{op x y} ->`, `{a} ->` | Handler cases: the request `op`, and the value returned without a request. |
 | `handle {A} e with h` | Runs `e` with `h` handling ability `A`. |
 | `cont1 = shift {A}` | Saves the rest of the computation, up to the handler of `A`, as `cont1`. |
-| `with if noNonAffineHandlers then h' else h` | Uses the faster affine handler `h'` when every handler in effect is affine. |
-| `inHandlerEnv aff -> e` | Runs `e` in place, as the affine handler. |
-| `setHandler aff h` | Sets the affine handler for the next request. |
-| `discard aff` | Drops an affine handler that is no longer needed. |
+| `with if handle.env.allAffine then h' else h` | Uses the faster affine handler `h'` when every handler in effect is affine. |
+| `handle.affine e with aff` | Runs `e` in the affine handler environment `aff`: the handlers in effect where `aff`'s `handle` ran. |
+| `handler.affine.set aff h` | Sets the handler for `aff`'s next request to `h`. |
+| `handler.affine.discard aff` | Doesn't resume: drops the requesting code, back to `aff`'s `handle`. |
 | `#v = e` | Binds `#v` unboxed, spread over several slots. Shown only when the JIT is on (`UNISON_JIT=on`). |
 | `v = box #v` | Boxes `#v` into the ordinary value `v`. |
