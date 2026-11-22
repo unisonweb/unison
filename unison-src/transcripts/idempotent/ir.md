@@ -1,81 +1,19 @@
 # `ir` and `ir.optimized`
 
-`ir` shows the intermediate code (ANF) the runtime makes of a term, and `ir.optimized` the same code after optimization. The code is shown in a syntax that resembles Unison's. The examples below explain it as it comes up, and [the table at the end](#syntax-reference) lists all of it.
+`ir` shows the intermediate code (ANF) the runtime makes of a term, and `ir.optimized` the same code after optimization. The code is shown in a syntax that resembles Unison's. Most examples run on definitions in the scratch file, which the commands show without adding them, as for `run`; one set is added to the codebase. The examples explain the syntax as it comes up, and [the table at the end](#syntax-reference) lists all of it.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-``` unison :hide
-fib : Nat -> Nat
-fib n = if n < 2 then n else fib (drop n 1) + fib (drop n 2)
-
-even : Nat -> Boolean
-even x = if x == 0 then true else odd (drop x 1)
-
-odd : Nat -> Boolean
-odd x = if x == 0 then false else even (drop x 1)
-
-addAll : Nat -> [Nat] -> [Nat]
-addAll k xs = List.map (x -> x + k) xs
-
-sumWith : Nat -> [Nat] -> Nat
-sumWith k xs =
-  go acc = cases
-    [] -> acc
-    x +: rest -> go (acc + x * k) rest
-  go 0 xs
-
-describe : Optional Nat -> Text
-describe = cases
-  None -> "none"
-  Some 0 -> "zero"
-  Some n -> "some " ++ Nat.toText n
-
-ability Counter where
-  bump : Nat
-
-runCounter : '{Counter} a -> a
-runCounter p =
-  h n = cases
-    { a } -> a
-    { bump -> k } -> handle k n with h (n + 1)
-  handle p() with h 0
-
-type Pair = Pair Nat Nat
-
-sumCount : [Nat] -> Nat
-sumCount xs =
-  go : (Nat, Nat) -> [Nat] -> Nat
-  go st = cases
-    [] -> match st with (acc, n) -> acc + n
-    x +: rest -> match st with (acc, n) -> go (acc + x, n + 1) rest
-  go (0, 0) xs
-
-divMod : Nat -> Nat -> (Nat, Nat)
-divMod a b = if a < b then (0, a) else match divMod (drop a b) b with (q, r) -> (q + 1, r)
-
-useDivMod : Nat -> Nat
-useDivMod n = match divMod n 7 with (q, r) -> q + r
-
-swapSum : Nat -> Nat -> Nat
-swapSum a b = match (b, a) with (x, y) -> x + y
-
-classify : Nat -> Nat
-classify n =
-  t = if n < 10 then Some n else None
-  match t with
-    Some m -> m + 1
-    None -> 0
-```
-
-``` ucm :hide
-scratch/main> add
-```
-
 Each top-level function is a definition, `fib n = ...`. ANF names every intermediate value, so each gets a binding, `v1 = 2`. The variables the program named keep their names (`n`), and the others are numbered `v1`, `v2`, ... in each definition. A `match` lists its cases by constructor, with `_` for the rest; an `if` is a `match` on a `Boolean`.
 
 Before optimization, `fib` calls the builtins' functions, `(builtin Nat.drop) n v3`. After, the calls are inlined as the primitive instructions themselves, shown as the builtin they are: `Nat.drop n v3`, and `v5 Nat.+ v8` for an operator.
+
+``` unison :hide
+fib : Nat -> Nat
+fib n = if n < 2 then n else fib (drop n 1) + fib (drop n 2)
+```
 
 ``` ucm
 scratch/main> ir fib
@@ -113,6 +51,14 @@ scratch/main> ir.optimized fib
 
 A term in a cycle shows the whole cycle.
 
+``` unison :hide
+even : Nat -> Boolean
+even x = if x == 0 then true else odd (drop x 1)
+
+odd : Nat -> Boolean
+odd x = if x == 0 then false else even (drop x 1)
+```
+
 ``` ucm
 scratch/main> ir even
 
@@ -140,6 +86,24 @@ scratch/main> ir even
 Lambdas and local functions are lifted out into definitions of their own, named after where they came from: `addAll$Lambda0`, `sumWith$go`. Their free variables become arguments, so `k` is passed to each. `partialApply f a b` builds a closure: `f` with its first arguments, not called yet.
 
 The argument of a `cases` function, which the program doesn't name, is `x1`. Matching on a list views it first, `##List.viewl`, and matches the view, `VElem x rest` or `VEmpty`. A variable bound by a nested pattern the program doesn't name, like the `Some` in `describe`'s `Some 0`, is `p1`.
+
+``` unison :hide
+addAll : Nat -> [Nat] -> [Nat]
+addAll k xs = List.map (x -> x + k) xs
+
+sumWith : Nat -> [Nat] -> Nat
+sumWith k xs =
+  go acc = cases
+    [] -> acc
+    x +: rest -> go (acc + x * k) rest
+  go 0 xs
+
+describe : Optional Nat -> Text
+describe = cases
+  None -> "none"
+  Some 0 -> "zero"
+  Some n -> "some " ++ Nat.toText n
+```
 
 ``` ucm
 scratch/main> ir addAll
@@ -182,6 +146,18 @@ scratch/main> ir describe
 A handler is a group: the handling function and the local functions of its block, which come first in the block like local definitions in Unison (`f1`). `handle {Counter} e with h` installs the handler `h` for the ability `Counter` and runs `e`. `x1()` forces `x1`. A handler's cases match requests: `{bump}` matches the request `bump`, binding its arguments if it has any, and `{a}` matches the pure result `a`.
 
 Optimization recognizes `runCounter`'s handler as affine (each case resumes the continuation at most once, in tail position, with the same handler) and adds a second matcher for it. Which one a `handle` installs is decided when it runs: the affine one if no handler that isn't affine is in force, `with if noNonAffineHandlers then h' else h`. The general matcher captures the continuation (`cont1 = shift {Counter}`) and resumes it (`jumpCont` makes it the function `k` the pattern binds); the affine one captures nothing: it runs with the handlers in force where its handler was installed (`inHandlerEnv aff`), stores the next handler in its cell (`setHandler aff`), and returns the request's result to the requester.
+
+``` unison :hide
+ability Counter where
+  bump : Nat
+
+runCounter : '{Counter} a -> a
+runCounter p =
+  h n = cases
+    { a } -> a
+    { bump -> k } -> handle k n with h (n + 1)
+  handle p() with h 0
+```
 
 ``` ucm
 scratch/main> ir runCounter
@@ -260,6 +236,16 @@ scratch/main> ir.optimized runCounter
 
 The loader's rewrites of the optimized code show too. Each worker a rewrite adds is a definition of its own, named after its function with a label: `#spec1`, `#return`, `#join1`. A loop whose state is a tuple gets a specialisation that takes the fields as arguments (`sumCount$go#spec1`). The rewrite names the new arguments `eta1`, `eta2`, .... A tuple is nested pairs, so taking one apart matches `Cons acc p1`, then `p1` for the rest; a variable the program named twice is numbered, `acc1`.
 
+``` unison :hide
+sumCount : [Nat] -> Nat
+sumCount xs =
+  go : (Nat, Nat) -> [Nat] -> Nat
+  go st = cases
+    [] -> match st with (acc, n) -> acc + n
+    x +: rest -> match st with (acc, n) -> go (acc + x, n + 1) rest
+  go (0, 0) xs
+```
+
 ``` ucm
 scratch/main> ir.optimized sumCount
 
@@ -303,6 +289,14 @@ scratch/main> ir.optimized sumCount
 
 A function that returns a pair gets a worker that returns the two values without building it (`#return`): its tails `yield (# q, r #)`, several values rather than a pair, as in GHC's unboxed tuples. A caller that takes the pair apart calls it and binds the values, `(# q, r #) = ...`. The entry still builds the pair, for the callers that keep it: `(v4, eta2)` is a tuple, the nested pairs ending in `()` that Unison writes `(x, y)`.
 
+``` unison :hide
+divMod : Nat -> Nat -> (Nat, Nat)
+divMod a b = if a < b then (0, a) else match divMod (drop a b) b with (q, r) -> (q + 1, r)
+
+useDivMod : Nat -> Nat
+useDivMod n = match divMod n 7 with (q, r) -> q + r
+```
+
 ``` ucm
 scratch/main> ir.optimized divMod
 
@@ -340,7 +334,23 @@ scratch/main> ir.optimized useDivMod
     eta1 Nat.+ eta2
 ```
 
-A match on a constructor built on the spot, or on the result of a match whose arms build constructors, is resolved where the constructor is known:
+A match on a constructor built on the spot, or on the result of a match whose arms build constructors, is resolved where the constructor is known. These definitions are added to the codebase:
+
+``` unison :hide
+swapSum : Nat -> Nat -> Nat
+swapSum a b = match (b, a) with (x, y) -> x + y
+
+classify : Nat -> Nat
+classify n =
+  t = if n < 10 then Some n else None
+  match t with
+    Some m -> m + 1
+    None -> 0
+```
+
+``` ucm :hide
+scratch/main> add
+```
 
 ``` ucm
 scratch/main> ir.optimized swapSum
@@ -369,6 +379,10 @@ scratch/main> ir Nat.+
 
 Constructors don't.
 
+``` unison :hide
+type Pair = Pair Nat Nat
+```
+
 ``` ucm
 scratch/main> ir Pair.Pair
 
@@ -385,7 +399,7 @@ scratch/main> ir nope
     nope
 ```
 
-The commands also show definitions in the scratch file that aren't added yet. The file's definitions shadow the codebase's, as for `run`: here `swapSum` is the file's, and `quadruple`, which uses it, isn't in the codebase.
+The scratch file's definitions shadow the codebase's, as for `run`: here `swapSum` is the file's, not the one added above, and `quadruple` uses it.
 
 ``` unison :hide
 swapSum : Nat -> Nat -> Nat
