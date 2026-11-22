@@ -176,8 +176,8 @@ Optimization notices that this handler resumes each request at most once, as its
 The affine version takes one extra argument, `aff`, which the runtime supplies when `handle` installs it. `aff` is the affine handler environment. It holds the handlers that were in effect where `handle` ran, and the handler function to call for the next request.
 
   - `handle.affine <block> with aff` runs the block in `aff`'s handler environment. In Unison a handler case runs outside its own `handle` block, so the block's own requests go to the handlers around that `handle`.
-  - `handler.affine.set aff v1` sets the handler that `aff`'s next request goes to. It's the affine version of the general case's `handle k n with v1`.
-  - `handler.affine.discard aff` is for a case that doesn't resume. It drops the requesting code, and the case's result becomes the result of the whole `handle`.
+  - `affine.set aff v1` sets the handler that `aff`'s next request goes to. It's the affine version of the general case's `handle k n with v1`.
+  - `affine.discard aff` is for a case that doesn't resume. It drops the requesting code, and the case's result becomes the result of the whole `handle`.
 
 ``` unison :hide
 ability Counter where
@@ -250,7 +250,7 @@ scratch/main> ir.optimized runCounter
             v4 = 1
             v5 = n Nat.+ v4
             v1 = partialApply f2 v5 aff
-            handler.affine.set aff v1
+            affine.set aff v1
             n
           with aff
         {a} -> a
@@ -498,7 +498,7 @@ scratch/main> ir.optimized quadruple
 | `cont1 = shift {A}` | Saves the rest of the computation, up to the handler of `A`, as `cont1`. |
 | `with if handle.env.allAffine then h' else h` | Uses the faster affine handler `h'` when every handler in effect is affine. |
 | `handle.affine e with aff` | Runs `e` in the affine handler environment `aff`: the handlers in effect where `aff`'s `handle` ran. |
-| `handler.affine.set aff h` | Sets the handler for `aff`'s next request to `h`. |
-| `handler.affine.discard aff` | Doesn't resume: drops the requesting code, back to `aff`'s `handle`. |
+| `affine.set aff h` | Sets the handler for `aff`'s next request to `h`. |
+| `affine.discard aff` | Doesn't resume: drops the requesting code, back to `aff`'s `handle`. |
 | `#v = e` | Binds `#v` unboxed, spread over several slots. Shown only when the JIT is on (`UNISON_JIT=on`). |
 | `v = box #v` | Boxes `#v` into the ordinary value `v`. |

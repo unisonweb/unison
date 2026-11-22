@@ -239,8 +239,8 @@ expr irn vns tm = case tm of
       Just es <- Map.lookup w (tupleTails vns) ->
         P.parenthesizeCommas (map (var vns) (a : es))
   TApp f as -> func irn vns f (map (var vns) as)
-  TDiscard h -> kw "handler.affine.discard" <> " " <> var vns h
-  TUpdate _ h v -> kw "handler.affine.set" <> " " <> var vns h <> " " <> var vns v
+  TDiscard h -> kw "affine.discard" <> " " <> var vns h
+  TUpdate _ h v -> kw "affine.set" <> " " <> var vns h <> " " <> var vns v
   TBox v -> kw "box" <> " " <> var vns v
   -- the multi-line forms, should one be nested in an expression
   _ -> P.lines [p | Stmt _ p <- block irn vns tm]
@@ -465,7 +465,7 @@ binders (ABTN.Term _ abt) = case abt of
   ABTN.Tm f -> bifoldMap (const []) binders f
 
 -- | The affine cells of a lambda: the variables `handle.affine`,
--- `handler.affine.set` and `handler.affine.discard` act on.
+-- `affine.set` and `affine.discard` act on.
 affineCells :: SuperNormal Reference Symbol -> Set Symbol
 affineCells (Lambda _ tm) = go tm
   where
