@@ -410,7 +410,7 @@ ffiTypeRef, ffiSpecRef, ffiDllRef, ffiFuncRef :: TypeReference
 ffiTypeRef = Reference.Builtin "FFI.Type"
 ffiSpecRef = Reference.Builtin "FFI.Spec"
 ffiDllRef = Reference.Builtin "FFI.DLL"
-ffiFuncRef = Reference.Builtin "FFI.FunctionPtr"
+ffiFuncRef = Reference.Builtin "FFI.Func"
 
 ffiPtrRef, ffiForeignPtrRef :: TypeReference
 ffiPtrRef = Reference.Builtin "FFI.Ptr"
