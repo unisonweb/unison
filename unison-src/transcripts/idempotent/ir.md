@@ -1,14 +1,22 @@
 # `ir` and `ir.optimized`
 
-`ir` shows the intermediate code (ANF) the runtime makes of a term, and `ir.optimized` the same code after optimization. The code is shown in a syntax that resembles Unison's. Most examples run on definitions in the scratch file, which the commands show without adding them, as for `run`; one set is added to the codebase. The examples explain the syntax as it comes up, and [the table at the end](#syntax-reference) lists all of it.
+`ir` shows the code the runtime compiles a term to, before optimization. `ir.optimized` shows it after.
+
+The code is printed in a syntax close to Unison's. Each example explains the new syntax it uses, and [the table at the end](#syntax-reference) lists all of it.
+
+Most examples use definitions in the scratch file, which don't need to be added first. One set is added to the codebase.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-Each top-level function is a definition, `fib n = ...`. ANF names every intermediate value, so each gets a binding, `v1 = 2`. The variables the program named keep their names (`n`), and the others are numbered `v1`, `v2`, ... in each definition. A `match` lists its cases by constructor, with `_` for the rest; an `if` is a `match` on a `Boolean`.
+Every intermediate value gets a name:
 
-Before optimization, `fib` calls the builtins' functions, `(builtin Nat.drop) n v3`. After, the calls are inlined as the primitive instructions themselves, shown as the builtin they are: `Nat.drop n v3`, and `v5 Nat.+ v8` for an operator.
+  - Variables you named keep their names, like `n`.
+  - Others are numbered `v1`, `v2`, ... within each definition.
+  - An `if` becomes a `match` on `true` and `false`. `_` is the default case.
+
+Before optimization, `fib` calls builtin functions, written `(builtin Nat.drop) n v3`. Optimization replaces each call with the instruction itself, written as plain `Nat.drop n v3`, or `v5 Nat.+ v8` for an operator.
 
 ``` unison :hide
 fib : Nat -> Nat
@@ -49,7 +57,7 @@ scratch/main> ir.optimized fib
       _ -> n
 ```
 
-A term in a cycle shows the whole cycle.
+For a function in a cycle, both commands show every function in the cycle.
 
 ``` unison :hide
 even : Nat -> Boolean
@@ -83,9 +91,18 @@ scratch/main> ir even
       _ -> false
 ```
 
-Lambdas and local functions are lifted out into definitions of their own, named after where they came from: `addAll$Lambda0`, `sumWith$go`. Their free variables become arguments, so `k` is passed to each. `partialApply f a b` builds a closure: `f` with its first arguments, not called yet.
+Lambdas and local functions become top-level functions:
 
-The argument of a `cases` function, which the program doesn't name, is `x1`. Matching on a list views it first, `##List.viewl`, and matches the view, `VElem x rest` or `VEmpty`. A variable bound by a nested pattern the program doesn't name, like the `Some` in `describe`'s `Some 0`, is `p1`.
+  - They're named after the function they came from, like `addAll$Lambda0` or `sumWith$go`.
+  - The variables they use from outside become extra arguments. Here that's `k`.
+  - `partialApply f a b` builds a closure: `f` with its first arguments filled in, not called yet.
+
+Some variables get names of their own:
+
+  - `x1` is the argument of a `cases` function.
+  - `p1` is a value a pattern matches but doesn't name, like the inside of `Some 0`.
+
+A list match first takes the list apart with `##List.viewl`, then matches `VElem x rest` or `VEmpty`.
 
 ``` unison :hide
 addAll : Nat -> [Nat] -> [Nat]
@@ -143,9 +160,17 @@ scratch/main> ir describe
       None -> "none"
 ```
 
-A handler is a group: the handling function and the local functions of its block, which come first in the block like local definitions in Unison (`f1`). `handle {Counter} e with h` installs the handler `h` for the ability `Counter` and runs `e`. `x1()` forces `x1`. A handler's cases match requests: `{bump}` matches the request `bump`, binding its arguments if it has any, and `{a}` matches the pure result `a`.
+Handlers:
 
-Optimization recognizes `runCounter`'s handler as affine (each case resumes the continuation at most once, in tail position, with the same handler) and adds a second matcher for it. Which one a `handle` installs is decided when it runs: the affine one if no handler that isn't affine is in force, `with if noNonAffineHandlers then h' else h`. The general matcher captures the continuation (`cont1 = shift {Counter}`) and resumes it (`jumpCont` makes it the function `k` the pattern binds); the affine one captures nothing: it runs with the handlers in force where its handler was installed (`inHandlerEnv aff`), stores the next handler in its cell (`setHandler aff`), and returns the request's result to the requester.
+  - `handle {Counter} e with h` runs `e` with `h` handling `Counter`.
+  - In a handler, `{bump}` matches the request `bump`, and `{a}` matches the value returned without a request.
+  - `x1()` calls `x1` with no arguments, as in Unison.
+  - A helper function shows up inside the function that uses it, like `f1` here.
+
+Optimization notices that this handler resumes each request at most once, as its last step. That makes it *affine*, and the optimizer adds a faster second version of the handler, `v2`. Which version runs is decided when `handle` runs: `with if noNonAffineHandlers then v2 else v1`.
+
+  - The general version, `f1`, saves the rest of the computation as `cont1 = shift {Counter}`, then resumes it through `k`.
+  - The affine version, `f2`, saves nothing. It handles the request in place (`inHandlerEnv aff`), stores the handler for the next request (`setHandler aff`), and returns `n` to the code that asked.
 
 ``` unison :hide
 ability Counter where
@@ -234,7 +259,13 @@ scratch/main> ir.optimized runCounter
     p v1
 ```
 
-The loader's rewrites of the optimized code show too. Each worker a rewrite adds is a definition of its own, named after its function with a label: `#spec1`, `#return`, `#join1`. A loop whose state is a tuple gets a specialisation that takes the fields as arguments (`sumCount$go#spec1`). The rewrite names the new arguments `eta1`, `eta2`, .... A tuple is nested pairs, so taking one apart matches `Cons acc p1`, then `p1` for the rest; a variable the program named twice is numbered, `acc1`.
+`ir.optimized` also shows the extra functions optimization creates. Each one is named after its original function, plus a label: `#spec1`, `#return` or `#join1`.
+
+Here, the loop's state is a tuple, so optimization makes `sumCount$go#spec1`, which takes the two numbers as separate arguments instead.
+
+  - Arguments added by optimization are named `eta1`, `eta2`, ....
+  - A tuple is a chain of pairs, so taking one apart matches `Cons acc p1`, then `p1`.
+  - A name used twice gets numbered, like `acc1`.
 
 ``` unison :hide
 sumCount : [Nat] -> Nat
@@ -287,7 +318,11 @@ scratch/main> ir.optimized sumCount
       VEmpty -> eta1 Nat.+ eta2
 ```
 
-A function that returns a pair gets a worker that returns the two values without building it (`#return`): its tails `yield (# q, r #)`, several values rather than a pair, as in GHC's unboxed tuples. A caller that takes the pair apart calls it and binds the values, `(# q, r #) = ...`. The entry still builds the pair, for the callers that keep it: `(v4, eta2)` is a tuple, the nested pairs ending in `()` that Unison writes `(x, y)`.
+A function that returns a pair gets a version, `#return`, that returns the two values without building a pair:
+
+  - It returns them with `yield (# q, r #)`. `(# ... #)` means several values, not a tuple.
+  - A caller binds them with `(# q, r #) = ...`.
+  - The original `divMod` still builds the pair, `(v4, eta2)`, for callers that need it.
 
 ``` unison :hide
 divMod : Nat -> Nat -> (Nat, Nat)
@@ -334,7 +369,7 @@ scratch/main> ir.optimized useDivMod
     eta1 Nat.+ eta2
 ```
 
-A match on a constructor built on the spot, or on the result of a match whose arms build constructors, is resolved where the constructor is known. These definitions are added to the codebase:
+When a `match` looks at a value whose constructor is already known, optimization picks the matching case ahead of time. This set of definitions is added to the codebase:
 
 ``` unison :hide
 swapSum : Nat -> Nat -> Nat
@@ -399,7 +434,7 @@ scratch/main> ir nope
     nope
 ```
 
-The scratch file's definitions shadow the codebase's, as for `run`: here `swapSum` is the file's, not the one added above, and `quadruple` uses it.
+Scratch file definitions take priority over the codebase's, as with `run`. Here, `swapSum` is the scratch file's version, not the one added above.
 
 ``` unison :hide
 swapSum : Nat -> Nat -> Nat
@@ -427,35 +462,35 @@ scratch/main> ir.optimized quadruple
 
 | Syntax | Meaning |
 | --- | --- |
-| `f x y = e` | A top-level function, and its arguments. |
-| `f$Lambda0`, `f$go` | A lambda, or the local function `go`, lifted out of `f`. |
-| `f#spec1` | A specialisation of `f` that takes the fields of a tuple or record argument as arguments. |
-| `f#return` | `f`'s product-return worker, which returns the fields of its result instead of building it. |
-| `f#join1` | A join point of `f`: code that several of its branches continue with. |
-| `f1 x = e` in a block | A local function of the group. Local functions can call each other. |
-| `v1`, `v2`, ... | A variable the compiler made. Variables the program named keep their names, numbered on a clash (`acc1`). |
+| `f x y = e` | A top-level function. |
+| `f$Lambda0`, `f$go` | A lambda, or the local function `go`, moved out of `f`. |
+| `f#spec1` | A version of `f` that takes a tuple's or record's fields as separate arguments. |
+| `f#return` | A version of `f` that returns its result's fields without building it. |
+| `f#join1` | Code that several branches of `f` continue with. |
+| `f1 x = e` inside a definition | A helper function of the definition. |
+| `v1`, `v2`, ... | A value the program didn't name. Names you gave are kept, numbered if used twice (`acc1`). |
 | `x1` | The argument of a `cases` function. |
-| `p1` | A variable bound by a pattern the program didn't name. |
-| `eta1` | A variable a rewrite added: an argument, or a value a worker returns. |
-| `x = e` | A binding. |
-| `e` alone in a block | A binding of nothing: `e` runs for its effect. |
-| `(# x, y #) = e` | A binding of several values `e` returns, without a tuple. |
-| `yield (# x, y #)` | Returns several values, without building a tuple. |
-| `(x, y)`, `()` | A tuple, which is nested pairs ending in unit, and unit. |
-| `{ a: x, b: y }` | A record. As a pattern, it binds the record's fields. |
-| `r@a.set x` | `r` with its field `a` set to `x`. |
-| `x Nat.+ y`, `Nat.drop n k` | A primitive instruction or foreign function, shown as the builtin it is; infix for an operator. |
-| `prim.OP`, `foreign.F` | An instruction or foreign function that no builtin is. |
-| `(builtin Nat.+) x y` | A call of a builtin's function, which is what's left where the call isn't inlined. Always prefix. |
-| `partialApply f a b` | A closure: `f` with its first arguments, not called yet. |
-| `x()` | Forces `x`. |
-| `match x with` | A match. `_ ->` is the default case. `tag n x y` matches a sum by tag. |
-| `{op x y} ->`, `{a} ->` | Handler cases: the request `op` with its arguments, and the pure result `a`. |
-| `handle {A} e with h` | Installs the handler `h` for the ability `A`, and runs `e`. |
-| `cont1 = shift {A}` | Captures the continuation up to the handler of `A`. The rest of the block runs with `cont1` bound. |
-| `with if noNonAffineHandlers then h' else h` | A handler with an affine matcher `h'`. The affine one is installed if no handler in force isn't affine. |
-| `inHandlerEnv aff -> e` | An affine case: runs `e` with the handlers in force where its handler was installed. `aff` is the handler's affine cell. |
-| `setHandler aff h` | Stores the handler for the next request in the affine cell `aff`. |
-| `discard aff` | Drops the affine cell `aff`. |
-| `#v = e` | Binds the wide variable `#v`: laid out in several slots, a small constructor unboxed in them. Shown only under the wide convention (on with the JIT, `UNISON_JIT=on`). |
-| `v = box #v` | Boxes `#v`. After this, `v` is an ordinary value. |
+| `p1` | A value a pattern matches but doesn't name. |
+| `eta1` | A variable added by optimization. |
+| `x = e` | Binds `x`. |
+| `e` on its own line | Runs `e` and ignores its result. |
+| `(# x, y #) = e` | Binds the several values `e` returns. |
+| `yield (# x, y #)` | Returns several values. No tuple is built. |
+| `(x, y)`, `()` | A tuple, and unit. |
+| `{ a: x, b: y }` | A record. As a pattern, it takes the fields apart. |
+| `r@a.set x` | `r` with field `a` changed to `x`. |
+| `x Nat.+ y`, `Nat.drop n k` | A built-in instruction, named after its builtin. Operators are infix. |
+| `prim.OP`, `foreign.F` | A built-in instruction with no builtin of its own. |
+| `(builtin Nat.+) x y` | A call of a builtin function that wasn't replaced by its instruction. |
+| `partialApply f a b` | `f` with its first arguments filled in, not called yet. |
+| `x()` | Calls `x` with no arguments. |
+| `match x with` | A match. `_` is the default case. `tag n` matches a case by number. |
+| `{op x y} ->`, `{a} ->` | Handler cases: the request `op`, and the value returned without a request. |
+| `handle {A} e with h` | Runs `e` with `h` handling ability `A`. |
+| `cont1 = shift {A}` | Saves the rest of the computation, up to the handler of `A`, as `cont1`. |
+| `with if noNonAffineHandlers then h' else h` | Uses the faster affine handler `h'` when every handler in effect is affine. |
+| `inHandlerEnv aff -> e` | Runs `e` in place, as the affine handler. |
+| `setHandler aff h` | Sets the affine handler for the next request. |
+| `discard aff` | Drops an affine handler that is no longer needed. |
+| `#v = e` | Binds `#v` unboxed, spread over several slots. Shown only when the JIT is on (`UNISON_JIT=on`). |
+| `v = box #v` | Boxes `#v` into the ordinary value `v`. |
