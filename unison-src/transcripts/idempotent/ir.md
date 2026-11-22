@@ -166,7 +166,6 @@ Handlers:
 
   - `handle {Counter} e with h` runs `e` with `h` handling `Counter`.
   - In a handler, `{bump}` matches the request `bump`, and `{a}` matches the value returned without a request.
-  - `x1()` calls `x1` with no arguments, as in Unison.
   - A helper function shows up inside the function that uses it, like `f1` here.
 
 Optimization notices that this handler resumes each request at most once, as its last step. That makes it *affine*, and the optimizer adds a faster second version of the handler, `v2`. Which version runs is decided when `handle` runs: `with if noNonAffineHandlers then v2 else v1`.
