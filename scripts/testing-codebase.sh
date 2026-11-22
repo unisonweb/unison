@@ -42,11 +42,18 @@ if [ ! -f "$dir/.unison/v2/unison.sqlite3" ]; then
   fi
   tar xzf "$tmp/$asset" -C "$tmp"
   rm "$tmp/$asset"
-  # mv would nest the new directory inside an existing one; the only
-  # existing one without a codebase is something this script did not make
+  # mv would nest the new directory inside an existing one. One holding
+  # directories and no files is this script's, emptied by the system's
+  # cleaning of temporary files (macOS deletes files it hasn't seen used for
+  # a few days, and leaves the directories), so it is replaced; one holding
+  # files is something this script did not make
   if [ -d "$dir" ] && [ ! -f "$dir/.unison/v2/unison.sqlite3" ]; then
-    echo "$dir exists but holds no codebase; remove it and run again" >&2
-    exit 1
+    if [ -z "$(find "$dir" -type f -print -quit)" ]; then
+      rm -rf "$dir"
+    else
+      echo "$dir exists but holds no codebase; remove it and run again" >&2
+      exit 1
+    fi
   fi
   mv "$tmp" "$dir" 2>/dev/null || true # lost the race to another run: theirs is the same
   trap - EXIT

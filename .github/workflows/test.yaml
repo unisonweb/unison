@@ -364,8 +364,9 @@ jobs:
     # The JIT smoke test (unison-runtime/src/Unison/Runtime/JIT/development.md):
     # installs an LLVM, runs the JIT's test transcript on a fresh codebase with
     # the JIT forced on and checks the log says it was, then a few rows of the
-    # test matrix. The transcript already runs in the transcripts job, with the
-    # JIT off; this is the only job that runs native code.
+    # test matrix and the continuation matrix. The transcript already runs in
+    # the transcripts job, with the JIT off; this is the only job that runs
+    # native code.
     name: jit (${{ matrix.os }})
     needs: build-ucm
     runs-on: ${{ matrix.os }}
@@ -447,6 +448,15 @@ jobs:
       - name: a few rows of the test matrix
         run: |
           UCM=${{env.ucm}} JIT_CODEBASE="$RUNNER_TEMP/jit-codebase" scripts/jit-test-matrix.sh on-t1 stress-all install-all no-irhelpers
+
+      - name: continuations across optimization settings
+        # scripts/jit-continuation-matrix.sh: continuations captured in
+        # rewritten code, serialized under each optimization setting and
+        # resumed under each other, in the interpreter and with the JIT on
+        # and eager; the test of the deoptimization tables. It needs base,
+        # from the jit testing codebase, which it downloads.
+        run: |
+          UCM=${{env.ucm}} scripts/jit-continuation-matrix.sh
 
       - name: a compiled program (run.compiled) goes through the JIT
         working-directory: ${{ runner.temp }}
