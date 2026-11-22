@@ -20,6 +20,7 @@ import Unison.Test.Runtime.MCode.Serialization qualified as MCode.Serialization
 import Unison.Test.Runtime.MCode.Wide qualified as MCode.Wide
 import Unison.Test.Runtime.Process qualified as Process
 import Unison.Test.Runtime.Signal qualified as Signal
+import Unison.Test.Runtime.Specialize qualified as Specialize
 import Unison.Test.Runtime.TypeNumbers qualified as TypeNumbers
 import Unison.Test.UnisonSources qualified as UnisonSources
 import Unison.Test.Util.Text qualified as Util.Text
@@ -40,6 +41,7 @@ test =
       Dynamic.test,
       Process.test,
       Signal.test,
+      Specialize.test,
       TypeNumbers.test,
       UnisonSources.test,
       Util.Text.test

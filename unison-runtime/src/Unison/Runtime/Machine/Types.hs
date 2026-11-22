@@ -207,6 +207,9 @@ data CCache prof = CCache
     -- (Machine.specializeClosure). Reflection writes a specialized closure
     -- as the closure it was made from ('ANF.Specialized').
     specializations :: TVar (M.Map Reference (CombIx, Int)),
+    -- whether the code of a reference may run while specializing: it reaches
+    -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
+    runnableRefs :: TVar (M.Map Reference Bool),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
@@ -263,6 +266,7 @@ baseCCache jit sandboxed = do
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO cacheableCombs

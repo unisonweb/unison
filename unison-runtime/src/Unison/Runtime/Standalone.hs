@@ -298,6 +298,7 @@ restoreCache debugText jit sandboxed (SCache cs crs bns cacheableCombs opt _ ftm
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO bns
       <*> newTVarIO mempty
+      <*> newTVarIO mempty
       <*> newTVarIO cacheableCombs
       <*> newTVarIO (opt <> builtinOptInfo)
       <*> newTVarIO ftm

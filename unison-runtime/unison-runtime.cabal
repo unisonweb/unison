@@ -401,6 +401,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.MCode.Wide
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
+      Unison.Test.Runtime.Specialize
       Unison.Test.Runtime.TypeNumbers
       Unison.Test.UnisonSources
       Unison.Test.Util.Text

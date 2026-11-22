@@ -30,6 +30,9 @@ module Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     reifyValue,
+    runKnown,
+    KnownLimits (..),
+    defaultKnownLimits,
     resolveSection,
   )
 where
@@ -44,6 +47,7 @@ import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import System.IO.Unsafe (unsafePerformIO)
+import System.Timeout (timeout)
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -2435,6 +2439,133 @@ specializedRef cc val = do
   let digest :: Digest Blake2b_256
       digest = hashlazy (BB.toLazyByteString (BB.string7 "unison specialize\0") <> bytes)
   pure $ Derived (Hash.fromByteString (convert digest)) 0
+
+-- * Running known code
+--
+-- What the specializer computes from known values it computes on the
+-- interpreter (Specialize.md, "What runs at specialization time").
+
+-- | A profiler whose ticker counts calls down and aborts at zero: the
+-- fuel for running known code. Native code never calls the ticker, which
+-- is why 'runKnown' has a time limit too.
+newtype Fuel = Fuel (IORef Int)
+
+data OutOfFuel = OutOfFuel
+  deriving (Show)
+
+instance Exception OutOfFuel
+
+instance RuntimeProfiler Fuel where
+  newtype Ticker Fuel = FuelTicker (IORef Int)
+  startTicker (Fuel r) = pure (FuelTicker r, pure ())
+  checkTicker (FuelTicker r) _ _ = do
+    n <- readIORef r
+    if n <= 0 then throwIO OutOfFuel else writeIORef r $! n - 1
+  {-# INLINE checkTicker #-}
+
+-- | How much known code may run: calls (the fuel) and microseconds.
+data KnownLimits = KnownLimits
+  { knownFuel :: !Int,
+    knownMicros :: !Int
+  }
+
+defaultKnownLimits :: KnownLimits
+defaultKnownLimits = KnownLimits {knownFuel = 1000000, knownMicros = 200000}
+
+-- | A known function applied to known arguments, run now on the
+-- interpreter, or Nothing when that can't be done safely: the code could
+-- have an effect or read mutable state ('knownRunnable'), or it performs a
+-- request nothing in it handles, fails, or runs out of fuel or time. A
+-- Nothing is never an error: the specializer then works through the call
+-- itself. Fewer arguments than the function takes give a closure, more
+-- apply the result to the rest.
+runKnown :: CCache p -> KnownLimits -> Val -> [Val] -> IO (Maybe Val)
+runKnown cc lim f args =
+  knownRunnable cc (f : args) >>= \case
+    False -> pure Nothing
+    True -> do
+      fuel <- newIORef (knownFuel lim)
+      result <- newIORef Nothing
+      stk0 <- alloc (stackSlots (jit cc))
+      stk <- foldM (\stk v -> bump stk >>= \stk -> stk <$ poke stk v) stk0 args
+      let env = cc {profiler = Fuel fuel}
+          k0 = CB . Hook $ \xstk -> peek (packXStack xstk) >>= writeIORef result . Just
+          -- the k-th argument sits at offset n - 1 - k from the top
+          as = case reverse [0 .. length args - 1] of
+            [] -> ZArgs
+            [i] -> VArg1 i
+            [i, j] -> VArg2 i j
+            is -> VArgN $ PA.primArrayFromList is
+      outcome <-
+        timeout (knownMicros lim) . UnliftIO.tryAny $ do
+          (tick, cancel) <- startTicker (profiler env)
+          apply tick env mempty Nothing stk k0 False as f `finally` cancel
+      case outcome of
+        Just (Right ()) -> readIORef result
+        _ -> pure Nothing
+
+-- | Whether known code may run now: the values, the code of every closure
+-- in them, and all the code that reaches, use no tracked builtin (the ones
+-- that can do IO, which the sandbox map lists) and no operation on mutable
+-- state ('stateBuiltin'). Conservative: a branch never taken counts. A
+-- verdict is remembered per reference ('runnableRefs').
+knownRunnable :: CCache p -> [Val] -> IO Bool
+knownRunnable cc vals = do
+  let roots = S.toList (foldMap valueCodeRefs vals)
+  known <- readTVarIO (runnableRefs cc)
+  case traverse (`M.lookup` known) roots of
+    Just verdicts -> pure (and verdicts)
+    Nothing -> do
+      groups <- readTVarIO (intermed cc)
+      sands <- readTVarIO (sandbox cc)
+      let unsafe r = case r of
+            Builtin _ -> M.member r sands || stateBuiltin r
+            _ -> M.notMember r groups
+          reach seen [] = seen
+          reach seen (r : rs)
+            | S.member r seen = reach seen rs
+            | Just True <- M.lookup r known = reach seen rs
+            | otherwise =
+                reach (S.insert r seen) $
+                  maybe [] ANF.groupTermLinks (M.lookup r groups) ++ rs
+          reached = reach S.empty roots
+          ok = not (any unsafe reached)
+      -- everything reached reaches only what is reached, so a good verdict
+      -- holds for all of it; a bad one only for the roots
+      atomically . modifyTVar' (runnableRefs cc) $ \m ->
+        if ok
+          then M.union m (M.fromSet (const True) reached)
+          else M.union m (M.fromList [(r, False) | r <- roots])
+      pure ok
+
+-- | The builtins that operate on mutable state, which known code may not
+-- use: its result could change between now and run time.
+stateBuiltin :: Reference -> Bool
+stateBuiltin = \case
+  Builtin t -> any (`DTx.isPrefixOf` t) statePrefixes
+  _ -> False
+  where
+    statePrefixes =
+      ["Ref.", "Scope.", "MutableArray.", "MutableByteArray.", "TVar.", "MVar.", "Promise.", "IO.ref", "STM."]
+
+-- | The code a value refers to: the combinators of its closures and
+-- continuations, through data, lists, immutable arrays and maps (which
+-- pure code can read). Other foreign values (refs, mutable arrays) are
+-- leaves: reading them takes an operation 'stateBuiltin' rules out.
+valueCodeRefs :: Val -> S.Set Reference
+valueCodeRefs = \case
+  BoxedVal c -> go c
+  _ -> mempty
+  where
+    go = \case
+      PAp (CIx r _ _) _ (_, bseg) -> S.insert r (foldMap go bseg)
+      DataC _ vs -> foldMap valueCodeRefs vs
+      RecordC _ vs -> foldMap valueCodeRefs vs
+      Captured k _ (_, bseg) -> contTermRefs S.singleton k <> foldMap go bseg
+      ListC vs -> foldMap valueCodeRefs vs
+      Foreign (WrapArray a) -> foldMap valueCodeRefs a
+      Foreign (WrapMap m) -> foldMap (\(x, y) -> valueCodeRefs x <> valueCodeRefs y) (M.toList m)
+      _ -> mempty
 
 freshSpecializations :: IORef Word64
 freshSpecializations = unsafePerformIO (newIORef 0)
