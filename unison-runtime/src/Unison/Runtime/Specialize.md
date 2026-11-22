@@ -315,18 +315,16 @@ error happens at run time, if the program gets there.
 
 ### Constants
 
-ANF has no node for an arbitrary value, only literals. A known value too big to rebuild
-with constructors (a large list, an array, a closure over opaque state) has two possible
-homes:
+ANF has no node for an arbitrary value, only literals. A known value that isn't a literal
+or text is a *constant*: a parameter of the entry and of every residual function, which
+calls pass along ([`threadConsts`](ANF/Specialize.hs)). The specialized closure holds the
+values: first the arguments of the closure it was made from, which are constants already,
+then any others the walk needed. CCache's `specializations` records both counts, so that
+reflection and the decompiler can drop the extra ones.
 
-1. **As captured arguments** of the returned closure, threaded as extra parameters to the
-   residual functions that use them. This needs no new IR. For interpreters it is rarely
-   needed, because the program is consumed entirely.
-2. **As a constant node** that refers to a per-process constant table, allowed only in
-   generated code and never serialized (the JIT already has a constant pool). This is
-   cheaper per call, but it is a new ANF form that every pass must handle.
-
-(1) first, (2) if measurements ask for it.
+A constant node referring to a per-process table, allowed only in generated code, would
+save passing constants around, at the cost of a new ANF form every pass must handle. Not
+needed so far.
 
 ## What makes an interpreter specialize well
 
@@ -460,12 +458,18 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    Tested in [`Specialize.hs`](../../../tests/Unison/Test/Runtime/Specialize.hs): a pure
    loop, a tracked builtin, a mutable read on a branch never taken, a `bug`, a loop that
    runs out of fuel, and fewer or all arguments.
-3. **First-order partial evaluator.** The walker over ANF with `Known` and `Con`: matches
-   on known values, calls run with step 2 when everything is known, unfolding, residual
-   functions keyed and memoized, budgets, and loading through `cacheAdd0`.
-   `specialize.boundary` is respected here. The tests are `power`, a closed expression
-   evaluator, and the `eval` example above. Each checks both the result and the shape of
-   the residual (with `runtime.ir`).
+3. **First-order partial evaluator.** First version done:
+   [`ANF/Specialize.hs`](ANF/Specialize.hs), with `Known`, `Con`, `Clo` and `Dyn`; matches
+   on known values, and on unknown ones with the constructor known in each arm; calls
+   run with step 2 when everything is known, unfolded with no unknown match above them,
+   and residual functions keyed and memoized under one; primitives run through
+   [`runPrim`](Machine.hs); `specialize.boundary`; budgets, whose exhaustion falls back to
+   the original code. `power`, a closed expression and the factorial interpreter are in
+   the transcript, which checks the residual with `runtime.ir`. Still to do here: a
+   clean-up pass that drops constants a residual function doesn't use and inlines
+   residual functions that are small or called once; handlers and requests, multi-value
+   lets and closures of local functions over unknown values, which give up (and fall
+   back) or are kept as they are for now.
 4. **Higher order.** `Clo`, calls of known closures, and lifting of closures. The tests
    are `List.map` and `foldLeft` with known functions, and an interpreter written in
    continuation-passing style.

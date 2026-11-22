@@ -100,8 +100,10 @@ decompile ::
   forall v.
   (Var v) =>
   -- the closure a specialized group was made from (CCache's
-  -- specializations), for showing it as @specialize f x@
-  (Reference -> Maybe CombIx) ->
+  -- specializations): its combinator, how many arguments it had, and how
+  -- many constants the specialized closure holds after them, for showing
+  -- it as @specialize f x@
+  (Reference -> Maybe (CombIx, Int, Int)) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Val ->
@@ -145,8 +147,8 @@ decompile spec backref topTerms = \case
     -- from, which is shown as that closure without its last argument,
     -- specialized on that argument
     pap (CIx rf rt k) vs
-      | Just ocix <- spec rf,
-        Just (fs, x) <- unsnoc vs = do
+      | Just (ocix, n, e) <- spec rf,
+        Just (fs, x) <- unsnoc (take n vs ++ drop (n + e) vs) = do
           f <- pap ocix fs
           x <- decompile spec backref topTerms x
           pure $ apps' (builtin () "specialize") [f, x]
@@ -178,8 +180,10 @@ substitute = align []
 decompileForeign ::
   (Var v) =>
   -- the closure a specialized group was made from (CCache's
-  -- specializations), for showing it as @specialize f x@
-  (Reference -> Maybe CombIx) ->
+  -- specializations): its combinator, how many arguments it had, and how
+  -- many constants the specialized closure holds after them, for showing
+  -- it as @specialize f x@
+  (Reference -> Maybe (CombIx, Int, Int)) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->

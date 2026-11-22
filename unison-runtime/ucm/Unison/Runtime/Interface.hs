@@ -77,7 +77,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    IRPrinter,
+    IRPrinter (..),
     LoadedBatch (..),
     Tracer (..),
     apply0,
@@ -471,10 +471,10 @@ checkCacheability cl ctx (r, sg) =
 -- decompiler. Read at the time of each lookup, not before an evaluation,
 -- since the evaluation is what adds to the table; that is safe because an
 -- entry, once there, never changes or goes away.
-specializedFrom :: CCache p -> Reference -> Maybe CombIx
+specializedFrom :: CCache p -> Reference -> Maybe (CombIx, Int, Int)
 specializedFrom cc r =
   -- the read depends on r, so that GHC cannot share one read among lookups
-  unsafePerformIO $ fmap fst . Map.lookup r <$> readTVarIO (specializations cc)
+  unsafePerformIO $ fmap (\(cix, n, extras) -> (cix, n, length extras)) . Map.lookup r <$> readTVarIO (specializations cc)
 {-# NOINLINE specializedFrom #-}
 
 decompileCtx ::
@@ -686,10 +686,16 @@ irNames ctx ppe = IRNames {combName = refName, ppe, localName = \_ _ -> Nothing}
           Left $ prettyFloatNameSyntax ppe fn
       | otherwise = Right . termName ppe $ RF.Ref r
 
--- | @runtime.ir@'s printer: `ir.optimized`'s, with the codebase's names.
-irPrinterFor :: EvalCtx -> PrettyPrintEnv -> IRPrinter
-irPrinterFor ctx ppe r locals cmbs =
-  Text.unpack . P.toPlain 80 . syntaxToColor $ prettyIRCombs (irNames ctx ppe) r locals cmbs
+-- | @runtime.ir@'s printer: `ir.optimized`'s, with the codebase's names,
+-- and values decompiled.
+irPrinterFor :: EvalCtx -> PrettyPrintEnv -> (Val -> DecompResult Symbol) -> IRPrinter
+irPrinterFor ctx ppe decom = IRPrinter combs value
+  where
+    combs r locals cmbs =
+      Text.unpack . P.toPlain 80 . syntaxToColor $ prettyIRCombs (irNames ctx ppe) r locals cmbs
+    value v = case decom v of
+      (errs, t) | null errs -> Just . Text.unpack . P.toPlain 80 $ pretty ppe t
+      _ -> Nothing
 
 -- | The names the codebase gives the constructors of these types, for a
 -- compiled program to print its values with (unisonrt).
@@ -883,7 +889,7 @@ evalInContext ppe ctx prof activeThreads w = do
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompileCtx crs ctx
-      irPrinter = irPrinterFor ctx ppe
+      irPrinter = irPrinterFor ctx ppe decom
       mkResponse errs =
         if Set.null errs
           then EmptyResponse

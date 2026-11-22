@@ -9,7 +9,7 @@ module Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
     Combs,
-    IRPrinter,
+    IRPrinter (..),
     plainIR,
     Tracer (..),
     apply0,
@@ -95,6 +95,10 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.ANF.Serialize (serializeValueForHash)
+import Unison.Runtime.ANF.Specialize qualified as SP
+import Unison.ABT.Normalized qualified as ABTN
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc, foreignFuncBuiltinName)
+import Unison.Var qualified as Var
 import Unison.Runtime.Builtin.Decls (exceptionRef)
 import Unison.Runtime.Builtin.Decls qualified as Rf
 import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
@@ -2390,28 +2394,31 @@ canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 specializeClosure :: CCache p -> Val -> IO Val
 specializeClosure cc val = case val of
   BoxedVal (PAp cix@(CIx r _ i) _ args)
-    | not (null (segToList args)),
+    | captured <- segToList args,
+      not (null captured),
       -- only a lambda's entry, never a section after a let in it
       i .&. 0xffff == 0 -> do
         groups <- readTVarIO (intermed cc)
         case M.lookup r groups >>= lambdaGroup (fromIntegral (i `shiftR` 16)) of
           Nothing -> pure val
-          Just grp -> do
+          Just identity -> do
             sref <- specializedRef cc val
-            unless (M.member sref groups) $ do
-              sands <- readTVarIO (sandbox cc)
-              let sand = M.findWithDefault mempty r sands
-              -- no profiler: the group is not a cached value, so loading it
-              -- runs nothing
-              cacheAdd0 S.empty [(sref, CodeRep grp Uncacheable)] [(sref, sand)] cc {profiler = ()}
-              atomically . modifyTVar' (specializations cc) $
-                M.insert sref (cix, length (segToList args))
-            n <- refNumTm cc sref
-            cmbs <- readTVarIO (combs cc)
-            let scix = CIx sref n 0
-            case rCombSection cmbs scix of
-              RComb (Comb rcomb@LamI {} _) -> pure . boxedVal $ PAp scix rcomb args
-              _ -> pure val
+            specs <- readTVarIO (specializations cc)
+            extras <- case M.lookup sref specs of
+              Just (_, _, extras) -> pure extras
+              Nothing -> do
+                made <- SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
+                let (grp, extras) = fromMaybe (identity, []) made
+                sands <- readTVarIO (sandbox cc)
+                let sand = M.findWithDefault mempty r sands
+                -- no profiler: the group is not a cached value, so loading it
+                -- runs nothing
+                unless (M.member sref groups) $
+                  cacheAdd0 S.empty [(sref, CodeRep grp Uncacheable)] [(sref, sand)] cc {profiler = ()}
+                atomically . modifyTVar' (specializations cc) $
+                  M.insert sref (cix, length captured, extras)
+                pure extras
+            mkClosure cc sref 0 (captured ++ extras) <&> fromMaybe val
   _ -> pure val
   where
     -- the group with the lambda at index k (0 for the entry, k for the
@@ -2421,6 +2428,76 @@ specializeClosure cc val = case val of
       | k == 0 = Just (ANF.Rec grp ent)
       | k <= length grp = Just (ANF.Rec grp (snd (grp !! (k - 1))))
       | otherwise = Nothing
+
+-- | What the partial evaluator gets from the runtime
+-- (Unison.Runtime.ANF.Specialize): the groups as they are, and the
+-- interpreter for anything known.
+specEnv :: CCache p -> M.Map Reference (SuperGroup Reference Symbol) -> SP.SpecEnv
+specEnv cc groups =
+  SP.SpecEnv
+    { SP.seGroup = (`M.lookup` groups),
+      SP.seRun = runKnown cc defaultKnownLimits,
+      SP.sePrim = runPrim cc,
+      SP.seData = mkData,
+      SP.seClosure = mkClosure cc,
+      SP.seBoundary = Builtin "specialize.boundary"
+    }
+
+-- | A data value from its constructor and fields.
+mkData :: Reference -> TT.CTag -> [Val] -> IO (Maybe Val)
+mkData r t vs = do
+  rty <- TN.typeNumberMap
+  case M.lookup r rty of
+    Nothing -> pure Nothing
+    Just n -> Just . boxedVal . formDataReplaced (packTags (TT.RTag n) t) <$> traverseListToSeg pure vs
+
+-- | A closure of a group's lambda, by index, over the given arguments.
+mkClosure :: CCache p -> Reference -> Word64 -> [Val] -> IO (Maybe Val)
+mkClosure cc r i vs = do
+  rtm <- readTVarIO (refTm cc)
+  cmbs <- readTVarIO (combs cc)
+  case M.lookup r rtm of
+    Nothing -> pure Nothing
+    Just n ->
+      let cix = CIx r n i
+       in case rCombSection cmbs cix of
+            RComb (Comb rcomb@LamI {} _) ->
+              Just . boxedVal . PAp cix rcomb <$> traverseListToSeg pure vs
+            _ -> pure Nothing
+
+-- | A primitive or foreign function applied to known arguments, run on the
+-- interpreter through a group of its own that applies it to its
+-- parameters, loaded the first time. Primitives with effects, ones on
+-- mutable state and ones yielding a sum don't run.
+runPrim :: CCache p -> Either ANF.POp ForeignFunc -> [Val] -> IO (Maybe Val)
+runPrim cc p vs
+  | not allowed = pure Nothing
+  | otherwise = do
+      groups <- readTVarIO (intermed cc)
+      unless (M.member ref groups) $
+        cacheAdd0 S.empty [(ref, CodeRep grp Uncacheable)] [] cc {profiler = ()}
+      mkClosure cc ref 0 [] >>= \case
+        Nothing -> pure Nothing
+        Just f -> runKnown cc defaultKnownLimits f vs
+  where
+    n = length vs
+    xs = [Var.freshenId (fromIntegral k) (Var.named "x") | k <- [1 .. n]] :: [Symbol]
+    grp = ANF.Rec [] (ANF.Lambda (replicate n ANF.BX) (ABTN.TAbss xs (ANF.TApp (ANF.FPrim p) xs)))
+    ref =
+      let digest :: Digest Blake2b_256
+          digest = hashlazy . BB.toLazyByteString $ BB.string7 ("unison specialize primitive\0" ++ show p ++ "\0" ++ show n)
+       in Derived (Hash.fromByteString (convert digest)) 0
+    allowed = case p of
+      Left op -> op `notElem` effectfulPrims
+      Right ff ->
+        not (S.member ff sandboxedForeignFuncs)
+          && not (stateBuiltin (Builtin (foreignFuncBuiltinName ff)))
+    effectfulPrims =
+      [ ANF.FORK, ANF.EROR, ANF.MISS, ANF.CACH, ANF.LKUP, ANF.LOAD, ANF.CVLD, ANF.SDBX, ANF.VALU,
+        ANF.SPEC, ANF.RTIR, ANF.PRNT, ANF.INFO, ANF.TRCE, ANF.DBTX, ANF.ATOM, ANF.TFRC,
+        ANF.SDBL, ANF.SDBV, ANF.REFN, ANF.REFR, ANF.REFW, ANF.RCAS, ANF.RRFC, ANF.TIKR,
+        ANF.KEEP, ANF.FGNN, ANF.FGNF, ANF.MKCB
+      ]
 
 -- | The reference of the group specializing a closure: a hash of the
 -- closure, as the value hash serializes it, under a prefix that keeps it
@@ -2583,14 +2660,17 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
     opts <- readTVarIO (optInfos cc)
     specs <- readTVarIO (specializations cc)
     captured <- traverse reflectOrSay (segToList args)
-    let origin = case M.lookup r specs of
-          Just (CIx o _ oi, _) ->
+    let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
+        origin = case M.lookup r specs of
+          Just (CIx o _ oi, _, _) | Nothing <- irValue (irPrinter cc) val ->
             showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
-          Nothing -> id
-        closure =
-          showString "-- closure of " . shows r . showString " " . shows i
-            . showString ", captured:\n"
-            . foldr (\v rest -> showString "--   " . showString v . showString "\n" . rest) id captured
+          _ -> id
+        closure = case irValue (irPrinter cc) val of
+          Just s -> comment s
+          Nothing ->
+            showString "-- closure of " . shows r . showString " " . shows i
+              . showString ", captured:\n"
+              . foldr (\v rest -> showString "--   " . showString v . showString "\n" . rest) id captured
     pure . (origin .) . (closure .) $ case M.lookup r groups of
       Nothing -> showString "-- no intermediate code (a builtin)\n"
       Just g ->
@@ -2600,10 +2680,12 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
               og@(ANF.Rec ogrp _) ->
                 -- the optimized group's local functions: optimization adds
                 -- some (an affine handler's matcher)
-                showString (irPrinter cc r (fst <$> ogrp) (rewrittenLambdas b r og))
-  _ -> do
-    v <- reflectOrSay val
-    pure $ showString v . showString "\n"
+                showString (irCombs (irPrinter cc) r (fst <$> ogrp) (rewrittenLambdas b r og))
+  _ -> case irValue (irPrinter cc) val of
+    Just s -> pure $ showString s . showString "\n"
+    Nothing -> do
+      v <- reflectOrSay val
+      pure $ showString v . showString "\n"
   where
     -- a value that can't be reflected (a mutable reference, say) is named,
     -- not shown
@@ -2724,7 +2806,7 @@ reflectValue0 ::
   EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
-  M.Map Reference (CombIx, Int) ->
+  M.Map Reference (CombIx, Int, [Val]) ->
   Val ->
   IO (Referenced ANF.Value)
 reflectValue0 cmbs bns rty rtm specs = goV0
@@ -2758,8 +2840,12 @@ reflectValue0 cmbs bns rty rtm specs = goV0
           -- from, which the receiver specializes again (CCache's
           -- specializations)
           PAp cix _rComb args
-            | Just (ocix, _) <- M.lookup (combRef cix) specs ->
-                ANF.Specialized <$> (ANF.Partial <$> goIx ocix <*> goVs args)
+            | Just (ocix, n, extras) <- M.lookup (combRef cix) specs ->
+                -- the closure's own arguments, without the constants the
+                -- generated code takes after them
+                let vs = segToList args
+                    own = take n vs ++ drop (n + length extras) vs
+                 in fmap ANF.Specialized . ANF.Partial <$> goIx ocix <*> traverse goV own
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
           Enum t

@@ -150,6 +150,7 @@ library core
       Unison.Runtime.ANF.Serialize.CodeV4
       Unison.Runtime.ANF.Serialize.Tags
       Unison.Runtime.ANF.Serialize.ValueV5
+      Unison.Runtime.ANF.Specialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Decls

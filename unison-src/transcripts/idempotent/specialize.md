@@ -53,9 +53,6 @@ roundTrip x =
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -224,8 +221,7 @@ scratch/main> run mutable
     1 | > runtime.ir (plus3 1)
           ⧩
           """
-          -- closure of ReferenceDerived (Id "00dj5fj3l3kgqb63qutrc1m4ejs69c2qhincm4dg8gr808ecpif1u" 0) 0, captured:
-          --   BLit (Pos 1)
+          -- b c -> 1 Nat.+ b Nat.+ c
           plus3 a b c =
             v1 = a Nat.+ b
             v1 Nat.+ c
@@ -234,7 +230,7 @@ scratch/main> run mutable
     2 | > runtime.ir 42
           ⧩
           """
-          BLit (Pos 42)
+          42
           
           """
 ```
@@ -253,4 +249,211 @@ scratch/main> run mutable
     1 | > specialize.boundary plus3 1 2 3
           ⧩
           6
+```
+
+## Partial evaluation
+
+Specializing folds in what is known. `power 3` unrolls:
+
+``` unison
+power : Nat -> Nat -> Nat
+power n x = if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + power : Nat -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize power 3 2
+> runtime.ir (specialize power 3)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize power 3 2
+          ⧩
+          8
+
+    2 | > runtime.ir (specialize power 3)
+          ⧩
+          """
+          -- specialize
+          --   (n x -> (if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x)) 3
+          #utqafuleos σ σ1 =
+            σ2 = 1
+            σ3 = σ1 Nat.* σ2
+            σ4 = σ1 Nat.* σ3
+            σ1 Nat.* σ4
+          """
+```
+
+Specializing an interpreter on a program compiles the program (the first Futamura
+projection). Here is an interpreter for a small language of numbered functions of one
+argument:
+
+``` unison
+type Expr = Num Nat | Arg | Add Expr Expr | Sub Expr Expr | Mul Expr Expr
+          | IfZero Expr Expr Expr | Call Nat Expr
+
+eval : [Expr] -> Expr -> Nat -> Nat
+eval prog e x = match e with
+  Num n        -> n
+  Arg          -> x
+  Add a b      -> eval prog a x Nat.+ eval prog b x
+  Sub a b      -> Nat.drop (eval prog a x) (eval prog b x)
+  Mul a b      -> eval prog a x Nat.* eval prog b x
+  IfZero c t f -> if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
+  Call i a     -> match List.at i prog with
+    Some body -> eval prog body (eval prog a x)
+    None -> bug "no such function"
+
+run : [Expr] -> Nat -> Nat
+run prog = eval prog (Call 0 Arg)
+
+factorial : [Expr]
+factorial = [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Expr
+
+  + eval      : [Expr] -> Expr -> Nat -> Nat
+  + factorial : [Expr]
+  + run       : [Expr] -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+An expression with no calls becomes straight-line code:
+
+``` unison
+> specialize (eval []) (Add (Mul Arg Arg) (Num 1)) 5
+> runtime.ir (specialize (eval []) (Add (Mul Arg Arg) (Num 1)))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize (eval []) (Add (Mul Arg Arg) (Num 1)) 5
+          ⧩
+          26
+
+    2 | > runtime.ir (specialize (eval []) (Add (Mul Arg Arg) (Num 1)))
+          ⧩
+          """
+          -- specialize
+          --   (e x -> (match e with
+          --     Num n        -> n
+          --     Arg          -> x
+          --     Add a b      -> eval [] a x Nat.+ eval [] b x
+          --     Sub a b      -> Nat.drop (eval [] a x) (eval [] b x)
+          --     Mul a b      -> eval [] a x Nat.* eval [] b x
+          --     IfZero c t f -> if Nat.eq (eval [] c x) 0 then eval [] t x else eval [] f x
+          --     Call i a     ->
+          --       match List.at i [] with
+          --         Some body -> eval [] body (eval [] a x)
+          --         None      -> bug "no such function")) (Add (Mul Arg Arg) (Num 1))
+          #s7tck5o8q1 σ σ1 σ2 =
+            σ3 = σ2 Nat.* σ2
+            σ4 = 1
+            σ3 Nat.+ σ4
+          """
+```
+
+A recursive program becomes a recursive function, with no trace of the interpreter left:
+
+``` unison
+> specialize run factorial 5
+> runtime.ir (specialize run factorial)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize run factorial 5
+          ⧩
+          120
+
+    2 | > runtime.ir (specialize run factorial)
+          ⧩
+          """
+          -- specialize
+          --   (e x ->
+          --     (match e with
+          --       Num n -> n
+          --       Arg -> x
+          --       Add a b ->
+          --         eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x
+          --           Nat.+ eval
+          --             [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x
+          --       Sub a b ->
+          --         Nat.drop
+          --           (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
+          --           (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x)
+          --       Mul a b ->
+          --         eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x
+          --           Nat.* eval
+          --             [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x
+          --       IfZero c t f ->
+          --         if
+          --           Nat.eq
+          --             (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] c x)
+          --             0 then
+          --           eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] t x
+          --         else eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] f x
+          --       Call i a ->
+          --         match List.at
+          --           i [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] with
+          --           Some body ->
+          --             eval
+          --               [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
+          --               body
+          --               (eval
+          --                 [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
+          --           None -> bug "no such function"))
+          --   (Call 0 Arg)
+          #he1qjbhhqu σ2 σ3 σ4 =
+            σ σ2 σ3 σ7 =
+              σ8 = 1
+              σ9 = Nat.drop σ7 σ8
+              σ10 = 0
+              σ11 = Nat.eq σ9 σ10
+              σ12 =
+                match σ11 with
+                  false -> σ σ2 σ3 σ9
+                  _ -> σ1 σ2 σ3 σ9
+              σ7 Nat.* σ12
+            σ1 σ2 σ3 σ13 = 1
+            σ5 = 0
+            σ6 = Nat.eq σ4 σ5
+            match σ6 with
+              false -> σ σ2 σ3 σ4
+              _ -> σ1 σ2 σ3 σ4
+          """
 ```

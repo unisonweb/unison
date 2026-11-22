@@ -171,18 +171,25 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
--- | Shows the combinators of a group by index (the entry at 0), given the
--- group's reference and the variables naming its local functions.
-type IRPrinter = Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String
+-- | How @runtime.ir@ shows code and values.
+data IRPrinter = IRPrinter
+  { -- | the combinators of a group by index (the entry at 0), given the
+    -- group's reference and the variables naming its local functions
+    irCombs :: Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String,
+    -- | a value as a term, or Nothing to show its reflection
+    irValue :: Val -> Maybe String
+  }
 
--- | The printer without names: references as hashes.
+-- | The printer without names: references as hashes, values reflected.
 plainIR :: IRPrinter
-plainIR _ _ cmbs =
-  foldr
-    (\(ix, lam) rest -> showString "lambda " . shows ix . ANF.prettySuperNormal 1 lam . showString "\n" . rest)
-    id
-    cmbs
-    ""
+plainIR = IRPrinter combs (const Nothing)
+  where
+    combs _ _ cmbs =
+      foldr
+        (\(ix, lam) rest -> showString "lambda " . shows ix . ANF.prettySuperNormal 1 lam . showString "\n" . rest)
+        id
+        cmbs
+        ""
 
 -- code caching environment
 data CCache prof = CCache
@@ -202,11 +209,12 @@ data CCache prof = CCache
     -- resumes (reifyValue), never compiled, so not in combRefs
     baseNums :: TVar (EnumMap Word64 Word64),
     -- each group @specialize@ generated, by reference: the combinator of
-    -- the closure it was made from and how many arguments that closure
-    -- had, which are the first arguments of the specialized closure
+    -- the closure it was made from, how many arguments that closure had,
+    -- which are the first arguments of the specialized closure, and the
+    -- constants the generated code takes after them
     -- (Machine.specializeClosure). Reflection writes a specialized closure
     -- as the closure it was made from ('ANF.Specialized').
-    specializations :: TVar (M.Map Reference (CombIx, Int)),
+    specializations :: TVar (M.Map Reference (CombIx, Int, [Val])),
     -- whether the code of a reference may run while specializing: it reaches
     -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
     runnableRefs :: TVar (M.Map Reference Bool),
