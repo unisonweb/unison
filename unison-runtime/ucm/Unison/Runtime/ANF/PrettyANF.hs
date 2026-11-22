@@ -3,50 +3,9 @@
 {-# LANGUAGE ViewPatterns #-}
 
 -- | Shows intermediate code (ANF) in a syntax that resembles Unison's, for
--- the `ir` and `ir.optimized` commands in ucm.
---
--- The rendering, by construct:
---
--- * A group is a definition. Its local functions (the group's other
---   members, which may call each other) come first in the entry's block,
---   like local definitions in Unison.
--- * A let is a binding, `x = e`; a binding of several values is
---   `(# x, y #) = e`, as in GHC's unboxed tuples, and of none is `_ = e`. A
---   tail that returns several values (a product-return worker's,
---   Unison.Runtime.MCode.Explode) is `yield (# x, y #)`. Neither builds
---   anything.
--- * A tuple, which is nested pairs ending in `()`, is `(x, y)` when the lets
---   of its inner pairs are used only there; they are folded into it.
--- * Building a closure, a function with some of its arguments, without
---   calling it, is `f = partialApply g a b`.
--- * A force is `x()`; a continuation call is like a function call.
--- * A primitive operation or foreign function is shown as the builtin it
---   is, `x Nat.+ y` (`prim.OP` for an operation no builtin is,
---   'builtinPrimNames'), since a call of a builtin with all its arguments
---   is inlined as it. A call of the builtin's function, which is what is
---   left when it is not (a partial application, or a builtin passed as a
---   value), is `(builtin Nat.+) x y`, always prefix.
--- * A let that binds nothing is its binding alone, like an action in a
---   Unison block.
--- * A wide variable (Unison.Runtime.MCode.Wide: laid out in several slots,
---   a small constructor unboxed in them) is `#v`, from its let, `#v = e`,
---   until it is boxed, `v = box #v`, after which it is an ordinary value,
---   `v`. Shown only when the wide convention is on: with it off nothing is
---   laid out wide, though the binders are still marked.
--- * `cont1 = shift {A}` captures the continuation up to the handler of
---   `A` (the rest of the block runs with it bound), and `handle e with h`
---   installs a handler. When the optimizer made an affine matcher too
---   (Unison.Runtime.ANF.Optimize), which matcher is installed is decided
---   when the `handle` runs: the affine one if no handler that isn't affine
---   is in force (Machine's `Reset`), so it is
---   `with if noNonAffineHandlers then h' else h`. An affine matcher's case
---   runs `inHandlerEnv aff -> e`, with the handlers in force where its
---   handler was installed, and stores the next handler with
---   `setHandler aff h`; `aff` is its affine cell. `discard` drops one.
---
--- Generated variables are renamed `v1`, `v2`, ... per definition; user
--- variables keep their names, numbered when two would clash.
-module Unison.Runtime.ANF.PrettyPrint
+-- the `ir` and `ir.optimized` commands in ucm. The syntax is explained, with
+-- a reference table, in unison-src/transcripts/idempotent/ir.md.
+module Unison.Runtime.ANF.PrettyANF
   ( IRNames (..),
     prettyIRGroup,
     prettyIRCombs,

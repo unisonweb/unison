@@ -63,7 +63,7 @@ import Unison.Referent qualified as RF (pattern Con, pattern Ref)
 import Unison.Runtime
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Convert as ANF
-import Unison.Runtime.ANF.PrettyPrint (IRNames (..), prettyIRCombs, prettyIRGroup)
+import Unison.Runtime.ANF.PrettyANF (IRNames (..), prettyIRCombs, prettyIRGroup)
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
