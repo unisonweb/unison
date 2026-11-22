@@ -498,6 +498,7 @@ loop e = do
           Cli.respond (DisplayDebugCompletions completions)
         DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
         DebugTypeI hqName -> DebugDefinition.debugDecl hqName
+        IntermediateCodeI optimized hqName -> DebugDefinition.intermediateCode optimized hqName
         DebugTypecheckedUnisonFileI -> do
           hqLength <- Cli.runTransaction Codebase.hashLength
           uf <- Cli.expectLatestTypecheckedFile
@@ -793,6 +794,7 @@ inputDescription input =
     DebugLSPFoldRangesI -> wat
     DebugTermI {} -> wat
     DebugTypeI {} -> wat
+    IntermediateCodeI optimized hq -> pure ((if optimized then "ir.optimized " else "ir ") <> HQ.toText hq)
     DocToMarkdownI {} -> wat
     EditNamespaceI {} -> wat
     ExecuteI {} -> wat

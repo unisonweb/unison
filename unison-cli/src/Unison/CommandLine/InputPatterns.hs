@@ -33,6 +33,8 @@ module Unison.CommandLine.InputPatterns
     debugLspNameCompletion,
     debugTerm,
     debugTermVerbose,
+    intermediateCode,
+    intermediateCodeOptimized,
     debugType,
     delete,
     deleteBranch,
@@ -3296,6 +3298,38 @@ debugTermVerbose =
       [thing] -> Input.DebugTermI True <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
 
+intermediateCode :: InputPattern
+intermediateCode =
+  InputPattern
+    "ir"
+    []
+    I.Visible
+    (Parameters [("term", exactDefinitionTermQueryArg)] $ Optional [] Nothing)
+    ( P.wrap $
+        "`ir foo` shows the intermediate code (ANF) the runtime makes of `foo`, before optimization:"
+          <> "a definition for each term of `foo`'s cycle and for each lambda lifted out of them."
+          <> "`ir.optimized foo` shows it after optimization."
+    )
+    \case
+      [thing] -> Input.IntermediateCodeI False <$> handleHashQualifiedNameArg thing
+      args -> wrongArgsLength "exactly one argument" args
+
+intermediateCodeOptimized :: InputPattern
+intermediateCodeOptimized =
+  InputPattern
+    "ir.optimized"
+    []
+    I.Visible
+    (Parameters [("term", exactDefinitionTermQueryArg)] $ Optional [] Nothing)
+    ( P.wrap $
+        "`ir.optimized foo` shows the intermediate code (ANF) the runtime makes of `foo`, after optimization:"
+          <> "a definition for each term of `foo`'s cycle and for each lambda lifted out of them."
+          <> "`ir foo` shows it before optimization."
+    )
+    \case
+      [thing] -> Input.IntermediateCodeI True <$> handleHashQualifiedNameArg thing
+      args -> wrongArgsLength "exactly one argument" args
+
 debugType :: InputPattern
 debugType =
   InputPattern
@@ -4349,6 +4383,8 @@ validInputs =
       debugSynhashTermInputPattern,
       debugTerm,
       debugTermVerbose,
+      intermediateCode,
+      intermediateCodeOptimized,
       debugType,
       debugLSPFoldRanges,
       debugFileHashes,

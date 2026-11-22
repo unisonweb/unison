@@ -198,7 +198,7 @@ The interpreter is the specification: every test runs the same program with and 
 ### Looking inside
 
 - [Logs and statistics](#logs-and-statistics)
-- [Dumps](#dumps): the IR and the MCode.
+- [Dumps](#dumps): the ANF, the IR and the MCode.
 - [LLVM knobs](#llvm-knobs)
 - [Traces and switches](#traces-and-switches)
 - [Measuring](#measuring): the techniques that chose things.
@@ -210,6 +210,7 @@ The interpreter is the specification: every test runs the same program with and 
 
 #### Dumps
 
+- `ir foo` and `ir.optimized foo` in ucm show the intermediate code (ANF) of the term `foo` (in the codebase or in the scratch file, whose definitions shadow the codebase's, as for `run`), in a syntax like Unison's: a definition for each term of `foo`'s cycle and for each lambda lifted out of them (named `foo$Lambda0`, `foo$go`, ...). `ir` is the code as the cache stores it; `ir.optimized` is the code as the emitter gets it, after everything loading does to it: [`loadBatch`](../Machine.hs#:~:text=loadBatch%20::) (the replacements, `ANF/Optimize.hs`, and the batch's explosions and returns, which is what `cacheAdd0` loads with), then the rewrites of `MCode/Explode.hs` and the wide pass, through [`rewrittenLambdas`](../MCode.hs#:~:text=rewrittenLambdas%20::), which lists what `emitCombs` emits. The batch is `foo`, the lambdas and its dependencies, as a fresh ucm loads them; code loaded after its dependencies, in another batch, can differ. [`ir.md`](../../../../../unison-src/transcripts/idempotent/ir.md) explains the syntax, with examples and a reference table. The printer is [`ANF/PrettyANF.hs`](../../../../ucm/Unison/Runtime/ANF/PrettyANF.hs), the command [`interpIntermediate`](../../../../ucm/Unison/Runtime/Interface.hs#:~:text=interpIntermediate%20::).
 - `--jit-dump-ir DIR` (or `UNISON_JIT_DUMP_IR=DIR`) writes one `.ll` file per module into `DIR`, with the MCode of each function as a comment above its IR and a line for each combinator that wasn't compiled and why; `-` prints to stderr. Two versions of each module are written: `unison_<n>.ll` is the text handed to LLVM and `unison_<n>.opt.ll` the module after the optimization passes, which is what runs. For the arm64 assembly: `/opt/homebrew/opt/llvm/bin/llc -O2 unison_<n>.opt.ll -o out.s`. For example: `stack exec unison -- --jit eager --jit-dump-ir - transcript.fork t.md 2> t.ll`. Two dumps from different binaries differ in the info-pointer addresses baked into the IR; mask runs of ten or more digits before comparing them.
 - `UNISON_JIT_DUMP_MCODE=1` dumps the MCode as it is loaded. To look at a site named in the statistics (`CIx ... <group> <n>`): run with `UNISON_JIT=off` and this, kill it once loading is done, and search the dump for `<group>:<n>:`.
 

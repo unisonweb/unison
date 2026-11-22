@@ -573,6 +573,18 @@
   `io.test.all`  runs unit tests for the current branch that use
                  IO
 
+  ir
+  `ir foo` shows the intermediate code (ANF) the runtime makes
+  of `foo`, before optimization: a definition for each term of
+  `foo`'s cycle and for each lambda lifted out of them.
+  `ir.optimized foo` shows it after optimization.
+
+  ir.optimized
+  `ir.optimized foo` shows the intermediate code (ANF) the
+  runtime makes of `foo`, after optimization: a definition for
+  each term of `foo`'s cycle and for each lambda lifted out of
+  them. `ir foo` shows it before optimization.
+
   lib.install (or install.lib, install)
   The `lib.install` command installs a dependency into the `lib`
   namespace.

@@ -151,6 +151,8 @@ data Input
   | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
   | DebugTypeI (HQ.HashQualified Name)
   | DebugTypecheckedUnisonFileI
+  | -- | `ir` and `ir.optimized`: the intermediate code of a term
+    IntermediateCodeI (Bool {- optimized -}) (HQ.HashQualified Name)
   | DeleteBranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | DeleteI !Bool {- force? -} !DeleteTarget ![HQ'.HashQualified Name]
   | DeleteNamespaceI Insistence (Maybe (Path.Split Path))

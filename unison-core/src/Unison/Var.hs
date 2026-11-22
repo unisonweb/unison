@@ -87,6 +87,7 @@ rawName typ = case typ of
   AffBlank -> "_aff"
   Float -> "_float"
   Pattern -> "_pattern"
+  PatternNamed n -> n
   Irrelevant -> "_irrelevant"
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
@@ -181,6 +182,11 @@ data Type
     Float
   | -- An unnamed variable introduced from pattern compilation
     Pattern
+  | -- | A variable introduced from pattern compilation for a part of a
+    -- pattern the user named: unique like a 'Pattern' variable (it is a
+    -- different type from the user's variable, so it never equals it), and
+    -- named like the user's, for showing intermediate code (`ir` in ucm).
+    PatternNamed Text
   | -- A variable for situations where we need to make up one that
     -- definitely won't be used.
     Irrelevant

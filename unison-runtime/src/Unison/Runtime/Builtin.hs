@@ -20,6 +20,7 @@ module Unison.Runtime.Builtin
     unitValue,
     natValue,
     builtinForeignNames,
+    builtinPrimNames,
     sandboxedForeignFuncs,
   )
 where
@@ -1611,6 +1612,19 @@ builtinForeignNames =
     & Map.keys
     & map (\f -> (f, foreignFuncBuiltinName f))
     & Map.fromList
+
+-- | The builtin each primitive operation is, for showing intermediate code
+-- (`ir` in ucm): one whose body is the operation applied to its arguments
+-- in order. A builtin that swaps them (`Nat.>`, `binopSwap LESN`) or does
+-- more is not the operation, so it names none. When several builtins are
+-- the same operation, the first by name.
+builtinPrimNames :: Map POp Data.Text.Text
+builtinPrimNames =
+  Map.fromListWith (\_ old -> old) $
+    [ (op, name)
+    | (Builtin name, (_, Lambda _ (TAbss vs (TPrm op as)))) <- Map.toList builtinLookup,
+      vs == as
+    ]
 
 -- Bootstrapping for sandbox check. The eventual map will be one with
 -- associations `r -> s` where `s` is all the 'sensitive' base

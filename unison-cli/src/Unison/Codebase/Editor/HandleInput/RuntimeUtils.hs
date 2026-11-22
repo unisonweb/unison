@@ -1,6 +1,8 @@
 module Unison.Codebase.Editor.HandleInput.RuntimeUtils
   ( evalUnisonTerm,
     evalUnisonTermE,
+    evalUnisonTermWithLatestFile,
+    latestFileCodeLookup,
     evalPureUnison,
     displayDecompileErrors,
     displayResponse,
@@ -15,7 +17,10 @@ import Control.Monad.Reader (ask)
 import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.CodeLookup (CodeLookup)
+import Unison.Codebase.CodeLookup.Util qualified as CL
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Runtime qualified as Runtime
@@ -69,6 +74,37 @@ evalUnisonTermE ::
   Cli (Either Error (Term Symbol Ann))
 evalUnisonTermE mode ppe useCache tm = do
   Cli.Env {codebase} <- ask
+  evalUnisonTermWithCodeLookupE (Codebase.codebaseToCodeLookup codebase) mode ppe useCache tm
+
+-- | The code of the latest typechecked file, not added yet, then the
+-- codebase's: as for `run`, the file's definitions come first.
+latestFileCodeLookup :: Cli (CodeLookup Symbol IO Ann)
+latestFileCodeLookup = do
+  Cli.Env {codebase} <- ask
+  file <- Cli.getLatestTypecheckedFile
+  pure (foldMap CL.fromTypecheckedUnisonFile file <> Codebase.codebaseToCodeLookup codebase)
+
+-- | Evaluate a single closed definition that can refer to the latest
+-- typechecked file's definitions, not added yet. Never cached.
+evalUnisonTermWithLatestFile ::
+  EvalMode ->
+  PPE.PrettyPrintEnv ->
+  Term Symbol Ann ->
+  Cli (Term Symbol Ann)
+evalUnisonTermWithLatestFile mode ppe tm = do
+  codeLookup <- latestFileCodeLookup
+  evalUnisonTermWithCodeLookupE codeLookup mode ppe False tm
+    & onLeftM (Cli.returnEarly . EvaluationFailure id)
+
+evalUnisonTermWithCodeLookupE ::
+  CodeLookup Symbol IO Ann ->
+  EvalMode ->
+  PPE.PrettyPrintEnv ->
+  Bool ->
+  Term Symbol Ann ->
+  Cli (Either Error (Term Symbol Ann))
+evalUnisonTermWithCodeLookupE codeLookup mode ppe useCache tm = do
+  Cli.Env {codebase} <- ask
   theRuntime <- selectRuntime mode
   let prof = modeProfSpec mode
 
@@ -78,7 +114,7 @@ evalUnisonTermE mode ppe useCache tm = do
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) cache ppe prof theRuntime tm)
+  r <- liftIO (Runtime.evaluateTerm' codeLookup cache ppe prof theRuntime tm)
   when useCache do
     case r of
       Right (Runtime.DecompErrs errs, _)

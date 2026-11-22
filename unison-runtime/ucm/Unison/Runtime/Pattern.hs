@@ -41,7 +41,7 @@ import Unison.Runtime.InternalError (internalBug)
 import Unison.Term hiding (Term, matchPattern)
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Rf
-import Unison.Var (Type (Pattern), Var, freshIn, freshenId, typed)
+import Unison.Var (Type (Pattern, PatternNamed, User), Var, freshIn, freshenId, typeOf, typed)
 
 type Term v = Tm.Term v ()
 
@@ -603,6 +603,16 @@ freshVar = state $ \(fw, vs, rn) ->
   let v = freshenId fw $ typed Pattern
    in (v, (fw + 1, vs, rn))
 
+-- | A fresh variable for a part of a pattern that the next variable to be
+-- used names (a variable or an as-pattern), named like it
+-- ('PatternNamed'), so that the user's name survives the renaming to
+-- fresh variables.
+freshVarNamed :: (Var v) => PPM v v
+freshVarNamed = state $ \case
+  (fw, vs@(u : _), rn)
+    | User n <- typeOf u -> (freshenId fw $ typed (PatternNamed n), (fw + 1, vs, rn))
+  (fw, vs, rn) -> (freshenId fw $ typed Pattern, (fw + 1, vs, rn))
+
 useVar :: PPM v v
 useVar = state $ \case
   (avoid, v : vs, rn) -> (v, (avoid, vs, rn))
@@ -671,6 +681,8 @@ prepareAs p u = pure $ u <$ p
 -- variables they bind are used as candidates for what that level of
 -- the pattern matches against.
 preparePattern :: (Var v) => P.Pattern a -> PPM v (P.Pattern v)
+preparePattern p@(P.Var _) = prepareAs p =<< freshVarNamed
+preparePattern p@(P.As _ _) = prepareAs p =<< freshVarNamed
 preparePattern p = prepareAs p =<< freshVar
 
 buildDataPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()

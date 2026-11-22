@@ -1,24 +1,33 @@
 module Unison.Codebase.Editor.HandleInput.DebugDefinition
   ( debugTerm,
     debugDecl,
+    intermediateCode,
   )
 where
 
 import Control.Monad.Reader
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (getLatestTypecheckedFile)
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output (Output (..))
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Pretty qualified as P
 
 debugTermReference :: Bool -> TermReference -> Cli ()
 debugTermReference verbose ref = do
@@ -57,3 +66,26 @@ debugDecl hqName = do
   names <- Cli.currentNames
   let matches = Names.lookupHQType Names.IncludeSuffixes hqName names
   for_ matches \typeRef -> debugTypeReference typeRef Nothing
+
+-- | Show the intermediate code (ANF) of a term, the other terms of its cycle,
+-- and the lambdas lifted out of them; optimized when the flag is set. The
+-- term can be one of the latest typechecked file's, not added yet: as for
+-- `run`, the file's names shadow the codebase's, and its code is looked up
+-- before the codebase's.
+intermediateCode :: Bool -> HQ.HashQualified Name -> Cli ()
+intermediateCode optimized hqName = do
+  Cli.Env {runtime} <- ask
+  file <- Cli.getLatestTypecheckedFile
+  codebaseNames <- Cli.currentNames
+  let names = maybe codebaseNames (`UF.addNamesFromTypeCheckedUnisonFile` codebaseNames) file
+      ppe = (PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)).suffixifiedPPE
+      matches = toList (Names.lookupHQTerm Names.IncludeSuffixes hqName names)
+      refs = [r | Referent.Ref r <- matches]
+  when (null matches) $ Cli.returnEarly (SearchTermsNotFound [hqName])
+  -- a constructor is code the runtime builds in, not a group of its own
+  when (null refs) . Cli.returnEarly . Literal . P.wrap $
+    P.text (HQ.toText hqName) <> " is a constructor, which has no intermediate code of its own."
+  codeLookup <- void <$> RuntimeUtils.latestFileCodeLookup
+  for_ refs \ref ->
+    liftIO (Runtime.intermediateCode runtime codeLookup ppe optimized ref)
+      >>= either (Cli.returnEarly . EvaluationFailure id) (Cli.respond . Literal)
