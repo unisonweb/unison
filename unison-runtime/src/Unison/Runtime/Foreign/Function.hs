@@ -656,7 +656,7 @@ foreignCallHelper = \case
       pure . fmap (WrapReferent . Ref) . ANF.valueTermLinks . dereference
   Value_serialize ->
     mkForeign $
-      pure . Bytes.fromArray . ANF.serializeValue
+      fmap Bytes.fromLazyByteString . ANF.serializeValueLatest
   Value_serialize_versioned ->
     mkForeign $
       fmap Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion

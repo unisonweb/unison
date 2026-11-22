@@ -9,6 +9,8 @@ module Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
     Combs,
+    IRPrinter,
+    plainIR,
     Tracer (..),
     apply0,
     boxSlot,
@@ -40,7 +42,8 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
+import System.IO.Unsafe (unsafePerformIO)
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -60,9 +63,15 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
 import Unison.Prelude hiding (Text)
+import Crypto.Hash (Blake2b_256, Digest, hashlazy)
+import Data.Bits (shiftR, (.&.))
+import Data.ByteArray (convert)
+import Data.ByteString.Builder qualified as BB
+import Unison.Hash qualified as Hash
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
+    pattern Derived,
     showShort,
   )
 import Unison.Referent (Referent, pattern Ref)
@@ -81,6 +90,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.ANF.Serialize (serializeValueForHash)
 import Unison.Runtime.Builtin.Decls (exceptionRef)
 import Unison.Runtime.Builtin.Decls qualified as Rf
 import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
@@ -396,6 +406,18 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   c <- peekOff stk i
   stk <- bump stk
   pokeBi stk =<< reflectValue env c
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 SPEC i) = do
+  v <- peekOff stk i
+  v <- specializeClosure env v
+  stk <- bump stk
+  poke stk v
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 RTIR i) = do
+  v <- peekOff stk i
+  ir <- runtimeIR env v
+  stk <- bump stk
+  pokeBi stk ir
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
@@ -2348,6 +2370,117 @@ canonicalizeReferenced ::
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
+-- | The second half of @specialize@ (Specialize.md): a closure that has
+-- captured something, specialized on all of it. Anything else (a closure
+-- that has captured nothing, a builtin, a value that isn't a closure) is
+-- returned as it is, which is always correct, since a specialized closure
+-- means the same as the closure it was made from.
+--
+-- The specialized closure is a closure over a generated group, holding the
+-- same arguments. The group's reference comes from a hash of the closure it
+-- was made from ('specializedRef'), so specializing the same closure twice,
+-- in this process or another, gives equal closures, and the group is
+-- generated once. For now the group is the original lambda unchanged (the
+-- identity specializer); 'specializations' remembers where it came from,
+-- for reflection and decompilation.
+specializeClosure :: CCache p -> Val -> IO Val
+specializeClosure cc val = case val of
+  BoxedVal (PAp cix@(CIx r _ i) _ args)
+    | not (null (segToList args)),
+      -- only a lambda's entry, never a section after a let in it
+      i .&. 0xffff == 0 -> do
+        groups <- readTVarIO (intermed cc)
+        case M.lookup r groups >>= lambdaGroup (fromIntegral (i `shiftR` 16)) of
+          Nothing -> pure val
+          Just grp -> do
+            sref <- specializedRef cc val
+            unless (M.member sref groups) $ do
+              sands <- readTVarIO (sandbox cc)
+              let sand = M.findWithDefault mempty r sands
+              -- no profiler: the group is not a cached value, so loading it
+              -- runs nothing
+              cacheAdd0 S.empty [(sref, CodeRep grp Uncacheable)] [(sref, sand)] cc {profiler = ()}
+              atomically . modifyTVar' (specializations cc) $
+                M.insert sref (cix, length (segToList args))
+            n <- refNumTm cc sref
+            cmbs <- readTVarIO (combs cc)
+            let scix = CIx sref n 0
+            case rCombSection cmbs scix of
+              RComb (Comb rcomb@LamI {} _) -> pure . boxedVal $ PAp scix rcomb args
+              _ -> pure val
+  _ -> pure val
+  where
+    -- the group with the lambda at index k (0 for the entry, k for the
+    -- k-th local function) as its entry; the local functions stay, since
+    -- the lambda may call them
+    lambdaGroup k (ANF.Rec grp ent)
+      | k == 0 = Just (ANF.Rec grp ent)
+      | k <= length grp = Just (ANF.Rec grp (snd (grp !! (k - 1))))
+      | otherwise = Nothing
+
+-- | The reference of the group specializing a closure: a hash of the
+-- closure, as the value hash serializes it, under a prefix that keeps it
+-- apart from any codebase hash. A closure that can't be serialized (it
+-- holds a mutable reference, say) gets a fresh reference instead, so it is
+-- equal only to itself.
+specializedRef :: CCache p -> Val -> IO Reference
+specializedRef cc val = do
+  bytes <-
+    -- (tryAny passes asynchronous exceptions on)
+    UnliftIO.tryAny (reflectValue cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
+      Right bs -> pure bs
+      Left _ -> do
+            u <- atomicModifyIORef' freshSpecializations \n -> (n + 1, n)
+            pure . BB.toLazyByteString $ BB.string7 "fresh" <> BB.word64BE u
+  let digest :: Digest Blake2b_256
+      digest = hashlazy (BB.toLazyByteString (BB.string7 "unison specialize\0") <> bytes)
+  pure $ Derived (Hash.fromByteString (convert digest)) 0
+
+freshSpecializations :: IORef Word64
+freshSpecializations = unsafePerformIO (newIORef 0)
+{-# NOINLINE freshSpecializations #-}
+
+-- | What @runtime.ir@ shows for a value: for a closure, the code the
+-- runtime runs for it, which is its group's ANF after the replacements,
+-- the optimizations and the emitter's rewrites ('loadBatch',
+-- 'rewrittenLambdas', as `ir.optimized` in ucm shows it, without names),
+-- and the values it has captured; for anything else, its reflection.
+runtimeIR :: CCache p -> Val -> IO Util.Text.Text
+runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
+  BoxedVal (PAp (CIx r _ i) _ args) -> do
+    groups <- readTVarIO (intermed cc)
+    opts <- readTVarIO (optInfos cc)
+    specs <- readTVarIO (specializations cc)
+    captured <- traverse reflectOrSay (segToList args)
+    let origin = case M.lookup r specs of
+          Just (CIx o _ oi, _) ->
+            showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
+          Nothing -> id
+        closure =
+          showString "-- closure of " . shows r . showString " " . shows i
+            . showString ", captured:\n"
+            . foldr (\v rest -> showString "--   " . showString v . showString "\n" . rest) id captured
+    pure . (origin .) . (closure .) $ case M.lookup r groups of
+      Nothing -> showString "-- no intermediate code (a builtin)\n"
+      Just g ->
+        let (arities, inls) = opts
+            LoadedBatch opt _ b = loadBatch (M.delete r arities, M.delete r inls) groups (M.singleton r g)
+         in case M.findWithDefault g r opt of
+              og@(ANF.Rec ogrp _) ->
+                -- the optimized group's local functions: optimization adds
+                -- some (an affine handler's matcher)
+                showString (irPrinter cc r (fst <$> ogrp) (rewrittenLambdas b r og))
+  _ -> do
+    v <- reflectOrSay val
+    pure $ showString v . showString "\n"
+  where
+    -- a value that can't be reflected (a mutable reference, say) is named,
+    -- not shown
+    reflectOrSay v =
+      UnliftIO.tryAny (reflectValue cc v >>= \rv -> let s = show (dereference rv) in s <$ evaluate (length s)) <&> \case
+        Right s -> s
+        Left _ -> "<a value that can't be reflected>"
+
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
   cmbs <- readTVarIO (combs env)
@@ -2360,7 +2493,8 @@ reflectValue env val = do
   -- loads and serializes every stored continuation, could not name them)
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
-  reflectValue0 cmbs bns tyr tmr' val
+  specs <- readTVarIO (specializations env)
+  reflectValue0 cmbs bns tyr tmr' specs val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -2459,9 +2593,10 @@ reflectValue0 ::
   EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
+  M.Map Reference (CombIx, Int) ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 cmbs bns rty rtm = goV0
+reflectValue0 cmbs bns rty rtm specs = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
     layout = frameLayout cmbs
@@ -2488,6 +2623,12 @@ reflectValue0 cmbs bns rty rtm = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
+          -- a specialized closure is written as the closure it was made
+          -- from, which the receiver specializes again (CCache's
+          -- specializations)
+          PAp cix _rComb args
+            | Just (ocix, _) <- M.lookup (combRef cix) specs ->
+                ANF.Specialized <$> (ANF.Partial <$> goIx ocix <*> goVs args)
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
           Enum t
@@ -2614,17 +2755,21 @@ reifyValue cc val = do
         l -> pure (Left l)
   case erc of
     Left l -> pure (Left l)
-    Right rfs -> Right <$> reifyValue1 rfs val
+    Right rfs -> Right <$> reifyValue1 (specializeClosure cc) rfs val
 
+-- The first argument specializes a closure ('specializeClosure'), for an
+-- 'ANF.Specialized' value: a closure specialized in the process that wrote
+-- the value, specialized again here.
 reifyValue1 ::
+  (Val -> IO Val) ->
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   Referenced ANF.Value ->
   IO Val
-reifyValue1 tup (Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
+reifyValue1 spec tup (Plain v) = reifyValue0 spec tup v
+reifyValue1 spec (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns v
+  reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -2632,6 +2777,7 @@ reifyValue1 (combs, rty0, rtm0, rrLookup, rfms, bns) (WithRefs tys tms v) = do
         <$> M.lookup (M.findWithDefault r r functionReplacements) rtm0
 
 reifyValue0Canon ::
+  (Val -> IO Val) ->
   EnumMap Word64 MCombs ->
   [Reference] ->
   [Reference] ->
@@ -2642,7 +2788,7 @@ reifyValue0Canon ::
   EnumMap Word64 Word64 ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
+reifyValue0Canon spec combs tys tms rty rtm rrLookup rfms bns = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2732,6 +2878,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
           "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
+    goV (ANF.Specialized c) = goV c >>= spec
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs (widenCont (frameLayout combs) k' vs)
@@ -2795,10 +2942,11 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms bns = goV
     goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
+  (Val -> IO Val) ->
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings, EnumMap Word64 Word64) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
+reifyValue0 spec (combs, rty, rtm, rrLookup, rfms, bns) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2867,6 +3015,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms, bns) = goV
           "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
+    goV (ANF.Specialized c) = goV c >>= spec
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs (widenCont (frameLayout combs) k' vs)

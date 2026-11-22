@@ -97,6 +97,7 @@ putValue = \case
     putTag RecordT
       <> putRecordSchema rs
       <> putFoldable putValue vs
+  Specialized c -> putTag SpecializedT <> putValue c
 
 getValue :: (PrimBase m) => Get m (Value RefNum)
 getValue =
@@ -119,6 +120,7 @@ getValue =
       rs <- getRecordSchema
       vs <- getList getValue
       pure $ Record rs vs
+    SpecializedT -> Specialized <$> getValue
 {-# INLINEABLE getValue #-}
 
 putCont :: Cont RefNum -> Builder

@@ -562,6 +562,8 @@ data Prim1
   | CVLD -- validate
   | VALU -- value
   | TLTT --  Term.Link.toText
+  | SPEC -- specialize a closure on what it has captured
+  | RTIR -- runtime.ir
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
@@ -2622,6 +2624,8 @@ emitPOp ANF.TLTT = emitP1 TLTT
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU
+emitPOp ANF.SPEC = emitP1 SPEC
+emitPOp ANF.RTIR = emitP1 RTIR
 emitPOp ANF.SDBX = emitP2 SDBX
 emitPOp ANF.SDBL = emitP1 SDBL
 emitPOp ANF.SDBV = emitP2 SDBV

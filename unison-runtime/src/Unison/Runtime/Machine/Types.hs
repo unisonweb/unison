@@ -171,10 +171,27 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
+-- | Shows the combinators of a group by index (the entry at 0), given the
+-- group's reference and the variables naming its local functions.
+type IRPrinter = Reference -> [Symbol] -> [(Word64, ANF.SuperNormal Reference Symbol)] -> String
+
+-- | The printer without names: references as hashes.
+plainIR :: IRPrinter
+plainIR _ _ cmbs =
+  foldr
+    (\(ix, lam) rest -> showString "lambda " . shows ix . ANF.prettySuperNormal 1 lam . showString "\n" . rest)
+    id
+    cmbs
+    ""
+
 -- code caching environment
 data CCache prof = CCache
   { sandboxed :: Bool,
     tracer :: Bool -> Val -> Tracer,
+    -- | how @runtime.ir@ shows a group's combinators as the emitter gets
+    -- them; ucm installs the printer of `ir.optimized`, with the
+    -- codebase's names, in place of this plain one ('plainIR')
+    irPrinter :: IRPrinter,
     profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
@@ -184,6 +201,12 @@ data CCache prof = CCache
     -- rewrote (MCode.emitCombs): what a continuation from another process
     -- resumes (reifyValue), never compiled, so not in combRefs
     baseNums :: TVar (EnumMap Word64 Word64),
+    -- each group @specialize@ generated, by reference: the combinator of
+    -- the closure it was made from and how many arguments that closure
+    -- had, which are the first arguments of the specialized closure
+    -- (Machine.specializeClosure). Reflection writes a specialized closure
+    -- as the closure it was made from ('ANF.Specialized').
+    specializations :: TVar (M.Map Reference (CombIx, Int)),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
@@ -236,10 +259,11 @@ baseCCache jit sandboxed = do
         snd (attachNativeCells cells uncelled)
           & absurdCombs
           & resolveCombs Nothing
-  CCache sandboxed noTrace ()
+  CCache sandboxed noTrace plainIR ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinOptInfo

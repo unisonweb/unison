@@ -73,9 +73,11 @@ import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (JIT, jitCompileGroup, printJITStats, startJIT)
 import Unison.Runtime.MCode (CombIx (..), rewrittenLambdas)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    IRPrinter,
     LoadedBatch (..),
     Tracer (..),
     apply0,
@@ -465,10 +467,20 @@ checkCacheability cl ctx (r, sg) =
         other -> or other
       t -> or t
 
+-- | The closure a group @specialize@ generated was made from, for the
+-- decompiler. Read at the time of each lookup, not before an evaluation,
+-- since the evaluation is what adds to the table; that is safe because an
+-- entry, once there, never changes or goes away.
+specializedFrom :: CCache p -> Reference -> Maybe CombIx
+specializedFrom cc r =
+  -- the read depends on r, so that GHC cannot share one read among lookups
+  unsafePerformIO $ fmap fst . Map.lookup r <$> readTVarIO (specializations cc)
+{-# NOINLINE specializedFrom #-}
+
 decompileCtx ::
   EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
 decompileCtx crs ctx val =
-  decompile ib (backReferenceTm crs fr ir dt) val
+  decompile (specializedFrom (ccache ctx)) ib (backReferenceTm crs fr ir dt) val
   where
     ib = intermedToBase ctx
     fr = floatRemap ctx
@@ -655,17 +667,29 @@ interpIntermediate ctxVar cl ppe optimized rf = catchErrors $ case rf of
               -- some (an affine handler's matcher)
               prettyIRCombs names r (fst <$> ogrp) (rewrittenLambdas rewrites r og)
           | otherwise = prettyIRGroup names r g
-        refName r
-          | Just b <- intermedToBase ctx r = Right . termName ppe $ RF.Ref b
-          | Just f <- Map.lookup r . backmap $ intermedRemap ctx,
-            Just fn <- Map.lookup f (floatNames ctx) =
-              Left $ prettyFloatNameSyntax ppe fn
-          | otherwise = Right . termName ppe $ RF.Ref r
-        names = IRNames {combName = refName, ppe, localName = \_ _ -> Nothing}
+        names = irNames ctx ppe
     pure . Right . syntaxToColor . P.linesSpaced $
       [pretty r g | r <- order, Just g <- [Map.lookup r shown]]
   where
     names0 = IRNames {combName = Right . termName ppe . RF.Ref, ppe, localName = \_ _ -> Nothing}
+
+-- | The names `ir.optimized` and @runtime.ir@ give the code: a group by
+-- the codebase term it came from, a lifted lambda by the name of its
+-- float, and anything else by its hash.
+irNames :: EvalCtx -> PrettyPrintEnv -> IRNames
+irNames ctx ppe = IRNames {combName = refName, ppe, localName = \_ _ -> Nothing}
+  where
+    refName r
+      | Just b <- intermedToBase ctx r = Right . termName ppe $ RF.Ref b
+      | Just f <- Map.lookup r . backmap $ intermedRemap ctx,
+        Just fn <- Map.lookup f (floatNames ctx) =
+          Left $ prettyFloatNameSyntax ppe fn
+      | otherwise = Right . termName ppe $ RF.Ref r
+
+-- | @runtime.ir@'s printer: `ir.optimized`'s, with the codebase's names.
+irPrinterFor :: EvalCtx -> PrettyPrintEnv -> IRPrinter
+irPrinterFor ctx ppe r locals cmbs =
+  Text.unpack . P.toPlain 80 . syntaxToColor $ prettyIRCombs (irNames ctx ppe) r locals cmbs
 
 -- | The names the codebase gives the constructors of these types, for a
 -- compiled program to print its values with (unisonrt).
@@ -859,6 +883,7 @@ evalInContext ppe ctx prof activeThreads w = do
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompileCtx crs ctx
+      irPrinter = irPrinterFor ctx ppe
       mkResponse errs =
         if Set.null errs
           then EmptyResponse
@@ -882,8 +907,8 @@ evalInContext ppe ctx prof activeThreads w = do
   result <-
     traverse (const $ readIORef r) <=< tryJust prettyError $
       maybe
-        (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
-        (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
+        (apply0 (Just hook) (ccache ctx) {tracer = debugText, irPrinter} activeThreads w)
+        (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, irPrinter, profiler = pc} activeThreads w)
         prof
 
   pure $ finish result
@@ -900,7 +925,7 @@ executeMainComb init cc = do
       crs <- readTVarIO (combRefs cc)
       let ctx = cacheContext cc
           decom =
-            decompile (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+            decompile (specializedFrom cc) (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
               decompTm ctx
       pure $ RuntimeExn (pure (mempty, id, decom)) re
 
@@ -965,7 +990,11 @@ runStandalone jit sandboxed sc@(SCache _ crs _ _ _ _ _ _ _ _ _ _ _ _ _) init = d
   pure r
   where
     decom =
+      -- a standalone program's traces show a specialized closure as the
+      -- generated group's reference: the table is in the cache, which
+      -- this printer is made before
       decompile
+        (const Nothing)
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
@@ -1129,7 +1158,7 @@ prettyRuntimeExn' ppe backmap decom issueFn = \case
                 name = P.syntaxToColor . prettyHashQualified . PPE.termName ppe $ RF.Ref rf
 
 prettyRuntimeExn :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
-prettyRuntimeExn = prettyRuntimeExn' mempty id (decompile pure \_ _ -> Nothing)
+prettyRuntimeExn = prettyRuntimeExn' mempty id (decompile (const Nothing) pure \_ _ -> Nothing)
 
 -- |
 --

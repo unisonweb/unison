@@ -150,6 +150,8 @@ data POp
   | SDBX -- sandbox
   | VALU -- value
   | TLTT -- Term.Link.toText
+  | SPEC -- specialize a closure on what it has captured
+  | RTIR -- runtime.ir
   -- Debug
   | PRNT -- print
   | INFO -- info
@@ -332,6 +334,8 @@ pOpCode op = case op of
   FGNN -> 149
   FGNF -> 150
   MKCB -> 151
+  SPEC -> 152
+  RTIR -> 153
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

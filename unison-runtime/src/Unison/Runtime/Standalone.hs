@@ -68,6 +68,7 @@ import Unison.Runtime.Machine
     Tracer (..),
     eval0,
     initialNativeCells,
+    plainIR,
     preEvalTopLevelConstants,
     refLookup,
     resolveSection,
@@ -291,11 +292,12 @@ restoreCache debugText jit sandboxed (SCache cs crs bns cacheableCombs opt _ ftm
       combs :: EnumMap Word64 (RCombs Val)
       combs = resolveCombs Nothing unresolvedCombs
   cc <-
-    CCache sandboxed debugText ()
+    CCache sandboxed debugText plainIR ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO bns
+      <*> newTVarIO mempty
       <*> newTVarIO cacheableCombs
       <*> newTVarIO (opt <> builtinOptInfo)
       <*> newTVarIO ftm

@@ -619,6 +619,13 @@ builtinsSrc =
     B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit),
     B "Debug.toText" $
       forall1 "a" (\a -> a --> optionalt (eithert text text)),
+    -- specialize f x means f x; the result may be new code with x folded
+    -- in (unison-runtime/src/Unison/Runtime/Specialize.md)
+    B "specialize" . forall3 "a" "b" "g" $ \a b g ->
+      (a --> Type.effect1 () g b) --> a --> Type.effect1 () g b,
+    B "specialize.boundary" . forall3 "a" "b" "g" $ \a b g ->
+      (a --> Type.effect1 () g b) --> a --> Type.effect1 () g b,
+    B "runtime.ir" $ forall1 "a" (\a -> a --> text),
     B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b),
@@ -1285,6 +1292,17 @@ forall2 na nb body = Type.foralls () [a, b] (body ta tb)
     b = Var.named nb
     ta = Type.var () a
     tb = Type.var () b
+
+forall3 ::
+  Text -> Text -> Text -> (Type -> Type -> Type -> Type) -> Type
+forall3 na nb nc body = Type.foralls () [a, b, c] (body ta tb tc)
+  where
+    a = Var.named na
+    b = Var.named nb
+    c = Var.named nc
+    ta = Type.var () a
+    tb = Type.var () b
+    tc = Type.var () c
 
 forall4 ::
   Text ->

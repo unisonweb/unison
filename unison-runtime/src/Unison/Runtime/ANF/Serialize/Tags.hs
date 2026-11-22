@@ -66,7 +66,7 @@ data BLTag
   | BigIntT
   | BigNatT
 
-data VaTag = PartialT | DataT | ContT | BLitT | RecordT
+data VaTag = PartialT | DataT | ContT | BLitT | RecordT | SpecializedT
 
 data CoTag = KET | MarkT | PushT
 
@@ -216,6 +216,7 @@ instance Tag VaTag where
     ContT -> 2
     BLitT -> 3
     RecordT -> 4
+    SpecializedT -> 5
   {-# INLINE tag2word #-}
 
   word2tag = \case
@@ -224,6 +225,7 @@ instance Tag VaTag where
     2 -> pure ContT
     3 -> pure BLitT
     4 -> pure RecordT
+    5 -> pure SpecializedT
     t -> unknownTag "VaTag" t
   {-# INLINE word2tag #-}
 
