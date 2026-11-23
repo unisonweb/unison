@@ -407,6 +407,17 @@ with the codebase's names, `irPrinterFor` in
 `plainIR`, which names references by hash. A value that can't be reflected (a mutable
 reference) is named, not shown.
 
+Generated code keeps the program's variable names. Every variable the specializer makes
+comes from `freshNamed` ([`Specialize.hs`](ANF/Specialize.hs)), and the caller names it:
+- **The program's name**, when the variable stands for one of the program's: a parameter,
+  a let's binder, a field, a handler's binder. A residual function's parameters take the
+  original function's parameter names, and a residual function takes the name of the local
+  function it specializes.
+- **A synthetic name** otherwise: `lit`, `con`, `clo`, a call's result `r`, a constant `c`,
+  and in state passing `p`, `s`, `rest`, `done` and `out`.
+
+The printer makes the names unique by numbering them.
+
 The text depends on the runtime version and the `UNISON_OPTIMIZATIONS` settings, so it is
 for debugging and for golden transcripts, not for program logic. It is like `Debug.toText`,
 and it is `Tracked`, as that one is.

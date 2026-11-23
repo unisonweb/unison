@@ -293,11 +293,11 @@ scratch/main> add
           """
           -- specialize
           --   (n x -> (if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x)) 3
-          #utqafuleos σ σ1 =
-            σ2 = 1
-            σ3 = σ1 Nat.* σ2
-            σ4 = σ1 Nat.* σ3
-            σ1 Nat.* σ4
+          #utqafuleos n x =
+            lit = 1
+            v1 = x Nat.* lit
+            v2 = x Nat.* v1
+            x Nat.* v2
           """
 ```
 
@@ -377,10 +377,10 @@ An expression with no calls becomes straight-line code:
           --       match List.at i [] with
           --         Some body -> eval [] body (eval [] a x)
           --         None      -> bug "no such function")) (Add (Mul Arg Arg) (Num 1))
-          #s7tck5o8q1 σ σ1 σ2 =
-            σ3 = σ2 Nat.* σ2
-            σ4 = 1
-            σ3 Nat.+ σ4
+          #s7tck5o8q1 prog e x =
+            v1 = x Nat.* x
+            lit = 1
+            v1 Nat.+ lit
           """
 ```
 
@@ -438,23 +438,23 @@ A recursive program becomes a recursive function, with no trace of the interpret
           --                 [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
           --           None -> bug "no such function"))
           --   (Call 0 Arg)
-          #he1qjbhhqu σ1 σ2 σ3 =
-            σ σ6 =
-              σ7 = 1
-              σ8 = Nat.drop σ6 σ7
-              σ9 = 0
-              σ10 = Nat.eq σ8 σ9
-              σ12 =
-                match σ10 with
-                  false -> σ σ8
+          #he1qjbhhqu prog e x =
+            f x1 =
+              lit1 = 1
+              v2 = Nat.drop x1 lit1
+              lit2 = 0
+              v3 = Nat.eq v2 lit2
+              v4 =
+                match v3 with
+                  false -> f v2
                   _ ->
-                    σ11 = 1
-                    σ11
-              σ6 Nat.* σ12
-            σ4 = 0
-            σ5 = Nat.eq σ3 σ4
-            match σ5 with
-              false -> σ σ3
+                    lit3 = 1
+                    lit3
+              x1 Nat.* v4
+            lit = 0
+            v1 = Nat.eq x lit
+            match v1 with
+              false -> f x
               _ -> 1
           """
 ```
@@ -518,27 +518,27 @@ scratch/main> add
           --         []        -> acc
           --         x +: rest -> go (acc :+ f x) rest
           --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
-          #gj43ai3imv σ2 σ3 σ4 σ5 =
-            σ σ11 σ12 =
-              σ13 = ##List.viewl σ12
-              match σ13 with
-                VElem σ14 σ15 ->
-                  σ16 = σ1 σ14
-                  σ17 = σ11 :+ σ16
-                  σ σ17 σ15
-                VEmpty -> σ11
-            σ1 σ18 =
-              σ19 = 2
-              σ20 = σ18 Nat.* σ19
-              σ21 = 1
-              σ20 Nat.+ σ21
-            σ6 = ##List.viewl σ5
-            match σ6 with
-              VElem σ7 σ8 ->
-                σ9 = σ1 σ7
-                σ10 = σ3 :+ σ9
-                σ σ10 σ8
-              VEmpty -> σ4
+          #gj43ai3imv f2 c c1 xs =
+            f acc x1 =
+              v4 = ##List.viewl x1
+              match v4 with
+                VElem x2 rest1 ->
+                  v5 = f1 x2
+                  v6 = acc :+ v5
+                  f v6 rest1
+                VEmpty -> acc
+            f1 x3 =
+              lit = 2
+              v7 = x3 Nat.* lit
+              lit1 = 1
+              v7 Nat.+ lit1
+            v1 = ##List.viewl xs
+            match v1 with
+              VElem x rest ->
+                v2 = f1 x
+                v3 = c :+ v2
+                f v3 rest
+              VEmpty -> c1
           """
 
     3 | > specialize foldLeft (Nat.+) 0 [1, 2, 3]
@@ -552,20 +552,20 @@ scratch/main> add
           --   (f z tqb401337t1 -> (match tqb401337t1 with
           --     []        -> z
           --     x +: rest -> foldLeft f (f z x) rest)) (Nat.+)
-          #m3rbk3p595 σ1 σ2 σ3 =
-            σ σ8 σ9 =
-              σ10 = ##List.viewl σ9
-              match σ10 with
-                VElem σ11 σ12 ->
-                  σ13 = σ8 Nat.+ σ11
-                  σ σ13 σ12
-                VEmpty -> σ8
-            σ4 = ##List.viewl σ3
-            match σ4 with
-              VElem σ5 σ6 ->
-                σ7 = σ2 Nat.+ σ5
-                σ σ7 σ6
-              VEmpty -> σ2
+          #m3rbk3p595 f1 z x1 =
+            f z1 x2 =
+              v3 = ##List.viewl x2
+              match v3 with
+                VElem x3 rest1 ->
+                  v4 = z1 Nat.+ x3
+                  f v4 rest1
+                VEmpty -> z1
+            v1 = ##List.viewl x1
+            match v1 with
+              VElem x rest ->
+                v2 = z Nat.+ x
+                f v2 rest
+              VEmpty -> z
           """
 ```
 
@@ -630,36 +630,36 @@ scratch/main> add
           -- specialize
           --   (prog x -> evalK prog (Call 0 Arg) x (v -> v))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          #2qmmp45ssf σ2 σ3 =
-            σ σ12 σ13 = σ12 Nat.* σ13
-            σ1 σ14 σ15 =
-              σ16 = 1
-              σ17 = Nat.drop σ14 σ16
-              σ18 = 0
-              σ19 = Nat.eq σ17 σ18
-              match σ19 with
+          #2qmmp45ssf prog x =
+            f va vb = va Nat.* vb
+            f1 x1 k =
+              lit4 = 1
+              v4 = Nat.drop x1 lit4
+              lit5 = 0
+              v5 = Nat.eq v4 lit5
+              match v5 with
                 false ->
-                  σ20 = partialApply evalK$Lambda2$Lambda0 σ15 σ14
-                  σ1 σ17 σ20
+                  clo1 = partialApply evalK$Lambda2$Lambda0 k x1
+                  f1 v4 clo1
                 _ ->
-                  σ21 = 1
-                  σ22 = σ14 Nat.* σ21
-                  σ15 σ22
-            σ4 = 0
-            σ5 = Nat.eq σ3 σ4
-            match σ5 with
+                  lit6 = 1
+                  v6 = x1 Nat.* lit6
+                  k v6
+            lit = 0
+            v1 = Nat.eq x lit
+            match v1 with
               false ->
-                σ6 = 1
-                σ7 = Nat.drop σ3 σ6
-                σ8 = 0
-                σ9 = Nat.eq σ7 σ8
-                match σ9 with
+                lit1 = 1
+                v2 = Nat.drop x lit1
+                lit2 = 0
+                v3 = Nat.eq v2 lit2
+                match v3 with
                   false ->
-                    σ10 = partialApply σ σ3
-                    σ1 σ7 σ10
+                    clo = partialApply f x
+                    f1 v2 clo
                   _ ->
-                    σ11 = 1
-                    σ3 Nat.* σ11
+                    lit3 = 1
+                    x Nat.* lit3
               _ -> 1
           """
 ```
@@ -724,9 +724,9 @@ scratch/main> add
           ⧩
           """
           -- specialize (s x -> x Nat.+ (runSt s do count 4)) 2
-          #6patbfbgl6 σ σ1 =
-            σ2 = 12
-            σ1 Nat.+ σ2
+          #6patbfbgl6 s x =
+            lit = 12
+            x Nat.+ lit
           """
 
     3 | > specialize (n -> runSt 0 do count n) 4
@@ -813,64 +813,64 @@ scratch/main> add
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          #0nklekfqfs σ2 σ3 =
-            σ σ16 =
-              σ17 = 1
-              σ18 = Nat.lt σ16 σ17
-              match σ18 with
+          #0nklekfqfs prog x =
+            f x1 =
+              lit1 = 1
+              v2 = Nat.lt x1 lit1
+              match v2 with
                 false ->
-                  σ19 = 1
-                  σ20 = Nat.drop σ16 σ19
-                  σ21 = 0
-                  σ22 = Nat.eq σ20 σ21
-                  match σ22 with
+                  lit2 = 1
+                  v3 = Nat.drop x1 lit2
+                  lit3 = 0
+                  v4 = Nat.eq v3 lit3
+                  match v4 with
                     false ->
-                      σ23 = σ σ20
-                      match σ23 with
-                        Right σ24 -> Right σ24
-                        Left σ25 ->
-                          match σ25 with
-                            Cons σ26 σ27 ->
-                              σ28 = σ16 Nat.* σ26
-                              σ29 = ()
-                              σ30 = Cons σ28 σ29
-                              Left σ30
+                      r4 = f v3
+                      match r4 with
+                        Right p2 ->
+                          match p2 with
+                            Cons r5 rest2 ->
+                              r6 = x1 Nat.* r5
+                              nil = ()
+                              p3 = Cons r6 nil
+                              Right p3
+                        Left done2 -> Left done2
                     _ ->
-                      σ31 = σ1 σ20
-                      match σ31 with
-                        Right σ32 -> Right σ32
-                        Left σ33 ->
-                          match σ33 with
-                            Cons σ34 σ35 ->
-                              σ36 = σ16 Nat.* σ34
-                              σ37 = ()
-                              σ38 = Cons σ36 σ37
-                              Left σ38
+                      r7 = f1 v3
+                      match r7 with
+                        Right p4 ->
+                          match p4 with
+                            Cons r8 rest3 ->
+                              r9 = x1 Nat.* r8
+                              nil1 = ()
+                              p5 = Cons r9 nil1
+                              Right p5
+                        Left done3 -> Left done3
                 _ ->
-                  σ39 = None
-                  Right σ39
-            σ1 σ40 =
-              σ41 = 1
-              σ42 = ()
-              σ43 = Cons σ41 σ42
-              Left σ43
-            σ4 = 0
-            σ5 = Nat.eq σ3 σ4
-            match σ5 with
+                  con = None
+                  Left con
+            f1 x2 =
+              lit4 = 1
+              nil2 = ()
+              p6 = Cons lit4 nil2
+              Right p6
+            lit = 0
+            v1 = Nat.eq x lit
+            match v1 with
               false ->
-                σ6 = σ σ3
-                match σ6 with
-                  Right σ7 -> σ7
-                  Left σ8 ->
-                    match σ8 with
-                      Cons σ9 σ10 -> Some σ9
+                r = f x
+                match r with
+                  Right p ->
+                    match p with
+                      Cons r1 rest -> Some r1
+                  Left done -> done
               _ ->
-                σ11 = σ1 σ3
-                match σ11 with
-                  Right σ12 -> σ12
-                  Left σ13 ->
-                    match σ13 with
-                      Cons σ14 σ15 -> Some σ14
+                r2 = f1 x
+                match r2 with
+                  Right p1 ->
+                    match p1 with
+                      Cons r3 rest1 -> Some r3
+                  Left done1 -> done1
           """
 ```
 
@@ -925,10 +925,10 @@ scratch/main> add
           --       put (get + n)
           --       put (get * 2)
           --       get) 1
-          #k8ughu55rj σ σ1 =
-            σ2 = σ Nat.+ σ1
-            σ3 = 2
-            σ2 Nat.* σ3
+          #k8ughu55rj s n =
+            v1 = s Nat.+ n
+            lit = 2
+            v1 Nat.* lit
           """
 ```
 
@@ -981,15 +981,15 @@ scratch/main> add
           --     with cases
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None)) [Sub (Mul Arg Arg) (Num 10)]
-          #576qjmjsg7 σ σ1 =
-            σ2 = σ1 Nat.* σ1
-            σ3 = 10
-            σ4 = Nat.lt σ2 σ3
-            match σ4 with
+          #576qjmjsg7 prog x =
+            va = x Nat.* x
+            lit = 10
+            v1 = Nat.lt va lit
+            match v1 with
               false ->
-                σ5 = 10
-                σ6 = Nat.drop σ2 σ5
-                Some σ6
+                lit1 = 10
+                r = Nat.drop va lit1
+                Some r
               _ -> None
           """
 ```
@@ -1014,35 +1014,35 @@ Around a loop, the state is passed to the loop and returned from it:
           ⧩
           """
           -- specialize (s n -> runSt s do count n) 0
-          #8bdou15p4k σ1 σ2 =
-            σ σ15 σ16 =
-              σ17 = 0
-              σ18 = Nat.eq σ15 σ17
-              match σ18 with
+          #8bdou15p4k s n =
+            f n1 v4 =
+              lit2 = 0
+              v5 = Nat.eq n1 lit2
+              match v5 with
                 false ->
-                  σ19 = σ16 Nat.+ σ15
-                  σ20 = 1
-                  σ21 = Nat.drop σ15 σ20
-                  σ σ21 σ19
+                  v6 = v4 Nat.+ n1
+                  lit3 = 1
+                  v7 = Nat.drop n1 lit3
+                  f v7 v6
                 _ ->
-                  σ24 = (σ16, σ16)
-                  Left σ24
-            σ3 = 0
-            σ4 = Nat.eq σ2 σ3
-            match σ4 with
+                  p1 = (v4, v4)
+                  Right p1
+            lit = 0
+            v1 = Nat.eq n lit
+            match v1 with
               false ->
-                σ5 = σ1 Nat.+ σ2
-                σ6 = 1
-                σ7 = Nat.drop σ2 σ6
-                σ8 = σ σ7 σ5
-                match σ8 with
-                  Right σ9 -> σ9
-                  Left σ10 ->
-                    match σ10 with
-                      Cons σ11 σ12 ->
-                        match σ12 with
-                          Cons σ13 σ14 -> σ11
-              _ -> σ1
+                v2 = s Nat.+ n
+                lit1 = 1
+                v3 = Nat.drop n lit1
+                r = f v3 v2
+                match r with
+                  Right p ->
+                    match p with
+                      Cons r1 rest ->
+                        match rest with
+                          Cons s1 rest1 -> r1
+                  Left done -> done
+              _ -> s
           """
 ```
 
@@ -1072,46 +1072,46 @@ of an unknown function; the code under it is still specialized:
           --       use St get
           --       put (f get)
           --       get) 3
-          #aqe3doh5bf σ2 σ3 =
-            σ σ2 σ8 =
-              match σ8 with
+          #aqe3doh5bf s f =
+            f1 s v3 =
+              match v3 with
                 {St.get} ->
                   cont1 = shift {St}
-                  σ9 = partialApply σ σ2
+                  clo1 = partialApply f1 s
                   handle {St}
-                    cont1 σ2
-                  with σ9
-                {put σ10} ->
+                    cont1 s
+                  with clo1
+                {put s'} ->
                   cont2 = shift {St}
-                  σ11 = partialApply σ1 σ10
+                  clo2 = partialApply f2 s'
                   handle {St}
-                    σ12 = ()
-                    cont2 σ12
-                  with σ11
-                {σ13} -> σ13
-            σ1 σ14 σ15 =
-              match σ15 with
+                    con = ()
+                    cont2 con
+                  with clo2
+                {a} -> a
+            f2 s1 v4 =
+              match v4 with
                 {St.get} ->
                   cont3 = shift {St}
-                  σ16 = partialApply σ1 σ14
+                  clo3 = partialApply f2 s1
                   handle {St}
-                    cont3 σ14
-                  with σ16
-                {put σ17} ->
+                    cont3 s1
+                  with clo3
+                {put s'1} ->
                   cont4 = shift {St}
-                  σ18 = partialApply σ1 σ17
+                  clo4 = partialApply f2 s'1
                   handle {St}
-                    σ19 = ()
-                    cont4 σ19
-                  with σ18
-                {σ20} -> σ20
-            σ4 = partialApply σ σ2
+                    con1 = ()
+                    cont4 con1
+                  with clo4
+                {a1} -> a1
+            clo = partialApply f1 s
             handle {St}
-              σ5 = St.get
-              σ6 = σ3 σ5
-              σ7 = put σ6
+              v1 = St.get
+              v2 = f v1
+              _ = put v2
               St.get
-            with σ4
+            with clo
           """
 ```
 

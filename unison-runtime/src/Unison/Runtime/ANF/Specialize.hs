@@ -49,7 +49,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack qualified as Stack
 import Unison.Runtime.TypeTags (CTag (..))
-import Unison.Runtime.Builtin.Decls (eitherRef, exceptionRef, pairRef, unitRef)
+import Unison.Runtime.Builtin.Decls (eitherLeftId, eitherRef, eitherRightId, exceptionRef, pairRef, unitRef)
 import Unison.Symbol (Symbol)
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Var qualified as Var
@@ -222,7 +222,8 @@ data E = E
 -- let, given how its binder is held.
 data K
   = KTail
-  | KBind Mem (Abs -> M Term)
+  | -- | the binder's name in the output
+    KBind Mem Symbol (Abs -> M Term)
   | -- | the end of the body of the fused handler with this number: the
     -- value goes to the innermost target ('sTargets')
     KDelim Int
@@ -252,8 +253,8 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          either (\(Escape _) -> Left "an escape from a fused handler") id <$> Control.Exception.try @Escape (Right <$> do
           flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty) do
-            argSyms <- traverse (const fresh) args
-            restSyms <- traverse (const fresh) (drop (length args) vs)
+            argSyms <- traverse freshNamed (take (length args) vs)
+            restSyms <- traverse freshNamed (drop (length args) vs)
             let restMems = drop (length args) ccs
                 binds =
                   zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
@@ -301,11 +302,25 @@ localBinds r locals = [(v, Clo (Fn r ix) []) | (v, ix) <- locals]
 lamArity :: SuperNormal Reference Symbol -> Int
 lamArity (Lambda ccs _) = length ccs
 
-fresh :: M Symbol
-fresh = do
+-- | A new variable with the name given, made unique: the name of the
+-- program's variable it stands for, so that 'runtime.ir' shows the
+-- program's names, or a synthetic one ('syn') for what the program has no
+-- variable for. The ids start above any the program's
+-- own variables have, so a new variable never equals one of them (code
+-- kept as it is keeps its binders).
+freshNamed :: Symbol -> M Symbol
+freshNamed v = do
   n <- gets sFresh
   modify' \s -> s {sFresh = n + 1}
-  pure (Var.freshenId n (Var.named "σ"))
+  pure (Var.freshenId (n + 2 ^ (40 :: Int)) v)
+
+syn :: Text -> Symbol
+syn = Var.named
+
+-- | The tags of a state-passing function's results ('resultMatch').
+leftTag, rightTag :: CTag
+leftTag = CTag (fromIntegral eitherLeftId)
+rightTag = CTag (fromIntegral eitherRightId)
 
 letNum :: M Word16
 letNum = do
@@ -327,10 +342,10 @@ bind v a e = e {eVars = M.insert v a (eVars e)}
 
 ret :: K -> Abs -> M Term
 ret KTail a = toVar a (pure . TVar)
-ret (KBind _ k) a = k a
+ret (KBind _ _ k) a = k a
 ret (KDelim _) a = popTarget >>= \(_, tgt) -> tgt a
 ret (KReturn fid) a = returnRight fid a
-ret (KAbort _) v = toVar v \x -> pure (TCon eitherRef (CTag 0) [x])
+ret (KAbort _) v = toVar v \x -> pure (TCon eitherRef leftTag [x])
 
 popTarget :: M (Tgt, Abs -> M Term)
 popTarget =
@@ -341,21 +356,21 @@ popTarget =
 -- | Gives an unknown result: a residual computation of it, then the rest.
 dynResult :: K -> Mem -> Term -> M Term
 dynResult KTail _ code = pure code
-dynResult (KBind m k) _ code = do
-  x <- fresh
+dynResult (KBind m h k) _ code = do
+  x <- freshNamed h
   n <- letNum
   rest <- k (Dyn x m)
   pure (TLets (Indirect n) [x] [m] code rest)
-dynResult k _ code = dynResult (KBind BX (ret k)) BX code
+dynResult k _ code = dynResult (KBind BX (syn "r") (ret k)) BX code
 
 -- | Like 'dynResult' for a primitive, bound by a direct let.
 dynPrim :: K -> Term -> M Term
 dynPrim KTail code = pure code
-dynPrim (KBind m k) code = do
-  x <- fresh
+dynPrim (KBind m h k) code = do
+  x <- freshNamed h
   rest <- k (Dyn x m)
   pure (TLets Direct [x] [m] code rest)
-dynPrim k code = dynPrim (KBind BX (ret k)) code
+dynPrim k code = dynPrim (KBind BX (syn "r") (ret k)) code
 
 pe :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
 pe env lim e t k = tick lim >> case t of
@@ -363,7 +378,7 @@ pe env lim e t k = tick lim >> case t of
   TLit l -> literal l
   TBLit l -> literal l
   TLets _ [v] [m] bn bo ->
-    pe env lim e bn . KBind m $ \a -> pe env lim (bind v a e) bo k
+    pe env lim e bn . KBind m v $ \a -> pe env lim (bind v a e) bo k
   TLets {} -> opaque env e t k
   TName v f as bo -> do
     let fa = case f of
@@ -389,7 +404,7 @@ pe env lim e t k = tick lim >> case t of
         modify' \st -> st {sPending = Nothing}
         pe env lim (bind v (SKont kid) e) body k
       _ -> do
-        v' <- fresh
+        v' <- freshNamed v
         body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
         dynResult k BX (TShift r v' body')
   TFrc v -> case look e v of
@@ -459,7 +474,7 @@ call env lim e fa as k = case fa of
       Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals)
         | length args < lamArity lam -> ret k (Clo fn args)
         | length args > lamArity lam ->
-            call env lim e (Clo fn []) (take (lamArity lam) args) . KBind BX $ \res ->
+            call env lim e (Clo fn []) (take (lamArity lam) args) . KBind BX (syn "r") $ \res ->
               call env lim e res (drop (lamArity lam) args) k
         | otherwise -> runOr (Clo fn [] : args) $ do
             if not (eUnderDyn e) && eDepth e < slDepth lim
@@ -497,7 +512,7 @@ residualCall env lim fn args k = do
       if inTail
         then toVars (concat leaves) \xs -> pure (TApp (FVar rf) xs)
         else toVars (concat leaves) \xs -> do
-          r <- fresh
+          r <- freshNamed (syn "r")
           n <- letNum
           rest' <- resultMatch f tmpl r k
           pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
@@ -538,7 +553,7 @@ okTarget top = \case
 -- force, and the walk goes on with the result.
 resultMatch :: Frame -> Abs -> Symbol -> K -> M Term
 resultMatch f tmpl r k = do
-  v <- fresh
+  v <- freshNamed (syn "done")
   abortArm <- isolated do
     frames <- gets sFrames
     targets <- gets sTargets
@@ -550,31 +565,31 @@ resultMatch f tmpl r k = do
           sTargets = drop (above + own) targets
         }
     ret (frOuter f) (Dyn v BX)
-  p <- fresh
+  p <- freshNamed (syn "p")
   rightArm <- isolated do
-    res <- fresh
+    res <- freshNamed (syn "r")
     let mems = [m | Dyn _ m <- dynLeaves tmpl]
-    leafVars <- traverse (const fresh) mems
+    leafVars <- traverse (const (freshNamed (syn "s"))) mems
     let hNew = evalState (fillLeaves tmpl) (zipWith Dyn leafVars mems)
     let setHandler = \case
           g@Fused {} | frId g == frId f -> g {frHandler = hNew}
           g -> g
     modify' \st -> st {sFrames = map setHandler (sFrames st)}
     inner <- ret k (Dyn res (kMem k))
-    c0 <- fresh
+    c0 <- freshNamed (syn "rest")
     chain <- decodeChain c0 (zip leafVars mems) inner
     pure (TMatch p (MatchData pairRef (EC.mapFromList [(CTag 0, ([BX, BX], ABTN.TAbss [res, c0] chain))]) Nothing))
   pure . TMatch r $
     MatchData
       eitherRef
-      (EC.mapFromList [(CTag 0, ([BX], ABTN.TAbss [v] abortArm)), (CTag 1, ([BX], ABTN.TAbss [p] rightArm))])
+      (EC.mapFromList [(leftTag, ([BX], ABTN.TAbss [v] abortArm)), (rightTag, ([BX], ABTN.TAbss [p] rightArm))])
       Nothing
   where
-    kMem (KBind m _) = m
+    kMem (KBind m _ _) = m
     kMem _ = BX
     decodeChain _ [] inner = pure inner
     decodeChain c ((l, m) : ls) inner = do
-      c' <- fresh
+      c' <- freshNamed (syn "rest")
       rest <- decodeChain c' ls inner
       pure (TMatch c (MatchData pairRef (EC.mapFromList [(CTag 0, ([m, BX], ABTN.TAbss [l, c'] rest))]) Nothing))
 
@@ -643,13 +658,21 @@ residualFnWith env lim mframe fn args0 = do
     Nothing -> do
       nfns <- gets (M.size . sMemo)
       when (nfns >= slFunctions lim) . liftIO . throwIO $ GiveUp "functions"
-      f <- fresh
+      -- named after the local function it specializes, if it is one
+      f <- case lambdaOf env fn of
+        Just (_, locals) | Fn _ i <- fn, Just (v, _) <- find ((== i) . snd) locals -> freshNamed v
+        _ -> freshNamed (syn "f")
       modify' \s -> s {sMemo = M.insert key f (sMemo s)}
       case lambdaOf env fn of
         Nothing -> liftIO . throwIO $ GiveUp "no code"
         Just (Lambda _ (ABTN.TAbss vs body), locals) -> do
           let holes = concatMap dynLeaves allArgs
-          params <- traverse (\_ -> fresh) holes
+              -- a parameter is named after the function's own, when the
+              -- whole argument is unknown, or else after the leaf's variable
+              hints = concat $ zipWith hint (map Just vs ++ repeat Nothing) allArgs
+              hint (Just v) Dyn {} = [v]
+              hint _ a = [s | Dyn s _ <- dynLeaves a]
+          params <- traverse freshNamed hints
           let mems = [m | Dyn _ m <- holes]
               allArgs' = evalState (traverse renameLeaves allArgs) params
               args' = take (length args0) allArgs'
@@ -716,23 +739,23 @@ returnRight fid a = do
           Just vals <- alignTo hAbs (frHandler top) ->
             toVar a \res -> toVars vals \ls -> do
               (chain, wrap) <- tupleChain ls
-              p <- fresh
-              o <- fresh
+              p <- freshNamed (syn "p")
+              o <- freshNamed (syn "out")
               pure . wrap $
                 TLets Direct [p] [BX] (TCon pairRef (CTag 0) [res, chain]) $
-                  TLets Direct [o] [BX] (TCon eitherRef (CTag 1) [p]) (TVar o)
+                  TLets Direct [o] [BX] (TCon eitherRef rightTag [p]) (TVar o)
       _ -> liftIO (throwIO (Escape fid))
 
 -- | The values in a chain of pairs ending in unit: the chain's variable,
 -- and the lets that build it.
 tupleChain :: [Symbol] -> M (Symbol, Term -> Term)
 tupleChain ls = do
-  u <- fresh
+  u <- freshNamed (syn "nil")
   go (TLets Direct [u] [BX] (TCon unitRef (CTag 0) [])) u (reverse ls)
   where
     go wrap c [] = pure (c, wrap)
     go wrap c (l : rest) = do
-      c' <- fresh
+      c' <- freshNamed (syn "rest")
       go (wrap . TLets Direct [c'] [BX] (TCon pairRef (CTag 0) [l, c])) c' rest
 
 -- | An argument generalized against an ancestor's key: the parts that
@@ -897,7 +920,7 @@ match env lim e v br k = case (look e v, br) of
         _ -> giveUp "match form"
       finish (TMatch x br')
     dataArm arm r (t, (ms, ABTN.TAbss vs body)) = do
-      vs' <- traverse (const fresh) vs
+      vs' <- traverse freshNamed vs
       let fields = zipWith Dyn vs' ms
           e' = foldr (uncurry bind) (bind v (Con r t fields) under) (zip vs fields)
       body' <- arm e' body
@@ -905,11 +928,11 @@ match env lim e v br k = case (look e v, br) of
     -- the pure case of a handler binds the value
     pureArm arm = \case
       ABTN.TAbs u body -> do
-        u' <- fresh
+        u' <- freshNamed u
         ABTN.TAbs u' <$> arm (bind u (Dyn u' BX) under) body
       body -> arm under body
     requestArm arm (t, (ms, ABTN.TAbss vs body)) = do
-      vs' <- traverse (const fresh) vs
+      vs' <- traverse freshNamed vs
       let e' = foldr (uncurry bind) under (zip vs (zipWith Dyn vs' ms))
       body' <- arm e' body
       pure (t, (ms, ABTN.TAbss vs' body'))
@@ -962,7 +985,7 @@ request env lim e r t args k = do
     Just (Right j) -> do
       let f = frames !! j
       rest <- case k of
-        KBind _ g -> pure g
+        KBind _ _ g -> pure g
         KTail -> liftIO (throwIO (Escape (frId f)))
         _ -> pure (ret k)
       targets <- gets sTargets
@@ -1116,16 +1139,16 @@ toVar a k = case a of
   SKont {} -> guardFused >> giveUp "a continuation as a value"
   Known _ (Just s) -> k s
   Known v Nothing -> case v of
-    NatVal n -> lit UN (TLit (N n))
-    IntVal i -> lit UN (TLit (I (fromIntegral i)))
-    DoubleVal d -> lit UN (TLit (F d))
-    CharVal c -> lit UN (TLit (C c))
-    BoxedVal (TextC t) -> lit BX (TBLit (T t))
+    NatVal n -> lit "lit" UN (TLit (N n))
+    IntVal i -> lit "lit" UN (TLit (I (fromIntegral i)))
+    DoubleVal d -> lit "lit" UN (TLit (F d))
+    CharVal c -> lit "lit" UN (TLit (C c))
+    BoxedVal (TextC t) -> lit "lit" BX (TBLit (T t))
     _ -> do
-      s <- fresh
+      s <- freshNamed (syn "c")
       modify' \st -> st {sConsts = (s, v) : sConsts st}
       k s
-  Con r t fs -> toVars fs \xs -> lit BX (TCon r t xs)
+  Con r t fs -> toVars fs \xs -> lit "con" BX (TCon r t xs)
   -- an entry over unknown values only: a closure of the original code
   Clo (Fn r 0) as | all isDyn as -> toVars as \xs -> name (Left r) xs
   -- otherwise a closure of a residual function specialized on what is
@@ -1138,17 +1161,17 @@ toVar a k = case a of
       Nothing
         | i == 0 -> toVars as \xs -> name (Left r) xs
         | otherwise -> liftIO . throwIO $ GiveUp "a local function with no code"
-      Just (Lambda ms _, _) -> do
-        holes <- traverse (\m -> (`Dyn` m) <$> fresh) (drop (length as) ms)
+      Just (Lambda ms (ABTN.TAbss vs _), _) -> do
+        holes <- zipWithM (\v m -> (`Dyn` m) <$> freshNamed v) (drop (length as) vs) (drop (length as) ms)
         (f, leaves) <- residualFn env lim fn (as ++ holes)
         toVars (concat (take (length as) leaves)) \xs -> name (Right f) xs
   where
-    lit m code = do
-      x <- fresh
+    lit nm m code = do
+      x <- freshNamed (syn nm)
       rest <- k x
       pure (TLets Direct [x] [m] code rest)
     name f xs = do
-      x <- fresh
+      x <- freshNamed (syn "clo")
       rest <- k x
       pure (TName x f xs rest)
     isDyn Dyn {} = True
@@ -1258,7 +1281,7 @@ inlineCalls f (Lambda _ (ABTN.TAbss ps bd)) = go
 freshenAll :: Term -> M Term
 freshenAll = \case
   ABTN.TAbs v b -> do
-    v' <- fresh
+    v' <- freshNamed v
     ABTN.TAbs v' <$> freshenAll (ABTN.rename v v' b)
   ABTN.TTm x -> ABTN.TTm <$> traverse freshenAll x
 
