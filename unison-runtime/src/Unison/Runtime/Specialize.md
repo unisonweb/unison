@@ -265,10 +265,22 @@ This is the main risk in the design. A whistle that blows too early loses known 
 user expected to keep. One that blows too late makes too much code. The plan has a step
 with tests aimed at both.
 
-Budgets back all of this up: the total residual size, the number of residual functions,
-and the fuel spent on known computation. A budget that runs out never makes `specialize`
-fail. The calls still pending are residualized as calls to the original code, which is
-always correct.
+Budgets back all of this up: the size of the generated code, the number of residual
+functions, and the fuel spent on known computation. A budget that runs out never makes
+`specialize` fail: the result is the original code, which is always correct.
+
+The size budget is a multiple of the size of the input
+([`specLimits`](Machine.hs): 20 times the nodes of the function's code plus the values the
+known argument is made of), since code specialized on a value grows with it, as an
+interpreter's does with its program. The specializer counts the lets and matches it
+generates ([`emitted`](ANF/Specialize.hs)). Past the budget:
+- **A fused handler in force is given up on.** Fusing copies the rest of the walk into
+  each arm of an unknown match, which is what grows the code. The walk rolls back to its
+  `handle` and keeps the handler.
+- **With none in force, the specialization starts again with no handler fused**
+  ([`specializeLambda`](ANF/Specialize.hs)): the handlers that grew the code may be
+  finished by the time the budget runs out.
+- **If that runs out too, the result is the original code.**
 
 ### What runs at specialization time
 
@@ -445,6 +457,14 @@ its continuation, not whether the handler is affine:
   match on requests, its `shift`) is specialized like any other. An interpreter that uses
   an ability for errors loses all of its interpretive overhead this way, with its errors
   still real requests.
+
+  The body under a kept `handle` is a call, as the compiler makes it
+  ([`handledBody`](ANF/Specialize.hs)): a residual function of the variables the body uses
+  from outside. A continuation captured under the handler holds the stack down to the
+  `handle` and no further, and a variable is found by its distance down the stack, so code
+  that runs after a request must not use a variable of the frame the `handle` is in: the
+  continuation may be resumed with more or less stack below it. A body that only builds
+  values and then makes one call stays inline.
 - **Fusing the handler away.** A `handle` whose handler is a known function, over
   abilities no builtin requests (not `IO` or `Exception`), is fused: no `handle` is made,
   and a request the walk reaches is handled as it goes ([`request`](ANF/Specialize.hs)).
@@ -497,6 +517,36 @@ its continuation, not whether the handler is affine:
   makes repeats free.
 - **Mutable state stays unknown.** That includes `Ref`, mutable arrays and anything behind
   IO.
+
+## Testing
+
+[`specialize.md`](../../../../unison-src/transcripts/idempotent/specialize.md) has the
+cases written by hand, with the code each gives.
+
+[`specialize-differential.md`](../../../../unison-src/transcripts/idempotent/specialize-differential.md)
+tests the rule itself, that `specialize f x` behaves as `f x`, on generated programs. It
+has an interpreter for a small language, and specializes it on random programs: a known
+program gives residual code in that program's shape, so random programs give varied code.
+
+- **The language** is a dynamically typed lambda calculus over `Nat`: functions, two
+  bounded loops, and effects (`Perform`, `Handle`, and `Resume` in a handler's clause). A
+  handler's clauses are data, so the interpreter's handler, specialized, becomes that
+  handler.
+- **The generator** is typed, so a program never fails with a type error, and every
+  program ends. A clause uses its continuation in each of the ways one can: not at all, as
+  its last act, with more work after, twice, and inside a function.
+- **The checks,** each against `f x`: `specialize f x`; specializing the first input too;
+  the specialized closure after a round trip through serialization; and specializing twice
+  giving equal closures. A specialized run that fails counts as a disagreement.
+- **A failure is shrunk** to a smaller program of the same type that still fails, trying
+  the biggest cuts first, and reported with its seed.
+- **The report counts** how many cases the specializer gave up on, kept a handler in, and
+  fused every handler in, read off `runtime.ir`. A run where most cases gave up tests
+  little.
+
+The transcript checks seeds 0 to 49 and the seeds that found bugs. To try others, change
+the arguments of `check`. Many seeds in one `run` get slow as the generated code piles up,
+so use several runs of a few dozen.
 
 ## Implementation notes
 
@@ -558,7 +608,8 @@ its continuation, not whether the handler is affine:
    the scheme in [Recursion and termination](#recursion-and-termination), it is checked
    only between residual functions being built, and it doesn't yet distinguish pieces of
    the input from computed values. `UNISON_SPECIALIZE_DEBUG=1` says on stderr what each
-   specialization made, or why it gave up. Still to do: tests that hit each budget.
+   specialization made, its constants, or why it gave up. Still to do: tests that hit each
+   budget.
 7. **Abilities.** Running known code with handlers, and keeping handlers with their
    bodies specialized, are done: the transcript has a state handler over known code
    becoming a constant, and an interpreter with an abort ability specialized inside its

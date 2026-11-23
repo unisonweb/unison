@@ -90,11 +90,18 @@ data SpecEnv = SpecEnv
 data SpecLimits = SpecLimits
   { slSteps :: !Int,
     slFunctions :: !Int,
-    slDepth :: !Int
+    slDepth :: !Int,
+    -- | how much code may be generated, in lets and matches ('emitted'):
+    -- the caller sets it to a multiple of the size of the input, the
+    -- function's code and the known values (Machine.specLimits)
+    slOutput :: !Int,
+    -- | whether handlers are fused; off for the second try, after the
+    -- first ran out of 'slOutput' ('specializeLambda')
+    slFuse :: !Bool
   }
 
 defaultSpecLimits :: SpecLimits
-defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200}
+defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200, slOutput = 2000, slFuse = True}
 
 type Term = ANormal Reference Symbol
 
@@ -208,7 +215,9 @@ data S = S
     sPending :: Maybe (Int, Reference),
     -- | the abilities and the handler as passed, of each state-passing
     -- residual function being built, by the number of its frame
-    sReturns :: M.Map Int ([Reference], Abs)
+    sReturns :: M.Map Int ([Reference], Abs),
+    -- | the lets and matches generated so far ('emitted')
+    sEmitted :: !Int
   }
 
 type M = StateT S IO
@@ -248,14 +257,31 @@ specializeLambda ::
   Word64 ->
   [Val] ->
   IO (Either String (SuperGroup Reference Symbol, [Val]))
-specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
+specializeLambda env lim r i args =
+  specializeLambda1 env lim r i args >>= \case
+    -- fused handlers copy code, and the ones that grew it may be finished
+    -- by the time the budget runs out: once more, with every handler kept
+    Left why | why == tooBig, slFuse lim -> specializeLambda1 env lim {slFuse = False} r i args
+    made -> pure made
+
+tooBig :: String
+tooBig = "the size of the generated code"
+
+specializeLambda1 ::
+  SpecEnv ->
+  SpecLimits ->
+  Reference ->
+  Word64 ->
+  [Val] ->
+  IO (Either String (SuperGroup Reference Symbol, [Val]))
+specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
   Nothing -> pure (Left "no code for the lambda")
   Just (Lambda ccs (ABTN.TAbss vs body), locals)
     | length vs < length args -> pure (Left "more arguments than parameters")
     | otherwise ->
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          either (\(Escape _) -> Left "an escape from a fused handler") id <$> Control.Exception.try @Escape (Right <$> do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty) do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty 0) do
             argSyms <- traverse freshNamed (take (length args) vs)
             restSyms <- traverse freshNamed (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -360,6 +386,7 @@ popTarget =
 dynResult :: K -> Mem -> Term -> M Term
 dynResult KTail _ code = pure code
 dynResult (KBind m h k) _ code = do
+  emitted
   x <- freshNamed h
   n <- letNum
   rest <- k (Dyn x m)
@@ -370,6 +397,7 @@ dynResult k _ code = dynResult (KBind BX (syn "r") (ret k)) BX code
 dynPrim :: K -> Term -> M Term
 dynPrim KTail code = pure code
 dynPrim (KBind m h k) code = do
+  emitted
   x <- freshNamed h
   rest <- k (Dyn x m)
   pure (TLets Direct [x] [m] code rest)
@@ -919,6 +947,7 @@ match env lim e v br k = case (look e v, br) of
         _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ -> dynamicWith KTail (dynResult k BX)
     dynamicWith kk finish = toVar (look e v) \x -> do
+      emitted
       let arm e' body = isolated (pe env lim e' body kk)
       br' <- case br of
         MatchData r cs df ->
@@ -965,6 +994,19 @@ isolated act = do
 
 giveUp :: String -> M a
 giveUp = liftIO . throwIO . GiveUp
+
+-- | Counts a let or a match generated. Past the budget ('slOutput'), a
+-- fused handler in force is given up on (it copies the rest of the walk
+-- into each arm of an unknown match, which is what grows the code), its
+-- handler kept and the count rolled back with the rest of the state; with
+-- none in force, the specialization is ('specializeLambda' then tries once
+-- more with no handler fused).
+emitted :: M ()
+emitted = do
+  n <- gets sEmitted
+  lim <- gets (slOutput . sLim)
+  when (n >= lim) (guardFused >> giveUp tooBig)
+  modify' \s -> s {sEmitted = n + 1}
 
 jumpCont :: Reference
 jumpCont = Builtin "jumpCont"
@@ -1035,6 +1077,45 @@ callHandler env lim e h arg k = case h of
   Known v _ | Just (fn, caps) <- knownClosure env v -> callHandler env lim e (Clo fn caps) arg k
   _ -> guardFused >> giveUp "a fused handler that isn't a known function"
 
+-- | A kept handler's body as the compiler makes one: a call. A
+-- continuation captured under the handler holds the stack down to the
+-- @handle@ and no further, and it may be resumed with more or less stack
+-- below it, so the code it runs must not use a variable of the frame the
+-- @handle@ is in: those are found by their distance down the stack. So the
+-- body becomes a residual function of the variables it uses from outside,
+-- and what is under the @handle@ is a call of it. A body that only builds
+-- values and then makes one call stays as it is: it has read its variables
+-- before anything can capture.
+handledBody :: E -> Term -> (Term -> Term) -> M Term
+handledBody e body handle
+  | straight body = pure (handle body)
+  | otherwise = do
+    let mems = M.fromList [(x, m) | a <- M.elems (eVars e), Dyn x m <- dynLeaves a]
+        outside = [(x, m) | x <- S.toList (ABTN.freeVars body), Just m <- [M.lookup x mems]]
+    f <- freshNamed (syn "handled")
+    case outside of
+      -- a function takes at least one argument
+      [] -> do
+        u <- freshNamed (syn "nil")
+        u' <- freshNamed (syn "nil")
+        modify' \st -> st {sFns = (f, Lambda [BX] (ABTN.TAbss [u'] body)) : sFns st}
+        pure (TLets Direct [u] [BX] (TCon unitRef (CTag 0) []) (handle (TApp (FVar f) [u])))
+      _ -> do
+        modify' \st -> st {sFns = (f, Lambda (map snd outside) (ABTN.TAbss (map fst outside) body)) : sFns st}
+        pure (handle (TApp (FVar f) (map fst outside)))
+  where
+    straight = \case
+      TApp {} -> True
+      TVar {} -> True
+      TLets Direct _ _ bn bo -> value bn && straight bo
+      TName _ _ _ bo -> straight bo
+      _ -> False
+    value = \case
+      TLit {} -> True
+      TBLit {} -> True
+      TCon {} -> True
+      _ -> False
+
 -- | Resuming a continuation captured while specializing: the walk goes on
 -- from the request, with the value as its result, the frames and targets
 -- between it and its handler put back, and the resumption site as where
@@ -1068,7 +1149,7 @@ handler env lim e t rs h body k =
   runIfKnown env e t >>= \case
     Just v -> ret k (Known v Nothing)
     Nothing
-      | fusable (look e h) -> fused
+      | slFuse lim, fusable (look e h) -> fused
       | otherwise -> kept
   where
     fusable = \case
@@ -1080,7 +1161,8 @@ handler env lim e t rs h body k =
       _ -> r /= exceptionRef
     kept = toVar (look e h) \h' -> do
       body' <- withBarrier (pe env lim e body KTail)
-      dynResult k BX (THnd rs h' Nothing body')
+      code <- handledBody e body' (THnd rs h' Nothing)
+      dynResult k BX code
     fused = do
       fid <- gets sNextId
       modify' \st -> st {sNextId = fid + 1}
@@ -1183,10 +1265,12 @@ toVar a k = case a of
         toVars (concat (take (length as) leaves)) \xs -> name (Right f) xs
   where
     lit nm m code = do
+      emitted
       x <- freshNamed (syn nm)
       rest <- k x
       pure (TLets Direct [x] [m] code rest)
     name f xs = do
+      emitted
       x <- freshNamed (syn "clo")
       rest <- k x
       pure (TName x f xs rest)
@@ -1278,8 +1362,10 @@ inlineFns fns body = case find inlinable fns of
     -- breaker): fib's two halves become one function, which saves a call
     -- per round
     selfCalls f bd = S.member f (refsIn names bd)
+    -- the body of a kept handler stays a call ('handledBody')
+    handled f = or [g == f | bd <- bodies, AHnd _ _ _ (TApp (FVar g) _) <- nodes bd]
     inlinable (f, Lambda _ (ABTN.TAbss _ bd))
-      | closed f || selfCalls f bd = False
+      | closed f || selfCalls f bd || handled f = False
       | recursive f = length (nodes bd) <= 40
       | otherwise = calls f == 1 || length (nodes bd) <= 4
 

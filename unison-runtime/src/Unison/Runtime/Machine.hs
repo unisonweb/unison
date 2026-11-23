@@ -2414,13 +2414,14 @@ specializeClosure cc val = case val of
               -- with nothing loaded
               Just (_, _, _, False) ->
                 either (const []) snd
-                  <$> SP.specializeLambda (specEnv cc groups names) SP.defaultSpecLimits r i captured
+                  <$> SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
               Nothing -> do
-                made <- SP.specializeLambda (specEnv cc groups names) SP.defaultSpecLimits r i captured
+                made <- SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
                 when specializeDebug $ case made of
                   Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
-                  Right (g, _) -> do
+                  Right (g, cs) -> do
                     hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group g)) ++ " residual functions")
+                    forM_ cs \c -> hPutStrLn stderr ("[specialize] constant: " ++ take 160 (drop 60 (show c)))
                     hPutStrLn stderr (ANF.prettyGroup @Symbol (show sref) g "")
                 let (grp, extras) = either (const (identity, [])) id made
                 sands <- readTVarIO (sandbox cc)
@@ -2477,16 +2478,13 @@ callingBack :: S.Set Reference
 callingBack =
   S.fromList [r | (r, (_, ANF.Lambda _ (ABTN.TAbss vs body))) <- M.toList builtinLookup, callsBack (S.fromList vs) body]
   where
-    callsBack vs = any (calling vs) . nodes
+    callsBack vs = any (calling vs) . anfNodes
     calling vs = \case
       ANF.AApp (ANF.FVar f) _ -> S.member f vs
       ANF.AApp (ANF.FCont _) _ -> True
       ANF.AFrc f -> S.member f vs
       ANF.AApp (ANF.FPrim (Left op)) _ -> op `elem` [ANF.FORK, ANF.ATOM, ANF.TFRC]
       _ -> False
-    nodes = \case
-      ABTN.TAbs _ b -> nodes b
-      ABTN.TTm x -> x : foldMap nodes x
 
 -- | A term run on the interpreter with values for its free variables,
 -- through a group of its own whose parameters they are, loaded the first
@@ -2684,6 +2682,42 @@ knownRunnable cc vals = do
           then M.union m (M.fromSet (const True) reached)
           else M.union m (M.fromList [(r, False) | r <- roots])
       pure ok
+
+-- | The specializer's limits for a closure. The code it may generate is a
+-- multiple of the size of its input: the code of the function's group
+-- and the known values, since code specialized on a value (an interpreter
+-- on a program) grows with it.
+specLimits :: Maybe (SuperGroup Reference Symbol) -> [Val] -> SP.SpecLimits
+specLimits grp captured =
+  SP.defaultSpecLimits {SP.slOutput = outputFactor * (maybe 0 groupSize grp + foldl' (valueSize 10000) 0 captured)}
+  where
+    outputFactor = 20
+    groupSize (ANF.Rec fs ent) = sum (lamSize <$> ent : map snd fs)
+    lamSize (ANF.Lambda _ body) = length (anfNodes body)
+
+-- | Every node of a term.
+anfNodes :: ANF.ANormal Reference Symbol -> [ANF.ANormalF Reference Symbol (ANF.ANormal Reference Symbol)]
+anfNodes = \case
+  ABTN.TAbs _ b -> anfNodes b
+  ABTN.TTm x -> x : foldMap anfNodes x
+
+-- | How many values a value is made of, added to a count, and no further
+-- than the cap: a constructor and each of its fields, a closure and what
+-- it captured, a list and its elements.
+valueSize :: Int -> Int -> Val -> Int
+valueSize cap n0 v0 = val n0 v0
+  where
+    val n v
+      | n >= cap = n
+      | otherwise = case v of
+          BoxedVal c -> clo (n + 1) c
+          _ -> n + 1
+    clo n = \case
+      PAp _ _ (_, bseg) -> foldl' (\m c -> if m >= cap then m else clo (m + 1) c) n bseg
+      DataC _ vs -> foldl' val n vs
+      RecordC _ vs -> foldl' val n vs
+      ListC vs -> foldl' val n vs
+      _ -> n
 
 -- | Whether a value holds anything that can't be serialized: a mutable
 -- reference, a mutable array, a handle.

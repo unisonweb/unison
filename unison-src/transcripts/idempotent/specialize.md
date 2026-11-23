@@ -1073,6 +1073,11 @@ of an unknown function; the code under it is still specialized:
           --       put (f get)
           --       get) 3
           #aqe3doh5bf s f =
+            handled f =
+              v1 = St.get
+              v2 = f v1
+              _ = put v2
+              St.get
             fn s v3 =
               match v3 with
                 {St.get} ->
@@ -1107,10 +1112,7 @@ of an unknown function; the code under it is still specialized:
                 {a1} -> a1
             clo = partialApply fn s
             handle {St}
-              v1 = St.get
-              v2 = f v1
-              _ = put v2
-              St.get
+              handled f
             with clo
           """
 ```
@@ -1193,6 +1195,18 @@ scratch/main> add
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
           #2bqgrtroef z n =
+            handled z n =
+              v1 = z Nat.+ n
+              lit = 0
+              v2 = Nat.eq v1 lit
+              match v2 with
+                false ->
+                  _ = tick
+                  lit1 = 1
+                  v3 = Nat.drop v1 lit1
+                  v4 = ticks' v3
+                  v4 Nat.+ v1
+                _ -> 0
             ticks' n1 =
               lit2 = 0
               v5 = Nat.eq n1 lit2
@@ -1228,17 +1242,7 @@ scratch/main> add
                   (lit5, a1)
             clo = partialApply fn
             handle {Tick}
-              v1 = z Nat.+ n
-              lit = 0
-              v2 = Nat.eq v1 lit
-              match v2 with
-                false ->
-                  _ = tick
-                  lit1 = 1
-                  v3 = Nat.drop v1 lit1
-                  v4 = ticks' v3
-                  v4 Nat.+ v1
-                _ -> 0
+              handled z n
             with clo
           """
 ```
