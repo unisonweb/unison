@@ -2455,8 +2455,29 @@ specEnv cc groups =
       SP.sePrim = runPrim cc,
       SP.seData = mkData,
       SP.seClosure = mkClosure cc,
-      SP.seBoundary = Builtin "specialize.boundary"
+      SP.seBoundary = Builtin "specialize.boundary",
+      SP.seRunTerm = runTerm cc
     }
+
+-- | A term run on the interpreter with values for its free variables,
+-- through a group of its own whose parameters they are, loaded the first
+-- time (its reference comes from the code). Nothing when the term can't run
+-- safely ('runKnown') or its code can't be loaded.
+runTerm :: CCache p -> [(Symbol, ANF.Mem)] -> ANF.ANormal Reference Symbol -> [Val] -> IO (Maybe Val)
+runTerm cc fvs t vs =
+  fmap (either (const Nothing) id) . UnliftIO.tryAny $ do
+    groups <- readTVarIO (intermed cc)
+    unless (M.member ref groups) $
+      cacheAdd0 S.empty [(ref, CodeRep grp Uncacheable)] [] cc {profiler = ()}
+    mkClosure cc ref 0 [] >>= \case
+      Nothing -> pure Nothing
+      Just f -> runKnown cc defaultKnownLimits f vs
+  where
+    grp = ANF.Rec [] (ANF.Lambda (map snd fvs) (ABTN.TAbss (map fst fvs) t))
+    ref =
+      let digest :: Digest Blake2b_256
+          digest = hashlazy . BB.toLazyByteString $ BB.string7 ("unison specialize term\0" ++ show grp)
+       in Derived (Hash.fromByteString (convert digest)) 0
 
 -- | A data value from its constructor and fields.
 mkData :: Reference -> TT.CTag -> [Val] -> IO (Maybe Val)

@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -67,7 +68,11 @@ data SpecEnv = SpecEnv
     -- | a closure of a group's lambda (by index) over the given arguments
     seClosure :: Reference -> Word64 -> [Val] -> IO (Maybe Val),
     -- | the reference of @specialize.boundary@, whose calls stay calls
-    seBoundary :: Reference
+    seBoundary :: Reference,
+    -- | a term run on the interpreter, given values for its free variables
+    -- (and how each is held): for code the partial evaluator doesn't look
+    -- into but whose inputs are all known, a handler of any kind included
+    seRunTerm :: [(Symbol, Mem)] -> Term -> [Val] -> IO (Maybe Val)
   }
 
 -- | Bounds on the work: steps of the walk, residual functions, and the
@@ -285,6 +290,11 @@ pe env lim e t k = tick lim >> case t of
     | otherwise -> call env lim e (Clo (Fn r 0) []) (map (look e) as) k
   TApp (FVar f) as -> call env lim e (look e f) (map (look e) as) k
   TApp (FPrim p) as -> prim env e p (map (look e) as) k
+  THnd rs h Nothing body -> handler env lim e t rs h body k
+  TShift r v body -> do
+    v' <- fresh
+    body' <- pe env lim (bind v (Dyn v' BX) e) body KTail
+    dynResult k BX (TShift r v' body')
   TFrc v -> case look e v of
     Dyn {} -> opaque env e t k
     a -> call env lim e a [] k
@@ -543,6 +553,10 @@ match env lim e v br k = case (look e v, br) of
         MatchNumeric r cs df -> MatchNumeric r <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
         MatchText cs df -> MatchText <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
         MatchBytes cs df -> MatchBytes <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
+        MatchRequest arms df ->
+          MatchRequest
+            <$> traverse (\(r, cs) -> (r,) . EC.mapFromList <$> traverse requestArm (EC.mapToList cs)) arms
+            <*> tailOf under df
         _ -> liftIO . throwIO $ GiveUp "match form"
       dynResult k BX (TMatch x br')
     dataArm r (t, (ms, ABTN.TAbss vs body)) = do
@@ -552,6 +566,11 @@ match env lim e v br k = case (look e v, br) of
       body' <- pe env lim e' body KTail
       pure (t, (ms, ABTN.TAbss vs' body'))
     tailOf e' body = pe env lim e' body KTail
+    requestArm (t, (ms, ABTN.TAbss vs body)) = do
+      vs' <- traverse (const fresh) vs
+      let e' = foldr (uncurry bind) under (zip vs (zipWith Dyn vs' ms))
+      body' <- pe env lim e' body KTail
+      pure (t, (ms, ABTN.TAbss vs' body'))
 
 -- | The constructor tag and fields of a known data value.
 knownData :: Val -> Maybe (CTag, [Val])
@@ -637,11 +656,50 @@ toVar a k = case a of
     isDyn Dyn {} = True
     isDyn _ = False
 
--- | Code the partial evaluator doesn't look into, kept as it is: its free
--- variables are given values in the output first, and its indirect lets
--- are numbered anew.
+-- | A handler installed over a body. If everything the term uses is known,
+-- it runs. Otherwise the handler stays, and the body under it is
+-- specialized, its requests kept.
+handler :: SpecEnv -> SpecLimits -> E -> Term -> [Reference] -> Symbol -> Term -> K -> M Term
+handler env lim e t rs h body k =
+  runIfKnown env e t >>= \case
+    Just v -> ret k (Known v Nothing)
+    Nothing -> toVar (look e h) \h' -> do
+      body' <- pe env lim e body KTail
+      dynResult k BX (THnd rs h' Nothing body')
+
+-- | A term whose free variables are all known, run on the interpreter.
+runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
+runIfKnown env e t = do
+  let fvs = S.toList (ABTN.freeVars t)
+      abss = map (look e) fvs
+  allKnown env abss >>= \case
+    Nothing -> pure Nothing
+    Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
+  where
+    memOf = \case
+      Known v _ | unboxedVal v -> UN
+      Dyn _ m -> m
+      _ -> BX
+
+unboxedVal :: Val -> Bool
+unboxedVal = \case
+  NatVal _ -> True
+  IntVal _ -> True
+  CharVal _ -> True
+  DoubleVal _ -> True
+  _ -> False
+
+-- | Code the partial evaluator doesn't look into: run if its inputs are
+-- all known, otherwise kept as it is, its free variables given values in
+-- the output first and its indirect lets numbered anew.
 opaque :: SpecEnv -> E -> Term -> K -> M Term
-opaque _ e t k = do
+opaque env e t k =
+  runIfKnown env e t >>= \case
+    Just v -> ret k (Known v Nothing)
+    Nothing -> keepOpaque e t k
+
+keepOpaque :: E -> Term -> K -> M Term
+keepOpaque e t k = do
   let fvs = S.toList (ABTN.freeVars t)
   toVars (map (look e) fvs) \xs -> do
     t' <- renumber (ABTN.renames (M.fromList (zip fvs xs)) t)

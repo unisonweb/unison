@@ -408,12 +408,31 @@ and it is `Tracked`, as that one is.
 ## Abilities
 
 Interpreters often use abilities themselves, for exceptions, state or the interpreted
-language's I/O. In the first version, handlers and requests are residualized, so an
-interpreter that installs a handler per evaluation step keeps that cost. The second step is
-handler specialization. When the handler is known and the request is performed in its
-scope with nothing unknown in between, the handler's case for that request is inlined at the
-request. For affine handlers that is a call, and `ANF/Optimize.hs` already rewrites such
-handlers. Non-affine handlers, which capture continuations, stay residual.
+language's I/O. What matters for specializing is how much is known, and how a handler uses
+its continuation, not whether the handler is affine:
+
+- **Everything known: it runs.** A subterm whose free variables are all known, a `handle`
+  of any kind included, runs on the interpreter ([`runIfKnown`](ANF/Specialize.hs),
+  [`runTerm`](Machine.hs)), which implements every handler, multi-shot ones too. This
+  applies to any code the walker doesn't model.
+- **The handler stays, the body is specialized.** Otherwise a `handle` is kept, with the
+  code under it specialized and its requests kept as requests; the handler's own code (its
+  match on requests, its `shift`) is specialized like any other. An interpreter that uses
+  an ability for errors loses all of its interpretive overhead this way, with its errors
+  still real requests.
+- **Fusing the handler away** (not done yet): with the handler known, a request the walk
+  reaches inside its body can be handled while specializing. A case that doesn't resume
+  drops the rest of the body, and a case that resumes once at its end
+  (`handle k v with h'`, the shape of state, reader and writer handlers) continues the walk
+  with `v` as the request's result and `h'` as the handler from then on, so the handler,
+  and the state it carries, disappear from the output. It is all or nothing for a
+  `handle`: once its handler is gone, no residual code in its scope (a call of an unknown
+  function, of original code, a request the walk couldn't handle) may perform its
+  requests, so the walk would try it and fall back to keeping the handler. A loop in the
+  handler's scope becomes a residual function, which then has to take the handler's state
+  and return it (state passing, generated). Cases that resume more than once, or keep the
+  continuation, need the rest of the body as a value: a residual function for it, up to
+  the `handle`.
 
 ## Limits
 
@@ -490,7 +509,10 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    only between residual functions being built, and it doesn't yet distinguish pieces of
    the input from computed values. `UNISON_SPECIALIZE_DEBUG=1` says on stderr what each
    specialization made, or why it gave up. Still to do: tests that hit each budget.
-7. **Abilities.** Inline known affine handlers.
+7. **Abilities.** Running known code with handlers, and keeping handlers with their
+   bodies specialized, are done: the transcript has a state handler over known code
+   becoming a constant, and an interpreter with an abort ability specialized inside its
+   handler. Fusing handlers away is next (see [Abilities](#abilities)).
 
 ## Open questions
 

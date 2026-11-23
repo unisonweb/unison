@@ -663,3 +663,187 @@ scratch/main> add
               _ -> 1
           """
 ```
+
+## Abilities
+
+Code that uses abilities is specialized too. Where everything is known it runs, whatever its
+handler does with continuations: here `runSt 2 do count 4` becomes `12`.
+
+``` unison
+ability St where
+  get : Nat
+  put : Nat -> ()
+
+runSt : Nat -> '{St} a -> a
+runSt s p =
+  go s = cases
+    { a } -> a
+    { St.get -> k } -> handle k s with go s
+    { St.put s' -> k } -> handle k () with go s'
+  handle p () with go s
+
+count : Nat ->{St} Nat
+count n = if Nat.eq n 0 then St.get else
+  St.put (St.get Nat.+ n)
+  count (Nat.drop n 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ability St
+
+  + count : Nat ->{St} Nat
+  + runSt : Nat -> '{St} a -> a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize (s x -> x Nat.+ runSt s do count 4) 2 100
+> runtime.ir (specialize (s x -> x Nat.+ runSt s do count 4) 2)
+> specialize (n -> runSt 0 do count n) 4
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize (s x -> x Nat.+ runSt s do count 4) 2 100
+          ⧩
+          112
+
+    2 | > runtime.ir (specialize (s x -> x Nat.+ runSt s do count 4) 2)
+          ⧩
+          """
+          -- specialize (s x -> x Nat.+ (runSt s do count 4)) 2
+          #6patbfbgl6 σ σ1 =
+            σ2 = 12
+            σ1 Nat.+ σ2
+          """
+
+    3 | > specialize (n -> runSt 0 do count n) 4
+          ⧩
+          10
+```
+
+Where the handled code isn't all known, the handler stays and the code under it is
+specialized, its requests kept. An interpreter that aborts on subtraction below zero:
+
+``` unison
+ability Abort where
+  abort : Nat -> a
+
+evalA : [Expr] -> Expr -> Nat ->{Abort} Nat
+evalA prog e x = match e with
+  Num n        -> n
+  Arg          -> x
+  Add a b      -> evalA prog a x Nat.+ evalA prog b x
+  Sub a b      ->
+    va = evalA prog a x
+    vb = evalA prog b x
+    if Nat.lt va vb then Abort.abort va else Nat.drop va vb
+  Mul a b      -> evalA prog a x Nat.* evalA prog b x
+  IfZero c t f -> if Nat.eq (evalA prog c x) 0 then evalA prog t x else evalA prog f x
+  Call i a     -> match List.at i prog with
+    Some body -> evalA prog body (evalA prog a x)
+    None -> Abort.abort 999
+
+runA : [Expr] -> Nat -> Optional Nat
+runA prog x = handle evalA prog (Call 0 Arg) x with cases
+  { a } -> Some a
+  { Abort.abort _ -> _ } -> None
+
+broken : [Expr]
+broken = [Sub Arg (Num 10)]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ability Abort
+
+  + broken : [Expr]
+  + evalA  : [Expr] -> Expr -> Nat ->{Abort} Nat
+  + runA   : [Expr] -> Nat -> Optional Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize runA factorial 5
+> specialize runA broken 3
+> runtime.ir (specialize runA factorial)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize runA factorial 5
+          ⧩
+          Some 120
+
+    2 | > specialize runA broken 3
+          ⧩
+          None
+
+    3 | > runtime.ir (specialize runA factorial)
+          ⧩
+          """
+          -- specialize
+          --   (prog x ->
+          --     (handle evalA prog (Call 0 Arg) x
+          --     with cases
+          --       { a }            -> Some a
+          --       { abort _ -> _ } -> None))
+          --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
+          #0nklekfqfs σ2 σ3 =
+            σ σ7 =
+              σ8 = 1
+              σ9 = Nat.lt σ7 σ8
+              σ11 =
+                match σ9 with
+                  false ->
+                    σ10 = 1
+                    Nat.drop σ7 σ10
+                  _ -> abort σ7
+              σ12 = 0
+              σ13 = Nat.eq σ11 σ12
+              σ15 =
+                match σ13 with
+                  false -> σ σ11
+                  _ ->
+                    σ14 = 1
+                    σ14
+              σ7 Nat.* σ15
+            σ1 σ16 =
+              match σ16 with
+                {abort σ17} ->
+                  cont1 = shift {Abort}
+                  None
+                {a} -> Some a
+            σ4 = partialApply σ1
+            handle {Abort}
+              σ5 = 0
+              σ6 = Nat.eq σ3 σ5
+              match σ6 with
+                false -> σ σ3
+                _ -> 1
+            with σ4
+          """
+```
