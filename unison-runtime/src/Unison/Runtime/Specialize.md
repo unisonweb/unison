@@ -476,13 +476,19 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    arguments is unfolded like any known function, a known builtin is called directly, and
    a closure of a local function over partially known values becomes a closure of a
    residual function specialized on the known part. `map` and `foldLeft` with known
-   functions are in the transcript. An interpreter in continuation-passing style is
-   still to try.
+   functions are in the transcript, and so is an interpreter in continuation-passing
+   style, which needs the whistle of step 6.
 5. **Benchmarks.** An interpreter for a small language running a few programs, measured
    under the JIT in three forms: interpreted, specialized, and the same program written by
    hand in Unison. Success is "specialized" close to "by hand".
-6. **Generalization and diagnostics.** Homeomorphic embedding, the list of known values
-   lost (`UNISON_SPECIALIZE_DEBUG`), and tests that are meant to hit each budget.
+6. **Generalization and diagnostics.** The whistle is in: when a residual function's key
+   embeds the key of one being built further up for the same function
+   ([`embeds`](ANF/Specialize.hs), with sizes for literals), the parts where they differ
+   are generalized to unknown and passed from the call as values (`generalize`). Unlike
+   the scheme in [Recursion and termination](#recursion-and-termination), it is checked
+   only between residual functions being built, and it doesn't yet distinguish pieces of
+   the input from computed values. `UNISON_SPECIALIZE_DEBUG=1` says on stderr what each
+   specialization made, or why it gave up. Still to do: tests that hit each budget.
 7. **Abilities.** Inline known affine handlers.
 
 ## Open questions

@@ -568,3 +568,98 @@ scratch/main> add
               VEmpty -> σ2
           """
 ```
+
+An interpreter in continuation-passing style: each call nests the continuation deeper, so
+what is known keeps growing. The specializer notices (the whistle) and passes the
+continuation as an ordinary value instead, which leaves a factorial in continuation-passing
+style:
+
+``` unison
+evalK : [Expr] -> Expr -> Nat -> (Nat -> Nat) -> Nat
+evalK prog e x k = match e with
+  Num n        -> k n
+  Arg          -> k x
+  Add a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va Nat.+ vb)))
+  Sub a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (Nat.drop va vb)))
+  Mul a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va Nat.* vb)))
+  IfZero c t f -> evalK prog c x (vc -> if Nat.eq vc 0 then evalK prog t x k else evalK prog f x k)
+  Call i a     -> match List.at i prog with
+    Some body -> evalK prog a x (va -> evalK prog body va k)
+    None -> bug "no such function"
+
+runK : [Expr] -> Nat -> Nat
+runK prog x = evalK prog (Call 0 Arg) x (v -> v)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + evalK : [Expr]
+            -> Expr
+            -> Nat
+            -> (Nat ->{g, g1} Nat)
+            ->{g, g1} Nat
+  + runK  : [Expr] -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize runK factorial 5
+> runtime.ir (specialize runK factorial)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize runK factorial 5
+          ⧩
+          120
+
+    2 | > runtime.ir (specialize runK factorial)
+          ⧩
+          """
+          -- specialize
+          --   (prog x -> evalK prog (Call 0 Arg) x (v -> v))
+          --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
+          #2qmmp45ssf σ2 σ3 =
+            σ σ12 σ13 = σ12 Nat.* σ13
+            σ1 σ14 σ15 =
+              σ16 = 1
+              σ17 = Nat.drop σ14 σ16
+              σ18 = 0
+              σ19 = Nat.eq σ17 σ18
+              match σ19 with
+                false ->
+                  σ20 = partialApply evalK$Lambda2$Lambda0 σ15 σ14
+                  σ1 σ17 σ20
+                _ ->
+                  σ21 = 1
+                  σ22 = σ14 Nat.* σ21
+                  σ15 σ22
+            σ4 = 0
+            σ5 = Nat.eq σ3 σ4
+            match σ5 with
+              false ->
+                σ6 = 1
+                σ7 = Nat.drop σ3 σ6
+                σ8 = 0
+                σ9 = Nat.eq σ7 σ8
+                match σ9 with
+                  false ->
+                    σ10 = partialApply σ σ3
+                    σ1 σ7 σ10
+                  _ ->
+                    σ11 = 1
+                    σ3 Nat.* σ11
+              _ -> 1
+          """
+```

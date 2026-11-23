@@ -24,6 +24,8 @@ import Control.Exception qualified
 import Control.Monad.State.Strict
 import Data.Char (ord)
 import Data.List (find)
+import System.IO.Unsafe (unsafePerformIO)
+import Unison.Util.Text qualified as Util.Text
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Unison.ABT.Normalized qualified as ABTN
@@ -128,7 +130,10 @@ data S = S
     -- | constants beyond the closure's own arguments, newest first
     sConsts :: [(Symbol, Val)],
     sEnv :: SpecEnv,
-    sLim :: SpecLimits
+    sLim :: SpecLimits,
+    -- | the keys of the residual functions being built, innermost first,
+    -- for the whistle ('residualFn')
+    sBuilding :: [(Fn, [KArg])]
   }
 
 type M = StateT S IO
@@ -155,14 +160,14 @@ specializeLambda ::
   Reference ->
   Word64 ->
   [Val] ->
-  IO (Maybe (SuperGroup Reference Symbol, [Val]))
+  IO (Either String (SuperGroup Reference Symbol, [Val]))
 specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
-  Nothing -> pure Nothing
+  Nothing -> pure (Left "no code for the lambda")
   Just (Lambda ccs (ABTN.TAbss vs body), locals)
-    | length vs < length args -> pure Nothing
+    | length vs < length args -> pure (Left "more arguments than parameters")
     | otherwise ->
-        either (\(GiveUp _) -> Nothing) Just <$> Control.Exception.try @GiveUp do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim) do
+        either (\(GiveUp why) -> Left why) Right <$> Control.Exception.try @GiveUp do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim []) do
             argSyms <- traverse (const fresh) args
             restSyms <- traverse (const fresh) (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -351,16 +356,28 @@ call env lim e fa as k = case fa of
                 pe env lim (E (M.fromList (localBinds r locals ++ zip vs args)) False (eDepth e + 1)) body k
               else do
                 (f, leaves) <- residualFn env lim fn args
-                toVars leaves \xs -> dynResult k BX (TApp (FVar f) xs)
+                toVars (concat leaves) \xs -> dynResult k BX (TApp (FVar f) xs)
 
 -- | A residual function for a call, from its key: an existing one, or a new
 -- one whose body is the function's, specialized on what is known of the
 -- arguments, with a parameter for each unknown part. Gives the function's
--- variable and the unknown parts, which are the arguments of a call of it.
-residualFn :: SpecEnv -> SpecLimits -> Fn -> [Abs] -> M (Symbol, [Abs])
-residualFn env lim fn args = do
-  let key = Key fn (map keyOf args)
-      leaves = concatMap dynLeaves args
+-- variable and, per argument, the values its call passes for those
+-- parameters (the caller puts them in variables).
+--
+-- The whistle: if a residual function for the same function is being built
+-- further up with a key that embeds in this one (homeomorphic embedding,
+-- 'embeds'), what is known is growing, as a continuation does in an
+-- interpreter written in continuation-passing style. The parts of the
+-- arguments where the two keys differ become unknown, passed from the call
+-- as values, so that the keys stop growing.
+residualFn :: SpecEnv -> SpecLimits -> Fn -> [Abs] -> M (Symbol, [[Abs]])
+residualFn env lim fn args0 = do
+  building <- gets sBuilding
+  let k0 = map keyOf args0
+      (args, leaves) = case find (\(fn', ks) -> fn' == fn && ks /= k0 && and (zipWith embeds ks k0) && length ks == length k0) building of
+        Just (_, ks) -> Prelude.unzip (zipWith generalize ks args0)
+        Nothing -> (args0, map dynLeaves args0)
+      key = Key fn (map keyOf args)
   gets (M.lookup key . sMemo) >>= \case
     Just f -> pure (f, leaves)
     Nothing -> do
@@ -371,15 +388,21 @@ residualFn env lim fn args = do
       case lambdaOf env fn of
         Nothing -> liftIO . throwIO $ GiveUp "no code"
         Just (Lambda _ (ABTN.TAbss vs body), locals) -> do
-          params <- traverse (\_ -> fresh) leaves
-          let mems = [m | Dyn _ m <- leaves]
+          let holes = concatMap dynLeaves args
+          params <- traverse (\_ -> fresh) holes
+          let mems = [m | Dyn _ m <- holes]
               args' = evalState (traverse renameLeaves args) params
               Fn r _ = fn
               e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0
           outer <- gets sLetNum
-          modify' \s -> s {sLetNum = 1}
+          modify' \s -> s {sLetNum = 1, sBuilding = (fn, map keyOf args) : sBuilding s}
           body' <- pe env lim e' body KTail
-          modify' \s -> s {sLetNum = outer, sFns = (f, Lambda mems (ABTN.TAbss params body')) : sFns s}
+          modify' \s ->
+            s
+              { sLetNum = outer,
+                sBuilding = drop 1 (sBuilding s),
+                sFns = (f, Lambda mems (ABTN.TAbss params body')) : sFns s
+              }
           pure (f, leaves)
   where
     renameLeaves :: Abs -> State [Symbol] Abs
@@ -390,6 +413,63 @@ residualFn env lim fn args = do
       Con r t fs -> Con r t <$> traverse renameLeaves fs
       Clo f as -> Clo f <$> traverse renameLeaves as
       a -> pure a
+
+-- | An argument generalized against an ancestor's key: the parts that
+-- differ become unknown. Gives the argument as the residual function sees
+-- it, and the values the call passes for its unknown parts.
+generalize :: KArg -> Abs -> (Abs, [Abs])
+generalize k a = case (k, a) of
+  (_, Dyn {}) -> (a, [a])
+  (KCon r t ks, Con r' t' fs)
+    | r == r', t == t', length ks == length fs ->
+        let (gs, ls) = Prelude.unzip (zipWith generalize ks fs) in (Con r t gs, concat ls)
+  (KClo f ks, Clo f' as)
+    | f == f', length ks == length as ->
+        let (gs, ls) = Prelude.unzip (zipWith generalize ks as) in (Clo f gs, concat ls)
+  _
+    | safeEq k (keyOf a) -> (a, dynLeaves a)
+    | otherwise -> (Dyn placeholder (memOf a), [a])
+  where
+    placeholder = Var.named "general"
+    memOf = \case
+      Known v _ | isUnboxed v -> UN
+      Dyn _ m -> m
+      _ -> BX
+    isUnboxed = \case
+      NatVal _ -> True
+      IntVal _ -> True
+      CharVal _ -> True
+      DoubleVal _ -> True
+      _ -> False
+
+-- | Homeomorphic embedding of keys: the first is the second with parts
+-- removed or grown. A literal embeds one at least as big (a natural's value,
+-- an integer's magnitude, a text's length), so that a known counter going
+-- down never counts as growing.
+embeds :: KArg -> KArg -> Bool
+embeds a b = couple a b || dive b
+  where
+    couple (KHole _) _ = True
+    couple (KKnown v) (KKnown w) = knownLE v w
+    couple (KCon r t xs) (KCon r' t' ys) = r == r' && t == t' && length xs == length ys && and (zipWith embeds xs ys)
+    couple (KClo f xs) (KClo g ys) = f == g && length xs == length ys && and (zipWith embeds xs ys)
+    couple _ _ = False
+    dive = \case
+      KCon _ _ ys -> any (embeds a) ys
+      KClo _ ys -> any (embeds a) ys
+      _ -> False
+    knownLE v w = case (v, w) of
+      (NatVal x, NatVal y) -> x <= y
+      (IntVal x, IntVal y) -> abs x <= abs y
+      (BoxedVal (TextC x), BoxedVal (TextC y)) -> Util.Text.size x <= Util.Text.size y
+      (DoubleVal _, DoubleVal _) -> True
+      _ -> safeEq (KKnown v) (KKnown w)
+
+-- | Equality of keys that can't fail: comparing known values of different
+-- types is an error in the runtime's equality, and counts as different.
+safeEq :: KArg -> KArg -> Bool
+safeEq x y = unsafePerformIO $ either (\(_ :: SomeException) -> False) id <$> Control.Exception.try (Control.Exception.evaluate (x == y))
+{-# NOINLINE safeEq #-}
 
 keyOf :: Abs -> KArg
 keyOf = \case
@@ -544,7 +624,7 @@ toVar a k = case a of
       Just (Lambda ms _, _) -> do
         holes <- traverse (\m -> (`Dyn` m) <$> fresh) (drop (length as) ms)
         (f, leaves) <- residualFn env lim fn (as ++ holes)
-        toVars (take (length (concatMap dynLeaves as)) leaves) \xs -> name (Right f) xs
+        toVars (concat (take (length as) leaves)) \xs -> name (Right f) xs
   where
     lit m code = do
       x <- fresh

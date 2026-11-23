@@ -48,6 +48,8 @@ import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Timeout (timeout)
+import System.Environment (lookupEnv)
+import System.IO (hPutStrLn, stderr)
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -2408,7 +2410,10 @@ specializeClosure cc val = case val of
               Just (_, _, extras) -> pure extras
               Nothing -> do
                 made <- SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
-                let (grp, extras) = fromMaybe (identity, []) made
+                when specializeDebug $ case made of
+                  Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
+                  Right (g, _) -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group g)) ++ " residual functions")
+                let (grp, extras) = either (const (identity, [])) id made
                 sands <- readTVarIO (sandbox cc)
                 let sand = M.findWithDefault mempty r sands
                 -- no profiler: the group is not a cached value, so loading it
@@ -2643,6 +2648,12 @@ valueCodeRefs = \case
       Foreign (WrapArray a) -> foldMap valueCodeRefs a
       Foreign (WrapMap m) -> foldMap (\(x, y) -> valueCodeRefs x <> valueCodeRefs y) (M.toList m)
       _ -> mempty
+
+-- | @UNISON_SPECIALIZE_DEBUG@: say on stderr what each specialization
+-- made, or why it gave up.
+specializeDebug :: Bool
+specializeDebug = unsafePerformIO (maybe False (not . null) <$> lookupEnv "UNISON_SPECIALIZE_DEBUG")
+{-# NOINLINE specializeDebug #-}
 
 freshSpecializations :: IORef Word64
 freshSpecializations = unsafePerformIO (newIORef 0)
