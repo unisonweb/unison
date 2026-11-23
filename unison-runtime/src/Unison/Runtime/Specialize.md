@@ -478,9 +478,10 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    residual function specialized on the known part. `map` and `foldLeft` with known
    functions are in the transcript, and so is an interpreter in continuation-passing
    style, which needs the whistle of step 6.
-5. **Benchmarks.** An interpreter for a small language running a few programs, measured
-   under the JIT in three forms: interpreted, specialized, and the same program written by
-   hand in Unison. Success is "specialized" close to "by hand".
+5. **Benchmarks.** Done: [`specialize-benchmarks.md`](../../../../unison-src/transcripts-manual/specialize-benchmarks.md),
+   results in [JIT/benchmarks/2026-11-22-specialize.md](JIT/benchmarks/2026-11-22-specialize.md).
+   Specialized interpreters land within 15% of the programs written by hand, and known
+   function arguments inlined into loops match hand-written loops under the JIT.
 6. **Generalization and diagnostics.** The whistle is in: when a residual function's key
    embeds the key of one being built further up for the same function
    ([`embeds`](ANF/Specialize.hs), with sizes for literals), the parts where they differ

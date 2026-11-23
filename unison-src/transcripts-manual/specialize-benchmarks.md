@@ -73,6 +73,55 @@ mapL f xs =
     x +: rest -> go (acc :+ f x) rest
   go [] xs
 
+-- higher-order code: functions passed to a loop
+
+foldL : (b -> a -> b) -> b -> [a] -> b
+foldL f z = cases
+  [] -> z
+  x +: rest -> foldL f (f z x) rest
+
+sumSquaresByHand : Nat -> [Nat] -> Nat
+sumSquaresByHand acc = cases
+  [] -> acc
+  x +: rest -> sumSquaresByHand (acc + x * x) rest
+
+-- a filter and a map fused by hand into a fold, both functions arguments
+sumWhere : (Nat -> Boolean) -> (Nat -> Nat) -> [Nat] -> Nat
+sumWhere p f xs = foldL (acc x -> if p x then acc + f x else acc) 0 xs
+
+sumWhereByHand : Nat -> [Nat] -> Nat
+sumWhereByHand acc = cases
+  [] -> acc
+  x +: rest -> sumWhereByHand (if Nat.mod x 3 == 0 then acc + (x * 2 + 1) else acc) rest
+
+-- a known list of functions, applied in turn
+applyAll : [Nat -> Nat] -> Nat -> Nat
+applyAll fs x = foldL (acc f -> f acc) x fs
+
+stages : [Nat -> Nat]
+stages = [x -> x + 1, x -> x * 3, x -> Nat.mod x 1000003, x -> x + 7, x -> x * x]
+
+stagesByHand : Nat -> Nat
+stagesByHand x =
+  y = Nat.mod ((x + 1) * 3) 1000003 + 7
+  y * y
+
+-- the interpreter in continuation-passing style
+evalK : [Expr] -> Expr -> Nat -> (Nat -> Nat) -> Nat
+evalK prog e x k = match e with
+  Num n        -> k n
+  Arg          -> k x
+  Add a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va + vb)))
+  Sub a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va - vb)))
+  Mul a b      -> evalK prog a x (va -> evalK prog b x (vb -> k (va * vb)))
+  IfZero c t f -> evalK prog c x (vc -> if vc == 0 then evalK prog t x k else evalK prog f x k)
+  Call i a     -> match List.at i prog with
+    Some body -> evalK prog a x (va -> evalK prog body va k)
+    None -> bug "no such function"
+
+runK : [Expr] -> Nat -> Nat
+runK prog x = evalK prog (Call 0 Arg) x (v -> v)
+
 specializeSuite : '{IO, Exception} ()
 specializeSuite = do
   fibSpec = specialize runProg fibProg
@@ -87,6 +136,22 @@ specializeSuite = do
   mapSpec = specialize mapL (x -> x * 2 + 1)
   printTime "map with a lambda, 10000 elements: generic" 1 (n -> repeat n do mapL (x -> x * 2 + 1) xs)
   printTime "map with a lambda, 10000 elements: specialized" 1 (n -> repeat n do mapSpec xs)
+  foldSpec : Nat -> [Nat] -> Nat
+  foldSpec = specialize foldL (acc x -> acc + x * x)
+  printTime "foldLeft with a lambda, 10000 elements: generic" 1 (n -> repeat n do foldL (acc x -> acc + x * x) 0 xs)
+  printTime "foldLeft with a lambda, 10000 elements: specialized" 1 (n -> repeat n do foldSpec 0 xs)
+  printTime "foldLeft with a lambda, 10000 elements: by hand" 1 (n -> repeat n do sumSquaresByHand 0 xs)
+  whereSpec = specialize (sumWhere (x -> Nat.mod x 3 == 0)) (x -> x * 2 + 1)
+  printTime "filter and map as a fold, 10000 elements: generic" 1 (n -> repeat n do sumWhere (x -> Nat.mod x 3 == 0) (x -> x * 2 + 1) xs)
+  printTime "filter and map as a fold, 10000 elements: specialized" 1 (n -> repeat n do whereSpec xs)
+  printTime "filter and map as a fold, 10000 elements: by hand" 1 (n -> repeat n do sumWhereByHand 0 xs)
+  stagesSpec = specialize applyAll stages
+  printTime "five functions from a list, 100000 points: generic" 1 (n -> repeat n do sumOver (applyAll stages) 100000)
+  printTime "five functions from a list, 100000 points: specialized" 1 (n -> repeat n do sumOver stagesSpec 100000)
+  printTime "five functions from a list, 100000 points: by hand" 1 (n -> repeat n do sumOver stagesByHand 100000)
+  fibKSpec = specialize runK fibProg
+  printTime "fib 20, interpreter in CPS: interpreted" 1 (n -> repeat n do runK fibProg 20)
+  printTime "fib 20, interpreter in CPS: specialized" 1 (n -> repeat n do fibKSpec 20)
 ```
 
 ``` ucm
