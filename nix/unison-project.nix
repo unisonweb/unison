@@ -6,7 +6,26 @@ in
   pkgs.stacklock2nix {
     inherit baseHaskellPkgSet;
     stackYaml = ../stack.yaml;
-    additionalHaskellPkgSetOverrides = hfinal: hprev: {
+    additionalHaskellPkgSetOverrides = hfinal: hprev: let
+      ## stacklock2nix only gives each package its own subdirectory as source, but Unison.MCP.Learn embeds
+      ## `../docs/mcp/learn` from outside the package.
+      unison-cli = pkgs.haskell.lib.overrideCabal hprev.unison-cli (old: {
+        postUnpack =
+          (old.postUnpack or "")
+          + ''
+            mkdir -p docs/mcp
+            cp -r ${../docs/mcp/learn} docs/mcp/learn
+          '';
+        ## The MCP runner tests use `mcpConfig`, which keeps credentials under `$XDG_DATA_HOME`, and the sandbox’s
+        ## `$HOME` isn’t writable.
+        preCheck =
+          (old.preCheck or "")
+          + ''
+            export HOME="$TMPDIR"
+          '';
+      });
+    in {
+      inherit unison-cli;
       unison-runtime = pkgs.haskell.lib.dontCheck hprev.unison-runtime;
 
       ## Tests fail (or require network access) in some packages.
@@ -31,7 +50,7 @@ in
     } // (if pkgs.stdenv.isDarwin then {
       ## Don’t run unison-cli checks on macOS, because the test-suite requires access to `security` (because of TLS).
       ## NixOS/nixpkgs#297775 is maybe a good entry to the discussions.
-      unison-cli = pkgs.haskell.lib.dontCheck hprev.unison-cli;
+      unison-cli = pkgs.haskell.lib.dontCheck unison-cli;
 
       conduit-extra = pkgs.haskell.lib.dontCheck hprev.conduit-extra; # hangs
       fsnotify = pkgs.haskell.lib.dontCheck hprev.fsnotify;
