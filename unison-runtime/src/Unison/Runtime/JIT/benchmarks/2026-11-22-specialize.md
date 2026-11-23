@@ -27,6 +27,14 @@ run of `printTime` per row; the specialization happens before the timing. See
 | five functions from a list, 100000 points: by hand | 15.2 ms | 485 µs |
 | fib 20, interpreter in CPS: interpreted | 27.9 ms | 3.50 ms |
 | fib 20, interpreter in CPS: specialized | 2.52 ms | 274 µs |
+| state handler around a loop, 10000 rounds: generic | 2.66 ms | 441 µs |
+| state handler around a loop, 10000 rounds: specialized | 474 µs | 3.25 µs |
+| state handler around a loop, 10000 rounds: by hand | 396 µs | 3.20 µs |
+| fib 20, interpreter with an ability to bail: interpreted | 19.3 ms | 898 µs |
+| fib 20, interpreter with an ability to bail: specialized | 3.47 ms | 96.9 µs |
+
+The last five rows are from `049ef9b8f`, after handlers were fused (state passing, with a
+call in tail position a tail call); the rows above them didn't change.
 
 Findings:
 
@@ -40,6 +48,11 @@ Findings:
 - With the JIT off, the specialized `foldLeft` is 1.6× the hand-written loop although the JIT
   makes them equal: the output carries interpretive overhead the JIT removes (the peeled
   first round, literal lets). Not looked into yet.
+- A state handler around a loop, fused, matches the hand-written loop (the JIT reduces
+  both to a few microseconds); before the tail-call shortcut the state-passing loop
+  returned a tuple from every round and was 2.7× slower than the generic handler under
+  the JIT. The interpreter with an ability to bail gains 5.6× without the JIT and 9.3× with
+  it, the abort becoming a returned value.
 - The interpreter in continuation-passing style keeps its continuations as closures after
   specializing (the whistle generalizes them), so it gains less than the direct-style one
   relative to its starting point, but still about 10×.
