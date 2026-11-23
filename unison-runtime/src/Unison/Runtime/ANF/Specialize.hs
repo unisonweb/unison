@@ -661,10 +661,11 @@ renumber = go
 
 -- * Clean-up
 
--- | Residual functions inlined where they are called, when they aren't
--- recursive and no closure is made of them, and are called once or are
--- small: what is left of the partial evaluator's habit of making a
--- residual function at every call under an unknown match.
+-- | Residual functions inlined where they are called, when no closure is
+-- made of them and they don't call themselves: those that aren't recursive
+-- when called once or small, and those recursive through other functions
+-- when not too big. That cleans up the partial evaluator's habit of making
+-- a residual function at every call under an unknown match.
 inlineFns :: [(Symbol, SuperNormal Reference Symbol)] -> Term -> M ([(Symbol, SuperNormal Reference Symbol)], Term)
 inlineFns fns body = case find inlinable fns of
   Nothing -> pure (fns, body)
@@ -687,8 +688,15 @@ inlineFns fns body = case find inlinable fns of
           | g == f = True
           | S.member g seen = reaches seen gs
           | otherwise = reaches (S.insert g seen) (S.toList (M.findWithDefault S.empty g graph) ++ gs)
-    inlinable (f, Lambda _ (ABTN.TAbss _ bd)) =
-      not (recursive f) && not (closed f) && (calls f == 1 || length (nodes bd) <= 4)
+    -- a function recursive only through others, if small, goes into its
+    -- callers, leaving one that calls itself as the loop (GHC's loop
+    -- breaker): fib's two halves become one function, which saves a call
+    -- per round
+    selfCalls f bd = S.member f (refsIn names bd)
+    inlinable (f, Lambda _ (ABTN.TAbss _ bd))
+      | closed f || selfCalls f bd = False
+      | recursive f = length (nodes bd) <= 40
+      | otherwise = calls f == 1 || length (nodes bd) <= 4
 
 -- | Each call of a residual function replaced by its body, with its
 -- parameters renamed to the arguments and its binders made fresh.

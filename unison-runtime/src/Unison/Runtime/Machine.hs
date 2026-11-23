@@ -2423,7 +2423,17 @@ specializeClosure cc val = case val of
                 atomically . modifyTVar' (specializations cc) $
                   M.insert sref (cix, length captured, extras)
                 pure extras
-            mkClosure cc sref 0 (captured ++ extras) <&> fromMaybe val
+            result <- mkClosure cc sref 0 (captured ++ extras)
+            -- whoever specializes expects the result to be hot: ask the JIT
+            -- for it now rather than after the call threshold (only in the
+            -- on mode: eager compiles it as it is loaded, and off never)
+            case result of
+              Just (BoxedVal (PAp scix (LamI _ _ _ cell) _))
+                | M.notMember sref specs,
+                  JIT.On <- JIT.mode (jitConfig (jit cc)) ->
+                    jitRequestGroup (jit cc) (sandboxed cc) (combs cc) (combRefs cc) scix cell
+              _ -> pure ()
+            pure (fromMaybe val result)
   _ -> pure val
   where
     -- the group with the lambda at index k (0 for the entry, k for the
