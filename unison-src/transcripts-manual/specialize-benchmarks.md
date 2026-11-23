@@ -122,6 +122,58 @@ evalK prog e x k = match e with
 runK : [Expr] -> Nat -> Nat
 runK prog x = evalK prog (Call 0 Arg) x (v -> v)
 
+-- abilities: a state handler around a loop, and an interpreter that bails out
+
+ability Cell where
+  getCell : Nat
+  putCell : Nat -> ()
+
+runCell : Nat -> '{Cell} a -> a
+runCell s p =
+  go s = cases
+    { a } -> a
+    { Cell.getCell -> k } -> handle k s with go s
+    { Cell.putCell s' -> k } -> handle k () with go s'
+  handle p () with go s
+
+countCell : Nat ->{Cell} Nat
+countCell n = if n == 0 then Cell.getCell else
+  Cell.putCell (Cell.getCell + n)
+  countCell (n - 1)
+
+countByHand : Nat -> Nat -> Nat
+countByHand acc n = if n == 0 then acc else countByHand (acc + n) (n - 1)
+
+ability Bail where
+  bail : Nat -> a
+
+evalB : [Expr] -> Expr -> Nat ->{Bail} Nat
+evalB prog e x = match e with
+  Num n        -> n
+  Arg          -> x
+  Add a b      -> evalB prog a x + evalB prog b x
+  Sub a b      ->
+    va = evalB prog a x
+    vb = evalB prog b x
+    if va < vb then Bail.bail va else va - vb
+  Mul a b      -> evalB prog a x * evalB prog b x
+  IfZero c t f -> if evalB prog c x == 0 then evalB prog t x else evalB prog f x
+  Call i a     -> match List.at i prog with
+    Some body -> evalB prog body (evalB prog a x)
+    None -> Bail.bail 999
+
+runB : [Expr] -> Nat -> Optional Nat
+runB prog x = handle evalB prog (Call 0 Arg) x with cases
+  { a } -> Some a
+  { Bail.bail _ -> _ } -> None
+
+-- fib with a guarded subtraction, so that the interpreter could bail
+fibBProg : [Expr]
+fibBProg =
+  [IfZero Arg (Num 0)
+    (IfZero (Sub Arg (Num 1)) (Num 1)
+      (Add (Call 0 (Sub Arg (Num 1))) (Call 0 (Sub (Sub Arg (Num 1)) (Num 1)))))]
+
 specializeSuite : '{IO, Exception} ()
 specializeSuite = do
   fibSpec = specialize runProg fibProg
@@ -149,6 +201,14 @@ specializeSuite = do
   printTime "five functions from a list, 100000 points: generic" 1 (n -> repeat n do sumOver (applyAll stages) 100000)
   printTime "five functions from a list, 100000 points: specialized" 1 (n -> repeat n do sumOver stagesSpec 100000)
   printTime "five functions from a list, 100000 points: by hand" 1 (n -> repeat n do sumOver stagesByHand 100000)
+  countSpec : Nat -> Nat
+  countSpec = specialize (s n -> runCell s do countCell n) 0
+  printTime "state handler around a loop, 10000 rounds: generic" 1 (n -> repeat n do runCell 0 do countCell 10000)
+  printTime "state handler around a loop, 10000 rounds: specialized" 1 (n -> repeat n do countSpec 10000)
+  printTime "state handler around a loop, 10000 rounds: by hand" 1 (n -> repeat n do countByHand 0 10000)
+  fibBSpec = specialize runB fibBProg
+  printTime "fib 20, interpreter with an ability to bail: interpreted" 1 (n -> repeat n do runB fibBProg 20)
+  printTime "fib 20, interpreter with an ability to bail: specialized" 1 (n -> repeat n do fibBSpec 20)
   fibKSpec = specialize runK fibProg
   printTime "fib 20, interpreter in CPS: interpreted" 1 (n -> repeat n do runK fibProg 20)
   printTime "fib 20, interpreter in CPS: specialized" 1 (n -> repeat n do fibKSpec 20)

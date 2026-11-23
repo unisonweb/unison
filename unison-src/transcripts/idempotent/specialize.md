@@ -1023,19 +1023,10 @@ Around a loop, the state is passed to the loop and returned from it:
                   σ19 = σ16 Nat.+ σ15
                   σ20 = 1
                   σ21 = Nat.drop σ15 σ20
-                  σ22 = σ σ21 σ19
-                  match σ22 with
-                    Right σ23 -> Right σ23
-                    Left σ24 ->
-                      match σ24 with
-                        Cons σ25 σ26 ->
-                          match σ26 with
-                            Cons σ27 σ28 ->
-                              σ31 = (σ25, σ27)
-                              Left σ31
+                  σ σ21 σ19
                 _ ->
-                  σ34 = (σ16, σ16)
-                  Left σ34
+                  σ24 = (σ16, σ16)
+                  Left σ24
             σ3 = 0
             σ4 = Nat.eq σ2 σ3
             match σ4 with

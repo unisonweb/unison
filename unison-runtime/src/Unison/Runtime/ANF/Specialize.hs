@@ -202,7 +202,10 @@ data S = S
     sKonts :: M.Map Int Kont,
     sNextId :: !Int,
     -- | the continuation a handler's case is about to capture with @shift@
-    sPending :: Maybe (Int, Reference)
+    sPending :: Maybe (Int, Reference),
+    -- | the abilities and the handler as passed, of each state-passing
+    -- residual function being built, by the number of its frame
+    sReturns :: M.Map Int ([Reference], Abs)
   }
 
 type M = StateT S IO
@@ -223,6 +226,12 @@ data K
   | -- | the end of the body of the fused handler with this number: the
     -- value goes to the innermost target ('sTargets')
     KDelim Int
+  | -- | the end of the body of the state-passing residual function whose
+    -- frame has this number: @Right (result, state)@ ('returnRight')
+    KReturn Int
+  | -- | the value of a case that didn't resume, in that function:
+    -- @Left value@
+    KAbort Int
 
 -- | The specialization of the lambda at an index of a group, on its first
 -- arguments: a group whose entry takes those arguments, then the extra
@@ -242,7 +251,7 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
     | otherwise ->
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          either (\(Escape _) -> Left "an escape from a fused handler") id <$> Control.Exception.try @Escape (Right <$> do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing) do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty) do
             argSyms <- traverse (const fresh) args
             restSyms <- traverse (const fresh) (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -320,6 +329,8 @@ ret :: K -> Abs -> M Term
 ret KTail a = toVar a (pure . TVar)
 ret (KBind _ k) a = k a
 ret (KDelim _) a = popTarget >>= \(_, tgt) -> tgt a
+ret (KReturn fid) a = returnRight fid a
+ret (KAbort _) v = toVar v \x -> pure (TCon eitherRef (CTag 0) [x])
 
 popTarget :: M (Tgt, Abs -> M Term)
 popTarget =
@@ -330,21 +341,21 @@ popTarget =
 -- | Gives an unknown result: a residual computation of it, then the rest.
 dynResult :: K -> Mem -> Term -> M Term
 dynResult KTail _ code = pure code
-dynResult (KDelim fid) _ code = dynResult (KBind BX (ret (KDelim fid))) BX code
 dynResult (KBind m k) _ code = do
   x <- fresh
   n <- letNum
   rest <- k (Dyn x m)
   pure (TLets (Indirect n) [x] [m] code rest)
+dynResult k _ code = dynResult (KBind BX (ret k)) BX code
 
 -- | Like 'dynResult' for a primitive, bound by a direct let.
 dynPrim :: K -> Term -> M Term
 dynPrim KTail code = pure code
-dynPrim (KDelim fid) code = dynPrim (KBind BX (ret (KDelim fid))) code
 dynPrim (KBind m k) code = do
   x <- fresh
   rest <- k (Dyn x m)
   pure (TLets Direct [x] [m] code rest)
+dynPrim k code = dynPrim (KBind BX (ret k)) code
 
 pe :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
 pe env lim e t k = tick lim >> case t of
@@ -482,14 +493,44 @@ residualCall env lim fn args k = do
   case frames of
     f@Fused {} : rest | not (any isFused rest) -> do
       (rf, tmpl, leaves) <- residualFnWith env lim (Just f) fn args
-      toVars (concat leaves) \xs -> do
-        r <- fresh
-        n <- letNum
-        rest' <- resultMatch f tmpl r k
-        pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
+      inTail <- tailInSame f tmpl
+      if inTail
+        then toVars (concat leaves) \xs -> pure (TApp (FVar rf) xs)
+        else toVars (concat leaves) \xs -> do
+          r <- fresh
+          n <- letNum
+          rest' <- resultMatch f tmpl r k
+          pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
     _ -> do
       (rf, _, leaves) <- residualFnWith env lim Nothing fn args
       toVars (concat leaves) \xs -> dynResult k BX (TApp (FVar rf) xs)
+  where
+    -- a call in tail position of a state-passing function, under the
+    -- handler it was passed or one of the same shape, with nothing between:
+    -- what the callee returns is what this function would, so the match is
+    -- the identity and the call a tail call
+    tailInSame f tmpl = case k of
+      KReturn rfid -> do
+        frames <- gets sFrames
+        targets <- gets sTargets
+        returns <- gets sReturns
+        pure case (frames, M.lookup rfid returns) of
+          ([top@Fused {}], Just (refs, hAbs)) ->
+            frId top == frId f
+              && frRefs top == refs
+              && isAbort rfid (frOuter top)
+              && all (okTarget (frId top) . fst) targets
+              && safeEq (keyOf tmpl) (keyOf hAbs)
+          _ -> False
+      _ -> pure False
+    isAbort rfid (KAbort i) = i == rfid
+    isAbort _ _ = False
+
+okTarget :: Int -> Tgt -> Bool
+okTarget top = \case
+  TBody _ -> True
+  TPure i -> i == top
+  TSite -> False
 
 -- | The caller's side of state passing: a match on what the residual
 -- function returned. @Left v@: the @handle@ is over, with value @v@.
@@ -624,13 +665,14 @@ residualFnWith env lim mframe fn args0 = do
               modify' \s ->
                 s
                   { sNextId = fid + 1,
-                    sFrames = [Fused fid (frRefs fr) hAbs abortK 0 True],
+                    sFrames = [Fused fid (frRefs fr) hAbs (KAbort fid) 0 True],
                     sTargets = [],
                     sKonts = M.empty,
-                    sPending = Nothing
+                    sPending = Nothing,
+                    sReturns = M.insert fid (frRefs fr, hAbs) (sReturns s)
                   }
               s1 <- get
-              liftIO (Control.Exception.try (runStateT (pe env lim e' body (KBind BX (returnRight fid (frRefs fr) hAbs))) s1)) >>= \case
+              liftIO (Control.Exception.try (runStateT (pe env lim e' body (KReturn fid)) s1)) >>= \case
                 Right (b, s2) -> b <$ put s2
                 -- an escape to a handler of the residual function's own makes
                 -- the state passing impossible: an escape to the caller's
@@ -657,31 +699,29 @@ residualFnWith env lim mframe fn args0 = do
       Con r t fs -> Con r t <$> traverse renameLeaves fs
       Clo f as -> Clo f <$> traverse renameLeaves as
       a -> pure a
-    -- a case that didn't resume: Left of its value
-    abortK = KBind BX \v -> toVar v \x -> pure (TCon eitherRef (CTag 0) [x])
-    -- the end of the body: Right of its value and the state of the handler
-    -- in force, if every resumption re-installed a handler of the shape the
-    -- function was passed
-    returnRight fid refs hAbs a = do
-      frames <- gets sFrames
-      targets <- gets sTargets
-      case frames of
-        [top@Fused {}]
-          | frRefs top == refs,
-            all (okTarget (frId top) . fst) targets,
-            Just vals <- alignTo hAbs (frHandler top) ->
-              toVar a \res -> toVars vals \ls -> do
-                (chain, wrap) <- tupleChain ls
-                p <- fresh
-                o <- fresh
-                pure . wrap $
-                  TLets Direct [p] [BX] (TCon pairRef (CTag 0) [res, chain]) $
-                    TLets Direct [o] [BX] (TCon eitherRef (CTag 1) [p]) (TVar o)
-        _ -> liftIO (throwIO (Escape fid))
-    okTarget top = \case
-      TBody _ -> True
-      TPure i -> i == top
-      TSite -> False
+
+-- | The end of the body of a state-passing residual function: @Right@ of
+-- its value and the state of the handler in force, if every resumption
+-- re-installed a handler of the shape the function was passed.
+returnRight :: Int -> Abs -> M Term
+returnRight fid a = do
+  frames <- gets sFrames
+  targets <- gets sTargets
+  gets (M.lookup fid . sReturns) >>= \case
+    Nothing -> giveUp "the end of an unknown state-passing function"
+    Just (refs, hAbs) -> case frames of
+      [top@Fused {}]
+        | frRefs top == refs,
+          all (okTarget (frId top) . fst) targets,
+          Just vals <- alignTo hAbs (frHandler top) ->
+            toVar a \res -> toVars vals \ls -> do
+              (chain, wrap) <- tupleChain ls
+              p <- fresh
+              o <- fresh
+              pure . wrap $
+                TLets Direct [p] [BX] (TCon pairRef (CTag 0) [res, chain]) $
+                  TLets Direct [o] [BX] (TCon eitherRef (CTag 1) [p]) (TVar o)
+      _ -> liftIO (throwIO (Escape fid))
 
 -- | The values in a chain of pairs ending in unit: the chain's variable,
 -- and the lets that build it.
@@ -836,8 +876,8 @@ match env lim e v br k = case (look e v, br) of
       -- that a request in an arm sees all of its continuation
       fusedNow <- gets (any isFused . sFrames)
       case k of
-        KBind {} | fusedNow -> dynamicWith k (\code -> pure code)
-        KDelim {} | fusedNow -> dynamicWith k (\code -> pure code)
+        KTail -> dynamicWith KTail (dynResult k BX)
+        _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ -> dynamicWith KTail (dynResult k BX)
     dynamicWith kk finish = toVar (look e v) \x -> do
       let arm e' body = isolated (pe env lim e' body kk)
@@ -923,8 +963,8 @@ request env lim e r t args k = do
       let f = frames !! j
       rest <- case k of
         KBind _ g -> pure g
-        KDelim fid -> pure (ret (KDelim fid))
         KTail -> liftIO (throwIO (Escape (frId f)))
+        _ -> pure (ret k)
       targets <- gets sTargets
       kid <- gets sNextId
       let above = length targets - frDepth f - (if frSegment f then 0 else 1)
