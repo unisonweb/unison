@@ -411,12 +411,18 @@ Generated code keeps the program's variable names. Every variable the specialize
 comes from `freshNamed` ([`Specialize.hs`](ANF/Specialize.hs)), and the caller names it:
 - **The program's name**, when the variable stands for one of the program's: a parameter,
   a let's binder, a field, a handler's binder. A residual function's parameters take the
-  original function's parameter names, and a residual function takes the name of the local
-  function it specializes.
-- **A synthetic name** otherwise: `lit`, `con`, `clo`, a call's result `r`, a constant `c`,
-  and in state passing `p`, `s`, `rest`, `done` and `out`.
+  original function's parameter names.
+- **The function's name**, for a residual function: a local function's binder, or else the
+  group's name in the codebase. The cache keeps those names (`combNames` in `CCache`):
+  ucm records them as it loads code (`recordNames` in
+  [`Interface.hs`](../../../ucm/Unison/Runtime/Interface.hs)), and code loaded at run time
+  has none.
+- **A synthetic name** otherwise: `fn` for a function with no name, `lit`, `con`, `clo`, a
+  call's result `r`, a constant `c`, and in state passing `p`, `s`, `rest`, `done` and
+  `out`.
 
-The printer makes the names unique by numbering them.
+The printer makes the names unique by numbering them. A residual function can have the
+same name as the codebase function it was made from, which the code may also call.
 
 The text depends on the runtime version and the `UNISON_OPTIMIZATIONS` settings, so it is
 for debugging and for golden transcripts, not for program logic. It is like `Debug.toText`,

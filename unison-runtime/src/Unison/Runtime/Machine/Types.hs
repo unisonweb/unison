@@ -62,6 +62,7 @@ import Unison.Symbol
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
+import Data.Text qualified
 import Unison.Util.Text as UText
 
 -- | A ref storing every currently active thread.
@@ -220,6 +221,10 @@ data CCache prof = CCache
     -- whether the code of a reference may run while specializing: it reaches
     -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
     runnableRefs :: TVar (M.Map Reference Bool),
+    -- the codebase's name for a loaded group, when the loader knew one
+    -- (ucm's loadDeps); code loaded at run time has none. Only for showing
+    -- code: the specializer names residual functions after them.
+    combNames :: TVar (M.Map Reference Data.Text.Text),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
     optInfos :: TVar (OptInfos Reference Symbol),
@@ -276,6 +281,7 @@ baseCCache jit sandboxed = do
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO mempty
     <*> newTVarIO mempty

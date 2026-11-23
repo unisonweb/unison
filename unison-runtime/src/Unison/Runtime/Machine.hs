@@ -2401,6 +2401,7 @@ specializeClosure cc val = case val of
       -- only a lambda's entry, never a section after a let in it
       i .&. 0xffff == 0 -> do
         groups <- readTVarIO (intermed cc)
+        names <- readTVarIO (combNames cc)
         case M.lookup r groups >>= lambdaGroup (fromIntegral (i `shiftR` 16)) of
           Nothing -> pure val
           Just identity -> do
@@ -2413,9 +2414,9 @@ specializeClosure cc val = case val of
               -- with nothing loaded
               Just (_, _, _, False) ->
                 either (const []) snd
-                  <$> SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
+                  <$> SP.specializeLambda (specEnv cc groups names) SP.defaultSpecLimits r i captured
               Nothing -> do
-                made <- SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
+                made <- SP.specializeLambda (specEnv cc groups names) SP.defaultSpecLimits r i captured
                 when specializeDebug $ case made of
                   Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
                   Right (g, _) -> do
@@ -2455,8 +2456,8 @@ specializeClosure cc val = case val of
 -- | What the partial evaluator gets from the runtime
 -- (Unison.Runtime.ANF.Specialize): the groups as they are, and the
 -- interpreter for anything known.
-specEnv :: CCache p -> M.Map Reference (SuperGroup Reference Symbol) -> SP.SpecEnv
-specEnv cc groups =
+specEnv :: CCache p -> M.Map Reference (SuperGroup Reference Symbol) -> M.Map Reference DTx.Text -> SP.SpecEnv
+specEnv cc groups names =
   SP.SpecEnv
     { SP.seGroup = (`M.lookup` groups),
       SP.seRun = runKnown cc defaultKnownLimits,
@@ -2465,7 +2466,8 @@ specEnv cc groups =
       SP.seClosure = mkClosure cc,
       SP.seBoundary = Builtin "specialize.boundary",
       SP.seRunTerm = runTerm cc,
-      SP.seCallsBack = (`S.member` callingBack)
+      SP.seCallsBack = (`S.member` callingBack),
+      SP.seName = (`M.lookup` names)
     }
 
 -- | The builtins that can call back into Unison code, from their code:

@@ -77,7 +77,10 @@ data SpecEnv = SpecEnv
     -- | whether a builtin can call back into Unison code (apply or force a
     -- function it is given, resume a continuation), and so perform
     -- requests
-    seCallsBack :: Reference -> Bool
+    seCallsBack :: Reference -> Bool,
+    -- | the codebase's name for a group, if the cache has one, to name the
+    -- residual functions made from it
+    seName :: Reference -> Maybe Text
   }
 
 -- | Bounds on the work: steps of the walk, residual functions, and the
@@ -658,10 +661,12 @@ residualFnWith env lim mframe fn args0 = do
     Nothing -> do
       nfns <- gets (M.size . sMemo)
       when (nfns >= slFunctions lim) . liftIO . throwIO $ GiveUp "functions"
-      -- named after the local function it specializes, if it is one
+      -- named after the function it specializes: a local function by its
+      -- binder, a group by its name in the codebase
       f <- case lambdaOf env fn of
         Just (_, locals) | Fn _ i <- fn, Just (v, _) <- find ((== i) . snd) locals -> freshNamed v
-        _ -> freshNamed (syn "f")
+        _ | Fn r 0 <- fn, Just n <- seName env r -> freshNamed (syn n)
+        _ -> freshNamed (syn "fn")
       modify' \s -> s {sMemo = M.insert key f (sMemo s)}
       case lambdaOf env fn of
         Nothing -> liftIO . throwIO $ GiveUp "no code"

@@ -97,7 +97,10 @@ import Unison.Runtime.Stack
 import Unison.Runtime.Standalone
 import Unison.Runtime.Version (runtimeVersion)
 import Unison.Symbol (Symbol)
+import Unison.HashQualified qualified as HQ'
+import Unison.Name qualified as Name
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
@@ -434,7 +437,20 @@ loadDeps cl ppe ctx tyrs tmrs = do
   let tyAdd = Set.fromList $ fst <$> tyrs
   (ctx', rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
+  recordNames ctx' ppe (fst <$> rgrp)
   (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+
+-- | The codebase's names for loaded groups, kept in the cache
+-- ('combNames'): the last segment of a term's name, or a lifted lambda's
+-- name, as `ir.optimized` shows them. A group with no name is left out.
+recordNames :: EvalCtx -> PrettyPrintEnv -> [Reference] -> IO ()
+recordNames ctx ppe rs =
+  atomically . modifyTVar' (combNames (ccache ctx)) $ \m ->
+    foldl' (\m' (r, n) -> Map.insert r n m') m [(r, n) | r <- rs, Just n <- [nameOf r]]
+  where
+    nameOf r = case combName (irNames ctx ppe) r of
+      Right hq -> Name.toText . Name.unqualified <$> HQ'.toName hq
+      Left float -> Just . P.toPlain 80 $ syntaxToColor float
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
