@@ -444,10 +444,20 @@ its continuation, not whether the handler is affine:
   code fuses, and so does an interpreter over a program with no loops: the transcript has
   a state handler becoming arithmetic and an abort becoming a branch.
 
-  Still to do: loops. A loop in a fused handler's scope becomes a residual function, which
-  has to take the handler's state and return it (state passing, generated). And cases that
-  resume more than once, which need the rest of the body as a residual function up to the
-  `handle`.
+  A loop in a fused handler's scope becomes a residual function that passes the handler's
+  state ([`residualCall`](ANF/Specialize.hs)): the handler is one more argument, the body is
+  walked under a frame of its own that owns no target (a segment: the body returns to its
+  caller, not to the handler), and the function returns `Left v` from a case that didn't
+  resume, `v` being the `handle`'s value, or `Right (result, state)` at its end, where the
+  handler in force must have the shape it was passed in and every resumption must have
+  re-installed a handler as its case's last act (`returnRight`); the caller matches, and
+  goes on after the `handle`, or with the handler rebuilt from the state (`resultMatch`).
+  A state handler around a loop becomes a loop taking and returning the state, and an abort
+  around a loop becomes a loop that returns the abort as a value.
+
+  Still to do: cases that resume more than once, which need the rest of the body as a
+  residual function up to the `handle`; more than one fused handler around a loop; and a
+  resumption whose result the case keeps working with, inside a loop.
 
 ## Limits
 
@@ -527,8 +537,8 @@ its continuation, not whether the handler is affine:
 7. **Abilities.** Running known code with handlers, and keeping handlers with their
    bodies specialized, are done: the transcript has a state handler over known code
    becoming a constant, and an interpreter with an abort ability specialized inside its
-   handler. Fusing handlers away works for code with no loops in the handler's scope;
-   loops are next (see [Abilities](#abilities)).
+   handler. Fusing handlers away is done for cases that don't resume or resume once as
+   their last act, around straight-line code and loops (see [Abilities](#abilities)).
 
 ## Open questions
 

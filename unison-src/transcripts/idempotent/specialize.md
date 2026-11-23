@@ -734,8 +734,9 @@ scratch/main> add
           10
 ```
 
-Where the handled code isn't all known, the handler stays and the code under it is
-specialized, its requests kept. An interpreter that aborts on subtraction below zero:
+Where the handled code isn't all known, a known handler is fused away (below). An
+interpreter that aborts on subtraction below zero, around a loop, becomes a loop that
+returns an abort as a value, with no handler and no requests left:
 
 ``` unison
 ability Abort where
@@ -813,38 +814,63 @@ scratch/main> add
           --       { abort _ -> _ } -> None))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
           #0nklekfqfs σ2 σ3 =
-            σ σ7 =
-              σ8 = 1
-              σ9 = Nat.lt σ7 σ8
-              σ11 =
-                match σ9 with
-                  false ->
-                    σ10 = 1
-                    Nat.drop σ7 σ10
-                  _ -> abort σ7
-              σ12 = 0
-              σ13 = Nat.eq σ11 σ12
-              σ15 =
-                match σ13 with
-                  false -> σ σ11
-                  _ ->
-                    σ14 = 1
-                    σ14
-              σ7 Nat.* σ15
-            σ1 σ16 =
-              match σ16 with
-                {abort σ17} ->
-                  cont1 = shift {Abort}
-                  None
-                {σ18} -> Some σ18
-            σ4 = partialApply σ1
-            handle {Abort}
-              σ5 = 0
-              σ6 = Nat.eq σ3 σ5
-              match σ6 with
-                false -> σ σ3
-                _ -> 1
-            with σ4
+            σ σ16 =
+              σ17 = 1
+              σ18 = Nat.lt σ16 σ17
+              match σ18 with
+                false ->
+                  σ19 = 1
+                  σ20 = Nat.drop σ16 σ19
+                  σ21 = 0
+                  σ22 = Nat.eq σ20 σ21
+                  match σ22 with
+                    false ->
+                      σ23 = σ σ20
+                      match σ23 with
+                        Right σ24 -> Right σ24
+                        Left σ25 ->
+                          match σ25 with
+                            Cons σ26 σ27 ->
+                              σ28 = σ16 Nat.* σ26
+                              σ29 = ()
+                              σ30 = Cons σ28 σ29
+                              Left σ30
+                    _ ->
+                      σ31 = σ1 σ20
+                      match σ31 with
+                        Right σ32 -> Right σ32
+                        Left σ33 ->
+                          match σ33 with
+                            Cons σ34 σ35 ->
+                              σ36 = σ16 Nat.* σ34
+                              σ37 = ()
+                              σ38 = Cons σ36 σ37
+                              Left σ38
+                _ ->
+                  σ39 = None
+                  Right σ39
+            σ1 σ40 =
+              σ41 = 1
+              σ42 = ()
+              σ43 = Cons σ41 σ42
+              Left σ43
+            σ4 = 0
+            σ5 = Nat.eq σ3 σ4
+            match σ5 with
+              false ->
+                σ6 = σ σ3
+                match σ6 with
+                  Right σ7 -> σ7
+                  Left σ8 ->
+                    match σ8 with
+                      Cons σ9 σ10 -> Some σ9
+              _ ->
+                σ11 = σ1 σ3
+                match σ11 with
+                  Right σ12 -> σ12
+                  Left σ13 ->
+                    match σ13 with
+                      Cons σ14 σ15 -> Some σ14
           """
 ```
 
@@ -965,5 +991,135 @@ scratch/main> add
                 σ6 = Nat.drop σ2 σ5
                 Some σ6
               _ -> None
+          """
+```
+
+Around a loop, the state is passed to the loop and returned from it:
+
+``` unison
+> specialize (s n -> runSt s do count n) 0 4
+> runtime.ir (specialize (s n -> runSt s do count n) 0)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize (s n -> runSt s do count n) 0 4
+          ⧩
+          10
+
+    2 | > runtime.ir (specialize (s n -> runSt s do count n) 0)
+          ⧩
+          """
+          -- specialize (s n -> runSt s do count n) 0
+          #8bdou15p4k σ1 σ2 =
+            σ σ15 σ16 =
+              σ17 = 0
+              σ18 = Nat.eq σ15 σ17
+              match σ18 with
+                false ->
+                  σ19 = σ16 Nat.+ σ15
+                  σ20 = 1
+                  σ21 = Nat.drop σ15 σ20
+                  σ22 = σ σ21 σ19
+                  match σ22 with
+                    Right σ23 -> Right σ23
+                    Left σ24 ->
+                      match σ24 with
+                        Cons σ25 σ26 ->
+                          match σ26 with
+                            Cons σ27 σ28 ->
+                              σ31 = (σ25, σ27)
+                              Left σ31
+                _ ->
+                  σ34 = (σ16, σ16)
+                  Left σ34
+            σ3 = 0
+            σ4 = Nat.eq σ2 σ3
+            match σ4 with
+              false ->
+                σ5 = σ1 Nat.+ σ2
+                σ6 = 1
+                σ7 = Nat.drop σ2 σ6
+                σ8 = σ σ7 σ5
+                match σ8 with
+                  Right σ9 -> σ9
+                  Left σ10 ->
+                    match σ10 with
+                      Cons σ11 σ12 ->
+                        match σ12 with
+                          Cons σ13 σ14 -> σ11
+              _ -> σ1
+          """
+```
+
+A handler stays when something in its scope could perform its requests unseen, here a call
+of an unknown function; the code under it is still specialized:
+
+``` unison
+> specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3 (x -> x Nat.* 2)
+> runtime.ir (specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3 (x -> x Nat.* 2)
+          ⧩
+          6
+
+    2 | > runtime.ir (specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3)
+          ⧩
+          """
+          -- specialize
+          --   (s f ->
+          --     runSt s do
+          --       use St get
+          --       put (f get)
+          --       get) 3
+          #aqe3doh5bf σ2 σ3 =
+            σ σ2 σ8 =
+              match σ8 with
+                {St.get} ->
+                  cont1 = shift {St}
+                  σ9 = partialApply σ σ2
+                  handle {St}
+                    cont1 σ2
+                  with σ9
+                {put σ10} ->
+                  cont2 = shift {St}
+                  σ11 = partialApply σ1 σ10
+                  handle {St}
+                    σ12 = ()
+                    cont2 σ12
+                  with σ11
+                {σ13} -> σ13
+            σ1 σ14 σ15 =
+              match σ15 with
+                {St.get} ->
+                  cont3 = shift {St}
+                  σ16 = partialApply σ1 σ14
+                  handle {St}
+                    cont3 σ14
+                  with σ16
+                {put σ17} ->
+                  cont4 = shift {St}
+                  σ18 = partialApply σ1 σ17
+                  handle {St}
+                    σ19 = ()
+                    cont4 σ19
+                  with σ18
+                {σ20} -> σ20
+            σ4 = partialApply σ σ2
+            handle {St}
+              σ5 = St.get
+              σ6 = σ3 σ5
+              σ7 = put σ6
+              St.get
+            with σ4
           """
 ```
