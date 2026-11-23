@@ -11,6 +11,7 @@ module Unison.Runtime.Builtin
   ( builtinTermNumbering,
     builtinTypeNumbering,
     builtinTermBackref,
+    builtinLookup,
     builtinTypeBackref,
     builtinArities,
     builtinOptInfo,

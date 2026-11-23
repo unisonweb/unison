@@ -31,7 +31,7 @@ import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Stack
@@ -49,6 +49,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack qualified as Stack
 import Unison.Runtime.TypeTags (CTag (..))
+import Unison.Runtime.Builtin.Decls (exceptionRef)
 import Unison.Symbol (Symbol)
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Var qualified as Var
@@ -72,7 +73,11 @@ data SpecEnv = SpecEnv
     -- | a term run on the interpreter, given values for its free variables
     -- (and how each is held): for code the partial evaluator doesn't look
     -- into but whose inputs are all known, a handler of any kind included
-    seRunTerm :: [(Symbol, Mem)] -> Term -> [Val] -> IO (Maybe Val)
+    seRunTerm :: [(Symbol, Mem)] -> Term -> [Val] -> IO (Maybe Val),
+    -- | whether a builtin can call back into Unison code (apply or force a
+    -- function it is given, resume a continuation), and so perform
+    -- requests
+    seCallsBack :: Reference -> Bool
   }
 
 -- | Bounds on the work: steps of the walk, residual functions, and the
@@ -106,6 +111,13 @@ data Abs
     Clo Fn [Abs]
   | -- | unknown: a variable of the output, and how it is held
     Dyn Symbol Mem
+  | -- | a request handled while specializing (a fused handler's argument):
+    -- the ability, the operation, its arguments and its continuation
+    SReq Reference CTag [Abs] Int
+  | -- | the value a fused handler's body finished with, given to the handler
+    SPure Abs
+  | -- | the continuation of a request handled while specializing
+    SKont Int
 
 -- | The key of a residual function: the function, and what is known of
 -- its arguments, with each unknown one a hole.
@@ -124,6 +136,40 @@ data GiveUp = GiveUp String
 
 instance Exception GiveUp
 
+-- | Something in the scope of the fused handler with this number could
+-- perform its requests without the walk seeing them: the handler can't be
+-- fused, and its @handle@ is walked again, kept.
+newtype Escape = Escape Int
+  deriving (Show)
+
+instance Exception Escape
+
+-- | A handler in force over the code being walked: fused (handled while
+-- specializing), or kept, a barrier to fused ones further out, since a
+-- request can't be handled across it.
+data Frame
+  = Fused
+      { frId :: !Int,
+        frRefs :: [Reference],
+        frHandler :: Abs,
+        -- | where the @handle@'s value goes
+        frOuter :: K,
+        -- | how many targets there were when it was installed
+        frDepth :: !Int
+      }
+  | Barrier
+
+-- | The continuation of a request handled while specializing: the rest of
+-- the walk from the request, and the frames and targets between it and the
+-- handler, which a resumption puts back.
+data Kont = Kont
+  { koRest :: Abs -> M Term,
+    koFrames :: [Frame],
+    koTargets :: [Abs -> M Term],
+    koFrame :: !Int,
+    koUsed :: !Bool
+  }
+
 data S = S
   { sFresh :: !Word64,
     -- | the next number for an indirect let, per lambda
@@ -138,7 +184,16 @@ data S = S
     sLim :: SpecLimits,
     -- | the keys of the residual functions being built, innermost first,
     -- for the whistle ('residualFn')
-    sBuilding :: [(Fn, [KArg])]
+    sBuilding :: [(Fn, [KArg])],
+    -- | the handlers in force, innermost first
+    sFrames :: [Frame],
+    -- | where the bodies of fused handlers return to, innermost first: the
+    -- handler's own pure case, or the site that resumed the body
+    sTargets :: [Abs -> M Term],
+    sKonts :: M.Map Int Kont,
+    sNextId :: !Int,
+    -- | the continuation a handler's case is about to capture with @shift@
+    sPending :: Maybe (Int, Reference)
   }
 
 type M = StateT S IO
@@ -171,8 +226,9 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
   Just (Lambda ccs (ABTN.TAbss vs body), locals)
     | length vs < length args -> pure (Left "more arguments than parameters")
     | otherwise ->
-        either (\(GiveUp why) -> Left why) Right <$> Control.Exception.try @GiveUp do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim []) do
+        either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
+         either (\(Escape _) -> Left "an escape from a fused handler") id <$> Control.Exception.try @Escape (Right <$> do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing) do
             argSyms <- traverse (const fresh) args
             restSyms <- traverse (const fresh) (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -196,7 +252,7 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
                   | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
                     let cs = M.findWithDefault [] f needs
                   ]
-            pure (Rec fns' entry, map snd consts)
+            pure (Rec fns' entry, map snd consts))
 
 -- | A lambda of a group, with the group's local functions by variable.
 lambdaOf :: SpecEnv -> Fn -> Maybe (SuperNormal Reference Symbol, [(Symbol, Word64)])
@@ -290,11 +346,18 @@ pe env lim e t k = tick lim >> case t of
     | otherwise -> call env lim e (Clo (Fn r 0) []) (map (look e) as) k
   TApp (FVar f) as -> call env lim e (look e f) (map (look e) as) k
   TApp (FPrim p) as -> prim env e p (map (look e) as) k
+  TApp (FReq r t) as -> request env lim e r t (map (look e) as) k
   THnd rs h Nothing body -> handler env lim e t rs h body k
-  TShift r v body -> do
-    v' <- fresh
-    body' <- pe env lim (bind v (Dyn v' BX) e) body KTail
-    dynResult k BX (TShift r v' body')
+  TShift r v body ->
+    gets sPending >>= \case
+      -- the case of a fused handler capturing its request's continuation
+      Just (kid, r') | r' == r -> do
+        modify' \st -> st {sPending = Nothing}
+        pe env lim (bind v (SKont kid) e) body k
+      _ -> do
+        v' <- fresh
+        body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
+        dynResult k BX (TShift r v' body')
   TFrc v -> case look e v of
     Dyn {} -> opaque env e t k
     a -> call env lim e a [] k
@@ -336,9 +399,11 @@ knownClosure env = \case
 -- known of the arguments. Anything else stays a call.
 call :: SpecEnv -> SpecLimits -> E -> Abs -> [Abs] -> K -> M Term
 call env lim e fa as k = case fa of
+  -- resuming the continuation of a request handled while specializing
+  Clo (Fn r 0) [SKont kid] | r == jumpCont, [v] <- as -> resume kid v k
   Clo fn caps -> callFn fn (caps ++ as)
   Known v _ | Just (fn, caps) <- knownClosure env v -> callFn fn (caps ++ as)
-  _ -> runOr (fa : as) (toVarApp fa as \g xs -> dynResult k BX (TApp (FVar g) xs))
+  _ -> runOr (fa : as) (guardFused >> toVarApp fa as \g xs -> dynResult k BX (TApp (FVar g) xs))
   where
     -- the call run on the interpreter if everything is known, otherwise the
     -- fallback
@@ -353,15 +418,20 @@ call env lim e fa as k = case fa of
       -- a builtin, or code not loaded here: a call, unless it can run
       Nothing
         | i == 0 ->
-            runOr (Clo fn [] : args) (toVars args \xs -> dynResult k BX (TApp (FComb r) xs))
+            runOr (Clo fn [] : args) do
+              when (seCallsBack env r) guardFused
+              toVars args \xs -> dynResult k BX (TApp (FComb r) xs)
         | otherwise -> liftIO . throwIO $ GiveUp "a local function with no code"
       Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals)
         | length args < lamArity lam -> ret k (Clo fn args)
         | length args > lamArity lam ->
             call env lim e (Clo fn []) (take (lamArity lam) args) . KBind BX $ \res ->
               call env lim e res (drop (lamArity lam) args) k
-        | otherwise -> runOr (Clo fn [] : args) $
-            if not (eUnderDyn e) && eDepth e < slDepth lim
+        | otherwise -> runOr (Clo fn [] : args) $ do
+            -- under a fused handler, calls are unfolded: a residual function
+            -- would take the code out of the walk's sight
+            fusedNow <- gets (any isFused . sFrames)
+            if (not (eUnderDyn e) || fusedNow) && eDepth e < slDepth lim
               then
                 pe env lim (E (M.fromList (localBinds r locals ++ zip vs args)) False (eDepth e + 1)) body k
               else do
@@ -382,6 +452,13 @@ call env lim e fa as k = case fa of
 -- as values, so that the keys stop growing.
 residualFn :: SpecEnv -> SpecLimits -> Fn -> [Abs] -> M (Symbol, [[Abs]])
 residualFn env lim fn args0 = do
+  guardFused
+  -- a continuation captured while specializing emits its code where it is
+  -- resumed, which must be in the scope of the request: never in another
+  -- lambda
+  gets (find (not . koUsed) . M.elems . sKonts) >>= \case
+    Just ko -> liftIO (throwIO (Escape (koFrame ko)))
+    Nothing -> pure ()
   building <- gets sBuilding
   let k0 = map keyOf args0
       (args, leaves) = case find (\(fn', ks) -> fn' == fn && ks /= k0 && and (zipWith embeds ks k0) && length ks == length k0) building of
@@ -483,6 +560,9 @@ safeEq x y = unsafePerformIO $ either (\(_ :: SomeException) -> False) id <$> Co
 
 keyOf :: Abs -> KArg
 keyOf = \case
+  SReq {} -> KHole BX
+  SPure {} -> KHole BX
+  SKont {} -> KHole BX
   Known v _ -> KKnown v
   Con r t fs -> KCon r t (map keyOf fs)
   Clo f as -> KClo f (map keyOf as)
@@ -493,12 +573,12 @@ dynLeaves = \case
   a@Dyn {} -> [a]
   Con _ _ fs -> concatMap dynLeaves fs
   Clo _ as -> concatMap dynLeaves as
-  Known {} -> []
+  _ -> []
 
 -- | A call of @specialize.boundary@: the call of its function on the rest
 -- of its arguments stays a call.
 boundary :: SpecEnv -> E -> [Abs] -> K -> M Term
-boundary _ _ as k = case as of
+boundary _ _ as k = guardFused >> case as of
   Clo (Fn r 0) [] : xs -> toVars xs \vs -> dynResult k BX (TApp (FComb r) vs)
   f : xs -> toVarApp f xs \g vs -> dynResult k BX (TApp (FVar g) vs)
   [] -> liftIO . throwIO $ GiveUp "boundary of nothing"
@@ -520,6 +600,20 @@ prim env _ p as k =
 -- constructor the scrutinee is.
 match :: SpecEnv -> SpecLimits -> E -> Symbol -> Branched Reference Term -> K -> M Term
 match env lim e v br k = case (look e v, br) of
+  -- a fused handler given a request: its case for it, with the request's
+  -- continuation pending for the case's shift
+  (SReq r t args kid, MatchRequest arms _)
+    | Just cs <- lookup r arms,
+      Just (_, ABTN.TAbss vs body) <- EC.lookup t cs,
+      length vs == length args -> do
+        modify' \st -> st {sPending = Just (kid, r)}
+        pe env lim (foldr (uncurry bind) e (zip vs args)) body k
+    | otherwise -> guardFused >> giveUp "a request its handler has no case for"
+  -- a fused handler given its body's value: the pure case
+  -- (the pure case binds the value, @{ a } -> ...@)
+  (SPure a, MatchRequest _ df) -> case df of
+    ABTN.TAbs u body -> pe env lim (bind u a e) body k
+    _ -> pe env lim (bind v a e) df k
   (Con _ t fs, MatchData _ cs df)
     | Just (_, ABTN.TAbss vs body) <- EC.lookup t cs,
       length vs == length fs ->
@@ -543,34 +637,199 @@ match env lim e v br k = case (look e v, br) of
     litArm Nothing (Just d) = pe env lim e d k
     litArm Nothing Nothing = dynamic
     under = e {eUnderDyn = True}
-    dynamic = toVar (look e v) \x -> do
+    dynamic = do
+      -- under a fused handler, the rest of the walk goes into each arm, so
+      -- that a request in an arm sees all of its continuation
+      fusedNow <- gets (any isFused . sFrames)
+      case k of
+        KBind {} | fusedNow -> dynamicWith k (\code -> pure code)
+        _ -> dynamicWith KTail (dynResult k BX)
+    dynamicWith kk finish = toVar (look e v) \x -> do
+      let arm e' body = isolated (pe env lim e' body kk)
       br' <- case br of
         MatchData r cs df ->
           MatchData r
-            <$> (EC.mapFromList <$> traverse (dataArm r) (EC.mapToList cs))
-            <*> traverse (tailOf under) df
-        MatchIntegral cs df -> MatchIntegral <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
-        MatchNumeric r cs df -> MatchNumeric r <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
-        MatchText cs df -> MatchText <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
-        MatchBytes cs df -> MatchBytes <$> traverse (tailOf under) cs <*> traverse (tailOf under) df
+            <$> (EC.mapFromList <$> traverse (dataArm arm r) (EC.mapToList cs))
+            <*> traverse (arm under) df
+        MatchIntegral cs df -> MatchIntegral <$> traverse (arm under) cs <*> traverse (arm under) df
+        MatchNumeric r cs df -> MatchNumeric r <$> traverse (arm under) cs <*> traverse (arm under) df
+        MatchText cs df -> MatchText <$> traverse (arm under) cs <*> traverse (arm under) df
+        MatchBytes cs df -> MatchBytes <$> traverse (arm under) cs <*> traverse (arm under) df
         MatchRequest arms df ->
           MatchRequest
-            <$> traverse (\(r, cs) -> (r,) . EC.mapFromList <$> traverse requestArm (EC.mapToList cs)) arms
-            <*> tailOf under df
-        _ -> liftIO . throwIO $ GiveUp "match form"
-      dynResult k BX (TMatch x br')
-    dataArm r (t, (ms, ABTN.TAbss vs body)) = do
+            <$> traverse (\(r, cs) -> (r,) . EC.mapFromList <$> traverse (requestArm arm) (EC.mapToList cs)) arms
+            <*> pureArm arm df
+        _ -> giveUp "match form"
+      finish (TMatch x br')
+    dataArm arm r (t, (ms, ABTN.TAbss vs body)) = do
       vs' <- traverse (const fresh) vs
       let fields = zipWith Dyn vs' ms
           e' = foldr (uncurry bind) (bind v (Con r t fields) under) (zip vs fields)
-      body' <- pe env lim e' body KTail
+      body' <- arm e' body
       pure (t, (ms, ABTN.TAbss vs' body'))
-    tailOf e' body = pe env lim e' body KTail
-    requestArm (t, (ms, ABTN.TAbss vs body)) = do
+    -- the pure case of a handler binds the value
+    pureArm arm = \case
+      ABTN.TAbs u body -> do
+        u' <- fresh
+        ABTN.TAbs u' <$> arm (bind u (Dyn u' BX) under) body
+      body -> arm under body
+    requestArm arm (t, (ms, ABTN.TAbss vs body)) = do
       vs' <- traverse (const fresh) vs
       let e' = foldr (uncurry bind) under (zip vs (zipWith Dyn vs' ms))
-      body' <- pe env lim e' body KTail
+      body' <- arm e' body
       pure (t, (ms, ABTN.TAbss vs' body'))
+
+-- | A walk whose changes to the handlers in force are undone afterwards:
+-- the arms of a match are walked one after the other, each from the same
+-- state.
+isolated :: M a -> M a
+isolated act = do
+  st <- get
+  r <- act
+  modify' \st' -> st' {sFrames = sFrames st, sTargets = sTargets st, sKonts = sKonts st, sPending = sPending st}
+  pure r
+
+giveUp :: String -> M a
+giveUp = liftIO . throwIO . GiveUp
+
+jumpCont :: Reference
+jumpCont = Builtin "jumpCont"
+
+isFused :: Frame -> Bool
+isFused Fused {} = True
+isFused Barrier = False
+
+-- | Escapes to the innermost fused handler, if there is one: the code
+-- about to be produced could perform its requests unseen.
+guardFused :: M ()
+guardFused =
+  gets (find isFused . sFrames) >>= \case
+    Just f -> liftIO (throwIO (Escape (frId f)))
+    Nothing -> pure ()
+
+-- | A walk with a kept handler in force: a barrier to fused ones outside.
+withBarrier :: M a -> M a
+withBarrier act = do
+  modify' \st -> st {sFrames = Barrier : sFrames st}
+  r <- act
+  modify' \st -> st {sFrames = drop 1 (sFrames st)}
+  pure r
+
+-- | A request. One a fused handler handles: the handler's case for it,
+-- whose value is the @handle@'s, with the rest of the walk as the
+-- request's continuation. One no fused handler handles: kept.
+request :: SpecEnv -> SpecLimits -> E -> Reference -> CTag -> [Abs] -> K -> M Term
+request env lim e r t args k = do
+  frames <- gets sFrames
+  case route frames 0 of
+    Nothing -> toVars args \xs -> dynResult k BX (TReq r t xs)
+    Just (Left fid) -> liftIO (throwIO (Escape fid))
+    Just (Right j) -> do
+      let f = frames !! j
+      rest <- case k of
+        KBind _ g -> pure g
+        KTail -> liftIO (throwIO (Escape (frId f)))
+      targets <- gets sTargets
+      kid <- gets sNextId
+      let above = length targets - frDepth f - 1
+      modify' \st ->
+        st
+          { sFrames = drop (j + 1) frames,
+            sTargets = drop (above + 1) targets,
+            sKonts = M.insert kid (Kont rest (take j frames) (take above targets) (frId f) False) (sKonts st),
+            sNextId = kid + 1
+          }
+      callHandler env lim e (frHandler f) (SReq r t args kid) (frOuter f)
+  where
+    -- the frame handling the request: Nothing for none, Left to escape to a
+    -- fused handler behind a barrier
+    route [] _ = Nothing
+    route (Barrier : fs) _ = Left . frId <$> find (\f -> isFused f && r `elem` frRefs f) fs
+    route (f : fs) j
+      | r `elem` frRefs f = Just (Right j)
+      | otherwise = route fs (j + 1)
+
+-- | A fused handler applied to a request or to its body's value.
+callHandler :: SpecEnv -> SpecLimits -> E -> Abs -> Abs -> K -> M Term
+callHandler env lim e h arg k = case h of
+  Clo fn@(Fn r _) caps
+    | Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals) <- lambdaOf env fn,
+      length caps + 1 == lamArity lam ->
+        pe env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1)) body k
+  Known v _ | Just (fn, caps) <- knownClosure env v -> callHandler env lim e (Clo fn caps) arg k
+  _ -> guardFused >> giveUp "a fused handler that isn't a known function"
+
+-- | Resuming a continuation captured while specializing: the walk goes on
+-- from the request, with the value as its result, the frames and targets
+-- between it and its handler put back, and the resumption site as where
+-- the body returns. A second resumption escapes, for now.
+resume :: Int -> Abs -> K -> M Term
+resume kid v k = do
+  gets (M.lookup kid . sKonts) >>= \case
+    Nothing -> giveUp "an unknown continuation"
+    Just ko
+      | koUsed ko -> liftIO (throwIO (Escape (koFrame ko)))
+      | otherwise -> do
+          modify' \st ->
+            st
+              { sKonts = M.insert kid ko {koUsed = True} (sKonts st),
+                sFrames = koFrames ko ++ sFrames st,
+                sTargets = koTargets ko ++ (ret k : sTargets st)
+              }
+          koRest ko v
+
+-- | A handler over a body. If everything the term uses is known, it runs.
+-- If the handler is a known function over abilities builtins can't
+-- request, it is fused: requests the walk reaches are handled as it goes.
+-- Otherwise, or if fusing escapes, the handler stays and the body under it
+-- is specialized, its requests kept.
+handler :: SpecEnv -> SpecLimits -> E -> Term -> [Reference] -> Symbol -> Term -> K -> M Term
+handler env lim e t rs h body k =
+  runIfKnown env e t >>= \case
+    Just v -> ret k (Known v Nothing)
+    Nothing
+      | fusable (look e h) -> fused
+      | otherwise -> kept
+  where
+    fusable = \case
+      Clo fn _ -> all ordinaryAbility rs && isJust (lambdaOf env fn)
+      Known v _ -> all ordinaryAbility rs && isJust (knownClosure env v)
+      _ -> False
+    ordinaryAbility r = case r of
+      Builtin _ -> False
+      _ -> r /= exceptionRef
+    kept = toVar (look e h) \h' -> do
+      body' <- withBarrier (pe env lim e body KTail)
+      dynResult k BX (THnd rs h' Nothing body')
+    fused = do
+      fid <- gets sNextId
+      modify' \st -> st {sNextId = fid + 1}
+      s0 <- get
+      let attempt = do
+            d <- gets (length . sTargets)
+            modify' \st ->
+              st
+                { sFrames = Fused fid rs (look e h) k d : sFrames st,
+                  sTargets = pureCase : sTargets st
+                }
+            pe env lim e body . KBind BX $ \a -> do
+              tgt <- popTarget
+              tgt a
+          pureCase a = do
+            modify' \st -> st {sFrames = dropFused fid (sFrames st)}
+            callHandler env lim e (look e h) (SPure a) k
+      liftIO (Control.Exception.try (runStateT attempt s0)) >>= \case
+        Right (code, s1) -> put s1 >> pure code
+        Left (Escape i)
+          | i == fid -> put s0 >> kept
+          | otherwise -> liftIO (throwIO (Escape i))
+    dropFused fid = \case
+      (f@Fused {} : fs) | frId f == fid -> fs
+      fs -> fs
+    popTarget =
+      gets sTargets >>= \case
+        tgt : ts -> tgt <$ modify' \st -> st {sTargets = ts}
+        [] -> giveUp "no target for a fused handler's body"
 
 -- | The constructor tag and fields of a known data value.
 knownData :: Val -> Maybe (CTag, [Val])
@@ -601,7 +860,7 @@ knownVal env = \case
     allKnown env as >>= \case
       Just vs -> liftIO (seClosure env r i vs)
       Nothing -> pure Nothing
-  Dyn {} -> pure Nothing
+  _ -> pure Nothing
 
 toVarApp :: Abs -> [Abs] -> (Symbol -> [Symbol] -> M Term) -> M Term
 toVarApp f as k = toVar f \g -> toVars as (k g)
@@ -617,6 +876,9 @@ toVars (a : as) k = toVar a \x -> toVars as \xs -> k (x : xs)
 toVar :: Abs -> (Symbol -> M Term) -> M Term
 toVar a k = case a of
   Dyn x _ -> k x
+  SReq {} -> guardFused >> giveUp "a request as a value"
+  SPure {} -> guardFused >> giveUp "a handler's pure case as a value"
+  SKont {} -> guardFused >> giveUp "a continuation as a value"
   Known _ (Just s) -> k s
   Known v Nothing -> case v of
     NatVal n -> lit UN (TLit (N n))
@@ -634,6 +896,7 @@ toVar a k = case a of
   -- otherwise a closure of a residual function specialized on what is
   -- known of the captured values, whose remaining parameters are holes
   Clo fn@(Fn r i) as -> do
+    guardFused
     env <- gets sEnv
     lim <- gets sLim
     case lambdaOf env fn of
@@ -655,17 +918,6 @@ toVar a k = case a of
       pure (TName x f xs rest)
     isDyn Dyn {} = True
     isDyn _ = False
-
--- | A handler installed over a body. If everything the term uses is known,
--- it runs. Otherwise the handler stays, and the body under it is
--- specialized, its requests kept.
-handler :: SpecEnv -> SpecLimits -> E -> Term -> [Reference] -> Symbol -> Term -> K -> M Term
-handler env lim e t rs h body k =
-  runIfKnown env e t >>= \case
-    Just v -> ret k (Known v Nothing)
-    Nothing -> toVar (look e h) \h' -> do
-      body' <- pe env lim e body KTail
-      dynResult k BX (THnd rs h' Nothing body')
 
 -- | A term whose free variables are all known, run on the interpreter.
 runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
@@ -700,6 +952,7 @@ opaque env e t k =
 
 keepOpaque :: E -> Term -> K -> M Term
 keepOpaque e t k = do
+  guardFused
   let fvs = S.toList (ABTN.freeVars t)
   toVars (map (look e) fvs) \xs -> do
     t' <- renumber (ABTN.renames (M.fromList (zip fvs xs)) t)

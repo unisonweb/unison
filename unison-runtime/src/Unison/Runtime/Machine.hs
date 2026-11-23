@@ -2412,7 +2412,9 @@ specializeClosure cc val = case val of
                 made <- SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
                 when specializeDebug $ case made of
                   Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
-                  Right (g, _) -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group g)) ++ " residual functions")
+                  Right (g, _) -> do
+                    hPutStrLn stderr ("[specialize] " ++ show r ++ ": " ++ show (length (ANF.group g)) ++ " residual functions")
+                    hPutStrLn stderr (ANF.prettyGroup @Symbol (show sref) g "")
                 let (grp, extras) = either (const (identity, [])) id made
                 sands <- readTVarIO (sandbox cc)
                 let sand = M.findWithDefault mempty r sands
@@ -2456,8 +2458,27 @@ specEnv cc groups =
       SP.seData = mkData,
       SP.seClosure = mkClosure cc,
       SP.seBoundary = Builtin "specialize.boundary",
-      SP.seRunTerm = runTerm cc
+      SP.seRunTerm = runTerm cc,
+      SP.seCallsBack = (`S.member` callingBack)
     }
+
+-- | The builtins that can call back into Unison code, from their code:
+-- those that apply or force one of their arguments, resume a continuation
+-- or fork, run a transaction or catch.
+callingBack :: S.Set Reference
+callingBack =
+  S.fromList [r | (r, (_, ANF.Lambda _ (ABTN.TAbss vs body))) <- M.toList builtinLookup, callsBack (S.fromList vs) body]
+  where
+    callsBack vs = any (calling vs) . nodes
+    calling vs = \case
+      ANF.AApp (ANF.FVar f) _ -> S.member f vs
+      ANF.AApp (ANF.FCont _) _ -> True
+      ANF.AFrc f -> S.member f vs
+      ANF.AApp (ANF.FPrim (Left op)) _ -> op `elem` [ANF.FORK, ANF.ATOM, ANF.TFRC]
+      _ -> False
+    nodes = \case
+      ABTN.TAbs _ b -> nodes b
+      ABTN.TTm x -> x : foldMap nodes x
 
 -- | A term run on the interpreter with values for its free variables,
 -- through a group of its own whose parameters they are, loaded the first

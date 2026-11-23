@@ -420,19 +420,34 @@ its continuation, not whether the handler is affine:
   match on requests, its `shift`) is specialized like any other. An interpreter that uses
   an ability for errors loses all of its interpretive overhead this way, with its errors
   still real requests.
-- **Fusing the handler away** (not done yet): with the handler known, a request the walk
-  reaches inside its body can be handled while specializing. A case that doesn't resume
-  drops the rest of the body, and a case that resumes once at its end
-  (`handle k v with h'`, the shape of state, reader and writer handlers) continues the walk
-  with `v` as the request's result and `h'` as the handler from then on, so the handler,
-  and the state it carries, disappear from the output. It is all or nothing for a
-  `handle`: once its handler is gone, no residual code in its scope (a call of an unknown
-  function, of original code, a request the walk couldn't handle) may perform its
-  requests, so the walk would try it and fall back to keeping the handler. A loop in the
-  handler's scope becomes a residual function, which then has to take the handler's state
-  and return it (state passing, generated). Cases that resume more than once, or keep the
-  continuation, need the rest of the body as a value: a residual function for it, up to
-  the `handle`.
+- **Fusing the handler away.** A `handle` whose handler is a known function, over
+  abilities no builtin requests (not `IO` or `Exception`), is fused: no `handle` is made,
+  and a request the walk reaches is handled as it goes ([`request`](ANF/Specialize.hs)).
+  The handler is unfolded on a static request (`SReq`), whose match picks the case and
+  whose `shift` binds a static continuation (`SKont`): the rest of the walk from the
+  request. Resuming it (a call of `jumpCont` on it) carries on the walk, with the frames
+  between the request and its handler put back, and the resumption site as where the body
+  returns: the walker keeps the handlers in force (`sFrames`) and where each body returns
+  (`sTargets`, a metacontinuation) in its state. So a case that doesn't resume drops the
+  rest of the body, `handle k v with h'` carries on under `h'`, and a plain `k v` returns
+  to the case. Under a fused handler, calls are unfolded rather than made residual
+  functions, and the rest of the walk goes into each arm of an unknown match, so that every
+  request sees all of its continuation.
+
+  It is all or nothing for a `handle`: anything in its scope that could perform its requests
+  unseen escapes (`Escape`) back to the `handle`, which rolls the walk's state back and keeps
+  the handler. That is a call of an unknown function, code kept as it is, a builtin that
+  calls back into Unison code (`jumpCont`, a fork, a transaction: read off the builtins'
+  own code), a request behind a kept handler, a second resumption of the same continuation,
+  and a residual function, while a handler is fused or a captured continuation waits
+  (its code would land in another lambda, out of the request's scope). So straight-line
+  code fuses, and so does an interpreter over a program with no loops: the transcript has
+  a state handler becoming arithmetic and an abort becoming a branch.
+
+  Still to do: loops. A loop in a fused handler's scope becomes a residual function, which
+  has to take the handler's state and return it (state passing, generated). And cases that
+  resume more than once, which need the rest of the body as a residual function up to the
+  `handle`.
 
 ## Limits
 
@@ -512,7 +527,8 @@ its continuation, not whether the handler is affine:
 7. **Abilities.** Running known code with handlers, and keeping handlers with their
    bodies specialized, are done: the transcript has a state handler over known code
    becoming a constant, and an interpreter with an abort ability specialized inside its
-   handler. Fusing handlers away is next (see [Abilities](#abilities)).
+   handler. Fusing handlers away works for code with no loops in the handler's scope;
+   loops are next (see [Abilities](#abilities)).
 
 ## Open questions
 

@@ -836,7 +836,7 @@ scratch/main> add
                 {abort σ17} ->
                   cont1 = shift {Abort}
                   None
-                {a} -> Some a
+                {σ18} -> Some σ18
             σ4 = partialApply σ1
             handle {Abort}
               σ5 = 0
@@ -845,5 +845,125 @@ scratch/main> add
                 false -> σ σ3
                 _ -> 1
             with σ4
+          """
+```
+
+A known handler is fused away where the specializer can see every request it handles: the
+case for each request runs while specializing, and resuming the continuation carries on with
+the rest of the body. State becomes plain values:
+
+``` unison
+stF : Nat -> Nat -> Nat
+stF s n = runSt s do
+  St.put (St.get Nat.+ n)
+  St.put (St.get Nat.* 2)
+  St.get
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + stF : Nat -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize stF 1 5
+> runtime.ir (specialize stF 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize stF 1 5
+          ⧩
+          12
+
+    2 | > runtime.ir (specialize stF 1)
+          ⧩
+          """
+          -- specialize
+          --   (s n ->
+          --     runSt s do
+          --       use Nat * +
+          --       use St get
+          --       put (get + n)
+          --       put (get * 2)
+          --       get) 1
+          #k8ughu55rj σ σ1 =
+            σ2 = σ Nat.+ σ1
+            σ3 = 2
+            σ2 Nat.* σ3
+          """
+```
+
+An abort becomes a branch, for an interpreted program with no loops:
+
+``` unison
+poly : [Expr]
+poly = [Sub (Mul Arg Arg) (Num 10)]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + poly : [Expr]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize runA poly 5
+> specialize runA poly 2
+> runtime.ir (specialize runA poly)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize runA poly 5
+          ⧩
+          Some 15
+
+    2 | > specialize runA poly 2
+          ⧩
+          None
+
+    3 | > runtime.ir (specialize runA poly)
+          ⧩
+          """
+          -- specialize
+          --   (prog x ->
+          --     (handle evalA prog (Call 0 Arg) x
+          --     with cases
+          --       { a }            -> Some a
+          --       { abort _ -> _ } -> None)) [Sub (Mul Arg Arg) (Num 10)]
+          #576qjmjsg7 σ σ1 =
+            σ2 = σ1 Nat.* σ1
+            σ3 = 10
+            σ4 = Nat.lt σ2 σ3
+            match σ4 with
+              false ->
+                σ5 = 10
+                σ6 = Nat.drop σ2 σ5
+                Some σ6
+              _ -> None
           """
 ```
