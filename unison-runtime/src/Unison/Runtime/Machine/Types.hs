@@ -210,11 +210,13 @@ data CCache prof = CCache
     baseNums :: TVar (EnumMap Word64 Word64),
     -- each group @specialize@ generated, by reference: the combinator of
     -- the closure it was made from, how many arguments that closure had,
-    -- which are the first arguments of the specialized closure, and the
-    -- constants the generated code takes after them
+    -- which are the first arguments of the specialized closure, the
+    -- constants the generated code takes after them, and whether those
+    -- can be reused for another closure the reference stands for (not when
+    -- one holds a mutable value, Machine.specializedRef)
     -- (Machine.specializeClosure). Reflection writes a specialized closure
     -- as the closure it was made from ('ANF.Specialized').
-    specializations :: TVar (M.Map Reference (CombIx, Int, [Val])),
+    specializations :: TVar (M.Map Reference (CombIx, Int, [Val], Bool)),
     -- whether the code of a reference may run while specializing: it reaches
     -- no builtin that can do IO or touch mutable state (Machine.knownRunnable)
     runnableRefs :: TVar (M.Map Reference Bool),

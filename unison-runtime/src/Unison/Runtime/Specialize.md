@@ -95,10 +95,16 @@ array, a `TVar`, a handle, or a captured continuation.
   the values it saved. The first version treats one as an opaque constant too, and a
   resume of it is residualized. Unfolding a known continuation's frames is possible later,
   and it would compile "the rest of the computation" with the saved values folded in.
-- **Identity and the memo table:** a closure holding one of these can't be serialized, so
-  its contents can't be hashed. It gets a fresh reference instead
-  ([`specializedRef`](Machine.hs)): it is equal only to itself, and specializing it again
-  generates its code again.
+- **Identity and the memo table:** the reference of a specialization is a hash of the
+  closure with each value that can't be serialized (a mutable reference, a handle) written
+  as one placeholder ([`specializedRef`](Machine.hs)). The code doesn't depend on which
+  such value it is, because they never enter known computation (`runKnown` refuses values
+  holding one), so closures that differ only in their mutable values share the generated
+  code, while each holds its own values, which keeps their identities apart: equal for the
+  same reference, not for different ones. Specializing in a loop over a closure holding a
+  ref generates code once. A constant the walk took out of a mutable value (a ref in a
+  record the closure holds) is the closure's own; such a specialization is marked in the
+  table, and a repeat walks the code again for its constants, loading nothing.
 - **When `f x` isn't a closure:** this covers `f` being a continuation, in which case
   `f x` resumes it. `specialize` returns the result of `f x` unchanged.
 

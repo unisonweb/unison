@@ -2407,7 +2407,13 @@ specializeClosure cc val = case val of
             sref <- specializedRef cc val
             specs <- readTVarIO (specializations cc)
             extras <- case M.lookup sref specs of
-              Just (_, _, extras) -> pure extras
+              Just (_, _, extras, True) -> pure extras
+              -- the code is shared, but some constants were taken out of a
+              -- mutable value, so they are this closure's own: walked again,
+              -- with nothing loaded
+              Just (_, _, _, False) ->
+                either (const []) snd
+                  <$> SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
               Nothing -> do
                 made <- SP.specializeLambda (specEnv cc groups) SP.defaultSpecLimits r i captured
                 when specializeDebug $ case made of
@@ -2423,7 +2429,7 @@ specializeClosure cc val = case val of
                 unless (M.member sref groups) $
                   cacheAdd0 S.empty [(sref, CodeRep grp Uncacheable)] [(sref, sand)] cc {profiler = ()}
                 atomically . modifyTVar' (specializations cc) $
-                  M.insert sref (cix, length captured, extras)
+                  M.insert sref (cix, length captured, extras, not (any containsMutable extras))
                 pure extras
             result <- mkClosure cc sref 0 (captured ++ extras)
             -- whoever specializes expects the result to be hot: ask the JIT
@@ -2558,14 +2564,17 @@ runPrim cc p vs
 
 -- | The reference of the group specializing a closure: a hash of the
 -- closure, as the value hash serializes it, under a prefix that keeps it
--- apart from any codebase hash. A closure that can't be serialized (it
--- holds a mutable reference, say) gets a fresh reference instead, so it is
--- equal only to itself.
+-- apart from any codebase hash. A value that can't be serialized (a mutable
+-- reference, a handle) is hashed as a placeholder: the code doesn't depend
+-- on which it is, since such values never enter known computation
+-- ('runKnown'), and the closures still differ, each holding its own.
+-- A closure that can't be reflected for another reason gets a fresh
+-- reference.
 specializedRef :: CCache p -> Val -> IO Reference
 specializedRef cc val = do
   bytes <-
     -- (tryAny passes asynchronous exceptions on)
-    UnliftIO.tryAny (reflectValue cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
+    UnliftIO.tryAny (reflectValueWith True cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
       Right bs -> pure bs
       Left _ -> do
             u <- atomicModifyIORef' freshSpecializations \n -> (n + 1, n)
@@ -2614,8 +2623,10 @@ defaultKnownLimits = KnownLimits {knownFuel = 1000000, knownMicros = 200000}
 -- itself. Fewer arguments than the function takes give a closure, more
 -- apply the result to the rest.
 runKnown :: CCache p -> KnownLimits -> Val -> [Val] -> IO (Maybe Val)
-runKnown cc lim f args =
-  knownRunnable cc (f : args) >>= \case
+runKnown cc lim f args
+  -- which mutable value it is mustn't shape the code (specializedRef)
+  | any containsMutable (f : args) = pure Nothing
+  | otherwise = knownRunnable cc (f : args) >>= \case
     False -> pure Nothing
     True -> do
       fuel <- newIORef (knownFuel lim)
@@ -2672,6 +2683,32 @@ knownRunnable cc vals = do
           else M.union m (M.fromList [(r, False) | r <- roots])
       pure ok
 
+-- | Whether a value holds anything that can't be serialized: a mutable
+-- reference, a mutable array, a handle.
+containsMutable :: Val -> Bool
+containsMutable = \case
+  BoxedVal c -> go c
+  _ -> False
+  where
+    go = \case
+      PAp _ _ (_, bseg) -> any go bseg
+      DataC _ vs -> any containsMutable vs
+      RecordC _ vs -> any containsMutable vs
+      Captured _ _ (_, bseg) -> any go bseg
+      ListC vs -> any containsMutable vs
+      Foreign f -> case f of
+        WrapArray a -> any containsMutable a
+        WrapMap m -> any (\(x, y) -> containsMutable x || containsMutable y) (M.toList m)
+        WrapReferent _ -> False
+        WrapReference _ -> False
+        WrapValue _ -> False
+        WrapCode _ -> False
+        WrapByteArray _ -> False
+        WrapInteger _ -> False
+        WrapNatural _ -> False
+        _ -> True
+      _ -> False
+
 -- | The builtins that operate on mutable state, which known code may not
 -- use: its result could change between now and run time.
 stateBuiltin :: Reference -> Bool
@@ -2725,7 +2762,7 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
     captured <- traverse reflectOrSay (segToList args)
     let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
         origin = case M.lookup r specs of
-          Just (CIx o _ oi, _, _) | Nothing <- irValue (irPrinter cc) val ->
+          Just (CIx o _ oi, _, _, _) | Nothing <- irValue (irPrinter cc) val ->
             showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
           _ -> id
         closure = case irValue (irPrinter cc) val of
@@ -2758,7 +2795,14 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
         Left _ -> "<a value that can't be reflected>"
 
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
-reflectValue env val = do
+reflectValue = reflectValueWith False
+
+-- | Reflection, with each foreign value that can't be serialized (a mutable
+-- reference, a handle) written as one placeholder when the flag is set,
+-- rather than failing: for the reference of a specialization, whose code
+-- doesn't depend on such values ('specializedRef').
+reflectValueWith :: Bool -> CCache p -> Val -> IO (Referenced ANF.Value)
+reflectValueWith placeholders env val = do
   cmbs <- readTVarIO (combs env)
   tyr <- TN.typeReferences
   tmr <- readTVarIO (combRefs env)
@@ -2770,7 +2814,7 @@ reflectValue env val = do
   bns <- readTVarIO (baseNums env)
   let tmr' = tmr <> EC.mapFromList [(nb, r) | (n, nb) <- EC.mapToList bns, Just r <- [EC.lookup n tmr]]
   specs <- readTVarIO (specializations env)
-  reflectValue0 cmbs bns tyr tmr' specs val
+  reflectValue0 placeholders cmbs bns tyr tmr' specs val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -2865,14 +2909,15 @@ nativeMapPairs = go []
 -- embedded values (or code), which could be costly. To avoid that
 -- cost, avoid having lots of nested reflected values.
 reflectValue0 ::
+  Bool ->
   EnumMap Word64 MCombs ->
   EnumMap Word64 Word64 ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
-  M.Map Reference (CombIx, Int, [Val]) ->
+  M.Map Reference (CombIx, Int, [Val], Bool) ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 cmbs bns rty rtm specs = goV0
+reflectValue0 placeholders cmbs bns rty rtm specs = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
     layout = frameLayout cmbs
@@ -2903,7 +2948,7 @@ reflectValue0 cmbs bns rty rtm specs = goV0
           -- from, which the receiver specializes again (CCache's
           -- specializations)
           PAp cix _rComb args
-            | Just (ocix, n, extras) <- M.lookup (combRef cix) specs ->
+            | Just (ocix, n, extras, _) <- M.lookup (combRef cix) specs ->
                 -- the closure's own arguments, without the constants the
                 -- generated code takes after them
                 let vs = segToList args
@@ -2995,7 +3040,9 @@ reflectValue0 cmbs bns rty rtm specs = goV0
           <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) (M.toList m)
       WrapInteger i -> pure (ANF.BigInt i)
       WrapNatural n -> pure (ANF.BigNat n)
-      _ -> reflExn "foreign value"
+      _
+        | placeholders -> pure (ANF.Text (Util.Text.pack "\0unison specialize: a value that can't be serialized\0"))
+        | otherwise -> reflExn "foreign value"
 
 data ReflectExn = ReflectExn String deriving (Show)
 

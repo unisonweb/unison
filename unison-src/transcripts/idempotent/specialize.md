@@ -1114,3 +1114,62 @@ of an unknown function; the code under it is still specialized:
             with σ4
           """
 ```
+
+## Mutable values
+
+A specialization's code doesn't depend on which mutable value a closure holds, so closures
+that differ only in their mutable values share it, while each keeps its own: specializing
+`readPlus` on two refs, and on one of them a thousand more times, generates its code once.
+Constants taken out of a mutable value (the ref in a pair, here) are each closure's own.
+
+``` unison
+readPlus : Ref {IO} Nat -> Nat ->{IO} Nat
+readPlus r n = Ref.read r Nat.+ n
+
+pairPlus : (Ref {IO} Nat, Nat) -> Nat ->{IO} Nat
+pairPlus p n = match p with (r, k) -> Ref.read r Nat.+ k Nat.+ n
+
+specializeMany : Nat -> Ref {IO} Nat -> ()
+specializeMany i r = if Nat.eq i 0 then () else
+  _ = specialize readPlus r
+  specializeMany (Nat.drop i 1) r
+
+mutableCases : '{IO, Exception} (Nat, Nat, Boolean, Boolean, Nat, Nat)
+mutableCases = do
+  r1 = IO.ref 1
+  r2 = IO.ref 100
+  f1 = specialize readPlus r1
+  f1' = specialize readPlus r1
+  f2 = specialize readPlus r2
+  Ref.write r1 10
+  specializeMany 1000 r1
+  g1 = specialize pairPlus (r1, 5)
+  g2 = specialize pairPlus (r2, 5)
+  (f1 1, f2 1, (Universal.==) f1 f1', (Universal.==) f1 f2, g1 1, g2 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + mutableCases   : '{IO, Exception} ( Nat,
+                       Nat,
+                       Boolean,
+                       Boolean,
+                       Nat,
+                       Nat)
+  + pairPlus       : (Ref {IO} Nat, Nat) -> Nat ->{IO} Nat
+  + readPlus       : Ref {IO} Nat -> Nat ->{IO} Nat
+  + specializeMany : Nat -> Ref {IO} Nat -> ()
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+
+scratch/main> run mutableCases
+
+  (11, 101, true, false, 16, 106)
+```
