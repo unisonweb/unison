@@ -661,11 +661,16 @@ residualFnWith env lim mframe fn args0 = do
     Nothing -> do
       nfns <- gets (M.size . sMemo)
       when (nfns >= slFunctions lim) . liftIO . throwIO $ GiveUp "functions"
-      -- named after the function it specializes: a local function by its
-      -- binder, a group by its name in the codebase
+      -- named after the function it specializes, with a prime, so that it
+      -- never reads as that function, which the code may also call: a
+      -- local function by its binder, a group by its name in the codebase
       f <- case lambdaOf env fn of
-        Just (_, locals) | Fn _ i <- fn, Just (v, _) <- find ((== i) . snd) locals -> freshNamed v
-        _ | Fn r 0 <- fn, Just n <- seName env r -> freshNamed (syn n)
+        Just (_, locals)
+          | Fn _ i <- fn,
+            Just (v, _) <- find ((== i) . snd) locals,
+            Var.User n <- Var.typeOf v ->
+              freshNamed (syn (n <> "'"))
+        _ | Fn r 0 <- fn, Just n <- seName env r -> freshNamed (syn (n <> "'"))
         _ -> freshNamed (syn "fn")
       modify' \s -> s {sMemo = M.insert key f (sMemo s)}
       case lambdaOf env fn of

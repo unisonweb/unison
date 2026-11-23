@@ -439,14 +439,14 @@ A recursive program becomes a recursive function, with no trace of the interpret
           --           None -> bug "no such function"))
           --   (Call 0 Arg)
           #he1qjbhhqu prog e x =
-            eval x1 =
+            eval' x1 =
               lit1 = 1
               v2 = Nat.drop x1 lit1
               lit2 = 0
               v3 = Nat.eq v2 lit2
               v4 =
                 match v3 with
-                  false -> eval v2
+                  false -> eval' v2
                   _ ->
                     lit3 = 1
                     lit3
@@ -454,7 +454,7 @@ A recursive program becomes a recursive function, with no trace of the interpret
             lit = 0
             v1 = Nat.eq x lit
             match v1 with
-              false -> eval x
+              false -> eval' x
               _ -> 1
           """
 ```
@@ -519,13 +519,13 @@ scratch/main> add
           --         x +: rest -> go (acc :+ f x) rest
           --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
           #gj43ai3imv f c c1 xs =
-            map$go acc x1 =
+            map$go' acc x1 =
               v4 = ##List.viewl x1
               match v4 with
                 VElem x2 rest1 ->
                   v5 = fn x2
                   v6 = acc :+ v5
-                  map$go v6 rest1
+                  map$go' v6 rest1
                 VEmpty -> acc
             fn x3 =
               lit = 2
@@ -537,7 +537,7 @@ scratch/main> add
               VElem x rest ->
                 v2 = fn x
                 v3 = c :+ v2
-                map$go v3 rest
+                map$go' v3 rest
               VEmpty -> c1
           """
 
@@ -553,18 +553,18 @@ scratch/main> add
           --     []        -> z
           --     x +: rest -> foldLeft f (f z x) rest)) (Nat.+)
           #m3rbk3p595 f z x1 =
-            foldLeft z1 x2 =
+            foldLeft' z1 x2 =
               v3 = ##List.viewl x2
               match v3 with
                 VElem x3 rest1 ->
                   v4 = z1 Nat.+ x3
-                  foldLeft v4 rest1
+                  foldLeft' v4 rest1
                 VEmpty -> z1
             v1 = ##List.viewl x1
             match v1 with
               VElem x rest ->
                 v2 = z Nat.+ x
-                foldLeft v2 rest
+                foldLeft' v2 rest
               VEmpty -> z
           """
 ```
@@ -631,8 +631,8 @@ scratch/main> add
           --   (prog x -> evalK prog (Call 0 Arg) x (v -> v))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
           #2qmmp45ssf prog x =
-            evalK$Lambda2$Lambda0 va vb = va Nat.* vb
-            evalK x1 k =
+            evalK$Lambda2$Lambda0' va vb = va Nat.* vb
+            evalK' x1 k =
               lit4 = 1
               v4 = Nat.drop x1 lit4
               lit5 = 0
@@ -640,7 +640,7 @@ scratch/main> add
               match v5 with
                 false ->
                   clo1 = partialApply evalK$Lambda2$Lambda0 k x1
-                  evalK v4 clo1
+                  evalK' v4 clo1
                 _ ->
                   lit6 = 1
                   v6 = x1 Nat.* lit6
@@ -655,8 +655,8 @@ scratch/main> add
                 v3 = Nat.eq v2 lit2
                 match v3 with
                   false ->
-                    clo = partialApply evalK$Lambda2$Lambda0 x
-                    evalK v2 clo
+                    clo = partialApply evalK$Lambda2$Lambda0' x
+                    evalK' v2 clo
                   _ ->
                     lit3 = 1
                     x Nat.* lit3
@@ -814,7 +814,7 @@ scratch/main> add
           --       { abort _ -> _ } -> None))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
           #0nklekfqfs prog x =
-            evalA x1 =
+            evalA' x1 =
               lit1 = 1
               v2 = Nat.lt x1 lit1
               match v2 with
@@ -825,7 +825,7 @@ scratch/main> add
                   v4 = Nat.eq v3 lit3
                   match v4 with
                     false ->
-                      r4 = evalA v3
+                      r4 = evalA' v3
                       match r4 with
                         Right p2 ->
                           match p2 with
@@ -836,7 +836,7 @@ scratch/main> add
                               Right p3
                         Left done2 -> Left done2
                     _ ->
-                      r7 = evalA1 v3
+                      r7 = evalA'1 v3
                       match r7 with
                         Right p4 ->
                           match p4 with
@@ -849,7 +849,7 @@ scratch/main> add
                 _ ->
                   con = None
                   Left con
-            evalA1 x2 =
+            evalA'1 x2 =
               lit4 = 1
               nil2 = ()
               p6 = Cons lit4 nil2
@@ -858,14 +858,14 @@ scratch/main> add
             v1 = Nat.eq x lit
             match v1 with
               false ->
-                r = evalA x
+                r = evalA' x
                 match r with
                   Right p ->
                     match p with
                       Cons r1 rest -> Some r1
                   Left done -> done
               _ ->
-                r2 = evalA1 x
+                r2 = evalA'1 x
                 match r2 with
                   Right p1 ->
                     match p1 with
@@ -1015,7 +1015,7 @@ Around a loop, the state is passed to the loop and returned from it:
           """
           -- specialize (s n -> runSt s do count n) 0
           #8bdou15p4k s n =
-            count n1 v4 =
+            count' n1 v4 =
               lit2 = 0
               v5 = Nat.eq n1 lit2
               match v5 with
@@ -1023,7 +1023,7 @@ Around a loop, the state is passed to the loop and returned from it:
                   v6 = v4 Nat.+ n1
                   lit3 = 1
                   v7 = Nat.drop n1 lit3
-                  count v7 v6
+                  count' v7 v6
                 _ ->
                   p1 = (v4, v4)
                   Right p1
@@ -1034,7 +1034,7 @@ Around a loop, the state is passed to the loop and returned from it:
                 v2 = s Nat.+ n
                 lit1 = 1
                 v3 = Nat.drop n lit1
-                r = count v3 v2
+                r = count' v3 v2
                 match r with
                   Right p ->
                     match p with
@@ -1073,39 +1073,39 @@ of an unknown function; the code under it is still specialized:
           --       put (f get)
           --       get) 3
           #aqe3doh5bf s f =
-            f1 s v3 =
+            fn s v3 =
               match v3 with
                 {St.get} ->
                   cont1 = shift {St}
-                  clo1 = partialApply f1 s
+                  clo1 = partialApply fn s
                   handle {St}
                     cont1 s
                   with clo1
                 {put s'} ->
                   cont2 = shift {St}
-                  clo2 = partialApply f2 s'
+                  clo2 = partialApply fn1 s'
                   handle {St}
                     con = ()
                     cont2 con
                   with clo2
                 {a} -> a
-            f2 s1 v4 =
+            fn1 s1 v4 =
               match v4 with
                 {St.get} ->
                   cont3 = shift {St}
-                  clo3 = partialApply f2 s1
+                  clo3 = partialApply fn1 s1
                   handle {St}
                     cont3 s1
                   with clo3
                 {put s'1} ->
                   cont4 = shift {St}
-                  clo4 = partialApply f2 s'1
+                  clo4 = partialApply fn1 s'1
                   handle {St}
                     con1 = ()
                     cont4 con1
                   with clo4
                 {a1} -> a1
-            clo = partialApply f1 s
+            clo = partialApply fn s
             handle {St}
               v1 = St.get
               v2 = f v1

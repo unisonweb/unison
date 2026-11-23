@@ -412,7 +412,9 @@ comes from `freshNamed` ([`Specialize.hs`](ANF/Specialize.hs)), and the caller n
 - **The program's name**, when the variable stands for one of the program's: a parameter,
   a let's binder, a field, a handler's binder. A residual function's parameters take the
   original function's parameter names.
-- **The function's name**, for a residual function: a local function's binder, or else the
+- **The function's name with a prime**, for a residual function: `foldLeft'` for one made
+  from `foldLeft`, so that it never reads as the function it came from, which the code may
+  also call. The name is a local function's binder (a user's name only), or else the
   group's name in the codebase. The cache keeps those names (`combNames` in `CCache`):
   ucm records them as it loads code (`recordNames` in
   [`Interface.hs`](../../../ucm/Unison/Runtime/Interface.hs)), and code loaded at run time
@@ -421,8 +423,8 @@ comes from `freshNamed` ([`Specialize.hs`](ANF/Specialize.hs)), and the caller n
   call's result `r`, a constant `c`, and in state passing `p`, `s`, `rest`, `done` and
   `out`.
 
-The printer makes the names unique by numbering them. A residual function can have the
-same name as the codebase function it was made from, which the code may also call.
+The printer makes the names unique by numbering them: two residual functions made from
+`evalA` are `evalA'` and `evalA'1`.
 
 The text depends on the runtime version and the `UNISON_OPTIMIZATIONS` settings, so it is
 for debugging and for golden transcripts, not for program logic. It is like `Debug.toText`,
