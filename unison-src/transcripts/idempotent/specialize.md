@@ -438,22 +438,133 @@ A recursive program becomes a recursive function, with no trace of the interpret
           --                 [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
           --           None -> bug "no such function"))
           --   (Call 0 Arg)
-          #he1qjbhhqu σ2 σ3 σ4 =
-            σ σ2 σ3 σ7 =
-              σ8 = 1
-              σ9 = Nat.drop σ7 σ8
-              σ10 = 0
-              σ11 = Nat.eq σ9 σ10
+          #he1qjbhhqu σ1 σ2 σ3 =
+            σ σ6 =
+              σ7 = 1
+              σ8 = Nat.drop σ6 σ7
+              σ9 = 0
+              σ10 = Nat.eq σ8 σ9
               σ12 =
-                match σ11 with
-                  false -> σ σ2 σ3 σ9
-                  _ -> σ1 σ2 σ3 σ9
-              σ7 Nat.* σ12
-            σ1 σ2 σ3 σ13 = 1
-            σ5 = 0
-            σ6 = Nat.eq σ4 σ5
+                match σ10 with
+                  false -> σ σ8
+                  _ ->
+                    σ11 = 1
+                    σ11
+              σ6 Nat.* σ12
+            σ4 = 0
+            σ5 = Nat.eq σ3 σ4
+            match σ5 with
+              false -> σ σ3
+              _ -> 1
+          """
+```
+
+## Higher order
+
+A known function argument is inlined into the loop that calls it:
+
+``` unison
+map : (a -> b) -> [a] -> [b]
+map f xs =
+  go acc = cases
+    [] -> acc
+    x +: rest -> go (List.snoc acc (f x)) rest
+  go [] xs
+
+foldLeft : (b -> a -> b) -> b -> [a] -> b
+foldLeft f z = cases
+  [] -> z
+  x +: rest -> foldLeft f (f z x) rest
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + foldLeft : (b ->{g1} a ->{g} b) -> b -> [a] ->{g, g1} b
+  + map      : (a ->{g} b) -> [a] ->{g} [b]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> specialize map (x -> x Nat.* 2 Nat.+ 1) [1, 2, 3]
+> runtime.ir (specialize map (x -> x Nat.* 2 Nat.+ 1))
+> specialize foldLeft (Nat.+) 0 [1, 2, 3]
+> runtime.ir (specialize foldLeft (Nat.+))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > specialize map (x -> x Nat.* 2 Nat.+ 1) [1, 2, 3]
+          ⧩
+          [3, 5, 7]
+
+    2 | > runtime.ir (specialize map (x -> x Nat.* 2 Nat.+ 1))
+          ⧩
+          """
+          -- specialize
+          --   (f xs ->
+          --     let
+          --       go acc = cases
+          --         []        -> acc
+          --         x +: rest -> go (acc :+ f x) rest
+          --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
+          #gj43ai3imv σ2 σ3 σ4 σ5 =
+            σ σ11 σ12 =
+              σ13 = ##List.viewl σ12
+              match σ13 with
+                VElem σ14 σ15 ->
+                  σ16 = σ1 σ14
+                  σ17 = σ11 :+ σ16
+                  σ σ17 σ15
+                VEmpty -> σ11
+            σ1 σ18 =
+              σ19 = 2
+              σ20 = σ18 Nat.* σ19
+              σ21 = 1
+              σ20 Nat.+ σ21
+            σ6 = ##List.viewl σ5
             match σ6 with
-              false -> σ σ2 σ3 σ4
-              _ -> σ1 σ2 σ3 σ4
+              VElem σ7 σ8 ->
+                σ9 = σ1 σ7
+                σ10 = σ3 :+ σ9
+                σ σ10 σ8
+              VEmpty -> σ4
+          """
+
+    3 | > specialize foldLeft (Nat.+) 0 [1, 2, 3]
+          ⧩
+          6
+
+    4 | > runtime.ir (specialize foldLeft (Nat.+))
+          ⧩
+          """
+          -- specialize
+          --   (f z tqb401337t1 -> (match tqb401337t1 with
+          --     []        -> z
+          --     x +: rest -> foldLeft f (f z x) rest)) (Nat.+)
+          #m3rbk3p595 σ1 σ2 σ3 =
+            σ σ8 σ9 =
+              σ10 = ##List.viewl σ9
+              match σ10 with
+                VElem σ11 σ12 ->
+                  σ13 = σ8 Nat.+ σ11
+                  σ σ13 σ12
+                VEmpty -> σ8
+            σ4 = ##List.viewl σ3
+            match σ4 with
+              VElem σ5 σ6 ->
+                σ7 = σ2 Nat.+ σ5
+                σ σ7 σ6
+              VEmpty -> σ2
           """
 ```

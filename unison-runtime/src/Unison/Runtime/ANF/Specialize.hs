@@ -23,6 +23,7 @@ import Control.Exception (throwIO)
 import Control.Exception qualified
 import Control.Monad.State.Strict
 import Data.Char (ord)
+import Data.List (find)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Unison.ABT.Normalized qualified as ABTN
@@ -125,7 +126,9 @@ data S = S
     -- | residual functions, finished
     sFns :: [(Symbol, SuperNormal Reference Symbol)],
     -- | constants beyond the closure's own arguments, newest first
-    sConsts :: [(Symbol, Val)]
+    sConsts :: [(Symbol, Val)],
+    sEnv :: SpecEnv,
+    sLim :: SpecLimits
   }
 
 type M = StateT S IO
@@ -159,7 +162,7 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
     | length vs < length args -> pure Nothing
     | otherwise ->
         either (\(GiveUp _) -> Nothing) Just <$> Control.Exception.try @GiveUp do
-          flip evalStateT (S 0 1 0 M.empty [] []) do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim) do
             argSyms <- traverse (const fresh) args
             restSyms <- traverse (const fresh) (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -167,18 +170,21 @@ specializeLambda env lim r i args = case lambdaOf env (Fn r i) of
                   zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
                     ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
                 e0 = E (M.fromList (localBinds r locals ++ binds)) False 0
-            body' <- pe env lim e0 body KTail
+            body0 <- pe env lim e0 body KTail
             consts <- gets (reverse . sConsts)
-            fns <- gets sFns
-            let constSyms = map fst consts
-                thread = threadConsts (S.fromList (map fst fns)) (argSyms ++ constSyms)
+            fns0 <- gets sFns
+            (fns, body') <- inlineFns fns0 body0
+            let constSyms = argSyms ++ map fst consts
+                needs = constNeeds constSyms fns
+                thread = renumberLets . threadConsts needs
                 entry =
                   Lambda
-                    (map (const BX) argSyms ++ map (const BX) constSyms ++ restMems)
-                    (ABTN.TAbss (argSyms ++ constSyms ++ restSyms) (thread body'))
+                    (map (const BX) constSyms ++ restMems)
+                    (ABTN.TAbss (constSyms ++ restSyms) (thread body'))
                 fns' =
-                  [ (f, Lambda (map (const BX) (argSyms ++ constSyms) ++ ms) (ABTN.TAbss (argSyms ++ constSyms ++ ps) (thread bd)))
-                  | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns
+                  [ (f, Lambda (map (const BX) cs ++ ms) (ABTN.TAbss (cs ++ ps) (thread bd)))
+                  | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
+                    let cs = M.findWithDefault [] f needs
                   ]
             pure (Rec fns' entry, map snd consts)
 
@@ -301,11 +307,12 @@ partial env a as = case a of
   _ -> pure Nothing
 
 -- | A known closure as a function and its arguments, when there is code
--- for the function.
+-- for the function or it is an entry (a builtin's, say), which a call can
+-- name directly.
 knownClosure :: SpecEnv -> Val -> Maybe (Fn, [Abs])
 knownClosure env = \case
   BoxedVal (PAp (CIx r _ i) _ seg)
-    | Just _ <- lambdaOf env (Fn r i) ->
+    | i == 0 || isJust (lambdaOf env (Fn r i)) ->
         Just (Fn r i, [Known v Nothing | v <- Stack.segToList seg])
   _ -> Nothing
 
@@ -523,16 +530,32 @@ toVar a k = case a of
       modify' \st -> st {sConsts = (s, v) : sConsts st}
       k s
   Con r t fs -> toVars fs \xs -> lit BX (TCon r t xs)
-  Clo (Fn r 0) as -> toVars as \xs -> do
-    x <- fresh
-    rest <- k x
-    pure (TName x (Left r) xs rest)
-  Clo {} -> liftIO . throwIO $ GiveUp "closure of a local function"
+  -- an entry over unknown values only: a closure of the original code
+  Clo (Fn r 0) as | all isDyn as -> toVars as \xs -> name (Left r) xs
+  -- otherwise a closure of a residual function specialized on what is
+  -- known of the captured values, whose remaining parameters are holes
+  Clo fn@(Fn r i) as -> do
+    env <- gets sEnv
+    lim <- gets sLim
+    case lambdaOf env fn of
+      Nothing
+        | i == 0 -> toVars as \xs -> name (Left r) xs
+        | otherwise -> liftIO . throwIO $ GiveUp "a local function with no code"
+      Just (Lambda ms _, _) -> do
+        holes <- traverse (\m -> (`Dyn` m) <$> fresh) (drop (length as) ms)
+        (f, leaves) <- residualFn env lim fn (as ++ holes)
+        toVars (take (length (concatMap dynLeaves as)) leaves) \xs -> name (Right f) xs
   where
     lit m code = do
       x <- fresh
       rest <- k x
       pure (TLets Direct [x] [m] code rest)
+    name f xs = do
+      x <- fresh
+      rest <- k x
+      pure (TName x f xs rest)
+    isDyn Dyn {} = True
+    isDyn _ = False
 
 -- | Code the partial evaluator doesn't look into, kept as it is: its free
 -- variables are given values in the output first, and its indirect lets
@@ -556,13 +579,101 @@ renumber = go
         ABTN.TTm <$> (ALet (Indirect n) ms <$> go bn <*> go bo)
       ABTN.TTm f -> ABTN.TTm <$> traverse go f
 
--- | Each call and closure of a residual function given the constants first,
--- which are parameters of every residual function.
-threadConsts :: S.Set Symbol -> [Symbol] -> Term -> Term
-threadConsts fns cs = go
+-- * Clean-up
+
+-- | Residual functions inlined where they are called, when they aren't
+-- recursive and no closure is made of them, and are called once or are
+-- small: what is left of the partial evaluator's habit of making a
+-- residual function at every call under an unknown match.
+inlineFns :: [(Symbol, SuperNormal Reference Symbol)] -> Term -> M ([(Symbol, SuperNormal Reference Symbol)], Term)
+inlineFns fns body = case find inlinable fns of
+  Nothing -> pure (fns, body)
+  Just (f, lam) -> do
+    body' <- inlineCalls f lam body
+    rest <-
+      for [(g, l) | (g, l) <- fns, g /= f] \(g, Lambda ms (ABTN.TAbss ps bd)) ->
+        (\bd' -> (g, Lambda ms (ABTN.TAbss ps bd'))) <$> inlineCalls f lam bd
+    inlineFns rest body'
+  where
+    names = S.fromList (map fst fns)
+    bodies = body : [bd | (_, Lambda _ (ABTN.TAbss _ bd)) <- fns]
+    calls f = sum [length [() | AApp (FVar g) _ <- nodes bd, g == f] | bd <- bodies]
+    closed f = or [g == f | bd <- bodies, AName (Right g) _ _ <- nodes bd]
+    graph = M.fromList [(g, refsIn names bd) | (g, Lambda _ (ABTN.TAbss _ bd)) <- fns]
+    recursive f = reaches S.empty (S.toList (M.findWithDefault S.empty f graph))
+      where
+        reaches _ [] = False
+        reaches seen (g : gs)
+          | g == f = True
+          | S.member g seen = reaches seen gs
+          | otherwise = reaches (S.insert g seen) (S.toList (M.findWithDefault S.empty g graph) ++ gs)
+    inlinable (f, Lambda _ (ABTN.TAbss _ bd)) =
+      not (recursive f) && not (closed f) && (calls f == 1 || length (nodes bd) <= 4)
+
+-- | Each call of a residual function replaced by its body, with its
+-- parameters renamed to the arguments and its binders made fresh.
+inlineCalls :: Symbol -> SuperNormal Reference Symbol -> Term -> M Term
+inlineCalls f (Lambda _ (ABTN.TAbss ps bd)) = go
+  where
+    go = \case
+      TApp (FVar g) xs
+        | g == f, length xs == length ps -> freshenAll (ABTN.renames (M.fromList (zip ps xs)) bd)
+      ABTN.TAbs v b -> ABTN.TAbs v <$> go b
+      ABTN.TTm x -> ABTN.TTm <$> traverse go x
+
+freshenAll :: Term -> M Term
+freshenAll = \case
+  ABTN.TAbs v b -> do
+    v' <- fresh
+    ABTN.TAbs v' <$> freshenAll (ABTN.rename v v' b)
+  ABTN.TTm x -> ABTN.TTm <$> traverse freshenAll x
+
+-- | Every node of a term.
+nodes :: Term -> [ANormalF Reference Symbol Term]
+nodes = \case
+  ABTN.TAbs _ b -> nodes b
+  ABTN.TTm x -> x : foldMap nodes x
+
+-- | The residual functions a term calls or makes closures of.
+refsIn :: S.Set Symbol -> Term -> S.Set Symbol
+refsIn names t =
+  S.fromList [g | AApp (FVar g) _ <- nodes t, S.member g names]
+    <> S.fromList [g | AName (Right g) _ _ <- nodes t, S.member g names]
+
+-- | The constants each residual function needs: the ones its body uses and
+-- the ones the functions it calls need, in the order of the entry's.
+constNeeds :: [Symbol] -> [(Symbol, SuperNormal Reference Symbol)] -> M.Map Symbol [Symbol]
+constNeeds consts fns = M.map (\used -> filter (`S.member` used) consts) (fixed direct)
+  where
+    cset = S.fromList consts
+    names = S.fromList (map fst fns)
+    direct = M.fromList [(f, S.intersection cset (ABTN.freeVars bd)) | (f, Lambda _ (ABTN.TAbss _ bd)) <- fns]
+    callees = M.fromList [(f, refsIn names bd) | (f, Lambda _ (ABTN.TAbss _ bd)) <- fns]
+    fixed m
+      | m' == m = m
+      | otherwise = fixed m'
+      where
+        m' = M.mapWithKey (\f used -> used <> foldMap (\g -> M.findWithDefault S.empty g m) (M.findWithDefault S.empty f callees)) m
+
+-- | The indirect lets of a lambda numbered 1, 2, ..., unique as the
+-- emitter needs them, whatever inlining brought together.
+renumberLets :: Term -> Term
+renumberLets t = evalState (go t) 1
+  where
+    go = \case
+      ABTN.TAbs v b -> ABTN.TAbs v <$> go b
+      ABTN.TTm (ALet (Indirect _) ms bn bo) -> do
+        n <- state \n -> (n, n + 1)
+        ABTN.TTm <$> (ALet (Indirect n) ms <$> go bn <*> go bo)
+      ABTN.TTm x -> ABTN.TTm <$> traverse go x
+
+-- | Each call and closure of a residual function given the constants it
+-- needs first ('constNeeds').
+threadConsts :: M.Map Symbol [Symbol] -> Term -> Term
+threadConsts needs = go
   where
     go = \case
       ABTN.TAbs v b -> ABTN.TAbs v (go b)
-      TApp (FVar f) xs | S.member f fns -> TApp (FVar f) (cs ++ xs)
-      TName x (Right f) xs bo | S.member f fns -> TName x (Right f) (cs ++ xs) (go bo)
+      TApp (FVar f) xs | Just cs <- M.lookup f needs -> TApp (FVar f) (cs ++ xs)
+      TName x (Right f) xs bo | Just cs <- M.lookup f needs -> TName x (Right f) (cs ++ xs) (go bo)
       ABTN.TTm f -> ABTN.TTm (fmap go f)

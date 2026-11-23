@@ -465,14 +465,19 @@ handlers. Non-affine handlers, which capture continuations, stay residual.
    and residual functions keyed and memoized under one; primitives run through
    [`runPrim`](Machine.hs); `specialize.boundary`; budgets, whose exhaustion falls back to
    the original code. `power`, a closed expression and the factorial interpreter are in
-   the transcript, which checks the residual with `runtime.ir`. Still to do here: a
-   clean-up pass that drops constants a residual function doesn't use and inlines
-   residual functions that are small or called once; handlers and requests, multi-value
-   lets and closures of local functions over unknown values, which give up (and fall
-   back) or are kept as they are for now.
-4. **Higher order.** `Clo`, calls of known closures, and lifting of closures. The tests
-   are `List.map` and `foldLeft` with known functions, and an interpreter written in
-   continuation-passing style.
+   the transcript, which checks the residual with `runtime.ir`. A clean-up pass after the
+   walk ([`inlineFns`](ANF/Specialize.hs)) inlines residual functions that aren't
+   recursive and are called once or small, and passes each residual function only the
+   constants it uses (`constNeeds`). Still to do here: handlers and requests, and lets of
+   several values, which are kept as they are; and the first round of every loop is
+   peeled (the walk unfolds a recursive call until the first unknown match), which
+   doubles a loop's code.
+4. **Higher order.** Done for the common cases: a known closure called with unknown
+   arguments is unfolded like any known function, a known builtin is called directly, and
+   a closure of a local function over partially known values becomes a closure of a
+   residual function specialized on the known part. `map` and `foldLeft` with known
+   functions are in the transcript. An interpreter in continuation-passing style is
+   still to try.
 5. **Benchmarks.** An interpreter for a small language running a few programs, measured
    under the JIT in three forms: interpreted, specialized, and the same program written by
    hand in Unison. Success is "specialized" close to "by hand".
