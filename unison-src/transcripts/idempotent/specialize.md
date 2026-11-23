@@ -1115,6 +1115,134 @@ of an unknown function; the code under it is still specialized:
           """
 ```
 
+A handler is fused around a loop only when every case that resumes re-installs the handler
+as its last act. One whose case does more with what the resumption gives back, or resumes
+twice, stays a handler, with the code under it specialized:
+
+``` unison
+ability Tick where
+  tick : ()
+
+runTick : '{Tick} a -> (Nat, a)
+runTick p =
+  go = cases
+    { a } -> (0, a)
+    { tick -> k } -> match handle k () with go with
+      (n, a) -> (n Nat.+ 1, a)
+  handle p () with go
+
+ticks : Nat ->{Tick} Nat
+ticks n = if Nat.eq n 0 then 0 else
+  tick
+  ticks (Nat.drop n 1) Nat.+ n
+
+ability Flip where
+  flip : Boolean
+
+allOf : '{Flip} a -> [a]
+allOf p = handle p () with cases
+  { a } -> [a]
+  { flip -> k } -> allOf '(k true) List.++ allOf '(k false)
+
+coins : Nat -> Nat ->{Flip} Nat
+coins acc n = if Nat.eq n 0 then acc else
+  coins (if flip then acc Nat.+ n else acc) (Nat.drop n 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ability Flip
+  + ability Tick
+
+  + allOf   : '{Flip} a -> [a]
+  + coins   : Nat -> Nat ->{Flip} Nat
+  + runTick : '{Tick} a -> (Nat, a)
+  + ticks   : Nat ->{Tick} Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> (runTick do ticks 5, specialize (z n -> runTick do ticks (z Nat.+ n)) 0 5)
+> (allOf do coins 0 3, specialize (z n -> allOf do coins z n) 0 3)
+> runtime.ir (specialize (z n -> runTick do ticks (z Nat.+ n)) 0)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > (runTick do ticks 5, specialize (z n -> runTick do ticks (z Nat.+ n)) 0 5)
+          ⧩
+          ((5, 15), (5, 15))
+
+    2 | > (allOf do coins 0 3, specialize (z n -> allOf do coins z n) 0 3)
+          ⧩
+          ([6, 5, 4, 3, 3, 2, 1, 0], [6, 5, 4, 3, 3, 2, 1, 0])
+
+    3 | > runtime.ir (specialize (z n -> runTick do ticks (z Nat.+ n)) 0)
+          ⧩
+          """
+          -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
+          #2bqgrtroef z n =
+            ticks' n1 =
+              lit2 = 0
+              v5 = Nat.eq n1 lit2
+              match v5 with
+                false ->
+                  _1 = tick
+                  lit3 = 1
+                  v6 = Nat.drop n1 lit3
+                  v7 = ticks' v6
+                  v7 Nat.+ n1
+                _ -> 0
+            fn v8 =
+              match v8 with
+                {tick} ->
+                  cont1 = shift {Tick}
+                  p1 =
+                    clo1 = partialApply fn
+                    handle {Tick}
+                      con = ()
+                      cont1 con
+                    with clo1
+                  match p1 with
+                    Cons n2 p2 ->
+                      match p2 with
+                        Cons a p3 ->
+                          match p3 with
+                            () ->
+                              lit4 = 1
+                              v9 = n2 Nat.+ lit4
+                              (v9, a)
+                {a1} ->
+                  lit5 = 0
+                  (lit5, a1)
+            clo = partialApply fn
+            handle {Tick}
+              v1 = z Nat.+ n
+              lit = 0
+              v2 = Nat.eq v1 lit
+              match v2 with
+                false ->
+                  _ = tick
+                  lit1 = 1
+                  v3 = Nat.drop v1 lit1
+                  v4 = ticks' v3
+                  v4 Nat.+ v1
+                _ -> 0
+            with clo
+          """
+```
+
 ## Mutable values
 
 A specialization's code doesn't depend on which mutable value a closure holds, so closures

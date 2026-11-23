@@ -735,7 +735,11 @@ residualFnWith env lim mframe fn args0 = do
 
 -- | The end of the body of a state-passing residual function: @Right@ of
 -- its value and the state of the handler in force, if every resumption
--- re-installed a handler of the shape the function was passed.
+-- re-installed a handler of the shape the function was passed, as its
+-- case's last act: the handler in force returns where the function does
+-- (@KAbort@). A case that does more with what the @handle@ gives back
+-- (@match handle k () with h with ...@) has work waiting that state
+-- passing would drop, so it escapes.
 returnRight :: Int -> Abs -> M Term
 returnRight fid a = do
   frames <- gets sFrames
@@ -745,6 +749,8 @@ returnRight fid a = do
     Just (refs, hAbs) -> case frames of
       [top@Fused {}]
         | frRefs top == refs,
+          KAbort i <- frOuter top,
+          i == fid,
           all (okTarget (frId top) . fst) targets,
           Just vals <- alignTo hAbs (frHandler top) ->
             toVar a \res -> toVars vals \ls -> do
