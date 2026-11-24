@@ -480,42 +480,7 @@ its continuation, not whether the handler is affine:
   functions, so that every request sees all of its continuation.
 
   For the same reason the code after an unknown match can't be a let's body there: a
-  request in an arm must see it. It becomes a join point
-  ([`joined`](ANF/Specialize.hs)), a residual function that each arm calls at its end:
-  - **The arms are walked first.** Where an arm reaches the code after the match with the
-    handlers as they were at the match, it leaves a placeholder and records the value it
-    gives.
-  - **The values are generalized together** (`lubAbs`): what every arm agrees on stays
-    known, and each part where they differ becomes a parameter. So a match whose arms
-    all give `N` of some number goes on knowing the `N`.
-  - **The code after the match is walked once,** as the join point's body, and each
-    placeholder becomes a call of it.
-  - **An arm that reaches that code with the handlers changed** (it handled a request and
-    resumed, so another handler is in force) gets its own copy, since the code depends on
-    the handlers. Sharing those too means passing the handlers' state to the join point,
-    as a state-passing loop does: not done yet.
-  - **A continuation resumed in an arm and again after the match** is resumed twice, which
-    escapes as it did when the arm held a copy.
-
-  A join point uses variables of the function it is in. When the walk is over each gets
-  them as parameters ([`freeNeeds`](ANF/Specialize.hs)), before inlining, which renames
-  the variables of the copies it makes.
-
-  A join point is a function, so a call of it costs what a copy of the code doesn't. The
-  clean-up pass ([`inlineFns`](ANF/Specialize.hs)) removes the ones that don't pay:
-  - **One with a single call goes into it.** Most are like this: the other arms of the
-    match end without reaching the code after it (an abort, a failure).
-  - **One with several calls is copied into them if the copies add at most 100 nodes,**
-    the innermost first, so that each is judged with the join points it calls already in
-    it. Copying an outer one first would double the calls of the next, and so on down,
-    which is the growth join points are there to stop.
-  - **Join points go before any other function.** A loop's function copied into the join
-    points it calls would give each of them more calls, and leave a call per join point in
-    every round.
-
-  Over the first 100 programs of the [differential tester](#testing), join points cut the
-  code generated from 222,000 lines to 85,000, and the benchmarks are the same with and
-  without them (`UNISON_SPECIALIZE_JOIN=off` turns them off, to compare).
+  request in an arm must see it. It becomes a join point (below).
 
   It is all or nothing for a `handle`: anything in its scope that could perform its requests
   unseen escapes (`Escape`) back to the `handle`, which rolls the walk's state back and keeps
@@ -523,7 +488,8 @@ its continuation, not whether the handler is affine:
   calls back into Unison code (`jumpCont`, a fork, a transaction: read off the builtins'
   own code), a request behind a kept handler, a second resumption of the same continuation,
   and a residual function, while a handler is fused or a captured continuation waits
-  (its code would land in another lambda, out of the request's scope). So straight-line
+  (its code would land in another lambda, out of the request's scope). `UNISON_SPECIALIZE_DEBUG=1`
+  says which it was for each handler kept. So straight-line
   code fuses, and so does an interpreter over a program with no loops: the transcript has
   a state handler becoming arithmetic and an abort becoming a branch.
 
@@ -541,6 +507,63 @@ its continuation, not whether the handler is affine:
   Still to do: cases that resume more than once, which need the rest of the body as a
   residual function up to the `handle`; more than one fused handler around a loop; and a
   resumption whose result the case keeps working with, inside a loop.
+
+## Join points
+
+An unknown match has code after it: the rest of the let it is bound in, and of whatever
+that is in. The specializer has that code as a continuation, and what it does with it
+decides how much is known after the match ([`joined`](ANF/Specialize.hs)).
+
+- **The arms are walked first.** Where an arm reaches the code after the match, it leaves
+  a placeholder and records the value it gives.
+- **If no arm's value has anything known in it,** the match is bound to a variable and
+  the code after it follows, once, as a let's body. This is the common case, and the
+  output is what it would be without join points.
+- **Otherwise the code after the match becomes a join point,** a residual function that
+  each arm calls at its end. The arms' values are generalized together
+  ([`lubAbs`](ANF/Specialize.hs)): what they agree on stays known, and each part where
+  they differ becomes a parameter. A match whose arms all give `N` of some number goes on
+  knowing the `N`, where a variable would have lost it.
+- **Only what costs little is generalized:** a part that is unknown in some arm already,
+  numbers that differ, constructors with no fields (`true` and `false`). Arms that differ
+  in anything else known, such as which piece of an interpreted program they give, go in
+  separate groups, each with a join point of its own that knows which it has. Code that
+  went on without knowing would have to interpret it.
+
+Under a fused handler ([Abilities](#abilities)) there is always a join point, since the
+code after the match can't be a let's body, and it depends on the handlers in force:
+
+- **An arm can share a join point only if its handlers at its end stand for the ones at
+  the match** (`standFor`): the same frames, or ones that cases installed as their last
+  act to go on under, which differ in their state. To tell, what follows each fused
+  `handle` has a name (`KOuter`), which a handler re-installed in a case's last position
+  inherits.
+- **The handlers' states are generalized with the values** and passed to the join point,
+  whose body is walked under the handlers at the match with those states.
+- **Any other arm gets its own copy** of the code after the match.
+- **A continuation resumed in an arm and again after the match** is resumed twice, which
+  escapes as it did when the arm held a copy.
+
+A join point uses variables of the function it is in. When the walk is over each gets
+them as parameters ([`freeNeeds`](ANF/Specialize.hs)), before inlining, which renames the
+variables of the copies it makes.
+
+A join point is a function, so a call of it costs what a copy of the code doesn't. The
+clean-up pass ([`inlineFns`](ANF/Specialize.hs)) removes the ones that don't pay:
+- **One with a single call goes into it.** Most are like this: the other arms of the match
+  end without reaching the code after it (an abort, a failure).
+- **One with several calls is copied into them if the copies add at most 100 nodes,** the
+  innermost first, so that each is judged with the join points it calls already in it.
+  Copying an outer one first would double the calls of the next, and so on down, which is
+  the growth join points are there to stop.
+- **Join points go before any other function.** A loop's function copied into the join
+  points it calls would give each of them more calls, and leave a call per join point in
+  every round.
+
+`UNISON_SPECIALIZE_JOIN=off` turns join points off, to compare: the code after a match
+under a fused handler is then copied into every arm. Over 100 programs of the
+[differential tester](#testing) with its first interpreter, that was 222,000 lines of
+generated code against 85,000.
 
 ## Limits
 
@@ -570,6 +593,11 @@ program gives residual code in that program's shape, so random programs give var
   bounded loops, and effects (`Perform`, `Handle`, and `Resume` in a handler's clause). A
   handler's clauses are data, so the interpreter's handler, specialized, becomes that
   handler.
+- **The interpreter's environment is a data type of its own,** not a `List`. The
+  specializer sees its shape, so a variable is found while specializing, and what it
+  finds can be a known function or continuation. With a `List`, a clause's continuation
+  had to go through a builtin as a value, which it can't, and every handler whose clause
+  ran was kept.
 - **The generator** is typed, so a program never fails with a type error, and every
   program ends. A clause uses its continuation in each of the ways one can: not at all, as
   its last act, with more work after, twice, and inside a function.

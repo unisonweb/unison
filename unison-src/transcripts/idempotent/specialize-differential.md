@@ -47,7 +47,18 @@ type Handler = Handler Expr [Optional Expr] Expr
 ability Eff where
   perform : Nat -> Nat -> Nat
 
-type Val = N Nat | F [Val] Expr | K (Nat -> Nat ->{Eff} Val)
+type Val = N Nat | F Env Expr | K (Nat -> Nat ->{Eff} Val)
+
+-- The environment is a type of the interpreter's own and not a List, so
+-- that the specializer sees its shape: a variable is found while
+-- specializing, and what it finds can be a function or a continuation
+-- that is known.
+type Env = Empty | Bind Val Env
+
+lookup : Nat -> Env -> Val
+lookup i = cases
+  Bind v rest -> if i == 0 then v else lookup (Nat.drop i 1) rest
+  Empty -> bug "unbound variable"
 
 nat : Val -> Nat
 nat = cases
@@ -56,7 +67,7 @@ nat = cases
 
 apply : Val -> Val ->{Eff} Val
 apply f x = match f with
-  F env body -> eval (x +: env) body
+  F env body -> eval (Bind x env) body
   _ -> bug "expected a function"
 
 prim : Bin -> Nat -> Nat -> Nat
@@ -67,17 +78,15 @@ prim op a b = match op with
   Eq -> if a == b then 1 else 0
   Lt -> if a < b then 1 else 0
 
-eval : [Val] -> Expr ->{Eff} Val
+eval : Env -> Expr ->{Eff} Val
 eval env = cases
   Lit n -> N n
-  Var i -> match List.at i env with
-    Some v -> v
-    None -> bug "unbound variable"
+  Var i -> lookup i env
   Lam _ body -> F env body
   App f x -> apply (eval env f) (eval env x)
   Prim op a b -> N (prim op (nat (eval env a)) (nat (eval env b)))
   If c t f -> if nat (eval env c) == 0 then eval env t else eval env f
-  Let _ e body -> eval (eval env e +: env) body
+  Let _ e body -> eval (Bind (eval env e) env) body
   Iter n f z ->
     fv = eval env f
     go k acc = if k == 0 then acc else go (Nat.drop k 1) (apply fv acc)
@@ -95,14 +104,14 @@ eval env = cases
 
 -- the pure clause sees [result, state]; an operation's clause
 -- [argument, state, continuation]; an operation with no clause is forwarded
-handleWith : [Val] -> Handler -> '{Eff} Val ->{Eff} Val
+handleWith : Env -> Handler -> '{Eff} Val ->{Eff} Val
 handleWith env h p = match h with
   Handler pureC clauses init ->
     go : Nat -> Request {Eff} Val ->{Eff} Val
     go s = cases
-      { v } -> eval (v +: (N s +: env)) pureC
+      { v } -> eval (Bind v (Bind (N s) env)) pureC
       { Eff.perform i a -> k } -> match List.at i clauses with
-        Some (Some c) -> eval (N a +: (N s +: (K (x s' -> handle k x with go s') +: env))) c
+        Some (Some c) -> eval (Bind (N a) (Bind (N s) (Bind (K (x s' -> handle k x with go s')) env))) c
         -- performed out here, where the enclosing handler sees it
         _ ->
           v = Eff.perform i a
@@ -115,7 +124,7 @@ topH = cases
   { Eff.perform i a -> k } -> handle k (a * 2 + i) with topH
 
 run : Expr -> Nat -> Nat -> Nat
-run prog a b = nat (handle apply (apply (eval [] prog) (N a)) (N b) with topH)
+run prog a b = nat (handle apply (apply (eval Empty prog) (N a)) (N b) with topH)
 
 -- Types, for generating and shrinking; the interpreter ignores them.
 
@@ -444,6 +453,7 @@ check from count =
 
   + type Bin
   + ability Eff
+  + type Env
   + type Expr
   + type Handler
   + ability Rand
@@ -459,7 +469,7 @@ check from count =
   + checkN     : Nat -> Expr -> Nat -> Nat ->{IO} Boolean
   + children   : Expr -> ([Expr], ([Expr] -> Expr))
   + classify   : Expr -> Nat
-  + eval       : [Val] -> Expr ->{Eff} Val
+  + eval       : Env -> Expr ->{Eff} Val
   + exprSize   : Expr -> Nat
   + failing    : Expr -> Nat -> Nat ->{IO} Optional Nat
   + gen        : [Ty] -> Ty -> Nat ->{Rand} Expr
@@ -468,9 +478,10 @@ check from count =
   + genN       : [Ty] -> Nat ->{Rand} Expr
   + genProg    : Nat ->{Rand} Expr
   + genTy      : Nat ->{Rand} Ty
-  + handleWith : [Val] -> Handler -> '{Eff} Val ->{Eff} Val
+  + handleWith : Env -> Handler -> '{Eff} Val ->{Eff} Val
   + isN        : [Ty] -> Expr -> Boolean
   + lmap       : (a ->{e} b) -> [a] ->{e} [b]
+  + lookup     : Nat -> Env -> Val
   + nat        : Val -> Nat
   + pick       : [a] ->{Rand} Optional a
   + prim       : Bin -> Nat -> Nat -> Nat
@@ -527,7 +538,7 @@ scratch/main> add
 
 scratch/main> run checkSome
 
-  Report [] 0 28 22
+  Report [] 0 24 26
 
 scratch/main> run regressions
 

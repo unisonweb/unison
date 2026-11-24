@@ -2472,7 +2472,8 @@ specEnv cc groups names =
       SP.seBoundary = Builtin "specialize.boundary",
       SP.seRunTerm = runTerm cc,
       SP.seCallsBack = (`S.member` callingBack),
-      SP.seName = (`M.lookup` names)
+      SP.seName = (`M.lookup` names),
+      SP.seNote = \note -> when specializeDebug (hPutStrLn stderr ("[specialize] " ++ note))
     }
 
 -- | The builtins that can call back into Unison code, from their code:
