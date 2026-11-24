@@ -97,11 +97,15 @@ data SpecLimits = SpecLimits
     slOutput :: !Int,
     -- | whether handlers are fused; off for the second try, after the
     -- first ran out of 'slOutput' ('specializeLambda')
-    slFuse :: !Bool
+    slFuse :: !Bool,
+    -- | whether the code after an unknown match under a fused handler is
+    -- shared as a join point ('joined') or copied into each arm; off only
+    -- to compare (@UNISON_SPECIALIZE_JOIN=off@)
+    slJoin :: !Bool
   }
 
 defaultSpecLimits :: SpecLimits
-defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200, slOutput = 2000, slFuse = True}
+defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200, slOutput = 2000, slFuse = True, slJoin = True}
 
 type Term = ANormal Reference Symbol
 
@@ -217,7 +221,13 @@ data S = S
     -- residual function being built, by the number of its frame
     sReturns :: M.Map Int ([Reference], Abs),
     -- | the lets and matches generated so far ('emitted')
-    sEmitted :: !Int
+    sEmitted :: !Int,
+    -- | per join point being made, where arms reached the code after the
+    -- match: the placeholder left there, the value, and the continuations
+    -- resumed by then ('joined')
+    sJoins :: M.Map Int [(Symbol, Abs, [Int])],
+    -- | the residual functions that are join points
+    sJoinFns :: S.Set Symbol
   }
 
 type M = StateT S IO
@@ -281,7 +291,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
     | otherwise ->
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          either (\(Escape _) -> Left "an escape from a fused handler") id <$> Control.Exception.try @Escape (Right <$> do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty 0) do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty 0 M.empty S.empty) do
             argSyms <- traverse freshNamed (take (length args) vs)
             restSyms <- traverse freshNamed (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -292,9 +302,25 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
             body0 <- pe env lim e0 body KTail
             consts <- gets (reverse . sConsts)
             fns0 <- gets sFns
-            (fns, body') <- inlineFns fns0 body0
             let constSyms = argSyms ++ map fst consts
-                needs = constNeeds constSyms fns
+                -- a join point uses variables of where it is called: they
+                -- become parameters, before inlining, which renames the
+                -- variables of the copies it makes
+                free = freeNeeds (S.fromList constSyms) fns0
+                mems =
+                  M.fromList $
+                    zip restSyms restMems
+                      ++ binderMems body0
+                      ++ concat [zip ps ms ++ binderMems bd | (_, Lambda ms (ABTN.TAbss ps bd)) <- fns0]
+                memOfVar x = M.findWithDefault BX x mems
+                fns1 =
+                  [ (f, Lambda (map memOfVar xs ++ ms) (ABTN.TAbss (xs ++ ps) (threadConsts free bd)))
+                  | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns0,
+                    let xs = M.findWithDefault [] f free
+                  ]
+            joins <- gets sJoinFns
+            (fns, body') <- inlineFns joins fns1 (threadConsts free body0)
+            let needs = constNeeds constSyms fns
                 thread = renumberLets . threadConsts needs
                 entry =
                   Lambda
@@ -616,8 +642,6 @@ resultMatch f tmpl r k = do
       (EC.mapFromList [(leftTag, ([BX], ABTN.TAbss [v] abortArm)), (rightTag, ([BX], ABTN.TAbss [p] rightArm))])
       Nothing
   where
-    kMem (KBind m _ _) = m
-    kMem _ = BX
     decodeChain _ [] inner = pure inner
     decodeChain c ((l, m) : ls) inner = do
       c' <- freshNamed (syn "rest")
@@ -819,16 +843,77 @@ generalize k a = case (k, a) of
     | otherwise -> (Dyn placeholder (memOf a), [a])
   where
     placeholder = Var.named "general"
-    memOf = \case
-      Known v _ | isUnboxed v -> UN
-      Dyn _ m -> m
-      _ -> BX
+
+-- | How a value is held.
+memOf :: Abs -> Mem
+memOf = \case
+  Known v _ | isUnboxed v -> UN
+  Dyn _ m -> m
+  _ -> BX
+  where
     isUnboxed = \case
       NatVal _ -> True
       IntVal _ -> True
       CharVal _ -> True
       DoubleVal _ -> True
       _ -> False
+
+-- | How the value a continuation takes is held.
+kMem :: K -> Mem
+kMem (KBind m _ _) = m
+kMem _ = BX
+
+-- | The same value, down to its variables.
+sameAbs :: Abs -> Abs -> Bool
+sameAbs a b = case (a, b) of
+  (Dyn x _, Dyn y _) -> x == y
+  (Known v _, Known w _) -> safeEq (KKnown v) (KKnown w)
+  (Con r t fs, Con r' t' gs) -> r == r' && t == t' && length fs == length gs && and (zipWith sameAbs fs gs)
+  (Clo f as, Clo g bs) -> f == g && length as == length bs && and (zipWith sameAbs as bs)
+  _ -> False
+
+-- | The most that is known of both values: where they differ, a hole
+-- ('joinHole').
+lubAbs :: Abs -> Abs -> Abs
+lubAbs a b = case (a, b) of
+  _ | sameAbs a b -> a
+  (Con r t fs, Con r' t' gs)
+    | r == r', t == t', length fs == length gs -> Con r t (zipWith lubAbs fs gs)
+  (Clo f as, Clo g bs)
+    | f == g, length as == length bs -> Clo f (zipWith lubAbs as bs)
+  _ -> Dyn joinHole (memOf a)
+
+joinHole :: Symbol
+joinHole = Var.named "join hole"
+
+-- | The holes of a template filled, in order.
+fillHoles :: Abs -> State [Abs] Abs
+fillHoles = \case
+  Dyn h _ | h == joinHole -> state \case
+    a : as -> (a, as)
+    [] -> error "fillHoles: fewer values than holes"
+  Con r t fs -> Con r t <$> traverse fillHoles fs
+  Clo f as -> Clo f <$> traverse fillHoles as
+  a -> pure a
+
+-- | What a value has where a template has holes.
+atHoles :: Abs -> Abs -> [Abs]
+atHoles t a = case (t, a) of
+  (Dyn h _, _) | h == joinHole -> [a]
+  (Con _ _ fs, Con _ _ gs) -> concat (zipWith atHoles fs gs)
+  (Clo _ as, Clo _ bs) -> concat (zipWith atHoles as bs)
+  _ -> []
+
+-- | Whether a value can be put in a variable: not a request or a
+-- continuation of a fused handler.
+material :: Abs -> Bool
+material = \case
+  SReq {} -> False
+  SPure {} -> False
+  SKont {} -> False
+  Con _ _ fs -> all material fs
+  Clo _ as -> all material as
+  _ -> True
 
 -- | Homeomorphic embedding of keys: the first is the second with parts
 -- removed or grown. A literal embeds one at least as big (a natural's value,
@@ -944,8 +1029,86 @@ match env lim e v br k = case (look e v, br) of
       fusedNow <- gets (any isFused . sFrames)
       case k of
         KTail -> dynamicWith KTail (dynResult k BX)
+        -- the end of a state-passing function is a few nodes, and a call
+        -- there must stay in its tail ('tailInSame')
+        KReturn _ | fusedNow -> dynamicWith k (\code -> pure code)
+        KAbort _ | fusedNow -> dynamicWith k (\code -> pure code)
+        _ | fusedNow, slJoin lim -> joined
         _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ -> dynamicWith KTail (dynResult k BX)
+    -- Under a fused handler the rest of the walk can't be a let's body, as
+    -- a request in an arm must see it. It becomes a join point: a residual
+    -- function of the match's value, which each arm calls at its end. The
+    -- arms are walked first, each leaving a placeholder where it reaches
+    -- the rest with the handlers as they were at the match; the values
+    -- they give are generalized together into the join point's parameters;
+    -- then the rest is walked once. An arm that reaches the rest with the
+    -- handlers changed (it handled a request and resumed) gets its own copy
+    -- of the rest, as the rest depends on them.
+    joined = do
+      st0 <- get
+      let jid = sNextId st0
+          m = kMem k
+          kJoin = KBind m (syn "r") \a -> do
+            now <- get
+            if sameHandlers st0 now && material a
+              then do
+                ph <- freshNamed (syn "join")
+                modify' \st -> st {sJoins = M.insertWith (++) jid [(ph, a, usedKonts now)] (sJoins st)}
+                pure (TVar ph)
+              else ret k a
+      put st0 {sNextId = jid + 1}
+      code <- dynamicWith kJoin (\c -> pure c)
+      recs <- gets (M.findWithDefault [] jid . sJoins)
+      modify' \st -> st {sJoins = M.delete jid (sJoins st)}
+      case recs of
+        [] -> pure code
+        (_, a0, _) : more -> do
+          let tmpl = foldl' lubAbs a0 [a | (_, a, _) <- more]
+              holeMems = [hm | Dyn h hm <- dynLeaves tmpl, h == joinHole]
+          holes <- traverse (const (freshNamed (syn "r"))) holeMems
+          body <- ret k (evalState (fillHoles tmpl) (zipWith Dyn holes holeMems))
+          -- a continuation resumed in an arm and again in the rest is
+          -- resumed twice
+          after <- get
+          let fresh0 kid = kid `notElem` usedKonts st0
+              byRest = filter fresh0 (usedKonts after)
+          forM_ recs \(_, _, used) -> forM_ (filter (`elem` byRest) (filter fresh0 used)) \kid ->
+            forM_ (M.lookup kid (sKonts after)) \ko -> liftIO (throwIO (Escape (koFrame ko)))
+          j <- freshNamed (syn "join")
+          -- a function takes at least one argument
+          (params, pmems, call) <- case holes of
+            [] -> do
+              u <- freshNamed (syn "nil")
+              u' <- freshNamed (syn "nil")
+              pure ([u'], [BX], \_ -> TLets Direct [u] [BX] (TCon unitRef (CTag 0) []) (TApp (FVar j) [u]))
+            _ -> pure (holes, holeMems, TApp (FVar j))
+          calls <- for recs \(ph, a, _) -> (ph,) <$> toVars (atHoles tmpl a) (pure . call)
+          let patch = substVars (M.fromList calls)
+          -- a placeholder is in another function when the rest was reached
+          -- from an inner join point
+          modify' \st ->
+            st
+              { sJoinFns = S.insert j (sJoinFns st),
+                sFns =
+                  (j, Lambda pmems (ABTN.TAbss params body))
+                    : [(f, Lambda ms (ABTN.TAbss ps (patch bd))) | (f, Lambda ms (ABTN.TAbss ps bd)) <- sFns st]
+              }
+          pure (patch code)
+    usedKonts st = [kid | (kid, ko) <- M.toList (sKonts st), koUsed ko]
+    -- the handlers in force and where their bodies return, unchanged
+    sameHandlers a b =
+      length (sFrames a) == length (sFrames b)
+        && and (zipWith sameFrame (sFrames a) (sFrames b))
+        && map (tgtTag . fst) (sTargets a) == map (tgtTag . fst) (sTargets b)
+    sameFrame Barrier Barrier = True
+    sameFrame f@Fused {} g@Fused {} = frId f == frId g && sameAbs (frHandler f) (frHandler g)
+    sameFrame _ _ = False
+    tgtTag :: Tgt -> (Int, Int)
+    tgtTag = \case
+      TPure i -> (0, i)
+      TBody i -> (1, i)
+      TSite -> (2, 0)
     dynamicWith kk finish = toVar (look e v) \x -> do
       emitted
       let arm e' body = isolated (pe env lim e' body kk)
@@ -1335,15 +1498,15 @@ renumber = go
 -- when called once or small, and those recursive through other functions
 -- when not too big. That cleans up the partial evaluator's habit of making
 -- a residual function at every call under an unknown match.
-inlineFns :: [(Symbol, SuperNormal Reference Symbol)] -> Term -> M ([(Symbol, SuperNormal Reference Symbol)], Term)
-inlineFns fns body = case find inlinable fns of
+inlineFns :: S.Set Symbol -> [(Symbol, SuperNormal Reference Symbol)] -> Term -> M ([(Symbol, SuperNormal Reference Symbol)], Term)
+inlineFns joins fns body = case find inlinableJoin fns <|> find inlinable fns of
   Nothing -> pure (fns, body)
   Just (f, lam) -> do
     body' <- inlineCalls f lam body
     rest <-
       for [(g, l) | (g, l) <- fns, g /= f] \(g, Lambda ms (ABTN.TAbss ps bd)) ->
         (\bd' -> (g, Lambda ms (ABTN.TAbss ps bd'))) <$> inlineCalls f lam bd
-    inlineFns rest body'
+    inlineFns joins rest body'
   where
     names = S.fromList (map fst fns)
     bodies = body : [bd | (_, Lambda _ (ABTN.TAbss _ bd)) <- fns]
@@ -1364,8 +1527,27 @@ inlineFns fns body = case find inlinable fns of
     selfCalls f bd = S.member f (refsIn names bd)
     -- the body of a kept handler stays a call ('handledBody')
     handled f = or [g == f | bd <- bodies, AHnd _ _ _ (TApp (FVar g) _) <- nodes bd]
+    -- A join point is shared to keep the code from doubling at every
+    -- match, and a call of it costs what a copy doesn't. One with a single
+    -- call goes into it. One with more is copied into them if the copies
+    -- add little, which bounds what each match adds; of those the
+    -- innermost go first, so that one is judged with the join points it
+    -- calls already in it: an outer one copied first would double the
+    -- calls of the next, and so on down. And join points go
+    -- before any other function: a loop's function copied into the join
+    -- points it calls gives each of them more calls, and leaves a call
+    -- per join point in every round of the loop.
+    inlinableJoin (f, Lambda _ (ABTN.TAbss _ bd)) =
+      S.member f joins
+        && not (closed f || selfCalls f bd || handled f)
+        && ( calls f == 1
+               || S.null (S.delete f (refsIn (S.intersection joins names) bd))
+                 && length (nodes bd) * (calls f - 1) <= joinCopyLimit
+           )
+    -- how many nodes copying a join point into its callers may add
+    joinCopyLimit = 100 :: Int
     inlinable (f, Lambda _ (ABTN.TAbss _ bd))
-      | closed f || selfCalls f bd || handled f = False
+      | closed f || selfCalls f bd || handled f || S.member f joins = False
       | recursive f = length (nodes bd) <= 40
       | otherwise = calls f == 1 || length (nodes bd) <= 4
 
@@ -1398,6 +1580,64 @@ refsIn :: S.Set Symbol -> Term -> S.Set Symbol
 refsIn names t =
   S.fromList [g | AApp (FVar g) _ <- nodes t, S.member g names]
     <> S.fromList [g | AName (Right g) _ _ <- nodes t, S.member g names]
+
+-- | Variables replaced by terms.
+substVars :: M.Map Symbol Term -> Term -> Term
+substVars m
+  | M.null m = id
+  | otherwise = go
+  where
+    go = \case
+      TVar v | Just c <- M.lookup v m -> c
+      ABTN.TAbs v b -> ABTN.TAbs v (go b)
+      ABTN.TTm x -> ABTN.TTm (fmap go x)
+
+-- | The variables a term binds, with how each is held.
+binderMems :: Term -> [(Symbol, Mem)]
+binderMems = \case
+  ABTN.TAbs _ b -> binderMems b
+  ABTN.TTm x -> own x ++ foldMap binderMems x
+  where
+    own = \case
+      ALet _ ms _ bo -> zip (absVars bo) ms
+      AName _ _ bo -> boxed bo
+      AShift _ bo -> boxed bo
+      AMatch _ br -> case br of
+        MatchData _ cs _ -> concat [zip (absVars b) ms | (ms, b) <- map snd (EC.mapToList cs)]
+        MatchSum cs -> concat [zip (absVars b) ms | (ms, b) <- map snd (EC.mapToList cs)]
+        MatchRequest arms df -> concat [zip (absVars b) ms | (_, cs) <- arms, (ms, b) <- map snd (EC.mapToList cs)] ++ boxed df
+        MatchRec _ b -> boxed b
+        _ -> []
+      _ -> []
+    boxed b = map (,BX) (absVars b)
+
+absVars :: Term -> [Symbol]
+absVars = \case
+  ABTN.TAbs v b -> v : absVars b
+  _ -> []
+
+-- | The variables each residual function uses from where it is called,
+-- which only a join point does ('joined'): the ones free in its body and
+-- the ones the functions it calls need, less the ones it binds itself.
+-- The globals (the constants) are left to 'constNeeds'.
+freeNeeds :: S.Set Symbol -> [(Symbol, SuperNormal Reference Symbol)] -> M.Map Symbol [Symbol]
+freeNeeds globals fns = M.map S.toList (fixed direct)
+  where
+    names = S.fromList (map fst fns)
+    direct = M.fromList [(f, ABTN.freeVars t S.\\ (globals <> names)) | (f, Lambda _ t) <- fns]
+    bound = M.fromList [(f, S.fromList (absVars t ++ map fst (binderMems t))) | (f, Lambda _ t) <- fns]
+    callees = M.fromList [(f, refsIn names t) | (f, Lambda _ t) <- fns]
+    fixed m
+      | m' == m = m
+      | otherwise = fixed m'
+      where
+        m' =
+          M.mapWithKey
+            ( \f used ->
+                (used <> foldMap (\g -> M.findWithDefault S.empty g m) (M.findWithDefault S.empty f callees))
+                  S.\\ M.findWithDefault S.empty f bound
+            )
+            m
 
 -- | The constants each residual function needs: the ones its body uses and
 -- the ones the functions it calls need, in the order of the entry's.

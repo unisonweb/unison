@@ -274,8 +274,9 @@ The size budget is a multiple of the size of the input
 known argument is made of), since code specialized on a value grows with it, as an
 interpreter's does with its program. The specializer counts the lets and matches it
 generates ([`emitted`](ANF/Specialize.hs)). Past the budget:
-- **A fused handler in force is given up on.** Fusing copies the rest of the walk into
-  each arm of an unknown match, which is what grows the code. The walk rolls back to its
+- **A fused handler in force is given up on.** Fusing can copy the rest of the walk into
+  the arms of an unknown match (where a join point can't be shared, see
+  [Abilities](#abilities)), which is what grows the code. The walk rolls back to its
   `handle` and keeps the handler.
 - **With none in force, the specialization starts again with no handler fused**
   ([`specializeLambda`](ANF/Specialize.hs)): the handlers that grew the code may be
@@ -476,8 +477,45 @@ its continuation, not whether the handler is affine:
   (`sTargets`, a metacontinuation) in its state. So a case that doesn't resume drops the
   rest of the body, `handle k v with h'` carries on under `h'`, and a plain `k v` returns
   to the case. Under a fused handler, calls are unfolded rather than made residual
-  functions, and the rest of the walk goes into each arm of an unknown match, so that every
-  request sees all of its continuation.
+  functions, so that every request sees all of its continuation.
+
+  For the same reason the code after an unknown match can't be a let's body there: a
+  request in an arm must see it. It becomes a join point
+  ([`joined`](ANF/Specialize.hs)), a residual function that each arm calls at its end:
+  - **The arms are walked first.** Where an arm reaches the code after the match with the
+    handlers as they were at the match, it leaves a placeholder and records the value it
+    gives.
+  - **The values are generalized together** (`lubAbs`): what every arm agrees on stays
+    known, and each part where they differ becomes a parameter. So a match whose arms
+    all give `N` of some number goes on knowing the `N`.
+  - **The code after the match is walked once,** as the join point's body, and each
+    placeholder becomes a call of it.
+  - **An arm that reaches that code with the handlers changed** (it handled a request and
+    resumed, so another handler is in force) gets its own copy, since the code depends on
+    the handlers. Sharing those too means passing the handlers' state to the join point,
+    as a state-passing loop does: not done yet.
+  - **A continuation resumed in an arm and again after the match** is resumed twice, which
+    escapes as it did when the arm held a copy.
+
+  A join point uses variables of the function it is in. When the walk is over each gets
+  them as parameters ([`freeNeeds`](ANF/Specialize.hs)), before inlining, which renames
+  the variables of the copies it makes.
+
+  A join point is a function, so a call of it costs what a copy of the code doesn't. The
+  clean-up pass ([`inlineFns`](ANF/Specialize.hs)) removes the ones that don't pay:
+  - **One with a single call goes into it.** Most are like this: the other arms of the
+    match end without reaching the code after it (an abort, a failure).
+  - **One with several calls is copied into them if the copies add at most 100 nodes,**
+    the innermost first, so that each is judged with the join points it calls already in
+    it. Copying an outer one first would double the calls of the next, and so on down,
+    which is the growth join points are there to stop.
+  - **Join points go before any other function.** A loop's function copied into the join
+    points it calls would give each of them more calls, and leave a call per join point in
+    every round.
+
+  Over the first 100 programs of the [differential tester](#testing), join points cut the
+  code generated from 222,000 lines to 85,000, and the benchmarks are the same with and
+  without them (`UNISON_SPECIALIZE_JOIN=off` turns them off, to compare).
 
   It is all or nothing for a `handle`: anything in its scope that could perform its requests
   unseen escapes (`Escape`) back to the `handle`, which rolls the walk's state back and keeps
@@ -545,8 +583,7 @@ program gives residual code in that program's shape, so random programs give var
   little.
 
 The transcript checks seeds 0 to 49 and the seeds that found bugs. To try others, change
-the arguments of `check`. Many seeds in one `run` get slow as the generated code piles up,
-so use several runs of a few dozen.
+the arguments of `check`: 300 seeds take about 100 seconds.
 
 ## Implementation notes
 
@@ -608,8 +645,9 @@ so use several runs of a few dozen.
    the scheme in [Recursion and termination](#recursion-and-termination), it is checked
    only between residual functions being built, and it doesn't yet distinguish pieces of
    the input from computed values. `UNISON_SPECIALIZE_DEBUG=1` says on stderr what each
-   specialization made, its constants, or why it gave up. Still to do: tests that hit each
-   budget.
+   specialization made, its constants, or why it gave up, and how much known code has run:
+   the runs, the ones cut off by the time limit, the ones that failed, and the groups in
+   the code cache. Still to do: tests that hit each budget.
 7. **Abilities.** Running known code with handlers, and keeping handlers with their
    bodies specialized, are done: the transcript has a state handler over known code
    becoming a constant, and an interpreter with an abort ability specialized inside its

@@ -820,30 +820,30 @@ scratch/main> add
               match v2 with
                 false ->
                   lit2 = 1
-                  v3 = Nat.drop x1 lit2
+                  r4 = Nat.drop x1 lit2
                   lit3 = 0
-                  v4 = Nat.eq v3 lit3
-                  match v4 with
+                  v3 = Nat.eq r4 lit3
+                  match v3 with
                     false ->
-                      r4 = evalA' v3
-                      match r4 with
+                      r5 = evalA' r4
+                      match r5 with
                         Right p2 ->
                           match p2 with
-                            Cons r5 rest2 ->
-                              r6 = x1 Nat.* r5
+                            Cons r6 rest2 ->
+                              r7 = x1 Nat.* r6
                               nil = ()
-                              p3 = Cons r6 nil
+                              p3 = Cons r7 nil
                               Right p3
                         Left done2 -> Left done2
                     _ ->
-                      r7 = evalA'1 v3
-                      match r7 with
+                      r8 = evalA'1 r4
+                      match r8 with
                         Right p4 ->
                           match p4 with
-                            Cons r8 rest3 ->
-                              r9 = x1 Nat.* r8
+                            Cons r9 rest3 ->
+                              r10 = x1 Nat.* r9
                               nil1 = ()
-                              p5 = Cons r9 nil1
+                              p5 = Cons r10 nil1
                               Right p5
                         Left done3 -> Left done3
                 _ ->

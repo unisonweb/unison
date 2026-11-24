@@ -527,7 +527,7 @@ scratch/main> add
 
 scratch/main> run checkSome
 
-  Report [] 0 31 19
+  Report [] 0 28 22
 
 scratch/main> run regressions
 

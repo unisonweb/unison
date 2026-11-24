@@ -2417,6 +2417,10 @@ specializeClosure cc val = case val of
                   <$> SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
               Nothing -> do
                 made <- SP.specializeLambda (specEnv cc groups names) (specLimits (M.lookup r groups) captured) r i captured
+                when specializeDebug $ do
+                  (runs, cut, failed, loads) <- readIORef knownCounts
+                  ngroups <- M.size <$> readTVarIO (intermed cc)
+                  hPutStrLn stderr ("[specialize] known code so far: " ++ show runs ++ " runs, " ++ show cut ++ " cut off by time, " ++ show failed ++ " failed, " ++ show loads ++ " terms loaded; " ++ show ngroups ++ " groups in the cache")
                 when specializeDebug $ case made of
                   Left why -> hPutStrLn stderr ("[specialize] " ++ show r ++ ": gave up (" ++ why ++ "), keeping the original code")
                   Right (g, cs) -> do
@@ -2494,7 +2498,8 @@ runTerm :: CCache p -> [(Symbol, ANF.Mem)] -> ANF.ANormal Reference Symbol -> [V
 runTerm cc fvs t vs =
   fmap (either (const Nothing) id) . UnliftIO.tryAny $ do
     groups <- readTVarIO (intermed cc)
-    unless (M.member ref groups) $
+    unless (M.member ref groups) $ do
+      when specializeDebug $ UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r, t, f, l + 1))
       cacheAdd0 S.empty [(ref, CodeRep grp Uncacheable)] [] cc {profiler = ()}
     mkClosure cc ref 0 [] >>= \case
       Nothing -> pure Nothing
@@ -2645,6 +2650,10 @@ runKnown cc lim f args
         timeout (knownMicros lim) . UnliftIO.tryAny $ do
           (tick, cancel) <- startTicker (profiler env)
           apply tick env mempty Nothing stk k0 False as f `finally` cancel
+      when specializeDebug $ case outcome of
+        Nothing -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t + 1, f, l))
+        Just (Left _) -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f + 1, l))
+        _ -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f, l))
       case outcome of
         Just (Right ()) -> readIORef result
         _ -> pure Nothing
@@ -2689,7 +2698,10 @@ knownRunnable cc vals = do
 -- on a program) grows with it.
 specLimits :: Maybe (SuperGroup Reference Symbol) -> [Val] -> SP.SpecLimits
 specLimits grp captured =
-  SP.defaultSpecLimits {SP.slOutput = outputFactor * (maybe 0 groupSize grp + foldl' (valueSize 10000) 0 captured)}
+  SP.defaultSpecLimits
+    { SP.slOutput = outputFactor * (maybe 0 groupSize grp + foldl' (valueSize 10000) 0 captured),
+      SP.slJoin = specializeJoin
+    }
   where
     outputFactor = 20
     groupSize (ANF.Rec fs ent) = sum (lamSize <$> ent : map snd fs)
@@ -2779,6 +2791,19 @@ valueCodeRefs = \case
 specializeDebug :: Bool
 specializeDebug = unsafePerformIO (maybe False (not . null) <$> lookupEnv "UNISON_SPECIALIZE_DEBUG")
 {-# NOINLINE specializeDebug #-}
+
+-- | @UNISON_SPECIALIZE_JOIN=off@: no join points, the code after an
+-- unknown match under a fused handler copied into each arm, to compare.
+specializeJoin :: Bool
+specializeJoin = unsafePerformIO ((/= Just "off") <$> lookupEnv "UNISON_SPECIALIZE_JOIN")
+{-# NOINLINE specializeJoin #-}
+
+-- | For @UNISON_SPECIALIZE_DEBUG@: known code run, of those the runs cut
+-- off by the time limit and the ones that failed or ran out of fuel, and
+-- known terms loaded as code to run them.
+knownCounts :: IORef (Int, Int, Int, Int)
+knownCounts = unsafePerformIO (newIORef (0, 0, 0, 0))
+{-# NOINLINE knownCounts #-}
 
 freshSpecializations :: IORef Word64
 freshSpecializations = unsafePerformIO (newIORef 0)

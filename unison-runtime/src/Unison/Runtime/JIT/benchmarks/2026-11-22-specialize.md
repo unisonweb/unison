@@ -56,3 +56,26 @@ Findings:
 - The interpreter in continuation-passing style keeps its continuations as closures after
   specializing (the whistle generalizes them), so it gains less than the direct-style one
   relative to its starting point, but still about 10×.
+
+## With join points
+
+At the commit that adds join points ([Specialize.md](../../Specialize.md), "Abilities"),
+the same suite with them on and off (`UNISON_SPECIALIZE_JOIN=off`), the specialized rows:
+
+| Row | JIT off, on | JIT off, off | JIT on, on | JIT on, off |
+| --- | --- | --- | --- | --- |
+| fib 20 | 1.75 ms | 1.75 ms | 30.9 µs | 31.2 µs |
+| polynomial, 100000 points | 15.6 ms | 15.6 ms | 553 µs | 553 µs |
+| map with a lambda, 10000 elements | 1.19 ms | 1.20 ms | 241 µs | 242 µs |
+| foldLeft with a lambda, 10000 elements | 692 µs | 694 µs | 159 µs | 159 µs |
+| filter and map as a fold, 10000 elements | 1.15 ms | 1.15 ms | 158 µs | 158 µs |
+| five functions from a list, 100000 points | 15.7 ms | 15.7 ms | 612 µs | 612 µs |
+| state handler around a loop, 10000 rounds | 468 µs | 468 µs | 3.25 µs | 3.25 µs |
+| fib 20, interpreter with an ability to bail | 3.43 ms | 3.43 ms | 93.4 µs | 93.3 µs |
+| fib 20, interpreter in CPS | 2.52 ms | 2.52 ms | 273 µs | 275 µs |
+
+No row changes. Two earlier versions of the clean-up pass did cost the interpreter with an
+ability to bail: with every join point left a call, 4.53 ms and 113 µs; with only the small
+ones copied, 4.27 ms and 107 µs. Its loop has two join points, each with one call once the
+loop's function is left alone, and each call of one was a call per round.
+
