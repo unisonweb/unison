@@ -1338,9 +1338,12 @@ handler env lim e t rs h body k =
                   sTargets = (TPure fid, pureCase) : sTargets st
                 }
             pe env lim e body (KDelim fid)
+          -- with the handler as it is in its frame by then: a loop that
+          -- passed the state back has put a new one there ('resultMatch')
           pureCase a = do
+            now <- gets (find (\f -> isFused f && frId f == fid) . sFrames)
             modify' \st -> st {sFrames = dropFused fid (sFrames st)}
-            callHandler env lim e (look e h) (SPure a) k
+            callHandler env lim e (maybe (look e h) frHandler now) (SPure a) k
       liftIO (Control.Exception.try (runStateT attempt s0)) >>= \case
         Right (code, s1) -> put s1 >> pure code
         Left (Escape i)

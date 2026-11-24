@@ -1117,6 +1117,52 @@ of an unknown function; the code under it is still specialized:
           """
 ```
 
+A handler's pure case can use the state, and gets the state the loop gave back:
+
+``` unison
+runSt2 : Nat -> '{St} a -> (a, Nat)
+runSt2 s p =
+  go s = cases
+    { a } -> (a, s)
+    { St.get -> k } -> handle k s with go s
+    { St.put s' -> k } -> handle k () with go s'
+  handle p () with go s
+
+count7 : Nat ->{St} Nat
+count7 n = if Nat.eq n 0 then 7 else
+  St.put (St.get Nat.+ n)
+  count7 (Nat.drop n 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + count7 : Nat ->{St} Nat
+  + runSt2 : Nat -> '{St} a -> (a, Nat)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> (runSt2 0 do count7 4, specialize (s n -> runSt2 s do count7 n) 0 4)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > (runSt2 0 do count7 4, specialize (s n -> runSt2 s do count7 n) 0 4)
+          ⧩
+          ((7, 10), (7, 10))
+```
+
 A handler is fused around a loop only when every case that resumes re-installs the handler
 as its last act. One whose case does more with what the resumption gives back, or resumes
 twice, stays a handler, with the code under it specialized:
@@ -1194,7 +1240,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
-          #2bqgrtroef z n =
+          #30uu2adem2 z n =
             handled z n =
               v1 = z Nat.+ n
               lit = 0
