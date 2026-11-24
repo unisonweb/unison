@@ -79,3 +79,45 @@ ability to bail: with every join point left a call, 4.53 ms and 113 µs; with on
 ones copied, 4.27 ms and 107 µs. Its loop has two join points, each with one call once the
 loop's function is left alone, and each call of one was a call per round.
 
+## With calls unfolded under unknown matches, and direct calls within a group
+
+At the commits that unfold a call under an unknown match unless the whistle blows
+([Specialize.md](../../Specialize.md), "Recursion and termination") and that emit a call
+of a function of the same group with all its arguments as a direct call
+([`emitFunction`](../../MCode.hs)).
+
+| Row | JIT off | JIT on |
+| --- | --- | --- |
+| fib 20: specialized | 1.76 ms | 36.8 µs |
+| fib 20: by hand | 1.76 ms | 36.8 µs |
+| polynomial, 100000 points: specialized | 15.6 ms | 554 µs |
+| polynomial, 100000 points: by hand | 15.2 ms | 485 µs |
+| map with a lambda, 10000 elements: generic | 1.44 ms | 250 µs |
+| map with a lambda, 10000 elements: specialized | 697 µs | 239 µs |
+| foldLeft with a lambda, 10000 elements: specialized | 425 µs | 159 µs |
+| foldLeft with a lambda, 10000 elements: by hand | 424 µs | 160 µs |
+| filter and map as a fold, 10000 elements: specialized | 950 µs | 164 µs |
+| filter and map as a fold, 10000 elements: by hand | 951 µs | 165 µs |
+| five functions from a list, 100000 points: specialized | 15.7 ms | 613 µs |
+| five functions from a list, 100000 points: by hand | 15.3 ms | 485 µs |
+| state handler around a loop, 10000 rounds: specialized | 397 µs | 3.25 µs |
+| state handler around a loop, 10000 rounds: by hand | 397 µs | 3.21 µs |
+| fib 20, interpreter with an ability to bail: specialized | 3.24 ms | 112 µs |
+| fib 20, interpreter in CPS: specialized | 2.22 ms | 170 µs |
+
+Findings:
+
+- With the JIT off, specialized code now equals the code written by hand in every row that
+  has one, where `foldLeft` was 1.6 times it and the state loop 1.2 times. Two things did
+  that: a function argument is inlined into the loop it is passed to (the call of it
+  under the loop's test is unfolded), and a call between residual functions is direct.
+- A call of a function of the same group went through the general application, which
+  checks the number of arguments as it runs; every residual function is in one group, so
+  every call between them did. With only the unfolding change, `fib` was 1.94 ms and
+  43.9 µs for the same optimized code as the one by hand.
+- `map` with the JIT off goes from 1.20 ms to 697 µs, and the interpreter in
+  continuation-passing style from 275 µs to 170 µs with it on.
+- `fib` under the JIT was 30.9 µs, less than by hand, and the interpreter with an ability
+  to bail 93 µs: the earlier output did two levels of the recursion in each call, by an
+  accident of which residual functions were inlined. Both are now the loop as written.
+

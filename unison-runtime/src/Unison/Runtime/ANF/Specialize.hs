@@ -243,7 +243,11 @@ data E = E
     -- | whether an unknown match has been residualized above, in the
     -- residual function being built
     eUnderDyn :: !Bool,
-    eDepth :: !Int
+    eDepth :: !Int,
+    -- | the calls being unfolded around this code, innermost first, each
+    -- with the key of its arguments: what the whistle looks at before
+    -- unfolding another under an unknown match ('call')
+    eStack :: [(Fn, [KArg])]
   }
 
 -- | Where a value goes: the tail of a residual function, or the rest of a
@@ -309,7 +313,8 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                 binds =
                   zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
                     ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
-                e0 = E (M.fromList (localBinds r locals ++ binds)) False 0
+                -- the entry is the first call being unfolded
+                e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds)]
             body0 <- pe env lim e0 body KTail
             consts <- gets (reverse . sConsts)
             fns0 <- gets sFns
@@ -557,9 +562,34 @@ call env lim e fa as k = case fa of
             call env lim e (Clo fn []) (take (lamArity lam) args) . KBind BX (syn "r") $ \res ->
               call env lim e res (drop (lamArity lam) args) k
         | otherwise -> runOr (Clo fn [] : args) $ do
-            if not (eUnderDyn e) && eDepth e < slDepth lim
-              then
-                pe env lim (E (M.fromList (localBinds r locals ++ zip vs args)) False (eDepth e + 1)) body k
+            -- With no unknown match above, the call is unfolded: whether
+            -- that ends is up to what is known, as it is when the program
+            -- runs. Under one it is unfolded too, so that what it gives is
+            -- known to what follows (a closure it builds, a constructor),
+            -- unless that could go on forever: the same function is being
+            -- unfolded or built around this call with arguments no bigger
+            -- (the whistle, 'embeds'), or it has a residual function for
+            -- these arguments already. Then it is a call of a residual
+            -- function, whose result is unknown. An interpreter going into
+            -- a part of its program unfolds; coming back round to the same
+            -- code, it makes the residual function that is the loop.
+            building <- gets sBuilding
+            memo <- gets sMemo
+            let k0 = map keyOf args
+                -- a state-passing function's key has its handler after.
+                -- An argument unknown now that was known then counts too:
+                -- this call is the general one, the loop
+                grown (fn', ks) = fn' == fn && length ks >= length k0 && and (zipWith noSmaller ks k0)
+                noSmaller a b = case b of
+                  KHole _ -> True
+                  _ -> embeds a b
+                again =
+                  any grown (eStack e)
+                    || any grown building
+                    || M.member (Key False fn k0) memo
+                e' = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0) : eStack e)
+            if eDepth e < slDepth lim && not (eUnderDyn e && again)
+              then pe env lim e' body k
               else residualCall env lim fn args k
 
 -- | A residual function for a call, from its key: an existing one, or a new
@@ -762,7 +792,7 @@ residualFnWith env lim mframe fn args0 = do
               allArgs' = evalState (traverse renameLeaves allArgs) params
               args' = take (length args0) allArgs'
               Fn r _ = fn
-              e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0
+              e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0 []
           outer <- get
           modify' \s -> s {sLetNum = 1, sBuilding = (fn, map keyOf allArgs) : sBuilding s}
           body' <- case mframe of
@@ -1357,7 +1387,7 @@ callHandler env lim e h arg k = case h of
   Clo fn@(Fn r _) caps
     | Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals) <- lambdaOf env fn,
       length caps + 1 == lamArity lam ->
-        pe env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1)) body k
+        pe env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1) (eStack e)) body k
   Known v _ | Just (fn, caps) <- knownClosure env v -> callHandler env lim e (Clo fn caps) arg k
   _ -> guardFused "a handler that isn't a known function" >> giveUp "a fused handler that isn't a known function"
 

@@ -440,21 +440,23 @@ A recursive program becomes a recursive function, with no trace of the interpret
           --   (Call 0 Arg)
           #he1qjbhhqu prog e x =
             eval' x1 =
-              lit1 = 1
-              v2 = Nat.drop x1 lit1
               lit2 = 0
-              v3 = Nat.eq v2 lit2
-              v4 =
-                match v3 with
-                  false -> eval' v2
-                  _ ->
-                    lit3 = 1
-                    lit3
-              x1 Nat.* v4
+              v4 = Nat.eq x1 lit2
+              match v4 with
+                false ->
+                  lit3 = 1
+                  v5 = Nat.drop x1 lit3
+                  v6 = eval' v5
+                  x1 Nat.* v6
+                _ -> 1
             lit = 0
             v1 = Nat.eq x lit
             match v1 with
-              false -> eval' x
+              false ->
+                lit1 = 1
+                v2 = Nat.drop x lit1
+                v3 = eval' v2
+                x Nat.* v3
               _ -> 1
           """
 ```
@@ -520,24 +522,25 @@ scratch/main> add
           --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
           #gj43ai3imv f c c1 xs =
             map$go' acc x1 =
-              v4 = ##List.viewl x1
-              match v4 with
+              v5 = ##List.viewl x1
+              match v5 with
                 VElem x2 rest1 ->
-                  v5 = fn x2
-                  v6 = acc :+ v5
-                  map$go' v6 rest1
+                  lit2 = 2
+                  v6 = x2 Nat.* lit2
+                  lit3 = 1
+                  v7 = v6 Nat.+ lit3
+                  v8 = acc :+ v7
+                  map$go' v8 rest1
                 VEmpty -> acc
-            fn x3 =
-              lit = 2
-              v7 = x3 Nat.* lit
-              lit1 = 1
-              v7 Nat.+ lit1
             v1 = ##List.viewl xs
             match v1 with
               VElem x rest ->
-                v2 = fn x
-                v3 = c :+ v2
-                map$go' v3 rest
+                lit = 2
+                v2 = x Nat.* lit
+                lit1 = 1
+                v3 = v2 Nat.+ lit1
+                v4 = c :+ v3
+                map$go' v4 rest
               VEmpty -> c1
           """
 
@@ -632,19 +635,19 @@ scratch/main> add
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
           #2qmmp45ssf prog x =
             evalK$Lambda2$Lambda0' va vb = va Nat.* vb
-            evalK' x1 k =
-              lit4 = 1
-              v4 = Nat.drop x1 lit4
+            evalK$Lambda4' general va1 va2 =
               lit5 = 0
-              v5 = Nat.eq v4 lit5
+              v5 = Nat.eq va2 lit5
               match v5 with
                 false ->
-                  clo1 = partialApply evalK$Lambda2$Lambda0 k x1
-                  evalK' v4 clo1
-                _ ->
                   lit6 = 1
-                  v6 = x1 Nat.* lit6
-                  k v6
+                  v6 = Nat.drop va2 lit6
+                  clo1 = partialApply evalK$Lambda2$Lambda0 general va1
+                  evalK$Lambda4' clo1 va2 v6
+                _ ->
+                  lit7 = 1
+                  v7 = va1 Nat.* lit7
+                  general v7
             lit = 0
             v1 = Nat.eq x lit
             match v1 with
@@ -655,11 +658,13 @@ scratch/main> add
                 v3 = Nat.eq v2 lit2
                 match v3 with
                   false ->
-                    clo = partialApply evalK$Lambda2$Lambda0' x
-                    evalK' v2 clo
-                  _ ->
                     lit3 = 1
-                    x Nat.* lit3
+                    v4 = Nat.drop v2 lit3
+                    clo = partialApply evalK$Lambda2$Lambda0' x
+                    evalK$Lambda4' clo v2 v4
+                  _ ->
+                    lit4 = 1
+                    x Nat.* lit4
               _ -> 1
           """
 ```
@@ -815,62 +820,56 @@ scratch/main> add
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
           #0nklekfqfs prog x =
             evalA' x1 =
-              lit1 = 1
-              v2 = Nat.lt x1 lit1
-              match v2 with
+              lit4 = 0
+              v3 = Nat.eq x1 lit4
+              match v3 with
                 false ->
-                  lit2 = 1
-                  r4 = Nat.drop x1 lit2
-                  lit3 = 0
-                  v3 = Nat.eq r4 lit3
-                  match v3 with
+                  lit5 = 1
+                  v4 = Nat.lt x1 lit5
+                  match v4 with
                     false ->
+                      lit6 = 1
+                      r4 = Nat.drop x1 lit6
                       r5 = evalA' r4
                       match r5 with
-                        Right p2 ->
-                          match p2 with
-                            Cons r6 rest2 ->
+                        Right p1 ->
+                          match p1 with
+                            Cons r6 rest1 ->
                               r7 = x1 Nat.* r6
                               nil = ()
-                              p3 = Cons r7 nil
-                              Right p3
-                        Left done2 -> Left done2
+                              p2 = Cons r7 nil
+                              Right p2
+                        Left done1 -> Left done1
                     _ ->
-                      r8 = evalA'1 r4
-                      match r8 with
-                        Right p4 ->
-                          match p4 with
-                            Cons r9 rest3 ->
-                              r10 = x1 Nat.* r9
-                              nil1 = ()
-                              p5 = Cons r10 nil1
-                              Right p5
-                        Left done3 -> Left done3
+                      con = None
+                      Left con
                 _ ->
-                  con = None
-                  Left con
-            evalA'1 x2 =
-              lit4 = 1
-              nil2 = ()
-              p6 = Cons lit4 nil2
-              Right p6
+                  lit7 = 1
+                  nil1 = ()
+                  p3 = Cons lit7 nil1
+                  Right p3
             lit = 0
             v1 = Nat.eq x lit
             match v1 with
               false ->
-                r = evalA' x
-                match r with
-                  Right p ->
-                    match p with
-                      Cons r1 rest -> Some r1
-                  Left done -> done
+                lit1 = 1
+                v2 = Nat.lt x lit1
+                match v2 with
+                  false ->
+                    lit2 = 1
+                    r = Nat.drop x lit2
+                    r1 = evalA' r
+                    match r1 with
+                      Right p ->
+                        match p with
+                          Cons r2 rest ->
+                            r3 = x Nat.* r2
+                            Some r3
+                      Left done -> done
+                  _ -> None
               _ ->
-                r2 = evalA'1 x
-                match r2 with
-                  Right p1 ->
-                    match p1 with
-                      Cons r3 rest1 -> Some r3
-                  Left done1 -> done1
+                lit3 = 1
+                Some lit3
           """
 ```
 
@@ -1268,8 +1267,8 @@ scratch/main> add
               match v8 with
                 {tick} ->
                   cont1 = shift {Tick}
+                  clo1 = partialApply fn
                   p1 =
-                    clo1 = partialApply fn
                     handle {Tick}
                       con = ()
                       cont1 con

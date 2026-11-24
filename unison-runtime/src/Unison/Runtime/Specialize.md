@@ -232,15 +232,23 @@ online partial evaluator for Scheme):
 - **Unfold a call made with no dynamic match above it** in the residual function being
   built. That code runs once per call of the function anyway, so unfolding it can't loop
   unless the known computation itself loops, and fuel catches that.
-- **Specialize a call made under a dynamic match.** It becomes a call to a residual
-  function for its key, and the key is memoized. If the key has been seen before,
-  including one still being built further up, the call reuses that function. That is
-  how recursion in the interpreted program becomes recursion in the residual, and how
-  `fac0` closes.
-- **Clean up afterwards.** Specializing under every dynamic match makes many small
-  functions: one for `Num 1`, one for `Mul Arg (Call ...)`, and so on. A pass after the
-  specializer inlines every residual function that isn't recursive or is called once, and
-  merges identical ones. That leaves `fac0` as shown above.
+- **Under a dynamic match, unfold a call too, unless it could go on forever**
+  ([`call`](ANF/Specialize.hs)). Unfolding keeps what the call gives known to the code
+  after it: a closure it builds, the constructor of its result. A call of a residual
+  function gives an unknown value, and an interpreter that gets one where it had a known
+  function has to interpret that function's body.
+- **It could go on forever when the same combinator is being unfolded or built around
+  the call with a key no bigger** (the whistle, below), or already has a residual
+  function for this key. Then the call becomes a call to a residual function for its key,
+  and the key is memoized. That is how recursion in the interpreted program becomes
+  recursion in the residual, and how `fac0` closes: the interpreter going into a part of
+  its program unfolds, and coming back round to the same code it makes the function that
+  is the loop.
+- **A call that knows less than one around it counts as no bigger.** `go [] xs` calling
+  `go (acc :+ f x) rest` has an unknown accumulator where it had a known one: that call
+  is the general one, the loop, and unfolding it would only peel off a round.
+- **Clean up afterwards.** A pass after the specializer inlines every residual function
+  that isn't recursive or is called once. That leaves `fac0` as shown above.
 
 This terminates exactly when the set of keys is finite. Two kinds of known data appear in
 keys:
@@ -253,8 +261,10 @@ keys:
   `go (n + 1) dyn` or an environment that grows with each `Let` is of this kind. Only these
   can grow without bound.
 
-For computed parts, the safety net is a *whistle*. Along the chain of residual functions
-being built for the same combinator, if a computed part keeps growing, it becomes unknown.
+For computed parts, the safety net is a *whistle*. Along the chain of calls being unfolded
+and residual functions being built for the same combinator, if a computed part keeps
+growing, the call stops being unfolded, and in a residual function the part becomes
+unknown.
 "Growing" is homeomorphic embedding. For literals it compares sizes: a `Nat`'s value, an
 `Int`'s absolute value, a `Text`'s length. This is a well-quasi-order, which guarantees the
 whistle eventually blows on any infinite chain. A known counter going down, as in `power 3`,
