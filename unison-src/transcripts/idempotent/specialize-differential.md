@@ -10,7 +10,8 @@ The language is a dynamically typed lambda calculus over `Nat`, with two bounded
 with effects: `Perform`, `Handle`, and `Resume` in a handler's clause. The generator is
 typed, so a generated program never fails with a type error, and its handler clauses use
 their continuation in each of the ways a handler can: not at all, as the last act, with
-more work after, twice, and inside a function.
+more work after, twice, and inside a function. A second generator makes loops under one
+handler or two with a request each round.
 
 To try other seeds, change the arguments of `check` at the end (the first seed and how many)
 and run the transcript.
@@ -271,6 +272,27 @@ genClause ctx size =
 genProg : Nat ->{Rand} Expr
 genProg size = Lam TN (Lam TN (gen [TN, TN] TN size))
 
+-- A loop under one handler or two, with a request each round: the shape
+-- where the loop must become a function that is passed the handlers' states.
+-- The clauses use their continuation in every way, so many of these loops
+-- have work waiting after a resumption.
+genLoopProg : Nat ->{Rand} Expr
+genLoopProg size =
+  h = size / 2
+  ctx = [TN, TN]
+  round c = match below 3 with
+    0 -> Perform (below 2) (gen c TN h)
+    1 -> Prim Add (Perform (below 2) (gen c TN h)) (gen c TN h)
+    _ -> Prim Add (gen c TN h) (Perform (below 2) (Var 0))
+  loop = match below 2 with
+    0 -> Iter (Var (below 2)) (Lam TN (round (TN +: ctx))) (gen ctx TN h)
+    _ -> PrimRec (Var (below 2)) (Lam TN (Lam TN (round (TN +: (TN +: ctx))))) (gen ctx TN h)
+  handled body =
+    clause _ = genClause (TN +: (TN +: (TK +: ctx))) h
+    second = if below 3 == 0 then None else Some (clause ())
+    Handle (Handler (gen (TN +: (TN +: ctx)) TN h) [Some (clause ()), second] (Lit (below 3))) body
+  Lam TN (Lam TN (if below 2 == 0 then handled loop else handled (handled loop)))
+
 -- Shrinking: smaller programs of the same type that still fail.
 
 lmap : (a ->{e} b) -> [a] ->{e} [b]
@@ -432,7 +454,16 @@ type Report = Report [(Nat, Nat, Expr, Nat, Nat)] Nat Nat Nat
 -- seed, the check that failed, the program shrunk, and the inputs; then how
 -- many gave up, kept a handler, fused all
 check : Nat -> Nat ->{IO, Exception} Report
-check from count =
+check = checkWith genCase
+
+-- the same for loops under handlers
+genLoopCase : Nat -> (Expr, Nat, Nat)
+genLoopCase seed = runRand seed do
+  p = genLoopProg 8
+  (p, below 6, below 6)
+
+checkWith : (Nat -> (Expr, Nat, Nat)) -> Nat -> Nat ->{IO, Exception} Report
+checkWith genCase from count =
   go i fails gaveUp kept fused =
     if i >= from + count then Report fails gaveUp kept fused else
       match genCase i with
@@ -461,44 +492,52 @@ check from count =
   + type Ty
   + type Val
 
-  + allClauses : [Ty] -> [Optional Expr] -> Boolean
-  + apply      : Val -> Val ->{Eff} Val
-  + attempt    : '{IO} a ->{IO} Optional a
-  + candidates : Expr -> [Expr]
-  + check      : Nat -> Nat ->{IO, Exception} Report
-  + checkN     : Nat -> Expr -> Nat -> Nat ->{IO} Boolean
-  + children   : Expr -> ([Expr], ([Expr] -> Expr))
-  + classify   : Expr -> Nat
-  + eval       : Env -> Expr ->{Eff} Val
-  + exprSize   : Expr -> Nat
-  + failing    : Expr -> Nat -> Nat ->{IO} Optional Nat
-  + gen        : [Ty] -> Ty -> Nat ->{Rand} Expr
-  + genCase    : Nat -> (Expr, Nat, Nat)
-  + genClause  : [Ty] -> Nat ->{Rand} Expr
-  + genN       : [Ty] -> Nat ->{Rand} Expr
-  + genProg    : Nat ->{Rand} Expr
-  + genTy      : Nat ->{Rand} Ty
-  + handleWith : Env -> Handler -> '{Eff} Val ->{Eff} Val
-  + isN        : [Ty] -> Expr -> Boolean
-  + lmap       : (a ->{e} b) -> [a] ->{e} [b]
-  + lookup     : Nat -> Env -> Val
-  + nat        : Val -> Nat
-  + pick       : [a] ->{Rand} Optional a
-  + prim       : Bin -> Nat -> Nat -> Nat
-  + progTy     : Ty
-  + replaceAt  : Nat -> a -> [a] -> [a]
-  + roundTrip  : a ->{IO} a
-  + run        : Expr -> Nat -> Nat -> Nat
-  + runRand    : Nat -> '{Rand} a -> a
-  + shrink     : (Expr ->{e} Boolean) -> Nat -> Expr ->{e} Expr
-  + shrinks    : Expr -> [Expr]
-  + topH       : Request {Eff} Val -> Val
-  + typeOf     : [Ty] -> Expr -> Optional Ty
-  + varsOf     : Ty -> [Ty] -> [Nat]
-  + zipBack    : (Optional Expr ->{g1} Expr ->{g} Optional Expr)
-                 -> [Optional Expr]
-                 -> [Expr]
-                 ->{g, g1} [Optional Expr]
+  + allClauses  : [Ty] -> [Optional Expr] -> Boolean
+  + apply       : Val -> Val ->{Eff} Val
+  + attempt     : '{IO} a ->{IO} Optional a
+  + candidates  : Expr -> [Expr]
+  + check       : Nat -> Nat ->{IO, Exception} Report
+  + checkN      : Nat -> Expr -> Nat -> Nat ->{IO} Boolean
+  + checkWith   : (Nat -> (Expr, Nat, Nat))
+                  -> Nat
+                  -> Nat
+                  ->{IO, Exception} Report
+  + children    : Expr -> ([Expr], ([Expr] -> Expr))
+  + classify    : Expr -> Nat
+  + eval        : Env -> Expr ->{Eff} Val
+  + exprSize    : Expr -> Nat
+  + failing     : Expr -> Nat -> Nat ->{IO} Optional Nat
+  + gen         : [Ty] -> Ty -> Nat ->{Rand} Expr
+  + genCase     : Nat -> (Expr, Nat, Nat)
+  + genClause   : [Ty] -> Nat ->{Rand} Expr
+  + genLoopCase : Nat -> (Expr, Nat, Nat)
+  + genLoopProg : Nat ->{Rand} Expr
+  + genN        : [Ty] -> Nat ->{Rand} Expr
+  + genProg     : Nat ->{Rand} Expr
+  + genTy       : Nat ->{Rand} Ty
+  + handleWith  : Env -> Handler -> '{Eff} Val ->{Eff} Val
+  + isN         : [Ty] -> Expr -> Boolean
+  + lmap        : (a ->{e} b) -> [a] ->{e} [b]
+  + lookup      : Nat -> Env -> Val
+  + nat         : Val -> Nat
+  + pick        : [a] ->{Rand} Optional a
+  + prim        : Bin -> Nat -> Nat -> Nat
+  + progTy      : Ty
+  + replaceAt   : Nat -> a -> [a] -> [a]
+  + roundTrip   : a ->{IO} a
+  + run         : Expr -> Nat -> Nat -> Nat
+  + runRand     : Nat -> '{Rand} a -> a
+  + shrink      : (Expr ->{e} Boolean) -> Nat -> Expr ->{e} Expr
+  + shrinks     : Expr -> [Expr]
+  + topH        : Request {Eff} Val -> Val
+  + typeOf      : [Ty] -> Expr -> Optional Ty
+  + varsOf      : Ty -> [Ty] -> [Nat]
+  + zipBack     : (Optional Expr
+                   ->{g1} Expr
+                   ->{g} Optional Expr)
+                  -> [Optional Expr]
+                  -> [Expr]
+                  ->{g, g1} [Optional Expr]
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -512,6 +551,7 @@ scratch/main> add
 Each case is a seed: a program and two inputs. The report lists the cases that disagree,
 each with its seed, which check failed, its program shrunk, and the inputs; then how many
 cases the specializer gave up on, how many kept a handler, and how many fused every handler.
+`checkLoopSeeds` is the same over the second generator, of loops under handlers.
 
 ``` unison
 checkSome : '{IO, Exception} Report
@@ -520,6 +560,9 @@ checkSome = do check 0 50
 -- seeds that found bugs
 regressions : '{IO, Exception} Report
 regressions = do check 100 1
+
+checkLoopSeeds : '{IO, Exception} Report
+checkLoopSeeds = do checkWith genLoopCase 0 30
 
 -- Loops under a handler whose case goes on after resuming, or resumes
 -- twice, which the generator seldom makes: the loop becomes a function
@@ -571,11 +614,13 @@ checkLoops = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + around      : Expr -> Expr -> Expr
-  + checkLoops  : '{IO, Exception} (Nat, [(Nat, Nat, Nat, Nat)])
-  + checkSome   : '{IO, Exception} Report
-  + loops       : [Expr]
-  + regressions : '{IO, Exception} Report
+  + around         : Expr -> Expr -> Expr
+  + checkLoops     : '{IO, Exception} ( Nat,
+                       [(Nat, Nat, Nat, Nat)])
+  + checkLoopSeeds : '{IO, Exception} Report
+  + checkSome      : '{IO, Exception} Report
+  + loops          : [Expr]
+  + regressions    : '{IO, Exception} Report
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -591,7 +636,11 @@ scratch/main> run checkSome
 
 scratch/main> run regressions
 
-  Report [] 0 1 0
+  Report [] 0 0 1
+
+scratch/main> run checkLoopSeeds
+
+  Report [] 0 10 20
 
 scratch/main> run checkLoops
 

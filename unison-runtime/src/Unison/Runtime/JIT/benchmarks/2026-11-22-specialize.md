@@ -149,3 +149,31 @@ Findings:
 - One run had the interpreter in continuation-passing style at 216 µs under the JIT, and
   the next at 167 µs, as before: that row varies between runs.
 
+
+## With loops under several handlers returning a `handle`'s value
+
+At the commit that extends the value-returning form to several handlers, makes a
+continuation a function only when a residual function resumes it, and splits `List.at` on
+a known list ([Specialize.md](../../Specialize.md), "Abilities"). No row of this file is
+under two fused handlers, so this run checks that nothing moved:
+
+| Row | JIT off | JIT on |
+| --- | --- | --- |
+| fib 20: specialized | 1.77 ms | 37.0 µs |
+| fib 20: by hand | 1.78 ms | 36.9 µs |
+| map with a lambda, 10000 elements: specialized | 702 µs | 252 µs |
+| foldLeft with a lambda, 10000 elements: specialized | 430 µs | 164 µs |
+| foldLeft with a lambda, 10000 elements: by hand | 429 µs | 162 µs |
+| filter and map as a fold, 10000 elements: specialized | 976 µs | 167 µs |
+| state handler around a loop, 10000 rounds: specialized | 408 µs | 3.24 µs |
+| state handler around a loop, 10000 rounds: by hand | 404 µs | 3.23 µs |
+| bail interpreter: specialized | 3.26 ms | 115 µs |
+| tick counter around a recursion, 1000 deep: specialized | 183 µs | 29.7 µs |
+| tick counter around a recursion, 1000 deep: by hand | 63.9 µs | 6.89 µs |
+| coin flips in a loop, 10 flips: specialized | 281 µs | 52.8 µs |
+| coin flips in a loop, 10 flips: by hand | 169 µs | 25.9 µs |
+| fib 20, interpreter in CPS: specialized | 2.22 ms | 248 µs |
+
+Every row is within 3% of the last run except the interpreter in continuation-passing
+style under the JIT, which has varied between 167 µs and 248 µs over three runs with the
+same generated code.

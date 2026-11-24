@@ -1046,7 +1046,9 @@ Around a loop, the state is passed to the loop and returned from it:
 ```
 
 A handler stays when something in its scope could perform its requests unseen, here a call
-of an unknown function; the code under it is still specialized:
+of an unknown function; the code under it is still specialized. The first `St.get` is
+handled before the call is reached, so it is the state itself, and the handler that stays
+is the one its case installed, around the rest of the body:
 
 ``` unison
 > specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3 (x -> x Nat.* 2)
@@ -1072,13 +1074,12 @@ of an unknown function; the code under it is still specialized:
           --       put (f get)
           --       get) 3
           #aqe3doh5bf s f =
-            handled f =
-              v1 = St.get
-              v2 = f v1
-              _ = put v2
+            handled s f nil1 =
+              v1 = f s
+              _ = put v1
               St.get
-            fn s v3 =
-              match v3 with
+            fn s v2 =
+              match v2 with
                 {St.get} ->
                   cont1 = shift {St}
                   clo1 = partialApply fn s
@@ -1093,8 +1094,8 @@ of an unknown function; the code under it is still specialized:
                     cont2 con
                   with clo2
                 {a} -> a
-            fn1 s1 v4 =
-              match v4 with
+            fn1 s1 v3 =
+              match v3 with
                 {St.get} ->
                   cont3 = shift {St}
                   clo3 = partialApply fn1 s1
@@ -1110,8 +1111,9 @@ of an unknown function; the code under it is still specialized:
                   with clo4
                 {a1} -> a1
             clo = partialApply fn s
+            nil = ()
             handle {St}
-              handled f
+              handled s f nil
             with clo
           """
 ```
@@ -1242,34 +1244,34 @@ scratch/main> add
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
           #30uu2adem2 z n =
-            ticks' n2 k1 =
+            resume v1 r1 =
+              r2 = r1 Nat.+ v1
               lit5 = 0
-              v5 = Nat.eq n2 lit5
+              (lit5, r2)
+            ticks' n2 k1 =
+              lit6 = 0
+              v5 = Nat.eq n2 lit6
               match v5 with
                 false ->
-                  lit6 = 1
-                  v6 = Nat.drop n2 lit6
-                  k2 = partialApply resume n2 k1
-                  r1 = ticks' v6 k2
-                  match r1 with
+                  lit7 = 1
+                  v6 = Nat.drop n2 lit7
+                  k2 = partialApply resume1 n2 k1
+                  r3 = ticks' v6 k2
+                  match r3 with
                     Cons n3 p3 ->
                       match p3 with
                         Cons a1 p4 ->
                           match p4 with
                             () ->
-                              lit7 = 1
-                              v7 = n3 Nat.+ lit7
+                              lit8 = 1
+                              v7 = n3 Nat.+ lit8
                               (v7, a1)
                 _ ->
-                  lit8 = 0
-                  k1 lit8
-            resume n2 k1 r2 =
-              r2 = r2 Nat.+ n2
-              k1 r2
-            resume1 v1 r3 =
-              r3 = r3 Nat.+ v1
-              lit9 = 0
-              (lit9, r3)
+                  lit9 = 0
+                  k1 lit9
+            resume1 n2 k1 r4 =
+              r5 = r4 Nat.+ n2
+              k1 r5
             v1 = z Nat.+ n
             lit = 0
             v2 = Nat.eq v1 lit
@@ -1277,7 +1279,7 @@ scratch/main> add
               false ->
                 lit1 = 1
                 v3 = Nat.drop v1 lit1
-                k = partialApply resume1 v1
+                k = partialApply resume v1
                 r = ticks' v3 k
                 match r with
                   Cons n1 p1 ->
@@ -1301,7 +1303,7 @@ scratch/main> add
               false ->
                 lit1 = 1
                 v3 = Nat.drop v1 lit1
-                k = partialApply resume1 v1
+                k = partialApply resume v1
                 r = ticks' v3 k
                 match r with
                   Cons n1 p1 ->
@@ -1328,35 +1330,36 @@ scratch/main> add
                 false ->
                   lit1 = 1
                   v2 = Nat.drop n lit1
-                  k = partialApply resume2
+                  k = partialApply resume1
                   lit2 = 0
                   v3 = Nat.eq v2 lit2
                   match v3 with
                     false ->
                       con2 = true
-                      r3 = resume1 z v2 k con2
+                      r3 = resume2 z v2 k con2
                       con3 = false
-                      r4 = resume1 z v2 k con3
+                      r4 = resume2 z v2 k con3
                       r3 List.++ r4
                     _ -> k z
                 _ ->
                   r5 = z Nat.+ n
                   lit3 = 1
                   v4 = Nat.drop n lit3
-                  k1 = partialApply resume2
+                  k1 = partialApply resume1
                   lit4 = 0
                   v5 = Nat.eq v4 lit4
                   match v5 with
                     false ->
                       con4 = true
-                      r6 = resume1 r5 v4 k1 con4
+                      r6 = resume2 r5 v4 k1 con4
                       con5 = false
-                      r7 = resume1 r5 v4 k1 con5
+                      r7 = resume2 r5 v4 k1 con5
                       r6 List.++ r7
                     _ -> k1 r5
-            -- calling convention: acc:UN n1:BX k2:BX r8:BX
-            resume1 acc n1 k2 r8 =
-              match r8 with
+            resume1 r8 = List.empty r8
+            -- calling convention: acc:UN n1:BX k2:BX r9:BX
+            resume2 acc n1 k2 r9 =
+              match r9 with
                 false ->
                   lit5 = 1
                   v6 = Nat.drop n1 lit5
@@ -1365,13 +1368,13 @@ scratch/main> add
                   match v7 with
                     false ->
                       con6 = true
-                      r9 = resume1 acc v6 k2 con6
+                      r10 = resume2 acc v6 k2 con6
                       con7 = false
-                      r10 = resume1 acc v6 k2 con7
-                      r9 List.++ r10
+                      r11 = resume2 acc v6 k2 con7
+                      r10 List.++ r11
                     _ -> k2 acc
                 _ ->
-                  r11 = acc Nat.+ n1
+                  r12 = acc Nat.+ n1
                   lit7 = 1
                   v8 = Nat.drop n1 lit7
                   lit8 = 0
@@ -1379,12 +1382,11 @@ scratch/main> add
                   match v9 with
                     false ->
                       con8 = true
-                      r12 = resume1 r11 v8 k2 con8
+                      r13 = resume2 r12 v8 k2 con8
                       con9 = false
-                      r13 = resume1 r11 v8 k2 con9
-                      r12 List.++ r13
-                    _ -> k2 r11
-            resume2 r14 = List.empty r14
+                      r14 = resume2 r12 v8 k2 con9
+                      r13 List.++ r14
+                    _ -> k2 r12
             lit = 0
             v1 = Nat.eq n lit
             match v1 with

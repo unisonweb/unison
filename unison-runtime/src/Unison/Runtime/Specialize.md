@@ -207,7 +207,12 @@ an abstract value for each binding. For each construct:
   `match env with Cons ...` after a dynamic test still useful.
 - **Primop or foreign call:** if every argument is `Known`, run it on the interpreter
   (see the next sections). If that can't be done, or some argument isn't known,
-  residualize it. The partial evaluator knows nothing about what any primop means.
+  residualize it. The partial evaluator knows nothing about what any primop means, with
+  one exception: `List.at` on a known list of at most 8 elements that hold code or data,
+  at an unknown index, becomes a match on the index, each arm knowing its element
+  ([`atKnown`](ANF/Specialize.hs)). A table of handlers or of cases looked up by a number
+  that isn't known gets each entry specialized this way, as a kept handler does that
+  finds its case by the operation's number.
 - **Call of a known combinator**, or of a `Clo`: if every argument is `Known`, run it on
   the interpreter. Otherwise, or if running it fails, unfold it (specialize its body with
   these abstract arguments), or emit a call to a residual function specialized on the
@@ -496,10 +501,14 @@ its continuation, not whether the handler is affine:
   unseen escapes (`Escape`) back to the `handle`, which rolls the walk's state back and keeps
   the handler. That is a call of an unknown function, code kept as it is, a builtin that
   calls back into Unison code (`jumpCont`, a fork, a transaction: read off the builtins'
-  own code), a request behind a kept handler, a second resumption of the same continuation,
-  and a residual function, while a handler is fused or a captured continuation waits
-  (its code would land in another lambda, out of the request's scope). `UNISON_SPECIALIZE_DEBUG=1`
-  says which it was for each handler kept. So straight-line
+  own code), a request behind a kept handler, and a closure made a value (its body could
+  request anything, wherever it ends up called). `UNISON_SPECIALIZE_DEBUG=1` says which it
+  was for each handler kept.
+
+  A handler that a case installs around a resumption can be the one that escapes. Then
+  that one is kept, around the rest of the body, and the requests handled before it stay
+  handled: in the transcript's example of a kept handler, the first `St.get` is the
+  state itself. So straight-line
   code fuses, and so does an interpreter over a program with no loops: the transcript has
   a state handler becoming arithmetic and an abort becoming a branch.
 
@@ -526,41 +535,77 @@ its continuation, not whether the handler is affine:
 
   **A continuation as a function.** The rest of the walk serves as a request's
   continuation only if it is resumed once, where the walk is. When that turns out not to
-  do (a second resumption, or the continuation wanted in another function: `Reify`), the
-  walk goes back to the request and makes the continuation a residual function
-  ([`request`](ANF/Specialize.hs)):
+  do (`Reify`), the walk goes back to the request and makes the continuation a residual
+  function ([`request`](ANF/Specialize.hs)). That is a second resumption, or a resumption
+  inside another residual function: a function's body knows of no continuation from
+  outside it, so one that only passes through a function's arguments costs nothing.
   - **`resume(v, state)`** is the rest of the body from the request with `v` as the
     request's result, run under the handler with that state, through its pure case. So it
     gives the `handle`'s value.
   - **Resuming is a call of it** with the state of the handler the case installs around
     the resumption (`resumeFunction`), and the walk goes on with the value. A case can do
     that twice, or go on working with what it gets.
-  - **The handlers outside are behind a barrier** in the function: a request for one of
-    them escapes.
+  - **Fused handlers outside the one that handled the request** have their states passed
+    in too, and given back: the function returns `Right (value, states)`, or `Left` when a
+    case of one of them didn't resume, as a state-passing function does, and the resumption
+    matches on that (`PassOutside`). A request the body forwards to an outer handler is
+    handled inside the function this way.
 
   The transcript has two coin flips, whose handler resumes each twice, becoming four
   calls of two functions with no handler.
 
-  **A loop that returns the `handle`'s value.** A state-passing function returns to its
+  **A loop that returns a `handle`'s value.** A state-passing function returns to its
   caller, who goes on with the body, so the rest of the body from a request in it reaches
   past the function's end and can't be a function made there. When a state-passing
-  function can't be built for a call under one fused handler, the call is made the other
-  way ([`valueCall`](ANF/Specialize.hs)):
+  function can't be built for a call under fused handlers, the call is made the other way
+  ([`valueCall`](ANF/Specialize.hs)):
   - **The function takes the rest of the body as one more parameter** and gives the
-    `handle`'s value. A case that doesn't resume returns its value. The end of the body
-    calls the parameter with the body's value and the handler's state (`KEnd`).
-  - **The caller passes the code after the call, up to the `handle`, as a closure** of a
-    residual function made as for a request (`restAsFunction`), and goes on after the
-    `handle` with what the function returns.
+    outermost `handle`'s value. A case of that handler that doesn't resume returns its
+    value. The end of the body calls the parameter with the body's value and every
+    handler's state (`KEnd`).
+  - **The caller passes the code after the call, up to that `handle`, as a closure** of a
+    residual function made as for a request (`restAsFunction`), which runs through each
+    handler's pure case, and goes on after the `handle` with what the function returns.
   - **A call in the function's last position passes on the parameter it was given,** so a
     loop written with a tail call makes no closure.
+  - **The numbers in a handler are parameters** (`widened`), known or not: a counter that
+    starts at a known value is unknown from the second round on, and the continuation
+    must take whatever the loop ends with.
+  - **The body may end under handlers that cases installed** in place of the function's
+    own (`endsAs`). One installed as its case's last act stands for the function's. For the
+    outermost, a case may also have work left after it: the continuation's result goes
+    to that work.
+  - **A request to a handler inside the outermost, whose continuation must be a function,**
+    gives one that runs on through the outer handlers to the end of the loop, where it
+    calls the loop's continuation (`ThroughOutside`). It gives the outermost `handle`'s
+    value, so resuming it must be the last thing its case does.
+  - **If that doesn't work with all the handlers, it is tried with fewer,** from the
+    innermost: the function gives the value of a `handle` further in, and the handlers
+    outside it are left alone, behind a barrier, where a request to one of them escapes.
+    Which way worked for a function is remembered across the roll-backs of the attempts
+    around it (`sValued`), so each loop is tried each way once.
 
   The transcript has a tick counter around a recursion, `ticks' n k`, which calls itself
   with `r -> k (r + n)` and adds one to the count it gets back, and coin flips in a loop,
   where each flip is two calls of the loop.
 
-  Still to do: the value-returning form under more than one fused handler, and a handler
-  whose state changes from known to unknown inside such a loop.
+  **What a residual function is keyed on.** Besides the function and what is known of its
+  arguments ([`Key`](ANF/Specialize.hs)):
+  - **How it is called:** as it is, passing handlers' states, or returning a `handle`'s
+    value.
+  - **A continuation among its arguments** (`KKont`): code specialized on a continuation
+    resumes that one.
+  - **The abilities of the fused handlers behind a kept one.** A function made there was
+    walked with a request to any of them escaping, so it makes none, and can be shared
+    only where the same holds.
+
+  Still kept, with a loop under two fused handlers:
+  - **A case of the inner handler with work left after resuming.** The loop would have to
+    take that work as a second continuation.
+  - **A case of the inner handler that doesn't resume,** when the loop returns the outer
+    `handle`'s value: what follows the inner `handle` would be a second continuation too.
+  - **A closure made a value under a fused handler,** as when the whistle makes a part of
+    an environment unknown and that part holds one.
 
 ## Join points
 
@@ -655,7 +700,13 @@ program gives residual code in that program's shape, so random programs give var
 - **The generator** is typed, so a program never fails with a type error, and every
   program ends. A clause uses its continuation in each of the ways one can: not at all, as
   its last act, with more work after, twice, and inside a function.
-- **Programs written by hand** cover what the generator seldom makes: a request inside a
+- **A second generator makes loops under handlers** (`genLoopProg`): one handler or two
+  around a loop with a request each round, the clauses using their continuation in every
+  way. The first generator seldom puts a request inside a loop, and this is the shape
+  where a loop must be passed the handlers' states. It found a name used for two variables
+  and a residual function shared between two continuations, which 900 programs of the
+  first generator had not.
+- **Programs written by hand** cover the same shapes at a fixed size: a request inside a
   loop under a handler whose case goes on after resuming, resumes twice, or resumes in a
   function. Each runs on every pair of inputs below 4.
 - **The checks,** each against `f x`: `specialize f x`; specializing the first input too;
@@ -667,8 +718,9 @@ program gives residual code in that program's shape, so random programs give var
   fused every handler in, read off `runtime.ir`. A run where most cases gave up tests
   little.
 
-The transcript checks seeds 0 to 49 and the seeds that found bugs. To try others, change
-the arguments of `check`: 300 seeds take about 100 seconds.
+The transcript checks seeds 0 to 49 of the first generator, 0 to 29 of the second, and the
+seeds that found bugs. To try others, change the arguments of `check` and `checkWith`: 300
+seeds of the first take about 100 seconds, 100 of the second about 150.
 
 ## Implementation notes
 
