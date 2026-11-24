@@ -524,9 +524,29 @@ its continuation, not whether the handler is affine:
   around a loop becomes a loop that returns the abort as a value, and an interpreter's own
   handler around a loop of a program that installs a handler becomes a loop passing both.
 
-  Still to do: cases that resume more than once, which need the rest of the body as a
-  residual function up to the `handle`; a resumption whose result the case keeps working
-  with, inside a loop; and a loop under a kept handler that is itself under a fused one.
+  **A continuation as a function.** The rest of the walk serves as a request's
+  continuation only if it is resumed once, where the walk is. When that turns out not to
+  do (a second resumption, or the continuation wanted in another function: `Reify`), the
+  walk goes back to the request and makes the continuation a residual function
+  ([`request`](ANF/Specialize.hs)):
+  - **`resume(v, state)`** is the rest of the body from the request with `v` as the
+    request's result, run under the handler with that state, through its pure case. So it
+    gives the `handle`'s value.
+  - **Resuming is a call of it** with the state of the handler the case installs around
+    the resumption (`resumeFunction`), and the walk goes on with the value. A case can do
+    that twice, or go on working with what it gets.
+  - **The handlers outside are behind a barrier** in the function: a request for one of
+    them escapes.
+
+  The transcript has two coin flips, whose handler resumes each twice, becoming four
+  calls of two functions with no handler.
+
+  Still to do: the same inside a loop. A state-passing function returns to its caller, who
+  goes on with the body, so the rest of the body from a request in it reaches past the
+  function's end and can't be a function made there. A loop then needs the other form: a
+  function that takes the rest of the body as a parameter and gives the `handle`'s value.
+  Until then a handler whose case resumes twice, or goes on after resuming, is kept around
+  a loop.
 
 ## Join points
 

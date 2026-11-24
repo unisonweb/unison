@@ -1292,6 +1292,98 @@ scratch/main> add
           """
 ```
 
+Outside a loop such a handler is fused. A continuation that is resumed twice, or needed in
+another function, is made a residual function of the request's result and the handler's
+state, and resuming it is a call:
+
+``` unison
+twoTicks : Nat ->{Tick} Nat
+twoTicks n =
+  tick
+  tick
+  n Nat.+ 1
+
+twoFlips : Nat ->{Flip} Nat
+twoFlips n =
+  a = if flip then n else 0
+  b = if flip then 10 else 20
+  a Nat.+ b
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + twoFlips : Nat ->{Flip} Nat
+  + twoTicks : Nat ->{Tick} Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+``` unison
+> (runTick do twoTicks 5, specialize (z n -> runTick do twoTicks (z Nat.+ n)) 0 5)
+> (allOf do twoFlips 3, specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0 3)
+> runtime.ir (specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > (runTick do twoTicks 5, specialize (z n -> runTick do twoTicks (z Nat.+ n)) 0 5)
+          ⧩
+          ((2, 6), (2, 6))
+
+    2 | > (allOf do twoFlips 3, specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0 3)
+          ⧩
+          ([13, 23, 10, 20], [13, 23, 10, 20])
+
+    3 | > runtime.ir (specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0)
+          ⧩
+          """
+          -- specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0
+          #m67uvmolig z n =
+            resume v1 r2 =
+              match r2 with
+                false ->
+                  lit = 0
+                  con2 = true
+                  r3 = resume1 lit con2
+                  con3 = false
+                  r4 = resume1 lit con3
+                  r3 List.++ r4
+                _ ->
+                  con4 = true
+                  r5 = resume1 v1 con4
+                  con5 = false
+                  r6 = resume1 v1 con5
+                  r5 List.++ r6
+            -- calling convention: n1:UN r7:BX
+            resume1 n1 r7 =
+              match r7 with
+                false ->
+                  lit1 = 20
+                  r8 = n1 Nat.+ lit1
+                  List.empty r8
+                _ ->
+                  lit2 = 10
+                  r9 = n1 Nat.+ lit2
+                  List.empty r9
+            v1 = z Nat.+ n
+            con = true
+            r = resume v1 con
+            con1 = false
+            r1 = resume v1 con1
+            r List.++ r1
+          """
+```
+
 ## Mutable values
 
 A specialization's code doesn't depend on which mutable value a closure holds, so closures
