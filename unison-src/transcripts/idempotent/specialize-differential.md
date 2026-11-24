@@ -520,12 +520,61 @@ checkSome = do check 0 50
 -- seeds that found bugs
 regressions : '{IO, Exception} Report
 regressions = do check 100 1
+
+-- Loops under a handler whose case goes on after resuming, or resumes
+-- twice, which the generator seldom makes: the loop becomes a function
+-- that takes the rest of the body and gives the handle's value.
+around : Expr -> Expr -> Expr
+around clause body =
+  Lam TN (Lam TN (Handle (Handler (Prim Add (Var 0) (Var 1)) [Some clause, None] (Lit 0)) body))
+
+loops : [Expr]
+loops =
+  [ -- a request each round, counted after the resumption
+    around
+      (Prim Add (Resume (Var 2) (Var 0) (Prim Add (Var 1) (Lit 1))) (Lit 1))
+      (Iter (Var 1) (Lam TN (Perform 0 (Prim Add (Var 0) (Var 2)))) (Var 0)),
+    -- the same in a recursion that isn't a tail call
+    around
+      (Let TN (Resume (Var 2) (Prim Add (Var 0) (Lit 1)) (Var 1)) (Prim Mul (Var 0) (Lit 3)))
+      (PrimRec (Var 1) (Lam TN (Lam TN (Prim Add (Perform 0 (Var 1)) (Var 0)))) (Var 0)),
+    -- resumed twice, while the state is small
+    around
+      (If (Prim Lt (Var 1) (Lit 2))
+        (Resume (Var 2) (Var 0) (Var 1))
+        (Prim Add
+          (Resume (Var 2) (Var 0) (Prim Add (Var 1) (Lit 1)))
+          (Resume (Var 2) (Lit 1) (Prim Add (Var 1) (Lit 1)))))
+      (Iter (Var 1) (Lam TN (Prim Add (Var 0) (Perform 0 (Var 0)))) (Var 0)),
+    -- resumed in a function
+    around
+      (Let (TF TN TN) (Lam TN (Resume (Var 3) (Var 0) (Var 2))) (Prim Add (App (Var 0) (Var 1)) (Lit 2)))
+      (PrimRec (Var 0) (Lam TN (Lam TN (Perform 0 (Prim Add (Var 0) (Var 1))))) (Var 1))
+  ]
+
+-- each program on every pair of inputs below 4: how many agree, and the
+-- ones that don't, with the check that failed
+checkLoops : '{IO, Exception} (Nat, [(Nat, Nat, Nat, Nat)])
+checkLoops = do
+  go i a b ok bad =
+    if i >= List.size loops then (ok, bad)
+    else if a >= 4 then go (i + 1) 0 0 ok bad
+    else if b >= 4 then go i (a + 1) 0 ok bad
+    else match List.at i loops with
+      None -> (ok, bad)
+      Some prog -> match failing prog a b with
+        None -> go i a (b + 1) (ok + 1) bad
+        Some k -> go i a (b + 1) ok (List.snoc bad (i, k, a, b))
+  go 0 0 0 0 []
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + around      : Expr -> Expr -> Expr
+  + checkLoops  : '{IO, Exception} (Nat, [(Nat, Nat, Nat, Nat)])
   + checkSome   : '{IO, Exception} Report
+  + loops       : [Expr]
   + regressions : '{IO, Exception} Report
 
   Run `update` to apply these changes to your codebase.
@@ -543,4 +592,8 @@ scratch/main> run checkSome
 scratch/main> run regressions
 
   Report [] 0 1 0
+
+scratch/main> run checkLoops
+
+  (64, [])
 ```

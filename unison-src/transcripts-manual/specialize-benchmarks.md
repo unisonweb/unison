@@ -174,6 +174,46 @@ fibBProg =
     (IfZero (Sub Arg (Num 1)) (Num 1)
       (Add (Call 0 (Sub Arg (Num 1))) (Call 0 (Sub (Sub Arg (Num 1)) (Num 1)))))]
 
+-- a handler whose case goes on after resuming, and one that resumes twice,
+-- each around a loop
+
+ability Tick where
+  tick : ()
+
+runTick : '{Tick} a -> (Nat, a)
+runTick p =
+  go = cases
+    { a } -> (0, a)
+    { Tick.tick -> k } -> match handle k () with go with
+      (n, a) -> (n + 1, a)
+  handle p () with go
+
+ticks : Nat ->{Tick} Nat
+ticks n = if n == 0 then 0 else
+  Tick.tick
+  ticks (n - 1) + n
+
+ticksByHand : Nat -> (Nat, Nat)
+ticksByHand n = if n == 0 then (0, 0) else
+  match ticksByHand (n - 1) with
+    (c, a) -> (c + 1, a + n)
+
+ability Flip where
+  flip : Boolean
+
+allOf : '{Flip} a -> [a]
+allOf p = handle p () with cases
+  { a } -> [a]
+  { Flip.flip -> k } -> allOf '(k true) List.++ allOf '(k false)
+
+coins : Nat -> Nat ->{Flip} Nat
+coins acc n = if n == 0 then acc else
+  coins (if Flip.flip then acc + n else acc) (n - 1)
+
+coinsByHand : Nat -> Nat -> [Nat]
+coinsByHand acc n = if n == 0 then [acc] else
+  coinsByHand (acc + n) (n - 1) List.++ coinsByHand acc (n - 1)
+
 specializeSuite : '{IO, Exception} ()
 specializeSuite = do
   fibSpec = specialize runProg fibProg
@@ -209,6 +249,16 @@ specializeSuite = do
   fibBSpec = specialize runB fibBProg
   printTime "fib 20, interpreter with an ability to bail: interpreted" 1 (n -> repeat n do runB fibBProg 20)
   printTime "fib 20, interpreter with an ability to bail: specialized" 1 (n -> repeat n do fibBSpec 20)
+  ticksSpec : Nat -> (Nat, Nat)
+  ticksSpec = specialize (z n -> runTick do ticks (z + n)) 0
+  printTime "tick counter around a recursion, 1000 deep: generic" 1 (n -> repeat n do runTick do ticks 1000)
+  printTime "tick counter around a recursion, 1000 deep: specialized" 1 (n -> repeat n do ticksSpec 1000)
+  printTime "tick counter around a recursion, 1000 deep: by hand" 1 (n -> repeat n do ticksByHand 1000)
+  coinsSpec : Nat -> [Nat]
+  coinsSpec = specialize (z n -> allOf do coins z n) 0
+  printTime "coin flips in a loop, 10 flips: generic" 1 (n -> repeat n do allOf do coins 0 10)
+  printTime "coin flips in a loop, 10 flips: specialized" 1 (n -> repeat n do coinsSpec 10)
+  printTime "coin flips in a loop, 10 flips: by hand" 1 (n -> repeat n do coinsByHand 0 10)
   fibKSpec = specialize runK fibProg
   printTime "fib 20, interpreter in CPS: interpreted" 1 (n -> repeat n do runK fibProg 20)
   printTime "fib 20, interpreter in CPS: specialized" 1 (n -> repeat n do fibKSpec 20)

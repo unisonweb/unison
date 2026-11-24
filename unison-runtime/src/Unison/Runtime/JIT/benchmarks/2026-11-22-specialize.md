@@ -121,3 +121,31 @@ Findings:
   to bail 93 µs: the earlier output did two levels of the recursion in each call, by an
   accident of which residual functions were inlined. Both are now the loop as written.
 
+## Handlers whose case goes on after resuming, or resumes twice
+
+At the commit that makes a loop under such a handler a function returning the `handle`'s
+value ([Specialize.md](../../Specialize.md), "Abilities"). The other rows are as in the
+table above.
+
+| Row | JIT off | JIT on |
+| --- | --- | --- |
+| tick counter around a recursion, 1000 deep: generic | 65.2 ms | 211 ms |
+| tick counter around a recursion, 1000 deep: specialized | 180 µs | 29.2 µs |
+| tick counter around a recursion, 1000 deep: by hand | 63.5 µs | 6.86 µs |
+| coin flips in a loop, 10 flips: generic | 1.12 ms | 1.36 ms |
+| coin flips in a loop, 10 flips: specialized | 280 µs | 52.3 µs |
+| coin flips in a loop, 10 flips: by hand | 166 µs | 25.6 µs |
+
+Findings:
+
+- The tick counter's handler resumes and then adds one, 1000 deep, so the generic version
+  captures and resumes a continuation inside a continuation each round: 65 ms, and more
+  with the JIT on. Specialized it is a recursion that passes a closure, 363 times faster
+  with the JIT off and 7,000 times with it on.
+- It is still 2.8 times the recursion by hand (4.3 times under the JIT): it makes a closure
+  each round for the code after the call, where the one by hand adds to a tuple.
+- The coin flips are 4 times faster than the generic version with the JIT off and 26 times
+  with it on, and 1.7 to 2 times the one by hand.
+- One run had the interpreter in continuation-passing style at 216 µs under the JIT, and
+  the next at 167 µs, as before: that row varies between runs.
+

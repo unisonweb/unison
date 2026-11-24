@@ -138,7 +138,9 @@ data Abs
 
 -- | The key of a residual function: the function, and what is known of
 -- its arguments, with each unknown one a hole.
-data Key = Key Bool Fn [KArg]
+-- | With how the function is called: 0 as it is, 1 passing handlers'
+-- states, 2 returning a @handle@'s value ('residualFnWith').
+data Key = Key Int Fn [KArg]
   deriving (Eq, Ord)
 
 data KArg
@@ -232,6 +234,9 @@ data S = S
     -- | the abilities and the handler as passed, of each state-passing
     -- residual function being built, by the number of its frame
     sReturns :: M.Map Int [Frame],
+    -- | the continuation parameter and the frames at the start, of each
+    -- value-returning residual function being built ('KEnd')
+    sEnds :: M.Map Int (Symbol, [Frame]),
     -- | the lets and matches generated so far ('emitted')
     sEmitted :: !Int,
     -- | per join point being made, where arms reached the code after the
@@ -279,6 +284,10 @@ data K
     -- the handler it was passed at this place (0 the innermost): @Left@ of
     -- which handler and the value ('abortValue')
     KAbort Int Int
+  | -- | the end of the body of the value-returning residual function with
+    -- this number: its continuation parameter called with the value and
+    -- the handler's state ('valueCall')
+    KEnd Int
   | -- | what follows the @handle@ first fused as the frame with this
     -- number ('sOuters'), named so that two handlers can be seen to return
     -- to the same place: a case that re-installs its handler as its last
@@ -321,7 +330,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          fmap (either (\(Reify _) -> Left "a continuation needed as a function, with no request to go back to") id) . Control.Exception.try @Reify $
           either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id <$> Control.Exception.try @Escape (Right <$> do
-          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty 0 M.empty M.empty M.empty S.empty) do
+          flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty) do
             argSyms <- traverse freshNamed (take (length args) vs)
             restSyms <- traverse freshNamed (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -434,6 +443,14 @@ ret (KReturn fid) a = returnRight fid a
 ret (KAbort rid i) v = do
   n <- gets (maybe 1 (length . takeWhile isFused) . M.lookup rid . sReturns)
   toVar v (abortValue n i)
+ret (KEnd lid) a = do
+  now <- get
+  case M.lookup lid (sEnds now) of
+    Just (kp, entry)
+      | Just hs <- standFor (entry, []) (sFrames now, map fst (sTargets now)),
+        Just vals <- concat <$> zipWithM alignTo (map frHandler (takeWhile isFused entry)) hs ->
+          toVar a \x -> toVars vals \ls -> pure (TApp (FVar kp) (x : ls))
+    _ -> liftIO (throwIO (Escape lid "a loop that ends with a handler not as it was passed"))
 ret (KOuter fid _) a =
   gets (M.lookup fid . sOuters) >>= \case
     Just k -> ret k a
@@ -603,7 +620,7 @@ call env lim e fa as k = case fa of
                 again =
                   any grown (eStack e)
                     || any grown building
-                    || M.member (Key False fn k0) memo
+                    || M.member (Key 0 fn k0) memo
                 e' = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0) : eStack e)
             if eDepth e < slDepth lim && not (eUnderDyn e && again)
               then pe env lim e' body k
@@ -634,18 +651,35 @@ residualCall env lim fn args k = do
   frames <- gets sFrames
   -- the fused handlers in force, down to a kept one if there is one
   let fs = takeWhile isFused frames
-  if not (null fs)
-    then do
-      (rf, tmpls, leaves) <- residualFnWith env lim fs fn args
-      inTail <- tailInSame tmpls
-      if inTail
-        then toVars (concat leaves) \xs -> pure (TApp (FVar rf) xs)
-        else toVars (concat leaves) \xs -> do
-          r <- freshNamed (syn "r")
-          n <- letNum
-          rest' <- resultMatch fs tmpls r k
-          pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
-    else do
+      passing = do
+        (rf, tmpls, leaves) <- residualFnWith env lim fs fn args
+        inTail <- tailInSame tmpls
+        if inTail
+          then toVars (concat leaves) \xs -> pure (TApp (FVar rf) xs)
+          else toVars (concat leaves) \xs -> do
+            r <- freshNamed (syn "r")
+            n <- letNum
+            rest' <- resultMatch fs tmpls r k
+            pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
+  memo <- gets sMemo
+  case fs of
+    -- under one handler: passing its state if that works, or if not (a
+    -- case resumes twice, or goes on after resuming) with the function
+    -- returning the handle's value
+    [f]
+      | M.member (Key 2 fn (map keyOf (args ++ [frHandler f]))) memo -> valueCall env lim f fn args k
+      | otherwise -> do
+          st0 <- get
+          liftIO (Control.Exception.try (runStateT passing st0)) >>= \case
+            Right (code, st1) -> code <$ put st1
+            Left (Escape i why)
+              | i == frId f -> do
+                  put st0
+                  liftIO (seNote env ("a loop returning its handle's value: " ++ why))
+                  valueCall env lim f fn args k
+              | otherwise -> liftIO (throwIO (Escape i why))
+    _ : _ -> passing
+    [] -> do
       (rf, _, leaves) <- residualFnWith env lim [] fn args
       toVars (concat leaves) \xs -> dynResult k BX (TApp (FVar rf) xs)
   where
@@ -664,6 +698,116 @@ residualCall env lim fn args k = do
                 and (zipWith (\seg t -> safeEq (keyOf t) (keyOf (frHandler seg))) segs tmpls)
           _ -> False
       _ -> pure False
+
+-- | A call under a fused handler as a call of a residual function that
+-- returns the @handle@'s value: the function is passed the handler's state
+-- and the rest of the body after the call, up to the @handle@, as a
+-- closure. The walk goes on after the @handle@ with what it returns.
+--
+-- A call in the last position of such a function, under handlers standing
+-- for its own, passes on the continuation it was given: a loop written
+-- with a tail call makes no closure.
+valueCall :: SpecEnv -> SpecLimits -> Frame -> Fn -> [Abs] -> K -> M Term
+valueCall env lim f fn args k = do
+  frames <- gets sFrames
+  targets <- gets sTargets
+  let own = if frSegment f then 0 else 1
+      above = length targets - frDepth f - own
+  ends <- gets sEnds
+  now <- get
+  cont <- case k of
+    KEnd lid
+      | Just (kp, entry) <- M.lookup lid ends,
+        Just _ <- standFor (entry, []) (sFrames now, map fst (sTargets now)) ->
+          pure (Left kp)
+    _ -> do
+      rest <- case k of
+        KBind _ _ g -> pure g
+        KTail -> liftIO (throwIO (Escape (frId f) "a call with the end of a residual function as its continuation"))
+        _ -> pure (ret k)
+      Right . fst <$> restAsFunction env lim dynHoled 0 f rest above (kMem k)
+  (lf, tmpls, leaves) <- residualFnAs True env lim [f] fn args
+  -- the function's handler must have the parameters the continuation's has
+  let shape t = [m | Dyn _ m <- dynLeaves t]
+  unless (map shape tmpls == [shape (frHandler f)]) $
+    liftIO (throwIO (Escape (frId f) "a loop returning its handle's value, with its handler made more general"))
+  modify' \st -> st {sFrames = drop 1 frames, sTargets = drop (above + own) targets}
+  toVars (concat leaves) \xs -> case cont of
+    Left kp -> dynResult (frOuter f) BX (TApp (FVar lf) (xs ++ [kp]))
+    Right rk -> do
+      kx <- freshNamed (syn "k")
+      emitted
+      TName kx (Right rk) [] <$> dynResult (frOuter f) BX (TApp (FVar lf) (xs ++ [kx]))
+  where
+    dynHoled = \case
+      Dyn _ m -> Dyn joinHole m
+      Con r' t' fs -> Con r' t' (map dynHoled fs)
+      Clo g as -> Clo g (map dynHoled as)
+      a -> a
+
+-- | The rest of a body, from a request or a call under the fused handler
+-- of a frame, as a residual function of a value (the request's result, the
+-- call's) and the handler's state: the body run on from there under the
+-- handler with that state, through its pure case, so that it gives the
+-- @handle@'s value. Given how to put holes in the handler for its state,
+-- how many frames are between the place and the handler, and how many
+-- targets; gives the function and the handler with its holes.
+restAsFunction :: SpecEnv -> SpecLimits -> (Abs -> Abs) -> Int -> Frame -> (Abs -> M Term) -> Int -> Mem -> M (Symbol, Abs)
+restAsFunction env lim holed j f rest above vm = do
+  outer <- get
+  let rid = sNextId outer
+      h0 = case frHandler f of
+        Known hv _ | Just (g, caps) <- knownClosure env hv -> Clo g caps
+        h -> h
+      tmpl = holed h0
+      holeMems = [m | Dyn h m <- dynLeaves tmpl, h == joinHole]
+  v <- freshNamed (syn "r")
+  hs <- traverse (\hm -> freshNamed (syn (if hm == UN then "n" else "s"))) holeMems
+  let hFilled = evalState (fillHoles tmpl) (zipWith Dyn hs holeMems)
+      -- the frames between the place and its handler counted their
+      -- targets from below the handler's, which aren't in the function
+      shiftBy = frDepth f - (if frSegment f then 1 else 0)
+      rebase = \case
+        Fused i rs h o d seg -> Fused i rs h o (d - shiftBy) seg
+        g -> g
+      inner = map rebase (take j (sFrames outer))
+      frameR = Fused rid (frRefs f) hFilled KTail 0 False
+      -- the handlers outside are behind a barrier: a request for one of
+      -- them escapes
+      behind = case drop (j + 1) (sFrames outer) of
+        bs@(g : _) | isFused g -> Barrier : bs
+        bs -> bs
+      pureR a = do
+        now <- gets (find (\g -> isFused g && frId g == rid) . sFrames)
+        modify' \st -> st {sFrames = filter (\g -> not (isFused g && frId g == rid)) (sFrames st)}
+        callHandler env lim (E M.empty False 0 []) (maybe hFilled frHandler now) (SPure a) KTail
+  put
+    outer
+      { sNextId = rid + 1,
+        sLetNum = 1,
+        sFrames = inner ++ [frameR] ++ behind,
+        sTargets = take above (sTargets outer) ++ [(TPure rid, pureR)],
+        sKonts = M.empty,
+        sPending = Nothing
+      }
+  s1 <- get
+  body <-
+    liftIO (Control.Exception.try (runStateT (rest (Dyn v vm)) s1)) >>= \case
+      Right (b, s2) -> b <$ put s2
+      Left (Escape i why)
+        | i >= rid -> liftIO (throwIO (Escape (frId f) ("in the rest of a body made a function, " ++ why)))
+        | otherwise -> liftIO (throwIO (Escape i why))
+  rsym <- freshNamed (syn "resume")
+  modify' \st ->
+    st
+      { sLetNum = sLetNum outer,
+        sFrames = sFrames outer,
+        sTargets = sTargets outer,
+        sKonts = sKonts outer,
+        sPending = sPending outer,
+        sFns = (rsym, Lambda (vm : holeMems) (ABTN.TAbss (v : hs) body)) : sFns st
+      }
+  pure (rsym, tmpl)
 
 -- | What a state-passing function of this many handlers returns when a
 -- case of the one at this place didn't resume: @Left@ of the value under
@@ -826,7 +970,15 @@ alignTo t a = case (t, a) of
 -- handler in force must have the shape it was passed in, every resumption
 -- having re-installed a handler as its case's last act.
 residualFnWith :: SpecEnv -> SpecLimits -> [Frame] -> Fn -> [Abs] -> M (Symbol, [Abs], [[Abs]])
-residualFnWith env lim fs fn args0 = do
+residualFnWith env lim = residualFnAs False env lim
+
+-- | 'residualFnWith', or with the flag the value-returning form for one
+-- handler ('valueCall'): the function takes the rest of the body as one
+-- more parameter, after the others, and gives the @handle@'s value. A case
+-- that doesn't resume returns its value; the end of the body calls the
+-- parameter with the body's value and the handler's state ('KEnd').
+residualFnAs :: Bool -> SpecEnv -> SpecLimits -> [Frame] -> Fn -> [Abs] -> M (Symbol, [Abs], [[Abs]])
+residualFnAs valued env lim fs fn args0 = do
   when (null fs) (guardFused "a residual function inside a kept handler with a fused one outside it")
   -- a continuation captured while specializing emits its code where it is
   -- resumed, which must be in the scope of the request: never in another
@@ -840,7 +992,7 @@ residualFnWith env lim fs fn args0 = do
       (allArgs, leaves) = case find (\(fn', ks) -> fn' == fn && ks /= k0 && length ks == length k0 && and (zipWith embeds ks k0)) building of
         Just (_, ks) -> Prelude.unzip (zipWith generalize ks allArgs0)
         Nothing -> (allArgs0, map dynLeaves allArgs0)
-      key = Key (not (null fs)) fn (map keyOf allArgs)
+      key = Key (if null fs then 0 else if valued then 2 else 1) fn (map keyOf allArgs)
       tmpls = drop (length args0) allArgs
   gets (M.lookup key . sMemo) >>= \case
     Just f -> pure (f, tmpls, leaves)
@@ -874,6 +1026,7 @@ residualFnWith env lim fs fn args0 = do
               args' = take (length args0) allArgs'
               Fn r _ = fn
               e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0 []
+          kp <- freshNamed (syn "k")
           outer <- get
           modify' \s -> s {sLetNum = 1, sBuilding = (fn, map keyOf allArgs) : sBuilding s}
           body' <- case fs of
@@ -883,7 +1036,7 @@ residualFnWith env lim fs fn args0 = do
               -- a frame of its own for each handler, which owns no target:
               -- the body returns to the function's caller
               let hAbss = drop (length args0) allArgs'
-                  segs = [Fused (rid + j) (frRefs fr) h (KAbort rid j) 0 True | (j, fr, h) <- zip3 [0 ..] fs hAbss]
+                  segs = [Fused (rid + j) (frRefs fr) h (if valued then KTail else KAbort rid j) 0 True | (j, fr, h) <- zip3 [0 ..] fs hAbss]
               -- what is behind the fused handlers stays behind the
               -- function's: a request for a handler out there escapes
               behind <- gets (drop (length fs) . sFrames)
@@ -894,10 +1047,11 @@ residualFnWith env lim fs fn args0 = do
                     sTargets = [],
                     sKonts = M.empty,
                     sPending = Nothing,
-                    sReturns = M.insert rid (segs ++ behind) (sReturns s)
+                    sReturns = if valued then sReturns s else M.insert rid (segs ++ behind) (sReturns s),
+                    sEnds = if valued then M.insert rid (kp, segs ++ behind) (sEnds s) else sEnds s
                   }
               s1 <- get
-              liftIO (Control.Exception.try (runStateT (pe env lim e' body (KReturn rid)) s1)) >>= \case
+              liftIO (Control.Exception.try (runStateT (pe env lim e' body (if valued then KEnd rid else KReturn rid)) s1)) >>= \case
                 Right (b, s2) -> b <$ put s2
                 -- an escape to a handler of the residual function's own makes
                 -- the state passing impossible: an escape to the caller's
@@ -915,7 +1069,12 @@ residualFnWith env lim fs fn args0 = do
                 sTargets = sTargets outer,
                 sKonts = sKonts outer,
                 sPending = sPending outer,
-                sFns = (f, Lambda mems (ABTN.TAbss params body')) : sFns s
+                sFns =
+                  ( if valued
+                      then (f, Lambda (mems ++ [BX]) (ABTN.TAbss (params ++ [kp]) body'))
+                      else (f, Lambda mems (ABTN.TAbss params body'))
+                  )
+                    : sFns s
               }
           pure (f, tmpls, leaves)
   where
@@ -1012,6 +1171,7 @@ sameK a b = case (a, b) of
   (KReturn i, KReturn j) -> i == j
   (KAbort r i, KAbort r' j) -> r == r' && i == j
   (KOuter i _, KOuter j _) -> i == j
+  (KEnd i, KEnd j) -> i == j
   _ -> False
 
 -- | The same value, down to its variables.
@@ -1203,6 +1363,7 @@ match env lim e v br k = case (look e v, br) of
         -- there must stay in its tail ('tailInSame')
         KReturn _ | fusedNow -> dynamicWith k (\code -> pure code)
         KAbort {} | fusedNow -> dynamicWith k (\code -> pure code)
+        KEnd _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ | slJoin lim -> joined fusedNow
         _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ -> dynamicWith KTail (dynResult k BX)
@@ -1441,58 +1602,8 @@ request env lim e r t args k = do
     -- handle's value. Resuming is then a call ('resume'), which a case can
     -- make any number of times and go on after.
     asFunction j kid f rest above = do
-      outer <- get
-      let rid = sNextId outer
-          vm = kMem k
-          h0 = case frHandler f of
-            Known hv _ | Just (fn, caps) <- knownClosure env hv -> Clo fn caps
-            h -> h
-          tmpl = holed h0
-          holeMems = [m | Dyn h m <- dynLeaves tmpl, h == joinHole]
-      v <- freshNamed (syn "r")
-      hs <- traverse (\hm -> freshNamed (syn (if hm == UN then "n" else "s"))) holeMems
-      let hFilled = evalState (fillHoles tmpl) (zipWith Dyn hs holeMems)
-          -- the frames between the request and its handler counted their
-          -- targets from below the handler's, which aren't in the function
-          shiftBy = frDepth f - (if frSegment f then 1 else 0)
-          rebase = \case
-            Fused i rs h o d seg -> Fused i rs h o (d - shiftBy) seg
-            g -> g
-          inner = map rebase (take j (sFrames outer))
-          frameR = Fused rid (frRefs f) hFilled KTail 0 False
-          pureR a = do
-            now <- gets (find (\g -> isFused g && frId g == rid) . sFrames)
-            modify' \st -> st {sFrames = filter (\g -> not (isFused g && frId g == rid)) (sFrames st)}
-            callHandler env lim e (maybe hFilled frHandler now) (SPure a) KTail
-      put
-        outer
-          { sNextId = rid + 1,
-            sLetNum = 1,
-            -- the handlers outside are behind a barrier: a request for one
-            -- of them escapes
-            sFrames = inner ++ [frameR, Barrier] ++ drop (j + 1) (sFrames outer),
-            sTargets = take above (sTargets outer) ++ [(TPure rid, pureR)],
-            sKonts = M.empty,
-            sPending = Nothing
-          }
-      s1 <- get
-      body <-
-        liftIO (Control.Exception.try (runStateT (rest (Dyn v vm)) s1)) >>= \case
-          Right (b, s2) -> b <$ put s2
-          Left (Escape i why)
-            | i >= rid -> liftIO (throwIO (Escape (frId f) ("in the rest of a body made a function, " ++ why)))
-            | otherwise -> liftIO (throwIO (Escape i why))
-      rsym <- freshNamed (syn "resume")
-      modify' \st ->
-        st
-          { sLetNum = sLetNum outer,
-            sFrames = sFrames outer,
-            sTargets = sTargets outer,
-            sKonts = sKonts outer,
-            sPending = sPending outer,
-            sFns = (rsym, Lambda (vm : holeMems) (ABTN.TAbss (v : hs) body)) : sFns st,
-            sReified = M.insert kid (rsym, tmpl, frRefs f, frId f) (sReified st)
-          }
+      (rsym, tmpl) <- restAsFunction env lim holed j f rest above (kMem k)
+      modify' \st -> st {sReified = M.insert kid (rsym, tmpl, frRefs f, frId f) (sReified st)}
     -- a handler with a hole for each part of its state
     holed = \case
       Dyn _ m -> Dyn joinHole m

@@ -1162,9 +1162,10 @@ scratch/main> add
           ((7, 10), (7, 10))
 ```
 
-A handler is fused around a loop only when every case that resumes re-installs the handler
-as its last act. One whose case does more with what the resumption gives back, or resumes
-twice, stays a handler, with the code under it specialized:
+A loop passes the handler's state when every case that resumes re-installs the handler as
+its last act. Under a handler whose case does more with what the resumption gives back, or
+resumes twice, the loop becomes a function that takes the rest of the body as a parameter
+and gives the `handle`'s value:
 
 ``` unison
 ability Tick where
@@ -1220,6 +1221,7 @@ scratch/main> add
 > (runTick do ticks 5, specialize (z n -> runTick do ticks (z Nat.+ n)) 0 5)
 > (allOf do coins 0 3, specialize (z n -> allOf do coins z n) 0 3)
 > runtime.ir (specialize (z n -> runTick do ticks (z Nat.+ n)) 0)
+> runtime.ir (specialize (z n -> allOf do coins z n) 0)
 ```
 
 ``` ucm :added-by-ucm
@@ -1240,61 +1242,164 @@ scratch/main> add
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
           #30uu2adem2 z n =
-            handled z n =
-              v1 = z Nat.+ n
-              lit = 0
-              v2 = Nat.eq v1 lit
-              match v2 with
-                false ->
-                  _ = tick
-                  lit1 = 1
-                  v3 = Nat.drop v1 lit1
-                  v4 = ticks' v3
-                  v4 Nat.+ v1
-                _ -> 0
-            ticks' n1 =
-              lit2 = 0
-              v5 = Nat.eq n1 lit2
+            ticks' n2 k1 =
+              lit5 = 0
+              v5 = Nat.eq n2 lit5
               match v5 with
                 false ->
-                  _1 = tick
-                  lit3 = 1
-                  v6 = Nat.drop n1 lit3
-                  v7 = ticks' v6
-                  v7 Nat.+ n1
-                _ -> 0
-            fn v8 =
-              match v8 with
-                {tick} ->
-                  cont1 = shift {Tick}
-                  clo1 = partialApply fn
-                  p1 =
-                    handle {Tick}
-                      con = ()
-                      cont1 con
-                    with clo1
-                  match p1 with
-                    Cons n2 p2 ->
-                      match p2 with
-                        Cons a p3 ->
-                          match p3 with
+                  lit6 = 1
+                  v6 = Nat.drop n2 lit6
+                  k2 = partialApply resume n2 k1
+                  r1 = ticks' v6 k2
+                  match r1 with
+                    Cons n3 p3 ->
+                      match p3 with
+                        Cons a1 p4 ->
+                          match p4 with
                             () ->
-                              lit4 = 1
-                              v9 = n2 Nat.+ lit4
-                              (v9, a)
-                {a1} ->
-                  lit5 = 0
-                  (lit5, a1)
-            clo = partialApply fn
-            handle {Tick}
-              handled z n
-            with clo
+                              lit7 = 1
+                              v7 = n3 Nat.+ lit7
+                              (v7, a1)
+                _ ->
+                  lit8 = 0
+                  k1 lit8
+            resume n2 k1 r2 =
+              r2 = r2 Nat.+ n2
+              k1 r2
+            resume1 v1 r3 =
+              r3 = r3 Nat.+ v1
+              lit9 = 0
+              (lit9, r3)
+            v1 = z Nat.+ n
+            lit = 0
+            v2 = Nat.eq v1 lit
+            match v2 with
+              false ->
+                lit1 = 1
+                v3 = Nat.drop v1 lit1
+                k = partialApply resume1 v1
+                r = ticks' v3 k
+                match r with
+                  Cons n1 p1 ->
+                    match p1 with
+                      Cons a p2 ->
+                        match p2 with
+                          () ->
+                            lit2 = 1
+                            v4 = n1 Nat.+ lit2
+                            (v4, a)
+              _ ->
+                lit3 = 0
+                lit4 = 0
+                (lit4, lit3)
+          
+          #30uu2adem2#return z n =
+            v1 = z Nat.+ n
+            lit = 0
+            v2 = Nat.eq v1 lit
+            match v2 with
+              false ->
+                lit1 = 1
+                v3 = Nat.drop v1 lit1
+                k = partialApply resume1 v1
+                r = ticks' v3 k
+                match r with
+                  Cons n1 p1 ->
+                    match p1 with
+                      Cons a p2 ->
+                        match p2 with
+                          () ->
+                            lit2 = 1
+                            v4 = n1 Nat.+ lit2
+                            yield (# v4, a #)
+              _ ->
+                lit3 = 0
+                lit4 = 0
+                yield (# lit4, lit3 #)
+          """
+
+    4 | > runtime.ir (specialize (z n -> allOf do coins z n) 0)
+          ⧩
+          """
+          -- specialize (z n -> allOf do coins z n) 0
+          #bseno8mhsc z n =
+            resume z n r2 =
+              match r2 with
+                false ->
+                  lit1 = 1
+                  v2 = Nat.drop n lit1
+                  k = partialApply resume2
+                  lit2 = 0
+                  v3 = Nat.eq v2 lit2
+                  match v3 with
+                    false ->
+                      con2 = true
+                      r3 = resume1 z v2 k con2
+                      con3 = false
+                      r4 = resume1 z v2 k con3
+                      r3 List.++ r4
+                    _ -> k z
+                _ ->
+                  r5 = z Nat.+ n
+                  lit3 = 1
+                  v4 = Nat.drop n lit3
+                  k1 = partialApply resume2
+                  lit4 = 0
+                  v5 = Nat.eq v4 lit4
+                  match v5 with
+                    false ->
+                      con4 = true
+                      r6 = resume1 r5 v4 k1 con4
+                      con5 = false
+                      r7 = resume1 r5 v4 k1 con5
+                      r6 List.++ r7
+                    _ -> k1 r5
+            -- calling convention: acc:UN n1:BX k2:BX r8:BX
+            resume1 acc n1 k2 r8 =
+              match r8 with
+                false ->
+                  lit5 = 1
+                  v6 = Nat.drop n1 lit5
+                  lit6 = 0
+                  v7 = Nat.eq v6 lit6
+                  match v7 with
+                    false ->
+                      con6 = true
+                      r9 = resume1 acc v6 k2 con6
+                      con7 = false
+                      r10 = resume1 acc v6 k2 con7
+                      r9 List.++ r10
+                    _ -> k2 acc
+                _ ->
+                  r11 = acc Nat.+ n1
+                  lit7 = 1
+                  v8 = Nat.drop n1 lit7
+                  lit8 = 0
+                  v9 = Nat.eq v8 lit8
+                  match v9 with
+                    false ->
+                      con8 = true
+                      r12 = resume1 r11 v8 k2 con8
+                      con9 = false
+                      r13 = resume1 r11 v8 k2 con9
+                      r12 List.++ r13
+                    _ -> k2 r11
+            resume2 r14 = List.empty r14
+            lit = 0
+            v1 = Nat.eq n lit
+            match v1 with
+              false ->
+                con = true
+                r = resume z n con
+                con1 = false
+                r1 = resume z n con1
+                r List.++ r1
+              _ -> List.empty z
           """
 ```
 
-Outside a loop such a handler is fused. A continuation that is resumed twice, or needed in
-another function, is made a residual function of the request's result and the handler's
-state, and resuming it is a call:
+A continuation that is resumed twice, or needed in another function, is made a residual
+function of the request's result and the handler's state, and resuming it is a call:
 
 ``` unison
 twoTicks : Nat ->{Tick} Nat

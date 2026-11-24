@@ -541,12 +541,26 @@ its continuation, not whether the handler is affine:
   The transcript has two coin flips, whose handler resumes each twice, becoming four
   calls of two functions with no handler.
 
-  Still to do: the same inside a loop. A state-passing function returns to its caller, who
-  goes on with the body, so the rest of the body from a request in it reaches past the
-  function's end and can't be a function made there. A loop then needs the other form: a
-  function that takes the rest of the body as a parameter and gives the `handle`'s value.
-  Until then a handler whose case resumes twice, or goes on after resuming, is kept around
-  a loop.
+  **A loop that returns the `handle`'s value.** A state-passing function returns to its
+  caller, who goes on with the body, so the rest of the body from a request in it reaches
+  past the function's end and can't be a function made there. When a state-passing
+  function can't be built for a call under one fused handler, the call is made the other
+  way ([`valueCall`](ANF/Specialize.hs)):
+  - **The function takes the rest of the body as one more parameter** and gives the
+    `handle`'s value. A case that doesn't resume returns its value. The end of the body
+    calls the parameter with the body's value and the handler's state (`KEnd`).
+  - **The caller passes the code after the call, up to the `handle`, as a closure** of a
+    residual function made as for a request (`restAsFunction`), and goes on after the
+    `handle` with what the function returns.
+  - **A call in the function's last position passes on the parameter it was given,** so a
+    loop written with a tail call makes no closure.
+
+  The transcript has a tick counter around a recursion, `ticks' n k`, which calls itself
+  with `r -> k (r + n)` and adds one to the count it gets back, and coin flips in a loop,
+  where each flip is two calls of the loop.
+
+  Still to do: the value-returning form under more than one fused handler, and a handler
+  whose state changes from known to unknown inside such a loop.
 
 ## Join points
 
@@ -641,6 +655,9 @@ program gives residual code in that program's shape, so random programs give var
 - **The generator** is typed, so a program never fails with a type error, and every
   program ends. A clause uses its continuation in each of the ways one can: not at all, as
   its last act, with more work after, twice, and inside a function.
+- **Programs written by hand** cover what the generator seldom makes: a request inside a
+  loop under a handler whose case goes on after resuming, resumes twice, or resumes in a
+  function. Each runs on every pair of inputs below 4.
 - **The checks,** each against `f x`: `specialize f x`; specializing the first input too;
   the specialized closure after a round trip through serialization; and specializing twice
   giving equal closures. A specialized run that fails counts as a disagreement.
