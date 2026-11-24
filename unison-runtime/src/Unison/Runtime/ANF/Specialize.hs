@@ -222,7 +222,7 @@ data S = S
     sPending :: Maybe (Int, Reference),
     -- | the abilities and the handler as passed, of each state-passing
     -- residual function being built, by the number of its frame
-    sReturns :: M.Map Int ([Reference], Abs),
+    sReturns :: M.Map Int [Frame],
     -- | the lets and matches generated so far ('emitted')
     sEmitted :: !Int,
     -- | per join point being made, where arms reached the code after the
@@ -262,9 +262,10 @@ data K
   | -- | the end of the body of the state-passing residual function whose
     -- frame has this number: @Right (result, state)@ ('returnRight')
     KReturn Int
-  | -- | the value of a case that didn't resume, in that function:
-    -- @Left value@
-    KAbort Int
+  | -- | the value of a case that didn't resume, in that function, of
+    -- the handler it was passed at this place (0 the innermost): @Left@ of
+    -- which handler and the value ('abortValue')
+    KAbort Int Int
   | -- | what follows the @handle@ first fused as the frame with this
     -- number ('sOuters'), named so that two handlers can be seen to return
     -- to the same place: a case that re-installs its handler as its last
@@ -416,7 +417,9 @@ ret KTail a = toVar a (pure . TVar)
 ret (KBind _ _ k) a = k a
 ret (KDelim _) a = popTarget >>= \(_, tgt) -> tgt a
 ret (KReturn fid) a = returnRight fid a
-ret (KAbort _) v = toVar v \x -> pure (TCon eitherRef leftTag [x])
+ret (KAbort rid i) v = do
+  n <- gets (maybe 1 length . M.lookup rid . sReturns)
+  toVar v (abortValue n i)
 ret (KOuter fid _) a =
   gets (M.lookup fid . sOuters) >>= \case
     Just k -> ret k a
@@ -605,84 +608,122 @@ call env lim e fa as k = case fa of
 -- arguments where the two keys differ become unknown, passed from the call
 -- as values, so that the keys stop growing.
 residualFn :: SpecEnv -> SpecLimits -> Fn -> [Abs] -> M (Symbol, [[Abs]])
-residualFn env lim fn args = (\(f, _, leaves) -> (f, leaves)) <$> residualFnWith env lim Nothing fn args
+residualFn env lim fn args = (\(f, _, leaves) -> (f, leaves)) <$> residualFnWith env lim [] fn args
 
--- | A call that becomes a call of a residual function. In the scope of a
--- fused handler the function is passed the handler's state and gives it
--- back (state passing): it returns @Left v@ when a case of the handler
--- didn't resume, @v@ being the @handle@'s value, or @Right (result, state)@,
--- and the caller goes on accordingly.
+-- | A call that becomes a call of a residual function. In the scope of
+-- fused handlers the function is passed their states and gives them back
+-- (state passing): it returns @Left@ of which handler and a value when a
+-- case of that handler didn't resume, the value being its @handle@'s, or
+-- @Right (result, states)@, and the caller goes on accordingly.
 residualCall :: SpecEnv -> SpecLimits -> Fn -> [Abs] -> K -> M Term
 residualCall env lim fn args k = do
   frames <- gets sFrames
-  case frames of
-    f@Fused {} : rest | not (any isFused rest) -> do
-      (rf, tmpl, leaves) <- residualFnWith env lim (Just f) fn args
-      inTail <- tailInSame f tmpl
+  -- the fused handlers in force, if no kept one is among them
+  let fs = takeWhile isFused frames
+  if not (null fs) && not (any isFused (drop (length fs) frames))
+    then do
+      (rf, tmpls, leaves) <- residualFnWith env lim fs fn args
+      inTail <- tailInSame tmpls
       if inTail
         then toVars (concat leaves) \xs -> pure (TApp (FVar rf) xs)
         else toVars (concat leaves) \xs -> do
           r <- freshNamed (syn "r")
           n <- letNum
-          rest' <- resultMatch f tmpl r k
+          rest' <- resultMatch fs tmpls r k
           pure (TLets (Indirect n) [r] [BX] (TApp (FVar rf) xs) rest')
-    _ -> do
-      (rf, _, leaves) <- residualFnWith env lim Nothing fn args
+    else do
+      (rf, _, leaves) <- residualFnWith env lim [] fn args
       toVars (concat leaves) \xs -> dynResult k BX (TApp (FVar rf) xs)
   where
     -- a call in tail position of a state-passing function, under the
-    -- handler it was passed or one of the same shape, with nothing between:
-    -- what the callee returns is what this function would, so the match is
-    -- the identity and the call a tail call
-    tailInSame f tmpl = case k of
-      KReturn rfid -> do
-        frames <- gets sFrames
-        targets <- gets sTargets
-        returns <- gets sReturns
-        pure case (frames, M.lookup rfid returns) of
-          ([top@Fused {}], Just (refs, hAbs)) ->
-            frId top == frId f
-              && frRefs top == refs
-              && isAbort rfid (frOuter top)
-              && all (okTarget (frId top) . fst) targets
-              && safeEq (keyOf tmpl) (keyOf hAbs)
+    -- handlers it was passed or ones standing for them, of the same
+    -- shapes: what the callee returns is what this function would, so the
+    -- match is the identity and the call a tail call
+    tailInSame tmpls = case k of
+      KReturn rid -> do
+        now <- get
+        pure case M.lookup rid (sReturns now) of
+          Just segs
+            | Just _ <- standFor (segs, []) (sFrames now, map fst (sTargets now)),
+              length segs == length tmpls ->
+                and (zipWith (\seg t -> safeEq (keyOf t) (keyOf (frHandler seg))) segs tmpls)
           _ -> False
       _ -> pure False
-    isAbort rfid (KAbort i) = i == rfid
-    isAbort _ _ = False
 
-okTarget :: Int -> Tgt -> Bool
-okTarget top = \case
-  TBody _ -> True
-  TPure i -> i == top
-  TSite -> False
+-- | What a state-passing function of this many handlers returns when a
+-- case of the one at this place didn't resume: @Left@ of the value under
+-- as many @Right@s as its place, and under a @Left@ unless it is the
+-- last. With one handler that is @Left value@.
+abortValue :: Int -> Int -> Symbol -> M Term
+abortValue n i x = go (if i == n - 1 then i else i + 1) (i /= n - 1) x
+  where
+    -- the constructors still to put around the value, the innermost first
+    go 0 False v = pure (TCon eitherRef leftTag [v])
+    go m isLeft v = do
+      v' <- freshNamed (syn "done")
+      emitted
+      TLets Direct [v'] [BX] (TCon eitherRef (if isLeft then leftTag else rightTag) [v]) <$> go (if isLeft then m - 1 else m - 1) False v'
+
+-- | Whether the handlers in force in the second state stand for the ones
+-- in the first, each state given as its frames and what its targets are,
+-- and if so their handlers, one per fused frame of the first. A frame
+-- stands for one if it is that frame, or handles the same abilities with
+-- the same function and returns to the same place ('sameK'): the handler a
+-- case installed as its last act. The places their bodies return to must
+-- match too. The end of a resumed body (TBody) only passes its value on,
+-- so it doesn't count; neither does the pure case of a frame standing for
+-- a state-passing function's, which gives its value back without one
+-- ('returnRight').
+standFor :: ([Frame], [Tgt]) -> ([Frame], [Tgt]) -> Maybe [Abs]
+standFor (fa, tga) (fb, tgb) = do
+  guard (length fa == length fb)
+  pairs <- zipWithM pairFrame fa fb
+  let fused = [p | Just p <- pairs]
+      ids = [(frId f, frId g) | (f, g) <- fused]
+      forSegment = [frId g | (f, g) <- fused, frSegment f, not (frSegment g)]
+      counts ts skip = filter keep ts
+        where
+          keep = \case
+            TBody _ -> False
+            TPure i -> i `notElem` skip
+            TSite -> True
+      ta = counts tga []
+      tb = counts tgb forSegment
+      same x y = case (x, y) of
+        (TPure i, TPure j) -> (i, j) `elem` ids
+        (TSite, TSite) -> True
+        _ -> False
+  guard (length ta == length tb && and (zipWith same ta tb))
+  pure [frHandler g | (_, g) <- fused]
+  where
+    pairFrame Barrier Barrier = Just Nothing
+    pairFrame f@Fused {} g@Fused {}
+      | sameFn (frHandler f) (frHandler g),
+        frId f == frId g || (frRefs f == frRefs g && sameK (frOuter f) (frOuter g)) =
+          Just (Just (f, g))
+    pairFrame _ _ = Nothing
+    sameFn x y = case (x, y) of
+      (Clo f as, Clo g bs) -> f == g && length as == length bs
+      _ -> sameAbs x y
 
 -- | The caller's side of state passing: a match on what the residual
--- function returned. @Left v@: the @handle@ is over, with value @v@.
--- @Right (result, state)@: the handler, rebuilt from the state, stays in
--- force, and the walk goes on with the result.
-resultMatch :: Frame -> Abs -> Symbol -> K -> M Term
-resultMatch f tmpl r k = do
+-- function returned. @Left@: a @handle@ is over, with a value; which one
+-- is in how the value is wrapped ('abortValue'). @Right (result, states)@:
+-- the handlers, rebuilt from the states, stay in force, and the walk goes
+-- on with the result.
+resultMatch :: [Frame] -> [Abs] -> Symbol -> K -> M Term
+resultMatch fs tmpls r k = do
   v <- freshNamed (syn "done")
-  abortArm <- isolated do
-    frames <- gets sFrames
-    targets <- gets sTargets
-    let own = if frSegment f then 0 else 1
-        above = length targets - frDepth f - own
-    modify' \st ->
-      st
-        { sFrames = drop 1 (dropWhile (\g -> not (isFused g && frId g == frId f)) frames),
-          sTargets = drop (above + own) targets
-        }
-    ret (frOuter f) (Dyn v BX)
+  aborts <- whichAbort 0 v
   p <- freshNamed (syn "p")
   rightArm <- isolated do
     res <- freshNamed (syn "r")
-    let mems = [m | Dyn _ m <- dynLeaves tmpl]
+    let mems = [m | t <- tmpls, Dyn _ m <- dynLeaves t]
     leafVars <- traverse (const (freshNamed (syn "s"))) mems
-    let hNew = evalState (fillLeaves tmpl) (zipWith Dyn leafVars mems)
-    let setHandler = \case
-          g@Fused {} | frId g == frId f -> g {frHandler = hNew}
+    let hsNew = evalState (traverse fillLeaves tmpls) (zipWith Dyn leafVars mems)
+        byId = M.fromList (zip (map frId fs) hsNew)
+        setHandler = \case
+          g@Fused {} | Just h <- M.lookup (frId g) byId -> g {frHandler = h}
           g -> g
     modify' \st -> st {sFrames = map setHandler (sFrames st)}
     inner <- ret k (Dyn res (kMem k))
@@ -692,9 +733,36 @@ resultMatch f tmpl r k = do
   pure . TMatch r $
     MatchData
       eitherRef
-      (EC.mapFromList [(leftTag, ([BX], ABTN.TAbss [v] abortArm)), (rightTag, ([BX], ABTN.TAbss [p] rightArm))])
+      (EC.mapFromList [(leftTag, ([BX], ABTN.TAbss [v] aborts)), (rightTag, ([BX], ABTN.TAbss [p] rightArm))])
       Nothing
   where
+    n = length fs
+    -- which handler's case didn't resume, from how the value is wrapped
+    whichAbort i v
+      | i == n - 1 = abortArm (fs !! i) v
+      | otherwise = do
+          v' <- freshNamed (syn "done")
+          p' <- freshNamed (syn "done")
+          here <- abortArm (fs !! i) v'
+          further <- whichAbort (i + 1) p'
+          pure . TMatch v $
+            MatchData
+              eitherRef
+              (EC.mapFromList [(leftTag, ([BX], ABTN.TAbss [v'] here)), (rightTag, ([BX], ABTN.TAbss [p'] further))])
+              Nothing
+    -- the handle of this frame is over with this value: on from after it,
+    -- with the frames and targets inside it gone
+    abortArm f v = isolated do
+      frames <- gets sFrames
+      targets <- gets sTargets
+      let own = if frSegment f then 0 else 1
+          above = length targets - frDepth f - own
+      modify' \st ->
+        st
+          { sFrames = drop 1 (dropWhile (\g -> not (isFused g && frId g == frId f)) frames),
+            sTargets = drop (above + own) targets
+          }
+      ret (frOuter f) (Dyn v BX)
     decodeChain _ [] inner = pure inner
     decodeChain c ((l, m) : ls) inner = do
       c' <- freshNamed (syn "rest")
@@ -742,11 +810,9 @@ alignTo t a = case (t, a) of
 -- that doesn't resume, or @Right (result, state)@ at its end, where the
 -- handler in force must have the shape it was passed in, every resumption
 -- having re-installed a handler as its case's last act.
-residualFnWith :: SpecEnv -> SpecLimits -> Maybe Frame -> Fn -> [Abs] -> M (Symbol, Abs, [[Abs]])
-residualFnWith env lim mframe fn args0 = do
-  case mframe of
-    Nothing -> guardFused "a residual function that isn't a single handler's loop"
-    Just _ -> pure ()
+residualFnWith :: SpecEnv -> SpecLimits -> [Frame] -> Fn -> [Abs] -> M (Symbol, [Abs], [[Abs]])
+residualFnWith env lim fs fn args0 = do
+  when (null fs) (guardFused "a residual function inside a kept handler with a fused one outside it")
   -- a continuation captured while specializing emits its code where it is
   -- resumed, which must be in the scope of the request: never in another
   -- lambda
@@ -754,15 +820,15 @@ residualFnWith env lim mframe fn args0 = do
     Just ko -> liftIO (throwIO (Escape (koFrame ko) "a residual function with a continuation not yet resumed"))
     Nothing -> pure ()
   building <- gets sBuilding
-  let allArgs0 = args0 ++ maybe [] (\f -> [frHandler f]) mframe
+  let allArgs0 = args0 ++ map frHandler fs
       k0 = map keyOf allArgs0
       (allArgs, leaves) = case find (\(fn', ks) -> fn' == fn && ks /= k0 && length ks == length k0 && and (zipWith embeds ks k0)) building of
         Just (_, ks) -> Prelude.unzip (zipWith generalize ks allArgs0)
         Nothing -> (allArgs0, map dynLeaves allArgs0)
-      key = Key (isJust mframe) fn (map keyOf allArgs)
-      tmpl = if isJust mframe then last allArgs else Known (NatVal 0) Nothing
+      key = Key (not (null fs)) fn (map keyOf allArgs)
+      tmpls = drop (length args0) allArgs
   gets (M.lookup key . sMemo) >>= \case
-    Just f -> pure (f, tmpl, leaves)
+    Just f -> pure (f, tmpls, leaves)
     Nothing -> do
       nfns <- gets (M.size . sMemo)
       when (nfns >= slFunctions lim) . liftIO . throwIO $ GiveUp "functions"
@@ -795,27 +861,33 @@ residualFnWith env lim mframe fn args0 = do
               e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0 []
           outer <- get
           modify' \s -> s {sLetNum = 1, sBuilding = (fn, map keyOf allArgs) : sBuilding s}
-          body' <- case mframe of
-            Nothing -> pe env lim e' body KTail
-            Just fr -> do
-              fid <- gets sNextId
-              let hAbs = last allArgs'
+          body' <- case fs of
+            [] -> pe env lim e' body KTail
+            _ -> do
+              rid <- gets sNextId
+              -- a frame of its own for each handler, which owns no target:
+              -- the body returns to the function's caller
+              let hAbss = drop (length args0) allArgs'
+                  segs = [Fused (rid + j) (frRefs fr) h (KAbort rid j) 0 True | (j, fr, h) <- zip3 [0 ..] fs hAbss]
               modify' \s ->
                 s
-                  { sNextId = fid + 1,
-                    sFrames = [Fused fid (frRefs fr) hAbs (KAbort fid) 0 True],
+                  { sNextId = rid + length fs,
+                    sFrames = segs,
                     sTargets = [],
                     sKonts = M.empty,
                     sPending = Nothing,
-                    sReturns = M.insert fid (frRefs fr, hAbs) (sReturns s)
+                    sReturns = M.insert rid segs (sReturns s)
                   }
               s1 <- get
-              liftIO (Control.Exception.try (runStateT (pe env lim e' body (KReturn fid)) s1)) >>= \case
+              liftIO (Control.Exception.try (runStateT (pe env lim e' body (KReturn rid)) s1)) >>= \case
                 Right (b, s2) -> b <$ put s2
                 -- an escape to a handler of the residual function's own makes
                 -- the state passing impossible: an escape to the caller's
+                -- handler it stands for, or the innermost
                 Left (Escape i why)
-                  | i >= fid -> liftIO (throwIO (Escape (frId fr) ("in a loop, " ++ why)))
+                  | i >= rid ->
+                      let to = if i < rid + length fs then fs !! (i - rid) else head fs
+                       in liftIO (throwIO (Escape (frId to) ("in a loop, " ++ why)))
                   | otherwise -> liftIO (throwIO (Escape i why))
           modify' \s ->
             s
@@ -827,7 +899,7 @@ residualFnWith env lim mframe fn args0 = do
                 sPending = sPending outer,
                 sFns = (f, Lambda mems (ABTN.TAbss params body')) : sFns s
               }
-          pure (f, tmpl, leaves)
+          pure (f, tmpls, leaves)
   where
     renameLeaves :: Abs -> State [Symbol] Abs
     renameLeaves = \case
@@ -839,33 +911,29 @@ residualFnWith env lim mframe fn args0 = do
       a -> pure a
 
 -- | The end of the body of a state-passing residual function: @Right@ of
--- its value and the state of the handler in force, if every resumption
--- re-installed a handler of the shape the function was passed, as its
--- case's last act: the handler in force returns where the function does
--- (@KAbort@). A case that does more with what the @handle@ gives back
--- (@match handle k () with h with ...@) has work waiting that state
--- passing would drop, so it escapes.
+-- its value and the states of the handlers in force, if they stand for the
+-- ones the function was passed ('standFor'): every resumption re-installed
+-- a handler of the same shape as its case's last act, so that the handler
+-- in force returns where the function does (@KAbort@). A case that does
+-- more with what the @handle@ gives back (@match handle k () with h with
+-- ...@) has work waiting that state passing would drop, so it escapes.
 returnRight :: Int -> Abs -> M Term
-returnRight fid a = do
-  frames <- gets sFrames
-  targets <- gets sTargets
-  gets (M.lookup fid . sReturns) >>= \case
+returnRight rid a = do
+  now <- get
+  case M.lookup rid (sReturns now) of
     Nothing -> giveUp "the end of an unknown state-passing function"
-    Just (refs, hAbs) -> case frames of
-      [top@Fused {}]
-        | frRefs top == refs,
-          KAbort i <- frOuter top,
-          i == fid,
-          all (okTarget (frId top) . fst) targets,
-          Just vals <- alignTo hAbs (frHandler top) ->
-            toVar a \res -> toVars vals \ls -> do
-              (chain, wrap) <- tupleChain ls
-              p <- freshNamed (syn "p")
-              o <- freshNamed (syn "out")
-              pure . wrap $
-                TLets Direct [p] [BX] (TCon pairRef (CTag 0) [res, chain]) $
-                  TLets Direct [o] [BX] (TCon eitherRef rightTag [p]) (TVar o)
-      _ -> liftIO (throwIO (Escape fid "a loop that ends with its handler not as it was passed, or not installed as a case's last act"))
+    Just segs
+      | Just hs <- standFor (segs, []) (sFrames now, map fst (sTargets now)),
+        Just vals <- concat <$> zipWithM alignTo (map frHandler segs) hs ->
+          toVar a \res -> toVars vals \ls -> do
+            (chain, wrap) <- tupleChain ls
+            p <- freshNamed (syn "p")
+            o <- freshNamed (syn "out")
+            pure . wrap $
+              TLets Direct [p] [BX] (TCon pairRef (CTag 0) [res, chain]) $
+                TLets Direct [o] [BX] (TCon eitherRef rightTag [p]) (TVar o)
+      | otherwise ->
+          liftIO (throwIO (Escape rid "a loop that ends with a handler not as it was passed, or not installed as a case's last act"))
 
 -- | The values in a chain of pairs ending in unit: the chain's variable,
 -- and the lets that build it.
@@ -924,7 +992,7 @@ sameK a b = case (a, b) of
   (KTail, KTail) -> True
   (KDelim i, KDelim j) -> i == j
   (KReturn i, KReturn j) -> i == j
-  (KAbort i, KAbort j) -> i == j
+  (KAbort r i, KAbort r' j) -> r == r' && i == j
   (KOuter i _, KOuter j _) -> i == j
   _ -> False
 
@@ -1116,7 +1184,7 @@ match env lim e v br k = case (look e v, br) of
         -- the end of a state-passing function is a few nodes, and a call
         -- there must stay in its tail ('tailInSame')
         KReturn _ | fusedNow -> dynamicWith k (\code -> pure code)
-        KAbort _ | fusedNow -> dynamicWith k (\code -> pure code)
+        KAbort {} | fusedNow -> dynamicWith k (\code -> pure code)
         _ | slJoin lim -> joined fusedNow
         _ | fusedNow -> dynamicWith k (\code -> pure code)
         _ -> dynamicWith KTail (dynResult k BX)
@@ -1145,7 +1213,7 @@ match env lim e v br k = case (look e v, br) of
           m = kMem k
           kJoin = KBind m (syn "r") \a -> do
             now <- get
-            case standFor st0 now of
+            case standFor (shape st0) (shape now) of
               Just hs | material a, all material hs -> do
                 ph <- freshNamed (syn "join")
                 modify' \st -> st {sJoins = M.insertWith (++) jid [(ph, a, usedKonts now, hs)] (sJoins st)}
@@ -1222,44 +1290,7 @@ match env lim e v br k = case (look e v, br) of
       Dyn {} -> True
       Known v _ -> isNothing (knownData v) && isNothing (knownClosure env v)
       _ -> False
-    -- Whether the handlers in force in the second state stand for the ones
-    -- in the first, and if so their handlers, one per fused frame of the
-    -- first. A frame stands for one if it is that frame, or handles the
-    -- same abilities with the same function and returns to the same place
-    -- ('sameK'): the handler a case installed as its last act. The places
-    -- their bodies return to must match too. The end of a resumed body
-    -- (TBody) only passes its value on, so it doesn't count; neither does
-    -- the pure case of a frame standing for a state-passing function's,
-    -- which gives its value back without one ('returnRight').
-    standFor a b = do
-      guard (length (sFrames a) == length (sFrames b))
-      pairs <- zipWithM pairFrame (sFrames a) (sFrames b)
-      let fused = [p | Just p <- pairs]
-          ids = [(frId f, frId g) | (f, g) <- fused]
-          forSegment = [frId g | (f, g) <- fused, frSegment f, not (frSegment g)]
-          counts st skip = [t | (t, _) <- sTargets st, keep t]
-            where
-              keep = \case
-                TBody _ -> False
-                TPure i -> i `notElem` skip
-                TSite -> True
-          ta = counts a []
-          tb = counts b forSegment
-          same x y = case (x, y) of
-            (TPure i, TPure j) -> (i, j) `elem` ids
-            (TSite, TSite) -> True
-            _ -> False
-      guard (length ta == length tb && and (zipWith same ta tb))
-      pure [frHandler g | (_, g) <- fused]
-    pairFrame Barrier Barrier = Just Nothing
-    pairFrame f@Fused {} g@Fused {}
-      | sameFn (frHandler f) (frHandler g),
-        frId f == frId g || (frRefs f == frRefs g && sameK (frOuter f) (frOuter g)) =
-          Just (Just (f, g))
-    pairFrame _ _ = Nothing
-    sameFn x y = case (x, y) of
-      (Clo f as, Clo g bs) -> f == g && length as == length bs
-      _ -> sameAbs x y
+    shape st = (sFrames st, map fst (sTargets st))
     dynamicWith kk finish = toVar (look e v) \x -> do
       emitted
       let arm e' body = isolated (pe env lim e' body kk)

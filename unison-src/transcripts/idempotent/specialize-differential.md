@@ -538,7 +538,7 @@ scratch/main> add
 
 scratch/main> run checkSome
 
-  Report [] 0 8 42
+  Report [] 0 0 50
 
 scratch/main> run regressions
 

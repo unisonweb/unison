@@ -503,20 +503,30 @@ its continuation, not whether the handler is affine:
   code fuses, and so does an interpreter over a program with no loops: the transcript has
   a state handler becoming arithmetic and an abort becoming a branch.
 
-  A loop in a fused handler's scope becomes a residual function that passes the handler's
-  state ([`residualCall`](ANF/Specialize.hs)): the handler is one more argument, the body is
-  walked under a frame of its own that owns no target (a segment: the body returns to its
-  caller, not to the handler), and the function returns `Left v` from a case that didn't
-  resume, `v` being the `handle`'s value, or `Right (result, state)` at its end, where the
-  handler in force must have the shape it was passed in and every resumption must have
-  re-installed a handler as its case's last act (`returnRight`); the caller matches, and
-  goes on after the `handle`, or with the handler rebuilt from the state (`resultMatch`).
-  A state handler around a loop becomes a loop taking and returning the state, and an abort
-  around a loop becomes a loop that returns the abort as a value.
+  A loop in the scope of fused handlers becomes a residual function that passes their
+  states ([`residualCall`](ANF/Specialize.hs)):
+  - **Each handler in force is one more argument,** and the body is walked under a frame
+    of its own for each, which owns no target (a segment: the body returns to its caller,
+    not to the handler).
+  - **At its end the function returns `Right (result, states)`,** where the handlers in
+    force must stand for the ones it was passed (`standFor`, as for a
+    [join point](#join-points)): every resumption re-installed a handler of the same
+    shape as its case's last act (`returnRight`).
+  - **From a case that didn't resume it returns `Left`** of that `handle`'s value. With
+    more than one handler the value is wrapped to say whose case it was (`abortValue`):
+    under as many `Right`s as the handler's place, counting from the innermost.
+  - **The caller matches** (`resultMatch`), and goes on after the `handle` that is over,
+    with the handlers inside it gone, or with the handlers rebuilt from the states.
+  - **A call in the function's last position under the same handlers is a tail call:**
+    what the callee returns is what the function would.
+
+  A state handler around a loop becomes a loop taking and returning the state, an abort
+  around a loop becomes a loop that returns the abort as a value, and an interpreter's own
+  handler around a loop of a program that installs a handler becomes a loop passing both.
 
   Still to do: cases that resume more than once, which need the rest of the body as a
-  residual function up to the `handle`; more than one fused handler around a loop; and a
-  resumption whose result the case keeps working with, inside a loop.
+  residual function up to the `handle`; a resumption whose result the case keeps working
+  with, inside a loop; and a loop under a kept handler that is itself under a fused one.
 
 ## Join points
 
