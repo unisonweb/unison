@@ -177,3 +177,31 @@ under two fused handlers, so this run checks that nothing moved:
 Every row is within 3% of the last run except the interpreter in continuation-passing
 style under the JIT, which has varied between 167 µs and 248 µs over three runs with the
 same generated code.
+
+
+## With the bridge around calls of unknown functions
+
+At the commit that runs a call of an unknown function under a bridge
+([Specialize.md](../../Specialize.md), "Abilities"). No row of this file calls an unknown
+function under a fused handler, so this run checks that nothing moved:
+
+| Row | JIT off | JIT on |
+| --- | --- | --- |
+| fib 20: specialized | 1.77 ms | 36.8 µs |
+| fib 20: by hand | 1.77 ms | 36.8 µs |
+| polynomial, 100000 points: specialized | 15.7 ms | 554 µs |
+| map with a lambda, 10000 elements: specialized | 698 µs | 242 µs |
+| foldLeft with a lambda, 10000 elements: specialized | 424 µs | 161 µs |
+| filter and map as a fold, 10000 elements: specialized | 952 µs | 165 µs |
+| five functions from a list, 100000 points: specialized | 15.7 ms | 613 µs |
+| state handler around a loop, 10000 rounds: specialized | 397 µs | 3.45 µs |
+| state handler around a loop, 10000 rounds: by hand | 397 µs | 3.21 µs |
+| bail interpreter: specialized | 3.25 ms | 113 µs |
+| tick counter around a recursion, 1000 deep: specialized | 179 µs | 29.2 µs |
+| coin flips in a loop, 10 flips: specialized | 278 µs | 52.2 µs |
+| fib 20, interpreter in CPS: specialized | 2.20 ms | 250 µs |
+
+With the JIT off every specialized row is within 1% of the last run. With it on they are
+within 4%, except the state handler's loop (3.45 µs against 3.26 µs, a row of a few
+microseconds) and the interpreter in continuation-passing style, which varies between
+runs as before.
