@@ -72,49 +72,31 @@ fibByHand x =
 You can inspect the results of specialization with a new builtin, `runtime.ir : a -> Text` which prints the runtime representation of a Unison value. Here's `runtime.ir (specialize run fibProg)`:
 
 ```
-#3pt726rv21 prog e x =
+eval.specialized#3pt726rv21 prog e x =
   eval' x1 =
-    lit5 = 0
-    v8 = x1 == lit5
-    match v8 with
+    lit = 0
+    v1 = x1 == lit
+    match v1 with
       false ->
-        lit6 = 1
-        v9 = Nat.drop x1 lit6
-        lit7 = 0
-        v10 = v9 == lit7
-        match v10 with
+        lit1 = 1
+        v2 = Nat.drop x1 lit1
+        lit2 = 0
+        v3 = v2 == lit2
+        match v3 with
           false ->
-            lit8 = 1
-            v11 = Nat.drop x1 lit8
-            v12 = eval' v11
-            lit9 = 2
-            v13 = Nat.drop x1 lit9
-            v14 = eval' v13
-            v12 Nat.+ v14
+            lit3 = 1
+            v4 = Nat.drop x1 lit3
+            v5 = eval' v4
+            lit4 = 2
+            v6 = Nat.drop x1 lit4
+            v7 = eval' v6
+            v5 Nat.+ v7
           _ -> 1
       _ -> 0
-  lit = 0
-  v1 = x == lit
-  match v1 with
-    false ->
-      lit1 = 1
-      v2 = Nat.drop x lit1
-      lit2 = 0
-      v3 = v2 == lit2
-      match v3 with
-        false ->
-          lit3 = 1
-          v4 = Nat.drop x lit3
-          v5 = eval' v4
-          lit4 = 2
-          v6 = Nat.drop x lit4
-          v7 = eval' v6
-          v5 Nat.+ v7
-        _ -> 1
-    _ -> 0
+  eval' x
 ```
 
-Notice all the `Expr` machinery is gone! `eval'` is `fibByHand`. The entry is one more copy of the same body, because the first round was inlined before the loop was recognized.
+Notice all the `Expr` machinery is gone! `eval'` is `fibByHand`, and the entry just calls it.
 
 More generally, using partial evaluation to specialize an interpreter for a particular program yields compiled code for that program. This incredible fact is the [first Futamura projection](https://blog.sigfpe.com/2009/05/three-projections-of-doctor-futamura.html).
 
@@ -148,8 +130,11 @@ power n x = if n == 0 then 1 else x * power (n - 1) x
 Here's the actual code `runtime.ir (specialize power 3)`:
 
 ```
--- specialize (n x -> (if n == 0 then 1 else x Nat.* power (n Nat.- 1) x)) 3
-#tlbm35jj8q n x =
+-- power n x =
+--   use Nat * -
+--   if n == 0 then 1 else x * power (n - 1) x
+-- specialize power 3
+power.specialized#tlbm35jj8q n x =
   lit = 1
   v1 = x Nat.* lit
   v2 = x Nat.* v1
@@ -299,6 +284,8 @@ So under an unknown match, the walker unfolds a call only if it doesn't look lik
 - **It has been seen before.** A residual function for the same arguments already exists.
 
 Take `fac x`. The walker unfolds it, hits the unknown `n == 0` test, explores the `else` arm, and meets `fac (n - 1)`. It is still unfolding `fac`, and the argument `n - 1` is unknown just as `x` was, so nothing known got smaller. That looks like a loop, so instead of unfolding, the walker emits a call to a residual function. That call is the loop in the output.
+
+When the call in progress that it repeats has the very same key, that unfolding was the first round of the loop. Leaving it in place would put the loop's body in the output twice, once inline and once as the residual function. So the walker goes back to that call, discards its unfolding, and makes it a call to the residual function as well (`Redo`, caught by `unfolding`). The call is remembered as the start of a loop, so it is residualized at once if it is met again.
 
 Separately, there is a depth limit of 200 nested unfoldings. Past it, a call is residualized even with no unknown match above it. This caps inlining in cases the loop check doesn't catch, for example a program that recurses very deeply on known data. It is not a termination guarantee by itself; for that we use the whistle and the hard budgets described later.
 
@@ -589,7 +576,9 @@ See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs)
 - **`runtime.ir v`** shows what the runtime runs for a value: for a closure, its captured values
   and its optimized code, with every generated function. Generated code keeps the program's
   variable names, and a residual function is named after the function it came from with a prime
-  (`eval'`). The text depends on the runtime version, so it is for debugging and transcripts, not
+  (`eval'`). The specialized function itself is named `f.specialized#hash`, after the function
+  `f` it is a specialization of. The comment above the code is the value as a term; a recursive
+  function in it is shown by name, with its definition first, not as a lambda. The text depends on the runtime version, so it is for debugging and transcripts, not
   program logic.
 - **`UNISON_SPECIALIZE_DEBUG=1`** prints each specialization's residual code, its constants, why
   it gave up if it did, and one line per handler kept. `UNISON_SPECIALIZE_JOIN=off` and
@@ -642,7 +631,8 @@ What the specializer does not do today, each of which falls back to correct but 
 - **Handlers that keep the handler.** A case that goes on after resuming, or resumes twice, has no bridge. An unknown call under two or more fused handlers keeps them. A closure that escapes as a value under a fused handler keeps it.
 - **Loops under two fused handlers** keep the inner handler when one of its cases has work left after resuming or does not resume.
 - **A residual function's result is unknown to its caller.** If a loop always returns a pair, the caller still matches on it at run time. A worker/wrapper split, where the function returns only the unknown parts and the caller rebuilds the known shape, is prototyped on a branch. It was correct on all 1,200 test programs but showed no measurable gain yet, so it is not merged.
-- **The whistle's cost.** The embedding test, as written (plain recursion, no memoization), is exponential in the depth of what it compares. Keys are shallow in practice and no program has shown a cost, but deeply nested known data could. Two standard fixes, if it ever matters: memoize the test over pairs of subterms, which makes it roughly size(a) × size(b); or switch to a tag-bag whistle, which compares multisets of source-location tags instead of trees (Mitchell 2010; Bolingbroke and Peyton Jones 2010). Tag-bags are cheaper but coarser, so they may generalize sooner.
+- **The whistle's cost.** The embedding test keeps its answer for each pair of subterms, so it takes time proportional to size(a) × size(b). If that ever matters, a tag-bag whistle compares multisets of source-location tags instead of trees (Mitchell 2010; Bolingbroke and Peyton Jones 2010). Tag-bags are cheaper but coarser, so they may generalize sooner.
+- **A loop inside a loop is walked once per loop around it.** Going back to the start of a loop discards what was generated since, including any loop finished inside it, which is then generated again. The steps taken still count against the budget.
 - **Mutable values are opaque.** A known `Ref` is passed along, and every read stays in the output.
 
 ## A map of the code
@@ -656,7 +646,7 @@ Almost everything is in one file, `unison-runtime/src/Unison/Runtime/ANF/Special
 | Abstract values | `Abs`, `toVar`, `keyOf` |
 | The walk | `partialEval`, `ret`, `dynResult`, the `K` type |
 | Matches, known and unknown | `match`, its local `dynamic` and `joined` |
-| Unfold or residualize | `call` (the local `callFn`), `residualCall` |
+| Unfold or residualize | `call` (the local `callFn`), `unfolding`, `residualCall` |
 | Residual functions and the memo table | `residualFnAs`, `Key` |
 | The whistle | `embeds`, `generalize` |
 | Running known code | `runIfKnown`, `opaque`; `runTerm` in `Machine.hs` |

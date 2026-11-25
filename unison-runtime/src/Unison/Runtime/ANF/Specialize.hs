@@ -25,7 +25,8 @@ import Control.Exception qualified
 import Control.Monad.State.Strict
 import Data.Char (ord)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Data.List (find)
+import Data.IntMap.Strict qualified as IM
+import Data.List (find, mapAccumL)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import System.IO.Unsafe (unsafePerformIO)
@@ -178,6 +179,17 @@ data GiveUp = GiveUp String
 
 instance Exception GiveUp
 
+-- | The call being unfolded with this number is the start of a loop: a call
+-- inside it, of the same function with the same key, is about to become a
+-- call of a residual function. The unfolding is abandoned and the call is
+-- walked again as a call of that residual function, so that the loop's body
+-- is generated once, not once inline and once as the function. Carries the
+-- steps taken, which a rollback doesn't give back.
+data Redo = Redo Int Int
+  deriving (Show)
+
+instance Exception Redo
+
 -- | Something in the scope of the fused handler with this number could
 -- perform its requests without the walk seeing them: the handler can't be
 -- fused, and its @handle@ is walked again, kept.
@@ -302,7 +314,15 @@ data S = S
     sBridgeK :: M.Map Int (Int, Maybe Symbol),
     -- | the bridge whose body has the frames with this number, and whether
     -- all of its handler's state is unknown in it ('bridgeFn')
-    sBridgeOf :: M.Map Int (Symbol, Bool)
+    sBridgeOf :: M.Map Int (Symbol, Bool),
+    -- | the unfoldings the walk is inside of, by number, and the next
+    -- number ('Redo')
+    sUnfolding :: S.Set Int,
+    sNextUnfold :: !Int,
+    -- | the calls found to start a loop ('Redo'): residual from the start
+    -- when met again. Outside the state that a rollback restores, so that
+    -- a loop inside another is found once, not once per attempt around it
+    sLoops :: IORef [(Fn, [KArg], [KArg])]
   }
 
 type M = StateT S IO
@@ -315,8 +335,9 @@ data E = E
     eDepth :: !Int,
     -- | the calls being unfolded around this code, innermost first, each
     -- with the key of its arguments: what the whistle looks at before
-    -- unfolding another under an unknown match ('call')
-    eStack :: [(Fn, [KArg])]
+    -- unfolding another under an unknown match ('call'), and for 'Redo'
+    -- the fused handlers it was under and its number
+    eStack :: [(Fn, [KArg], [KArg], Int)]
   }
 
 -- | Where a value goes: the tail of a residual function, or the rest of a
@@ -387,7 +408,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
             either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id
               <$> Control.Exception.try @Escape
                 ( Right <$> do
-                    newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty) do
+                    newIORef [] >>= \loopsRef -> newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty S.empty 1 loopsRef) do
                       argSyms <- traverse freshNamed (take (length args) vs)
                       restSyms <- traverse freshNamed (drop (length args) vs)
                       let restMems = drop (length args) ccs
@@ -395,8 +416,11 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                             zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
                               ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
                           -- the entry is the first call being unfolded
-                          e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds)]
-                      body0 <- partialEval env lim e0 body KTail
+                          -- (its number is 0)
+                          e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds, [], 0)]
+                      body0 <-
+                        unfolding 0 (partialEval env lim e0 body KTail) $
+                          residualCall env lim (Fn r i) (map snd binds) KTail
                       consts <- gets (reverse . sConsts)
                       fns0 <- gets sFns
                       let constSyms = argSyms ++ map fst consts
@@ -766,13 +790,47 @@ call env lim e fa as k = case fa of
                   KHole _ -> True
                   _ -> embeds a b
                 again =
-                  any grown (eStack e)
+                  any grown [(f, ks) | (f, ks, _, _) <- eStack e]
                     || any grown building
                     || M.member (Key 0 behindRefs fn k0) memo
-                e' = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0) : eStack e)
-            if eDepth e < slDepth lim && not (eUnderDyn e && again)
-              then partialEval env lim e' body k
-              else residualCall env lim fn args k
+                e' hk uid = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0, hk, uid) : eStack e)
+                -- the same call again: the same key, under fused handlers
+                -- in the same states (a loop whose first round has a
+                -- handler's state known and the rest don't is not the
+                -- same call, and its first round stays unfolded)
+                sameKey hk ks hs = same ks k0 && same hs hk
+                same xs ys = length xs == length ys && and (zipWith safeEq xs ys)
+            hk <- gets (map (keyOf . frHandler) . takeWhile isFused . sFrames)
+            loops <- gets sLoops >>= liftIO . readIORef
+            active <- gets sUnfolding
+            if eDepth e < slDepth lim && not (eUnderDyn e && again) && not (any (\(f, ks, hs) -> f == fn && sameKey hk ks hs) loops)
+              then do
+                uid <- gets sNextUnfold
+                modify' \s -> s {sNextUnfold = uid + 1}
+                unfolding uid (partialEval env lim (e' hk uid) body k) (residualCall env lim fn args k)
+              else case [uid | (f, ks, hs, uid) <- eStack e, f == fn, sameKey hk ks hs, S.member uid active] of
+                -- this call closes a loop that an unfolding around it
+                -- started: that one becomes the call of the loop
+                uid : _ -> do
+                  ref <- gets sLoops
+                  liftIO (modifyIORef' ref ((fn, k0, hk) :))
+                  steps <- gets sSteps
+                  liftIO (seNote env ("a loop starts at an unfolding of " ++ maybe (show fn) show (case fn of Fn r' 0 -> seName env r'; _ -> Nothing) ++ ": walked again as a call"))
+                  liftIO (throwIO (Redo uid steps))
+                [] -> residualCall env lim fn args k
+
+-- | An unfolding with this number, or what to do in its place if a call
+-- inside it turns out to close a loop it started ('Redo'): the state goes
+-- back to where the unfolding began, but for the steps taken.
+unfolding :: Int -> M Term -> M Term -> M Term
+unfolding uid walk instead = do
+  modify' \s -> s {sUnfolding = S.insert uid (sUnfolding s)}
+  s0 <- get
+  liftIO (Control.Exception.try (runStateT walk s0)) >>= \case
+    Right (t, s1) -> t <$ put s1 {sUnfolding = S.delete uid (sUnfolding s1)}
+    Left (Redo i steps)
+      | i == uid -> put s0 {sSteps = steps, sUnfolding = S.delete uid (sUnfolding s0)} >> instead
+      | otherwise -> liftIO (throwIO (Redo i steps))
 
 -- | A residual function for a call, from its key: an existing one, or a new
 -- one whose body is the function's, specialized on what is known of the
@@ -1631,19 +1689,41 @@ material = \case
 -- removed or grown. A literal embeds one at least as big (a natural's value,
 -- an integer's magnitude, a text's length), so that a known counter going
 -- down never counts as growing.
+--
+-- The answer for a pair of subterms is kept, so each pair is decided once:
+-- the time is the product of the two sizes (times a logarithm for the
+-- table). Without that the same pair is reached along many paths, by
+-- coupling then diving and by diving then coupling, and the time is
+-- exponential in the depth.
 embeds :: KArg -> KArg -> Bool
-embeds a b = couple a b || dive b
+embeds a0 b0 = evalState (go na nb) IM.empty
   where
-    couple (KHole _) _ = True
-    couple (KKont _) (KKont _) = True
-    couple (KKnown v) (KKnown w) = knownLE v w
-    couple (KCon r t xs) (KCon r' t' ys) = r == r' && t == t' && length xs == length ys && and (zipWith embeds xs ys)
-    couple (KClo f xs) (KClo g ys) = f == g && length xs == length ys && and (zipWith embeds xs ys)
-    couple _ _ = False
-    dive = \case
-      KCon _ _ ys -> any (embeds a) ys
-      KClo _ ys -> any (embeds a) ys
-      _ -> False
+    (na, _) = numbered 0 a0
+    (nb, width) = numbered 0 b0
+    go :: Numbered -> Numbered -> State (IM.IntMap Bool) Bool
+    go x@(Numbered i _ _) y@(Numbered j _ _) =
+      gets (IM.lookup slot) >>= \case
+        Just r -> pure r
+        Nothing -> do
+          r <- orM (couple x y) (dive x y)
+          r <$ modify' (IM.insert slot r)
+      where
+        slot = i * width + j
+    couple (Numbered _ a xs) (Numbered _ b ys) = case (a, b) of
+      (KHole _, _) -> pure True
+      (KKont _, KKont _) -> pure True
+      (KKnown v, KKnown w) -> pure (knownLE v w)
+      (KCon r t _, KCon r' t' _) | r == r', t == t', length xs == length ys -> allM (zip xs ys)
+      (KClo f _, KClo g _) | f == g, length xs == length ys -> allM (zip xs ys)
+      _ -> pure False
+    dive x (Numbered _ _ ys) = anyM x ys
+    orM p q = p >>= \r -> if r then pure True else q
+    allM = \case
+      [] -> pure True
+      (x, y) : rest -> go x y >>= \r -> if r then allM rest else pure False
+    anyM x = \case
+      [] -> pure False
+      y : rest -> go x y >>= \r -> if r then pure True else anyM x rest
     knownLE v w = case (v, w) of
       (NatVal x, NatVal y) -> x <= y
       (IntVal x, IntVal y) -> abs x <= abs y
@@ -1656,6 +1736,20 @@ embeds a b = couple a b || dive b
 safeEq :: KArg -> KArg -> Bool
 safeEq x y = unsafePerformIO $ either (\(_ :: SomeException) -> False) id <$> Control.Exception.try (Control.Exception.evaluate (x == y))
 {-# NOINLINE safeEq #-}
+
+-- | A key with its subterms numbered from the given number, in order, and
+-- the next number free. A known value is one subterm.
+data Numbered = Numbered !Int KArg [Numbered]
+
+numbered :: Int -> KArg -> (Numbered, Int)
+numbered i k = (Numbered i k kids, next)
+  where
+    (kids, next) = case k of
+      KCon _ _ xs -> children xs
+      KClo _ xs -> children xs
+      _ -> ([], i + 1)
+    children xs = swap (mapAccumL (\n x -> swap (numbered n x)) (i + 1) xs)
+    swap (x, y) = (y, x)
 
 keyOf :: Abs -> KArg
 keyOf = \case

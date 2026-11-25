@@ -297,9 +297,11 @@ scratch/main> add
     2 | > runtime.ir (specialize power 3)
           ⧩
           """
-          -- specialize
-          --   (n x -> (if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x)) 3
-          #utqafuleos n x =
+          -- power n x =
+          --   use Nat *
+          --   if Nat.eq n 0 then 1 else x * power (Nat.drop n 1) x
+          -- specialize power 3
+          power.specialized#utqafuleos n x =
             lit = 1
             v1 = x Nat.* lit
             v2 = x Nat.* v1
@@ -374,19 +376,21 @@ An expression with no calls becomes straight-line code:
     2 | > runtime.ir (specialize (eval []) (Add (Mul Arg Arg) (Num 1)))
           ⧩
           """
-          -- specialize
-          --   (e x -> (match e with
-          --     Num n        -> n
-          --     Arg          -> x
-          --     Add a b      -> eval [] a x Nat.+ eval [] b x
-          --     Sub a b      -> Nat.drop (eval [] a x) (eval [] b x)
-          --     Mul a b      -> eval [] a x Nat.* eval [] b x
-          --     IfZero c t f -> if Nat.eq (eval [] c x) 0 then eval [] t x else eval [] f x
-          --     Call i a     ->
-          --       match List.at i [] with
-          --         Some body -> eval [] body (eval [] a x)
-          --         None      -> bug "no such function")) (Add (Mul Arg Arg) (Num 1))
-          #s7tck5o8q1 prog e x =
+          -- eval prog e x =
+          --   match e with
+          --     Num n -> n
+          --     Arg -> x
+          --     Add a b -> eval prog a x Nat.+ eval prog b x
+          --     Sub a b -> Nat.drop (eval prog a x) (eval prog b x)
+          --     Mul a b -> eval prog a x Nat.* eval prog b x
+          --     IfZero c t f ->
+          --       if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
+          --     Call i a ->
+          --       match List.at i prog with
+          --         Some body -> eval prog body (eval prog a x)
+          --         None      -> bug "no such function"
+          -- specialize (eval []) (Add (Mul Arg Arg) (Num 1))
+          eval.specialized#s7tck5o8q1 prog e x =
             v1 = x Nat.* x
             lit = 1
             v1 Nat.+ lit
@@ -412,61 +416,33 @@ A recursive program becomes a recursive function, with no trace of the interpret
     2 | > runtime.ir (specialize run factorial)
           ⧩
           """
+          -- eval prog e x =
+          --   match e with
+          --     Num n -> n
+          --     Arg -> x
+          --     Add a b -> eval prog a x Nat.+ eval prog b x
+          --     Sub a b -> Nat.drop (eval prog a x) (eval prog b x)
+          --     Mul a b -> eval prog a x Nat.* eval prog b x
+          --     IfZero c t f ->
+          --       if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
+          --     Call i a ->
+          --       match List.at i prog with
+          --         Some body -> eval prog body (eval prog a x)
+          --         None      -> bug "no such function"
           -- specialize
-          --   (e x ->
-          --     (match e with
-          --       Num n -> n
-          --       Arg -> x
-          --       Add a b ->
-          --         eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x
-          --           Nat.+ eval
-          --             [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x
-          --       Sub a b ->
-          --         Nat.drop
-          --           (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
-          --           (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x)
-          --       Mul a b ->
-          --         eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x
-          --           Nat.* eval
-          --             [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] b x
-          --       IfZero c t f ->
-          --         if
-          --           Nat.eq
-          --             (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] c x)
-          --             0 then
-          --           eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] t x
-          --         else eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] f x
-          --       Call i a ->
-          --         match List.at
-          --           i [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] with
-          --           Some body ->
-          --             eval
-          --               [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          --               body
-          --               (eval
-          --                 [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))] a x)
-          --           None -> bug "no such function"))
-          --   (Call 0 Arg)
-          #he1qjbhhqu prog e x =
+          --   (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]) (Call 0 Arg)
+          eval.specialized#he1qjbhhqu prog e x =
             eval' x1 =
-              lit2 = 0
-              v4 = Nat.eq x1 lit2
-              match v4 with
+              lit = 0
+              v1 = Nat.eq x1 lit
+              match v1 with
                 false ->
-                  lit3 = 1
-                  v5 = Nat.drop x1 lit3
-                  v6 = eval' v5
-                  x1 Nat.* v6
+                  lit1 = 1
+                  v2 = Nat.drop x1 lit1
+                  v3 = eval' v2
+                  x1 Nat.* v3
                 _ -> 1
-            lit = 0
-            v1 = Nat.eq x lit
-            match v1 with
-              false ->
-                lit1 = 1
-                v2 = Nat.drop x lit1
-                v3 = eval' v2
-                x Nat.* v3
-              _ -> 1
+            eval' x
           """
 ```
 
@@ -532,7 +508,7 @@ scratch/main> add
           --         []        -> acc
           --         x +: rest -> go (acc :+ f x) rest
           --       go [] xs) (x -> x Nat.* 2 Nat.+ 1)
-          #gj43ai3imv f c c1 xs =
+          map.specialized#gj43ai3imv f c c1 xs =
             map$go' acc x1 =
               v5 = ##List.viewl x1
               match v5 with
@@ -563,24 +539,19 @@ scratch/main> add
     4 | > runtime.ir (specialize foldLeft (Nat.+))
           ⧩
           """
-          -- specialize
-          --   (f z tqb401337t1 -> (match tqb401337t1 with
-          --     []        -> z
-          --     x +: rest -> foldLeft f (f z x) rest)) (Nat.+)
-          #m3rbk3p595 f z x1 =
+          -- foldLeft f z = cases
+          --   []        -> z
+          --   x +: rest -> foldLeft f (f z x) rest
+          -- specialize foldLeft (Nat.+)
+          foldLeft.specialized#m3rbk3p595 f z x1 =
             foldLeft' z1 x2 =
-              v3 = ##List.viewl x2
-              match v3 with
-                VElem x3 rest1 ->
-                  v4 = z1 Nat.+ x3
-                  foldLeft' v4 rest1
+              v1 = ##List.viewl x2
+              match v1 with
+                VElem x rest ->
+                  v2 = z1 Nat.+ x
+                  foldLeft' v2 rest
                 VEmpty -> z1
-            v1 = ##List.viewl x1
-            match v1 with
-              VElem x rest ->
-                v2 = z Nat.+ x
-                foldLeft' v2 rest
-              VEmpty -> z
+            foldLeft' z x1
           """
 ```
 
@@ -648,7 +619,7 @@ scratch/main> add
           -- specialize
           --   (prog x -> evalK prog (Call 0 Arg) x (v -> v))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          #2qmmp45ssf prog x =
+          runK.specialized#2qmmp45ssf prog x =
             evalK$Lambda2$Lambda0' va vb = va Nat.* vb
             evalK$Lambda4' general va1 va2 =
               lit5 = 0
@@ -747,7 +718,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (s x -> x Nat.+ (runSt s do count 4)) 2
-          #6patbfbgl6 s x =
+          #mrq1ud2rn1$Lambda0.specialized#6patbfbgl6 s x =
             lit = 12
             x Nat.+ lit
           """
@@ -839,58 +810,42 @@ scratch/main> add
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None))
           --   [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
-          #0nklekfqfs prog x =
+          runA.specialized#0nklekfqfs prog x =
             evalA' x1 =
-              lit4 = 0
-              v3 = Nat.eq x1 lit4
-              match v3 with
+              lit = 0
+              v1 = Nat.eq x1 lit
+              match v1 with
                 false ->
-                  lit5 = 1
-                  v4 = Nat.lt x1 lit5
-                  match v4 with
+                  lit1 = 1
+                  v2 = Nat.lt x1 lit1
+                  match v2 with
                     false ->
-                      lit6 = 1
-                      r4 = Nat.drop x1 lit6
-                      r5 = evalA' r4
-                      match r5 with
+                      lit2 = 1
+                      r2 = Nat.drop x1 lit2
+                      r3 = evalA' r2
+                      match r3 with
                         Right p1 ->
                           match p1 with
-                            Cons r6 rest1 ->
-                              r7 = x1 Nat.* r6
+                            Cons r4 rest1 ->
+                              r5 = x1 Nat.* r4
                               nil = ()
-                              p2 = Cons r7 nil
+                              p2 = Cons r5 nil
                               Right p2
                         Left done1 -> Left done1
                     _ ->
                       con = None
                       Left con
                 _ ->
-                  lit7 = 1
+                  lit3 = 1
                   nil1 = ()
-                  p3 = Cons lit7 nil1
+                  p3 = Cons lit3 nil1
                   Right p3
-            lit = 0
-            v1 = Nat.eq x lit
-            match v1 with
-              false ->
-                lit1 = 1
-                v2 = Nat.lt x lit1
-                match v2 with
-                  false ->
-                    lit2 = 1
-                    r = Nat.drop x lit2
-                    r1 = evalA' r
-                    match r1 with
-                      Right p ->
-                        match p with
-                          Cons r2 rest ->
-                            r3 = x Nat.* r2
-                            Some r3
-                      Left done -> done
-                  _ -> None
-              _ ->
-                lit3 = 1
-                Some lit3
+            r = evalA' x
+            match r with
+              Right p ->
+                match p with
+                  Cons r1 rest -> Some r1
+              Left done -> done
           """
 ```
 
@@ -948,7 +903,7 @@ scratch/main> add
           --       put (get + n)
           --       put (get * 2)
           --       get) 1
-          #k8ughu55rj s n =
+          stF.specialized#k8ughu55rj s n =
             v1 = s Nat.+ n
             lit = 2
             v1 Nat.* lit
@@ -1007,7 +962,7 @@ scratch/main> add
           --     with cases
           --       { a }            -> Some a
           --       { abort _ -> _ } -> None)) [Sub (Mul Arg Arg) (Num 10)]
-          #576qjmjsg7 prog x =
+          runA.specialized#576qjmjsg7 prog x =
             va = x Nat.* x
             lit = 10
             v1 = Nat.lt va lit
@@ -1040,7 +995,7 @@ Around a loop, the state is passed to the loop and returned from it:
           ⧩
           """
           -- specialize (s n -> runSt s do count n) 0
-          #8bdou15p4k s n =
+          #v2hffo3dsr$Lambda0.specialized#8bdou15p4k s n =
             count' n1 v4 =
               lit2 = 0
               v5 = Nat.eq n1 lit2
@@ -1102,7 +1057,7 @@ has no such bridge, and stays as it is around its body:
           --       use St get
           --       put (f get)
           --       get) 3
-          #aqe3doh5bf s f =
+          #805euaakek$Lambda0.specialized#aqe3doh5bf s f =
             bridge' general request =
               match request with
                 {St.get} ->
@@ -1322,88 +1277,44 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
-          #h48da7gja7 z n =
-            resume v1 r1 =
-              r2 = r1 Nat.+ v1
-              lit5 = 0
-              (lit5, r2)
-            ticks' n2 k1 =
-              lit6 = 0
-              v5 = Nat.eq n2 lit6
-              match v5 with
+          #18bmpic1u7$Lambda0.specialized#h48da7gja7 z n =
+            resume r =
+              lit = 0
+              (lit, r)
+            ticks' n1 k1 =
+              lit1 = 0
+              v2 = Nat.eq n1 lit1
+              match v2 with
                 false ->
-                  lit7 = 1
-                  v6 = Nat.drop n2 lit7
-                  k2 = partialApply resume1 n2 k1
-                  r3 = ticks' v6 k2
-                  match r3 with
-                    Cons n3 p3 ->
-                      match p3 with
-                        Cons a1 p4 ->
-                          match p4 with
+                  lit2 = 1
+                  v3 = Nat.drop n1 lit2
+                  k2 = partialApply resume1 n1 k1
+                  r1 = ticks' v3 k2
+                  match r1 with
+                    Cons n2 p1 ->
+                      match p1 with
+                        Cons a p2 ->
+                          match p2 with
                             () ->
-                              lit8 = 1
-                              v7 = n3 Nat.+ lit8
-                              (v7, a1)
+                              lit3 = 1
+                              v4 = n2 Nat.+ lit3
+                              (v4, a)
                 _ ->
-                  lit9 = 0
-                  k1 lit9
-            resume1 n2 k1 r4 =
-              r5 = r4 Nat.+ n2
-              k1 r5
+                  lit4 = 0
+                  k1 lit4
+            resume1 n1 k1 r2 =
+              r3 = r2 Nat.+ n1
+              k1 r3
             v1 = z Nat.+ n
-            lit = 0
-            v2 = Nat.eq v1 lit
-            match v2 with
-              false ->
-                lit1 = 1
-                v3 = Nat.drop v1 lit1
-                k = partialApply resume v1
-                r = ticks' v3 k
-                match r with
-                  Cons n1 p1 ->
-                    match p1 with
-                      Cons a p2 ->
-                        match p2 with
-                          () ->
-                            lit2 = 1
-                            v4 = n1 Nat.+ lit2
-                            (v4, a)
-              _ ->
-                lit3 = 0
-                lit4 = 0
-                (lit4, lit3)
-          
-          #h48da7gja7#return z n =
-            v1 = z Nat.+ n
-            lit = 0
-            v2 = Nat.eq v1 lit
-            match v2 with
-              false ->
-                lit1 = 1
-                v3 = Nat.drop v1 lit1
-                k = partialApply resume v1
-                r = ticks' v3 k
-                match r with
-                  Cons n1 p1 ->
-                    match p1 with
-                      Cons a p2 ->
-                        match p2 with
-                          () ->
-                            lit2 = 1
-                            v4 = n1 Nat.+ lit2
-                            yield (# v4, a #)
-              _ ->
-                lit3 = 0
-                lit4 = 0
-                yield (# lit4, lit3 #)
+            k = partialApply resume
+            ticks' v1 k
           """
 
     4 | > runtime.ir (specialize (z n -> allOf do coins z n) 0)
           ⧩
           """
           -- specialize (z n -> allOf do coins z n) 0
-          #4laqa1niau z n =
+          #tcplhuh687$Lambda0.specialized#4laqa1niau z n =
             resume z n r2 =
               match r2 with
                 false ->
@@ -1537,7 +1448,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0
-          #eealnqaafh z n =
+          #cr8qmekkbm$Lambda0.specialized#eealnqaafh z n =
             resume v1 r2 =
               match r2 with
                 false ->
