@@ -396,7 +396,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                               ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
                           -- the entry is the first call being unfolded
                           e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds)]
-                      body0 <- pe env lim e0 body KTail
+                      body0 <- partialEval env lim e0 body KTail
                       consts <- gets (reverse . sConsts)
                       fns0 <- gets sFns
                       let constSyms = argSyms ++ map fst consts
@@ -580,14 +580,14 @@ dynPrim (KBind m h k) code = do
   pure (TLets Direct [x] [m] code rest)
 dynPrim k code = dynPrim (KBind BX (syn "r") (ret k)) code
 
-pe :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
-pe env lim e t k =
+partialEval :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
+partialEval env lim e t k =
   tick lim >> case t of
     TVar v -> ret k (look e v)
     TLit l -> literal l
     TBLit l -> literal l
     TLets _ [v] [m] bn bo ->
-      pe env lim e bn . KBind m v $ \a -> pe env lim (bind v a e) bo k
+      partialEval env lim e bn . KBind m v $ \a -> partialEval env lim (bind v a e) bo k
     TLets {} -> opaque env e t k
     TName v f as bo -> do
       let fa = case f of
@@ -595,7 +595,7 @@ pe env lim e t k =
             Right lv -> look e lv
       a <- partial env fa (map (look e) as)
       case a of
-        Just a' -> pe env lim (bind v a' e) bo k
+        Just a' -> partialEval env lim (bind v a' e) bo k
         Nothing -> opaque env e t k
     TMatch v br -> match env lim e v br k
     TCon r tg as -> ret k (Con r tg (map (look e) as))
@@ -617,11 +617,11 @@ pe env lim e t k =
             Just (rid, _) -> do
               v' <- freshNamed v
               modify' \st -> st {sBridgeK = M.insert kid (rid, Just v') (sBridgeK st)}
-              TShift r v' <$> pe env lim (bind v (SKont kid) e) body k
-            Nothing -> pe env lim (bind v (SKont kid) e) body k
+              TShift r v' <$> partialEval env lim (bind v (SKont kid) e) body k
+            Nothing -> partialEval env lim (bind v (SKont kid) e) body k
         _ -> do
           v' <- freshNamed v
-          body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
+          body' <- withBarrier (partialEval env lim (bind v (Dyn v' BX) e) body KTail)
           dynResult k BX (TShift r v' body')
     TFrc v -> case look e v of
       Dyn {} -> opaque env e t k
@@ -771,7 +771,7 @@ call env lim e fa as k = case fa of
                     || M.member (Key 0 behindRefs fn k0) memo
                 e' = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0) : eStack e)
             if eDepth e < slDepth lim && not (eUnderDyn e && again)
-              then pe env lim e' body k
+              then partialEval env lim e' body k
               else residualCall env lim fn args k
 
 -- | A residual function for a call, from its key: an existing one, or a new
@@ -1287,7 +1287,7 @@ residualFnAs valued env lim fs fn args0 = do
           -- of none, and resuming one there makes it a function ('Reify')
           modify' \s -> s {sLetNum = 1, sBuilding = (fn, map keyOf allArgs) : sBuilding s, sKonts = M.empty}
           body' <- case fs of
-            [] -> pe env lim e' body KTail
+            [] -> partialEval env lim e' body KTail
             _ -> do
               rid <- gets sNextId
               -- a frame of its own for each handler, which owns no target:
@@ -1315,7 +1315,7 @@ residualFnAs valued env lim fs fn args0 = do
                     sEnds = if valued then M.insert rid (kp, segs ++ behind) (sEnds s) else sEnds s
                   }
               s1 <- get
-              liftIO (Control.Exception.try (runStateT (pe env lim e' body (if valued then KEnd rid else KReturn rid)) s1)) >>= \case
+              liftIO (Control.Exception.try (runStateT (partialEval env lim e' body (if valued then KEnd rid else KReturn rid)) s1)) >>= \case
                 Right (b, s2) -> b <$ put s2
                 -- an escape to a handler of the residual function's own makes
                 -- the state passing impossible: an escape to the caller's
@@ -1708,7 +1708,7 @@ match env lim e v br k = case (look e v, br) of
       Just (_, ABTN.TAbss vs body) <- EC.lookup t cs,
       length vs == length args -> do
         modify' \st -> st {sPending = Just (kid, r)}
-        pe env lim (foldr (uncurry bind) e (zip vs args)) body k
+        partialEval env lim (foldr (uncurry bind) e (zip vs args)) body k
     | otherwise -> guardFused "a request its handler has no case for" >> giveUp "a request its handler has no case for"
   -- a fused handler given its body's value: the pure case
   -- (the pure case binds the value, @{ a } -> ...@)
@@ -1732,26 +1732,26 @@ match env lim e v br k = case (look e v, br) of
               sPending = Just (kid, r),
               sFrames = drop 1 frames
             }
-        body' <- pe env lim (foldr (uncurry bind) e (zip vs (zipWith Dyn vs' ms))) body k
+        body' <- partialEval env lim (foldr (uncurry bind) e (zip vs (zipWith Dyn vs' ms))) body k
         pure (t, (ms, ABTN.TAbss vs' body'))
     res <- freshNamed (syn "r")
     pureArm <- isolated (returnRight rid (Dyn res BX))
     pure (TMatch req (MatchRequest arms' (ABTN.TAbs res pureArm)))
   (SPure a, MatchRequest _ df) -> case df of
-    ABTN.TAbs u body -> pe env lim (bind u a e) body k
-    _ -> pe env lim (bind v a e) df k
+    ABTN.TAbs u body -> partialEval env lim (bind u a e) body k
+    _ -> partialEval env lim (bind v a e) df k
   (Con _ t fs, MatchData _ cs df)
     | Just (_, ABTN.TAbss vs body) <- EC.lookup t cs,
       length vs == length fs ->
-        pe env lim (foldr (uncurry bind) e (zip vs fs)) body k
-    | Nothing <- EC.lookup t cs, Just d <- df -> pe env lim e d k
+        partialEval env lim (foldr (uncurry bind) e (zip vs fs)) body k
+    | Nothing <- EC.lookup t cs, Just d <- df -> partialEval env lim e d k
   (Known x _, MatchData _ cs df)
     | Just (t, fs) <- knownData x ->
         case EC.lookup t cs of
           Just (_, ABTN.TAbss vs body)
             | length vs == length fs ->
-                pe env lim (foldr (uncurry bind) e (zip vs [Known f Nothing | f <- fs])) body k
-          Nothing | Just d <- df -> pe env lim e d k
+                partialEval env lim (foldr (uncurry bind) e (zip vs [Known f Nothing | f <- fs])) body k
+          Nothing | Just d <- df -> partialEval env lim e d k
           _ -> dynamic
   (Known x _, MatchIntegral cs df) | Just n <- knownIntegral x -> litArm (EC.lookup n cs) df
   (Known x _, MatchNumeric _ cs df) | Just n <- knownIntegral x -> litArm (EC.lookup n cs) df
@@ -1759,8 +1759,8 @@ match env lim e v br k = case (look e v, br) of
   (Known (BoxedVal (BytesC b)) _, MatchBytes cs df) -> litArm (M.lookup b cs) df
   _ -> dynamic
   where
-    litArm (Just body) _ = pe env lim e body k
-    litArm Nothing (Just d) = pe env lim e d k
+    litArm (Just body) _ = partialEval env lim e body k
+    litArm Nothing (Just d) = partialEval env lim e d k
     litArm Nothing Nothing = dynamic
     under = e {eUnderDyn = True}
     dynamic = do
@@ -1895,7 +1895,7 @@ match env lim e v br k = case (look e v, br) of
     shape st = (sFrames st, map fst (sTargets st))
     dynamicWith kk finish = toVar (look e v) \x -> do
       emitted
-      let arm e' body = isolated (pe env lim e' body kk)
+      let arm e' body = isolated (partialEval env lim e' body kk)
       br' <- case br of
         MatchData r cs df ->
           MatchData r
@@ -2074,7 +2074,7 @@ callHandler env lim e h arg k = case h of
   Clo fn@(Fn r _) caps
     | Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals) <- lambdaOf env fn,
       length caps + 1 == lamArity lam ->
-        pe env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1) (eStack e)) body k
+        partialEval env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1) (eStack e)) body k
   Known v _ | Just (fn, caps) <- knownClosure env v -> callHandler env lim e (Clo fn caps) arg k
   _ -> guardFused "a handler that isn't a known function" >> giveUp "a fused handler that isn't a known function"
 
@@ -2277,7 +2277,7 @@ handler env lim e t rs h body k =
       Builtin _ -> False
       _ -> r /= exceptionRef
     kept = toVar (look e h) \h' -> do
-      body' <- withBarrier (pe env lim e body KTail)
+      body' <- withBarrier (partialEval env lim e body KTail)
       code <- handledBody e body' (THnd rs h' Nothing)
       dynResult k BX code
     fused = do
@@ -2296,7 +2296,7 @@ handler env lim e t rs h body k =
                   sTargets = (TPure fid, pureCase) : sTargets st,
                   sOuters = M.insert fid k (sOuters st)
                 }
-            pe env lim e body (KDelim fid)
+            partialEval env lim e body (KDelim fid)
           -- with the handler as it is in its frame by then: a loop that
           -- passed the state back has put a new one there ('resultMatch')
           pureCase a = do
