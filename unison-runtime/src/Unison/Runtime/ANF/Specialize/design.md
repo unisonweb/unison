@@ -201,18 +201,19 @@ partialEval env lim e t k =
 - **`E`** is the environment: each variable's `Abs`.
 - **`K`** is the continuation, where the partially evaluated result (of type `Abs`) should be passed.
 
-  ```haskell
-  data K
-    = KBind Mem Symbol (Abs -> M Term)
-        -- bind the result to a variable (a name hint and its
-        -- representation), then run the rest of the walk
-    | KTail           -- nothing follows: the value is the code's result
-    | KDelim Int      -- the end of a fused handler's body
-    | KReturn Int     -- the end of a state-passing residual function
-    | KAbort Int Int  -- the value of a handler case that didn't resume, in such a function
-    | KEnd Int        -- the end of a value-returning residual function
-    | KOuter Int Mem  -- what follows a fused `handle`, by name
-  ```
+```haskell
+data K
+  = KBind Mem Symbol (Abs -> M Term)
+      -- bind the result to a variable (a name hint and its
+      -- representation), then run the rest of the walk
+  | KTail           -- nothing follows: the value is the code's result
+  | KDelim Int      -- the end of a fused handler's body
+  | KReturn Int     -- the end of a state-passing residual function
+  | KAbort Int Int  -- the value of a handler case that didn't resume, in such a function
+  | KEnd Int        -- the end of a value-returning residual function
+  | KOuter Int Mem  -- what follows a fused `handle`, by name
+```
+
 - **`M`** is a state monad over `IO`: fresh names, the functions generated so far, budgets, and the handlers in force.
 - **The result**, the `M Term`, is not the residual code for that value: it is the residual code for this term *and everything after it*.
 
