@@ -53,6 +53,9 @@ roundTrip x =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -271,6 +274,9 @@ power n x = if Nat.eq n 0 then 1 else x Nat.* power (Nat.drop n 1) x
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -342,6 +348,9 @@ factorial = [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -491,6 +500,9 @@ foldLeft f z = cases
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -610,6 +622,9 @@ runK prog x = evalK prog (Call 0 Arg) x (v -> v)
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -707,6 +722,9 @@ count n = if Nat.eq n 0 then St.get else
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -785,6 +803,9 @@ broken = [Sub Arg (Num 10)]
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -896,6 +917,9 @@ stF s n = runSt s do
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -948,6 +972,9 @@ poly = [Sub (Mul Arg Arg) (Num 10)]
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -1193,6 +1220,9 @@ count7 n = if Nat.eq n 0 then 7 else
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -1261,6 +1291,9 @@ coins acc n = if Nat.eq n 0 then acc else
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -1475,6 +1508,9 @@ twoFlips n =
 ``` ucm
 scratch/main> add
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -1588,6 +1624,9 @@ mutableCases = do
 
 ``` ucm
 scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
