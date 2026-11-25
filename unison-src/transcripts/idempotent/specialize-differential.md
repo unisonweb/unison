@@ -42,6 +42,7 @@ type Expr
   | Perform Nat Expr
   | Handle Handler Expr
   | Resume Expr Expr Expr
+  | Call Expr
 
 type Handler = Handler Expr [Optional Expr] Expr
 
@@ -54,12 +55,21 @@ type Val = N Nat | F Env Expr | K (Nat -> Nat ->{Eff} Val)
 -- that the specializer sees its shape: a variable is found while
 -- specializing, and what it finds can be a function or a continuation
 -- that is known.
-type Env = Empty | Bind Val Env
+--
+-- It ends with the function a Call calls, if the run was given one: a
+-- function the specializer doesn't know, which can make requests.
+type Env = Empty | Bind Val Env | Ext (Nat ->{Eff} Nat)
 
 lookup : Nat -> Env -> Val
 lookup i = cases
   Bind v rest -> if i == 0 then v else lookup (Nat.drop i 1) rest
-  Empty -> bug "unbound variable"
+  _ -> bug "unbound variable"
+
+ext : Env -> Nat ->{Eff} Nat
+ext env n = match env with
+  Bind _ rest -> ext rest n
+  Ext f -> f n
+  Empty -> n
 
 nat : Val -> Nat
 nat = cases
@@ -102,6 +112,7 @@ eval env = cases
   Resume k v s -> match eval env k with
     K resume -> resume (nat (eval env v)) (nat (eval env s))
     _ -> bug "expected a continuation"
+  Call e -> N (ext env (nat (eval env e)))
 
 -- the pure clause sees [result, state]; an operation's clause
 -- [argument, state, continuation]; an operation with no clause is forwarded
@@ -126,6 +137,14 @@ topH = cases
 
 run : Expr -> Nat -> Nat -> Nat
 run prog a b = nat (handle apply (apply (eval Empty prog) (N a)) (N b) with topH)
+
+-- the same, with a function for the program's Calls
+runWith : Expr -> (Nat ->{Eff} Nat) -> Nat -> Nat -> Nat
+runWith prog f a b = nat (handle apply (apply (eval (Ext f) prog) (N a)) (N b) with topH)
+
+-- a function to call that makes a request
+requesting : Nat ->{Eff} Nat
+requesting n = Eff.perform (Nat.mod n 2) n + 1
 
 -- Types, for generating and shrinking; the interpreter ignores them.
 
@@ -167,6 +186,7 @@ typeOf ctx = cases
     else None
   Resume k v s ->
     if typeOf ctx k == Some TK && isN ctx v && isN ctx s then Some TN else None
+  Call x -> if isN ctx x then Some TN else None
 
 progTy : Ty
 progTy = TF TN (TF TN TN)
@@ -339,6 +359,9 @@ children e =
         p' +: (i' +: (b' +: cs')) -> Handle (Handler p' (zipBack back cs cs') i') b'
         _ -> e)
     Resume k v s -> three Resume k v s
+    Call x -> ([x], cases
+      [x'] -> Call x'
+      _ -> e)
     _ -> ([], _ -> e)
 
 zipBack : (Optional Expr -> Expr -> Optional Expr) -> [Optional Expr] -> [Expr] -> [Optional Expr]
@@ -414,9 +437,34 @@ attempt p = handle IO.tryEval p with cases
   { a } -> Some a
   { Exception.raise _ -> _ } -> None
 
+-- The program with a call of the run's function around some of its
+-- arithmetic: the generators make no Call, and this puts calls of a
+-- function the specializer doesn't know where the program multiplies or
+-- compares, under whatever handlers are there. At most two, the first in
+-- the program's text: each call is a request, and in a loop under a
+-- handler that resumes twice many of them take the plain run too long.
+withCalls : Expr -> Expr
+withCalls e =
+  go : Nat -> Expr -> (Nat, Expr)
+  go left e = match children e with
+    (kids, rebuild) ->
+      each left acc = cases
+        [] -> (left, acc)
+        k +: rest -> match go left k with
+          (left', k') -> each left' (List.snoc acc k') rest
+      match each left [] kids with
+        (left', kids') ->
+          if left' == 0 then (0, rebuild kids') else
+            match rebuild kids' with
+              Prim Mul a b -> (Nat.drop left' 1, Call (Prim Add a b))
+              Prim Lt a b -> (Nat.drop left' 1, Call (Prim Sub a b))
+              e' -> (left', e')
+  match go 2 e with (_, e') -> e'
+
 -- The checks, each against f x: specialize f x; specializing the first
--- input too; specialize f x after a round trip through serialization; and
--- specializing twice giving equal values. A specialized run that fails
+-- input too; specialize f x after a round trip through serialization;
+-- specializing twice giving equal values; and the program with calls of an
+-- unknown function in it ('withCalls'). A specialized run that fails
 -- disagrees.
 checkN : Nat -> Expr -> Nat -> Nat ->{IO} Boolean
 checkN k prog a b =
@@ -425,12 +473,15 @@ checkN k prog a b =
     0 -> attempt (do specialize run prog a b) == expected
     1 -> attempt (do specialize (run prog) a b) == expected
     2 -> attempt (do roundTrip (specialize run prog) a b) == expected
-    _ -> attempt (do (Universal.==) (specialize run prog) (specialize run prog)) == Some true
+    3 -> attempt (do (Universal.==) (specialize run prog) (specialize run prog)) == Some true
+    _ ->
+      p = withCalls prog
+      attempt (do specialize runWith p requesting a b) == attempt (do runWith p requesting a b)
 
 -- the first check that fails, if any
 failing : Expr -> Nat -> Nat ->{IO} Optional Nat
 failing prog a b =
-  go k = if k >= 4 then None else if checkN k prog a b then go (k + 1) else Some k
+  go k = if k >= 5 then None else if checkN k prog a b then go (k + 1) else Some k
   go 0
 
 -- what specializing on the program did: gave up (0), kept a handler (1),
@@ -506,6 +557,7 @@ checkWith genCase from count =
   + classify    : Expr -> Nat
   + eval        : Env -> Expr ->{Eff} Val
   + exprSize    : Expr -> Nat
+  + ext         : Env -> Nat ->{Eff} Nat
   + failing     : Expr -> Nat -> Nat ->{IO} Optional Nat
   + gen         : [Ty] -> Ty -> Nat ->{Rand} Expr
   + genCase     : Nat -> (Expr, Nat, Nat)
@@ -524,14 +576,17 @@ checkWith genCase from count =
   + prim        : Bin -> Nat -> Nat -> Nat
   + progTy      : Ty
   + replaceAt   : Nat -> a -> [a] -> [a]
+  + requesting  : Nat ->{Eff} Nat
   + roundTrip   : a ->{IO} a
   + run         : Expr -> Nat -> Nat -> Nat
   + runRand     : Nat -> '{Rand} a -> a
+  + runWith     : Expr -> (Nat ->{Eff} Nat) -> Nat -> Nat -> Nat
   + shrink      : (Expr ->{e} Boolean) -> Nat -> Expr ->{e} Expr
   + shrinks     : Expr -> [Expr]
   + topH        : Request {Eff} Val -> Val
   + typeOf      : [Ty] -> Expr -> Optional Ty
   + varsOf      : Ty -> [Ty] -> [Nat]
+  + withCalls   : Expr -> Expr
   + zipBack     : (Optional Expr
                    ->{g1} Expr
                    ->{g} Optional Expr)

@@ -1045,10 +1045,12 @@ Around a loop, the state is passed to the loop and returned from it:
           """
 ```
 
-A handler stays when something in its scope could perform its requests unseen, here a call
-of an unknown function; the code under it is still specialized. The first `St.get` is
-handled before the call is reached, so it is the state itself, and the handler that stays
-is the one its case installed, around the rest of the body:
+A call of an unknown function in a fused handler's scope could perform its requests unseen.
+The call is made under a real handler made of the fused handler's cases, the bridge. It takes
+the state and gives it back with the call's result, so the code around the call stays fused:
+the first `St.get` is the state itself, and the last one is the state the bridge gave back.
+A handler whose cases do more than resume as their last act (one that resumes twice, say)
+has no such bridge, and stays as it is around its body:
 
 ``` unison
 > specialize (s f -> runSt s do St.put (f St.get) ; St.get) 3 (x -> x Nat.* 2)
@@ -1074,48 +1076,92 @@ is the one its case installed, around the rest of the body:
           --       put (f get)
           --       get) 3
           #aqe3doh5bf s f =
-            handled s f nil1 =
-              v1 = f s
-              _ = put v1
-              St.get
-            fn s v2 =
-              match v2 with
+            bridge' general request =
+              match request with
                 {St.get} ->
                   cont1 = shift {St}
-                  clo1 = partialApply fn s
+                  bridge1 = partialApply bridge' general
                   handle {St}
-                    cont1 s
-                  with clo1
+                    cont1 general
+                  with bridge1
                 {put s'} ->
                   cont2 = shift {St}
-                  clo2 = partialApply fn1 s'
+                  con = ()
+                  bridge2 = partialApply bridge' s'
                   handle {St}
-                    con = ()
                     cont2 con
-                  with clo2
-                {a} -> a
-            fn1 s1 v3 =
-              match v3 with
-                {St.get} ->
-                  cont3 = shift {St}
-                  clo3 = partialApply fn1 s1
-                  handle {St}
-                    cont3 s1
-                  with clo3
-                {put s'1} ->
-                  cont4 = shift {St}
-                  clo4 = partialApply fn1 s'1
-                  handle {St}
-                    con1 = ()
-                    cont4 con1
-                  with clo4
-                {a1} -> a1
-            clo = partialApply fn s
-            nil = ()
-            handle {St}
-              handled s f nil
-            with clo
+                  with bridge2
+                {r2} ->
+                  p1 = (r2, general)
+                  Right p1
+            bridge = partialApply bridge' s
+            r =
+              handle {St}
+                f s
+              with bridge
+            match r with
+              Right p ->
+                match p with
+                  Cons r1 rest ->
+                    match rest with
+                      Cons s1 rest1 -> r1
+              Left done -> done
           """
+```
+
+The same with a handler that doesn't resume, with a loop that calls the unknown function
+each time round, and with the function making requests of its own. Each pair is the plain
+call and the specialized one:
+
+``` unison
+optA : '{Abort} Nat -> Optional Nat
+optA p = handle p () with cases
+  { a } -> Some a
+  { Abort.abort _ -> _ } -> None
+
+sumCalls : (Nat ->{St} Nat) -> Nat -> Nat ->{St} Nat
+sumCalls f i acc = if Nat.eq i 0 then acc Nat.+ St.get else
+  St.put (St.get Nat.+ 1)
+  sumCalls f (Nat.drop i 1) (acc Nat.+ f i)
+
+viaAbort : () -> (Nat ->{Abort} Nat) -> Optional Nat
+viaAbort u f = optA do f 1 Nat.+ 1
+
+viaLoop : Nat -> (Nat ->{St} Nat) -> Nat -> Nat
+viaLoop s f n = runSt s do sumCalls f n 0
+
+doubling : Nat ->{St} Nat
+doubling n =
+  St.put (St.get Nat.* 2)
+  St.get Nat.+ n
+
+> (viaAbort () (n -> n Nat.+ 1), specialize viaAbort () (n -> n Nat.+ 1))
+> (viaAbort () (n -> Abort.abort n), specialize viaAbort () (n -> Abort.abort n))
+> (viaLoop 3 doubling 5, specialize viaLoop 3 doubling 5)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + doubling : Nat ->{St} Nat
+  + optA     : '{Abort} Nat -> Optional Nat
+  + sumCalls : (Nat ->{St} Nat) -> Nat -> Nat ->{St} Nat
+  + viaAbort : '((Nat ->{Abort} Nat) -> Optional Nat)
+  + viaLoop  : Nat -> (Nat ->{St} Nat) -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    22 | > (viaAbort () (n -> n Nat.+ 1), specialize viaAbort () (n -> n Nat.+ 1))
+           ⧩
+           (Some 3, Some 3)
+
+    23 | > (viaAbort () (n -> Abort.abort n), specialize viaAbort () (n -> Abort.abort n))
+           ⧩
+           (None, None)
+
+    24 | > (viaLoop 3 doubling 5, specialize viaLoop 3 doubling 5)
+           ⧩
+           (473, 473)
 ```
 
 A handler's pure case can use the state, and gets the state the loop gave back:
@@ -1243,7 +1289,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> runTick do ticks (z Nat.+ n)) 0
-          #30uu2adem2 z n =
+          #h48da7gja7 z n =
             resume v1 r1 =
               r2 = r1 Nat.+ v1
               lit5 = 0
@@ -1295,7 +1341,7 @@ scratch/main> add
                 lit4 = 0
                 (lit4, lit3)
           
-          #30uu2adem2#return z n =
+          #h48da7gja7#return z n =
             v1 = z Nat.+ n
             lit = 0
             v2 = Nat.eq v1 lit
@@ -1324,7 +1370,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do coins z n) 0
-          #bseno8mhsc z n =
+          #4laqa1niau z n =
             resume z n r2 =
               match r2 with
                 false ->
@@ -1455,7 +1501,7 @@ scratch/main> add
           ⧩
           """
           -- specialize (z n -> allOf do twoFlips (z Nat.+ n)) 0
-          #m67uvmolig z n =
+          #eealnqaafh z n =
             resume v1 r2 =
               match r2 with
                 false ->

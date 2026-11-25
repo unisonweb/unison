@@ -499,16 +499,15 @@ its continuation, not whether the handler is affine:
 
   It is all or nothing for a `handle`: anything in its scope that could perform its requests
   unseen escapes (`Escape`) back to the `handle`, which rolls the walk's state back and keeps
-  the handler. That is a call of an unknown function, code kept as it is, a builtin that
-  calls back into Unison code (`jumpCont`, a fork, a transaction: read off the builtins'
+  the handler. That is a call of an unknown function where it has no bridge (below), code
+  kept as it is, a builtin that calls back into Unison code (`jumpCont`, a fork, a transaction: read off the builtins'
   own code), a request behind a kept handler, and a closure made a value (its body could
   request anything, wherever it ends up called). `UNISON_SPECIALIZE_DEBUG=1` says which it
   was for each handler kept.
 
   A handler that a case installs around a resumption can be the one that escapes. Then
   that one is kept, around the rest of the body, and the requests handled before it stay
-  handled: in the transcript's example of a kept handler, the first `St.get` is the
-  state itself. So straight-line
+  handled. So straight-line
   code fuses, and so does an interpreter over a program with no loops: the transcript has
   a state handler becoming arithmetic and an abort becoming a branch.
 
@@ -598,6 +597,39 @@ its continuation, not whether the handler is affine:
   - **The abilities of the fused handlers behind a kept one.** A function made there was
     walked with a request to any of them escaping, so it makes none, and can be shared
     only where the same holds.
+
+  **The bridge: a call of an unknown function.** The function's code isn't walked, so its
+  requests are real ones, and a fused handler has no real `handle` to catch them. The call
+  is made under one ([`bridgeCall`](ANF/Specialize.hs)):
+  - **The bridge is a residual function that is a real handler**
+    ([`bridgeFn`](ANF/Specialize.hs)): the fused handler's own function, walked on a request
+    that isn't known (`SBridge`), so its match on the request stays and each case is
+    specialized.
+  - **It takes the handler's state and gives it back.** Its pure case is not the handler's,
+    since the `handle` isn't over, only the call: it returns `Right (result, state)`. A case
+    that doesn't resume returns `Left` of its value. That is what a loop passing state
+    returns, and the call site goes on the same way ([`resultMatch`](ANF/Specialize.hs)):
+    the walk carries on fused, with the state the bridge gave back.
+  - **A case that resumes installs the bridge again,** with its new state, around the real
+    continuation ([`resumeBridge`](ANF/Specialize.hs)). It has to be the last thing the case
+    does, and the same bridge, so that what it returns is what this one returns.
+  - **What is known of the state stays known in the bridge** if every case installs the
+    handler with the state as it was (a reader). If one doesn't, the bridge is made again
+    with all of the state a parameter.
+  - **One bridge per handler shape:** it is keyed like any residual function, so every
+    unknown call under the same handler shares it. Its code isn't counted against the
+    size budget, being the handler's own code once.
+
+  The transcript has a state handler around a call of an unknown function: the `St.get`
+  before the call is the state itself, and the one after is what the bridge gave back.
+  `UNISON_SPECIALIZE_BRIDGE=off` keeps the handler instead, to compare.
+
+  No bridge yet, so the handler is kept:
+  - **A case that goes on after resuming, or resumes twice.** The bridge's case would need
+    the rest of the walk as a function to call after the real continuation returns.
+  - **An unknown call under two or more fused handlers.**
+  - **A closure made a value under a fused handler,** which is the same problem with the
+    call somewhere else.
 
   Still kept, with a loop under two fused handlers:
   - **A case of the inner handler with work left after resuming.** The loop would have to
@@ -712,6 +744,12 @@ program gives residual code in that program's shape, so random programs give var
 - **The checks,** each against `f x`: `specialize f x`; specializing the first input too;
   the specialized closure after a round trip through serialization; and specializing twice
   giving equal closures. A specialized run that fails counts as a disagreement.
+- **A fifth check calls a function the specializer doesn't know.** The generators make no
+  such call, so the check puts some in (`withCalls`): the program's first two
+  multiplications or comparisons become a `Call` of a function passed to the run after
+  specializing, one that makes a request. This is what exercises the bridge, under
+  whatever handlers the program has there. Two calls at most: more, in a loop under a
+  handler that resumes twice, and the plain run takes too long.
 - **A failure is shrunk** to a smaller program of the same type that still fails, trying
   the biggest cuts first, and reported with its seed.
 - **The report counts** how many cases the specializer gave up on, kept a handler in, and

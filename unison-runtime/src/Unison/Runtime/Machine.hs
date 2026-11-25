@@ -2701,7 +2701,8 @@ specLimits :: Maybe (SuperGroup Reference Symbol) -> [Val] -> SP.SpecLimits
 specLimits grp captured =
   SP.defaultSpecLimits
     { SP.slOutput = outputFactor * (maybe 0 groupSize grp + foldl' (valueSize 10000) 0 captured),
-      SP.slJoin = specializeJoin
+      SP.slJoin = specializeJoin,
+      SP.slBridge = specializeBridge
     }
   where
     outputFactor = 20
@@ -2792,6 +2793,12 @@ valueCodeRefs = \case
 specializeDebug :: Bool
 specializeDebug = unsafePerformIO (maybe False (not . null) <$> lookupEnv "UNISON_SPECIALIZE_DEBUG")
 {-# NOINLINE specializeDebug #-}
+
+-- | @UNISON_SPECIALIZE_BRIDGE=off@: a call of an unknown function under a
+-- fused handler keeps the handler, to compare.
+specializeBridge :: Bool
+specializeBridge = unsafePerformIO ((/= Just "off") <$> lookupEnv "UNISON_SPECIALIZE_BRIDGE")
+{-# NOINLINE specializeBridge #-}
 
 -- | @UNISON_SPECIALIZE_JOIN=off@: no join points, the code after an
 -- unknown match under a fused handler copied into each arm, to compare.

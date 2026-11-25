@@ -106,11 +106,15 @@ data SpecLimits = SpecLimits
     -- | whether the code after an unknown match under a fused handler is
     -- shared as a join point ('joined') or copied into each arm; off only
     -- to compare (@UNISON_SPECIALIZE_JOIN=off@)
-    slJoin :: !Bool
+    slJoin :: !Bool,
+    -- | whether a call of an unknown function under a fused handler is
+    -- made under a bridge ('bridgeCall') or keeps the handler; off only to
+    -- compare (@UNISON_SPECIALIZE_BRIDGE=off@)
+    slBridge :: !Bool
   }
 
 defaultSpecLimits :: SpecLimits
-defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200, slOutput = 2000, slFuse = True, slJoin = True}
+defaultSpecLimits = SpecLimits {slSteps = 200000, slFunctions = 500, slDepth = 200, slOutput = 2000, slFuse = True, slJoin = True, slBridge = True}
 
 type Term = ANormal Reference Symbol
 
@@ -137,6 +141,9 @@ data Abs
     SPure Abs
   | -- | the continuation of a request handled while specializing
     SKont Int
+  | -- | the request a bridge's handler is given, unknown: its variable, and
+    -- the number of the bridge's frames ('bridgeFn')
+    SBridge Symbol Int
 
 -- | The key of a residual function: the function, and what is known of
 -- its arguments, with each unknown one a hole.
@@ -288,7 +295,14 @@ data S = S
     -- innermost, that is the value of: done that way from then on. Outside the state
     -- that an escape rolls back, so that what one attempt learned isn't
     -- learned again by each attempt around it
-    sValued :: IORef (M.Map (Fn, [[Reference]]) Int)
+    sValued :: IORef (M.Map (Fn, [[Reference]]) Int),
+    -- | the continuations of the requests a bridge's handler is given
+    -- ('bridgeFn'): the number of the bridge's frames, and the variable
+    -- the real continuation is in once the case's shift is reached
+    sBridgeK :: M.Map Int (Int, Maybe Symbol),
+    -- | the bridge whose body has the frames with this number, and whether
+    -- all of its handler's state is unknown in it ('bridgeFn')
+    sBridgeOf :: M.Map Int (Symbol, Bool)
   }
 
 type M = StateT S IO
@@ -346,7 +360,9 @@ specializeLambda env lim r i args =
   specializeLambda1 env lim r i args >>= \case
     -- fused handlers copy code, and the ones that grew it may be finished
     -- by the time the budget runs out: once more, with every handler kept
-    Left why | why == tooBig, slFuse lim -> specializeLambda1 env lim {slFuse = False} r i args
+    Left why | why == tooBig, slFuse lim -> do
+      seNote env "too much code with handlers fused: once more with every handler kept"
+      specializeLambda1 env lim {slFuse = False} r i args
     made -> pure made
 
 tooBig :: String
@@ -367,7 +383,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
          fmap (either (\(Reify _) -> Left "a continuation needed as a function, with no request to go back to") id) . Control.Exception.try @Reify $
           either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id <$> Control.Exception.try @Escape (Right <$> do
-          newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef) do
+          newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty) do
             argSyms <- traverse freshNamed (take (length args) vs)
             restSyms <- traverse freshNamed (drop (length args) vs)
             let restMems = drop (length args) ccs
@@ -589,7 +605,14 @@ pe env lim e t k = tick lim >> case t of
       -- the case of a fused handler capturing its request's continuation
       Just (kid, r') | r' == r -> do
         modify' \st -> st {sPending = Nothing}
-        pe env lim (bind v (SKont kid) e) body k
+        gets (M.lookup kid . sBridgeK) >>= \case
+          -- a bridge's case: the shift is real, and the continuation it
+          -- binds is the rest of the code the bridge is around
+          Just (rid, _) -> do
+            v' <- freshNamed v
+            modify' \st -> st {sBridgeK = M.insert kid (rid, Just v') (sBridgeK st)}
+            TShift r v' <$> pe env lim (bind v (SKont kid) e) body k
+          Nothing -> pe env lim (bind v (SKont kid) e) body k
       _ -> do
         v' <- freshNamed v
         body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
@@ -639,7 +662,13 @@ call env lim e fa as k = case fa of
   Clo (Fn r 0) [SKont kid] | r == jumpCont, [v] <- as -> resume kid v k
   Clo fn caps -> callFn fn (caps ++ as)
   Known v _ | Just (fn, caps) <- knownClosure env v -> callFn fn (caps ++ as)
-  _ -> runOr (fa : as) (guardFused ("a call of an unknown function" ++ (case fa of Dyn x _ -> ", " ++ show (Var.name x); _ -> "")) >> toVarApp fa as \g xs -> dynResult k BX (TApp (FVar g) xs))
+  _ -> runOr (fa : as) do
+    fs <- gets (takeWhile isFused . sFrames)
+    case fs of
+      -- under one fused handler: the call under a bridge, which hands its
+      -- requests to the handler
+      [_] | slBridge lim -> toVarApp fa as \g xs -> bridgeCall env lim (TApp (FVar g) xs) k
+      _ -> guardFused ("a call of an unknown function" ++ (case fa of Dyn x _ -> ", " ++ show (Var.name x); _ -> "")) >> toVarApp fa as \g xs -> dynResult k BX (TApp (FVar g) xs)
   where
     -- the call run on the interpreter if everything is known, otherwise the
     -- fallback
@@ -654,6 +683,7 @@ call env lim e fa as k = case fa of
       SReq {} -> "a request"
       SPure {} -> "a pure case's value"
       SKont {} -> "a known continuation"
+      SBridge {} -> "a request"
       Known {} -> "a known value"
       Con {} -> "a constructor"
       Clo {} -> "a closure"
@@ -1314,6 +1344,116 @@ residualFnAs valued env lim fs fn args0 = do
       Clo f as -> Clo f <$> traverse renameLeaves as
       a -> pure a
 
+-- | A call of code that isn't walked, under one fused handler
+-- (unison-runtime/src/Unison/Runtime/Specialize.md, "The bridge"): the
+-- code makes real requests, and there is no real handler for them. So it
+-- is called under one, the bridge, made of the fused handler's cases. The
+-- bridge is passed the handler's state and gives it back with the result,
+-- or says that a case didn't resume, as a state-passing function does, and
+-- the walk goes on accordingly ('resultMatch').
+bridgeCall :: SpecEnv -> SpecLimits -> Term -> K -> M Term
+bridgeCall env lim code k = do
+  fs <- gets (takeWhile isFused . sFrames)
+  (hf, tmpls, leaves) <- bridgeFn env lim False fs
+  toVars (concat leaves) \xs -> do
+    emitted
+    h <- freshNamed (syn "bridge")
+    r <- freshNamed (syn "r")
+    n <- letNum
+    rest <- resultMatch fs tmpls r k
+    pure (TName h (Right hf) xs (TLets (Indirect n) [r] [BX] (THnd (concatMap frRefs fs) h Nothing code) rest))
+
+-- | The bridge for a fused handler: a residual function that is a real
+-- handler, of the handler's state and a request. It is the handler's own
+-- function walked on a request that isn't known ('match' on 'SBridge'),
+-- under a frame of its own as a state-passing function's body is, so that
+-- a case that doesn't resume gives @Left@ and the end of the code under it
+-- gives @Right@ of the value and the state. Keyed on what is known of the
+-- handler, with the numbers in it unknown: its state changes from one
+-- request to the next. Gives the function, the handler as it takes it, and
+-- the values a use passes for its unknown parts.
+--
+-- What is known of the handler's state stays known in the bridge if every
+-- case installs the handler with that state as it was. If one doesn't (a
+-- state that changes), the bridge is made again with all of the state
+-- unknown, which every state the handler is installed with then fits.
+bridgeFn :: SpecEnv -> SpecLimits -> Bool -> [Frame] -> M (Symbol, [Abs], [[Abs]])
+bridgeFn env lim wide fs = case fs of
+  [f]
+    | h0@(Clo hfn _) <- opened env (frHandler f) -> do
+        behindRefs <- gets (fusedRefs . drop 1 . sFrames)
+        let general = \case
+              -- boxed or not is not kept: a state that starts as a known
+              -- number and is later an operation's argument is one state
+              Dyn {} -> state \case
+                l : ls' -> ((Dyn (Var.named "general") BX, [l]), ls')
+                [] -> error "bridgeFn: fewer values than unknown parts"
+              a@(Known v _)
+                | Just (g', caps) <- knownClosure env v -> general (Clo g' caps)
+                | otherwise -> pure (Dyn (Var.named "general") BX, [a])
+              Con r t gs -> (\rs -> (Con r t (map fst rs), concatMap snd rs)) <$> traverse general gs
+              Clo g' as -> (\rs -> (Clo g' (map fst rs), concatMap snd rs)) <$> traverse general as
+              a -> pure (a, [])
+            (h, ls)
+              | wide = evalState (general h0) (dynLeaves h0)
+              | otherwise = widened env h0 (dynLeaves h0)
+            key = Key 4 (frRefs f ++ behindRefs) hfn [keyOf h]
+        gets (M.lookup key . sMemo) >>= \case
+          Just g -> pure (g, [h], [ls])
+          Nothing -> do
+            before <- get
+            nfns <- gets (M.size . sMemo)
+            when (nfns >= slFunctions lim) (giveUp "functions")
+            g <- freshNamed (syn "bridge'")
+            modify' \s -> s {sMemo = M.insert key g (sMemo s)}
+            params <- traverse (\case Dyn x _ -> freshNamed x; _ -> freshNamed (syn "s")) (dynLeaves h)
+            req <- freshNamed (syn "request")
+            let mems = [m | Dyn _ m <- dynLeaves h]
+                h' = evalState (fillLeaves h) (zipWith Dyn params mems)
+            outer <- get
+            let rid = sNextId outer
+                seg = Fused rid (frRefs f) h' (KAbort rid 0) 0 True
+                behind = case drop 1 (sFrames outer) of
+                  bs@(b : _) | isFused b -> Barrier : bs
+                  bs -> bs
+            put
+              outer
+                { sNextId = rid + 1,
+                  sLetNum = 1,
+                  sFrames = seg : behind,
+                  sTargets = [],
+                  sKonts = M.empty,
+                  sPending = Nothing,
+                  sReturns = M.insert rid (seg : behind) (sReturns outer),
+                  sBridgeOf = M.insert rid (g, wide) (sBridgeOf outer)
+                }
+            s1 <- get
+            liftIO (Control.Exception.try (runStateT (callHandler env lim (E M.empty False 0 []) h' (SBridge req rid) (KAbort rid 0)) s1)) >>= \case
+              Right (body, s2) -> do
+                put s2
+                finish outer g mems params req body
+                pure (g, [h], [ls])
+              Left (Escape i why)
+                | i >= rid, not wide, why == otherShape -> put before >> bridgeFn env lim True fs
+                | i >= rid -> liftIO (throwIO (Escape (frId f) ("in a bridge, " ++ why)))
+                | otherwise -> liftIO (throwIO (Escape i why))
+  [f] -> liftIO (throwIO (Escape (frId f) "a bridge for a handler that isn't a known function"))
+  _ -> giveUp "a bridge under other than one fused handler"
+  where
+    finish outer g mems params req body =
+            modify' \s ->
+              s
+                { sLetNum = sLetNum outer,
+                  sFrames = sFrames outer,
+                  sTargets = sTargets outer,
+                  sKonts = sKonts outer,
+                  sPending = sPending outer,
+                  -- not counted against the size of the code: the bridge
+                  -- is the handler's own code once, as the original has it
+                  sEmitted = sEmitted outer,
+                  sFns = (g, Lambda (mems ++ [BX]) (ABTN.TAbss (params ++ [req]) body)) : sFns s
+                }
+
 -- | The end of the body of a state-passing residual function: @Right@ of
 -- its value and the states of the handlers in force, if they stand for the
 -- ones the function was passed ('standFor'): every resumption re-installed
@@ -1468,6 +1608,7 @@ material = \case
   SReq {} -> False
   SPure {} -> False
   SKont {} -> False
+  SBridge {} -> False
   Con _ _ fs -> all material fs
   Clo _ as -> all material as
   _ -> True
@@ -1507,6 +1648,7 @@ keyOf = \case
   SReq {} -> KHole BX
   SPure {} -> KHole BX
   SKont kid -> KKont kid
+  SBridge {} -> KHole BX
   Known v _ -> KKnown v
   Con r t fs -> KCon r t (map keyOf fs)
   Clo f as -> KClo f (map keyOf as)
@@ -1555,6 +1697,31 @@ match env lim e v br k = case (look e v, br) of
     | otherwise -> guardFused "a request its handler has no case for" >> giveUp "a request its handler has no case for"
   -- a fused handler given its body's value: the pure case
   -- (the pure case binds the value, @{ a } -> ...@)
+  -- A bridge's handler given its request, which is unknown: a real match
+  -- on it. Each case is the fused handler's own, with the handler's frame
+  -- gone while it runs as for a request made while specializing, and a
+  -- continuation that is the real one ('resumeBridge'). The pure case is
+  -- not the handler's: the code under the bridge is over, not the handle,
+  -- so it gives the value and the handler's state back, as a state-passing
+  -- function does at its end.
+  (SBridge req rid, MatchRequest arms _) -> do
+    frames <- gets sFrames
+    arms' <- for arms \(r, cs) ->
+      (r,) . EC.mapFromList <$> for (EC.mapToList cs) \(t, (ms, ABTN.TAbss vs body)) -> isolated do
+        vs' <- traverse freshNamed vs
+        kid <- gets sNextId
+        modify' \st ->
+          st
+            { sNextId = kid + 1,
+              sBridgeK = M.insert kid (rid, Nothing) (sBridgeK st),
+              sPending = Just (kid, r),
+              sFrames = drop 1 frames
+            }
+        body' <- pe env lim (foldr (uncurry bind) e (zip vs (zipWith Dyn vs' ms))) body k
+        pure (t, (ms, ABTN.TAbss vs' body'))
+    res <- freshNamed (syn "r")
+    pureArm <- isolated (returnRight rid (Dyn res BX))
+    pure (TMatch req (MatchRequest arms' (ABTN.TAbs res pureArm)))
   (SPure a, MatchRequest _ df) -> case df of
     ABTN.TAbs u body -> pe env lim (bind u a e) body k
     _ -> pe env lim (bind v a e) df k
@@ -1936,9 +2103,50 @@ handledBody e body handle
 -- the body returns. A second resumption escapes, for now.
 resume :: Int -> Abs -> K -> M Term
 resume kid v k =
-  gets (M.lookup kid . sReified) >>= \case
-    Just made -> resumeFunction made v k
-    Nothing -> resumeWalk kid v k
+  gets (M.lookup kid . sBridgeK) >>= \case
+    Just (rid, Just kr) -> resumeBridge rid kr v k
+    Just (rid, Nothing) -> liftIO (throwIO (Escape rid "a bridge's continuation resumed before its case's shift"))
+    Nothing ->
+      gets (M.lookup kid . sReified) >>= \case
+        Just made -> resumeFunction made v k
+        Nothing -> resumeWalk kid v k
+
+otherShape :: String
+otherShape = "a bridge's case resuming under a handler of another shape"
+
+escapeTo :: Int -> String -> M a
+escapeTo i why = liftIO (throwIO (Escape i why))
+
+-- | Resuming the continuation of a request a bridge's handler was given:
+-- the real continuation, under a bridge for the handler the case installs
+-- around the resumption. What that gives is what the bridge it is in
+-- gives, so the resumption must be the last thing its case does: the
+-- handler installed returns where the bridge's own did. A case that goes on
+-- after resuming, or resumes twice, escapes, and its handler is kept.
+resumeBridge :: Int -> Symbol -> Abs -> K -> M Term
+resumeBridge rid kr v k = do
+  env <- gets sEnv
+  lim <- gets sLim
+  frames <- gets sFrames
+  targets <- gets sTargets
+  entry <- gets (M.lookup rid . sReturns)
+  mine <- gets (M.lookup rid . sBridgeOf)
+  case (k, frames, targets, entry) of
+    (KDelim fid, top@Fused {} : below, (TPure tid, _) : tbelow, Just (seg@Fused {} : _))
+      | frId top == fid,
+        tid == fid,
+        frRefs top == frRefs seg,
+        sameK (frOuter top) (frOuter seg) -> do
+          modify' \st -> st {sFrames = below, sTargets = tbelow}
+          (hf, _, leaves) <- bridgeFn env lim (maybe False snd mine) [top]
+          -- what the handler installed gives is what this bridge gives,
+          -- and its state is read as this bridge's: it must be this one
+          unless (Just hf == fmap fst mine) (escapeTo rid otherShape)
+          toVar v \x -> toVars (concat leaves) \xs -> do
+            h <- freshNamed (syn "bridge")
+            emitted
+            pure (TName h (Right hf) xs (THnd (frRefs top) h Nothing (TApp (FComb jumpCont) [kr, x])))
+    _ -> escapeTo rid "a case that goes on after resuming code under a bridge, or resumes it twice"
 
 -- | Resuming a continuation that was made a residual function ('request'):
 -- a call of it with the state of the handler the case installs around the
@@ -2142,7 +2350,11 @@ toVar a k = case a of
   Dyn x _ -> k x
   SReq {} -> guardFused "a request used as a value" >> giveUp "a request as a value"
   SPure {} -> guardFused "a handler's pure case used as a value" >> giveUp "a handler's pure case as a value"
+  SBridge _ rid -> liftIO (throwIO (Escape rid "a bridge's request used as a value"))
   SKont kid -> do
+    gets (M.lookup kid . sBridgeK) >>= \case
+      Just (rid, _) -> liftIO (throwIO (Escape rid "a bridge's continuation used as a value"))
+      Nothing -> pure ()
     reified <- gets (M.member kid . sReified)
     unless reified (liftIO (throwIO (Reify kid)))
     guardFused "a continuation used as a value" >> giveUp "a continuation as a value"
