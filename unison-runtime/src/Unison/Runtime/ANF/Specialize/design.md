@@ -30,7 +30,7 @@ This can be to eliminate the overhead of generic code. For instance, `specialize
 
 It can also be used for specializing away interpreter overhead for domain-specific languages. For instance, here's a tiny DSL that supports arithmetic and function calls:
 
-```
+```unison
 type Expr = Num Nat | Arg | Add Expr Expr | Sub Expr Expr | Mul Expr Expr
           | IfZero Expr Expr Expr | Call Nat Expr
 
@@ -49,7 +49,7 @@ run prog = eval prog (Call 0 Arg)
 
 And here's the definition of the fibonacci function:
 
-```
+```unison
 fibProg : [Expr]
 fibProg =
   [IfZero Arg (Num 0)
@@ -61,7 +61,7 @@ fib = specialize run fibProg
 
 `fib` comes out the same as if it were written by hand, and runs at the same speed as hand-written code:
 
-```
+```unison
 fibByHand : Nat -> Nat
 fibByHand x =
   if x == 0 then 0
@@ -130,9 +130,6 @@ power n x = if n == 0 then 1 else x * power (n - 1) x
 Here's the actual code `runtime.ir (specialize power 3)`:
 
 ```
--- power n x =
---   use Nat * -
---   if n == 0 then 1 else x * power (n - 1) x
 -- specialize power 3
 power.specialized#tlbm35jj8q n x =
   lit = 1
@@ -168,7 +165,7 @@ data Abs
 
 Let's look at the first four, recalling our simple `power` example:
 
-```
+```unison
 power n x = if n == 0 then 1 else x * power (n - 1) x
 ```
 
@@ -182,7 +179,7 @@ The last four exist for specializing ability handlers and are covered later.
 
 The partial evaluator is one recursive function, `partialEval`, over the runtime's A-normal form (ANF) representation of code. It reads like an interpreter written in continuation passing style, and it produces a rewritten ANF program.
 
-```
+```haskell
 type Term = ANormal Reference Symbol
 
 partialEval :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
@@ -236,7 +233,7 @@ This is also the case that deletes an interpreter's dispatch overhead, like in o
 
 A match on something unknown (`dynamic`) stays in the output, refining what is known in each arm. For instance, in:
 
-```
+```unison
 match x with
   Left a -> ...
 ```
@@ -254,7 +251,7 @@ Within the `Left a` branch, `x` is known to be `Left a` for the newly generated 
 
 Let's look at a simple program fragment:
 
-```
+```unison
 v = foo x y
 bar v
 ```
@@ -291,7 +288,7 @@ Separately, there is a depth limit of 200 nested unfoldings. Past it, a call is 
 
 In the code, it is one test, in `call` in `Unison.Runtime.ANF.Specialize` (names simplified here):
 
-```
+```haskell
 if depth < limit && not (underUnknownMatch && looksLikeLoop)
   then unfold
   else residualize
@@ -301,7 +298,7 @@ if depth < limit && not (underUnknownMatch && looksLikeLoop)
 
 A residual function is identified by a key: the function and what is known of each argument, with every unknown part a hole.
 
-```
+```haskell
 data Key = Key Int [Reference] Fn [KArg]
 
 -- one argument's part of a key: its Abs, with unknown parts as holes
@@ -578,7 +575,7 @@ See `specializeClosure` and `specializedRef` in [`Machine.hs`](../../Machine.hs)
   variable names, and a residual function is named after the function it came from with a prime
   (`eval'`). The specialized function itself is named `f.specialized#hash`, after the function
   `f` it is a specialization of. The comment above the code is the value as a term; a recursive
-  function in it is shown by name, with its definition first, not as a lambda. The text depends on the runtime version, so it is for debugging and transcripts, not
+  function in it is shown by name, not as a lambda. The text depends on the runtime version, so it is for debugging and transcripts, not
   program logic.
 - **`UNISON_SPECIALIZE_DEBUG=1`** prints each specialization's residual code, its constants, why
   it gave up if it did, and one line per handler kept. `UNISON_SPECIALIZE_JOIN=off` and

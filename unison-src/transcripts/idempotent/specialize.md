@@ -297,9 +297,6 @@ scratch/main> add
     2 | > runtime.ir (specialize power 3)
           ⧩
           """
-          -- power n x =
-          --   use Nat *
-          --   if Nat.eq n 0 then 1 else x * power (Nat.drop n 1) x
           -- specialize power 3
           power.specialized#utqafuleos n x =
             lit = 1
@@ -376,19 +373,6 @@ An expression with no calls becomes straight-line code:
     2 | > runtime.ir (specialize (eval []) (Add (Mul Arg Arg) (Num 1)))
           ⧩
           """
-          -- eval prog e x =
-          --   match e with
-          --     Num n -> n
-          --     Arg -> x
-          --     Add a b -> eval prog a x Nat.+ eval prog b x
-          --     Sub a b -> Nat.drop (eval prog a x) (eval prog b x)
-          --     Mul a b -> eval prog a x Nat.* eval prog b x
-          --     IfZero c t f ->
-          --       if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
-          --     Call i a ->
-          --       match List.at i prog with
-          --         Some body -> eval prog body (eval prog a x)
-          --         None      -> bug "no such function"
           -- specialize (eval []) (Add (Mul Arg Arg) (Num 1))
           eval.specialized#s7tck5o8q1 prog e x =
             v1 = x Nat.* x
@@ -416,19 +400,6 @@ A recursive program becomes a recursive function, with no trace of the interpret
     2 | > runtime.ir (specialize run factorial)
           ⧩
           """
-          -- eval prog e x =
-          --   match e with
-          --     Num n -> n
-          --     Arg -> x
-          --     Add a b -> eval prog a x Nat.+ eval prog b x
-          --     Sub a b -> Nat.drop (eval prog a x) (eval prog b x)
-          --     Mul a b -> eval prog a x Nat.* eval prog b x
-          --     IfZero c t f ->
-          --       if Nat.eq (eval prog c x) 0 then eval prog t x else eval prog f x
-          --     Call i a ->
-          --       match List.at i prog with
-          --         Some body -> eval prog body (eval prog a x)
-          --         None      -> bug "no such function"
           -- specialize
           --   (eval [IfZero Arg (Num 1) (Mul Arg (Call 0 (Sub Arg (Num 1))))]) (Call 0 Arg)
           eval.specialized#he1qjbhhqu prog e x =
@@ -539,9 +510,6 @@ scratch/main> add
     4 | > runtime.ir (specialize foldLeft (Nat.+))
           ⧩
           """
-          -- foldLeft f z = cases
-          --   []        -> z
-          --   x +: rest -> foldLeft f (f z x) rest
           -- specialize foldLeft (Nat.+)
           foldLeft.specialized#m3rbk3p595 f z x1 =
             foldLeft' z1 x2 =

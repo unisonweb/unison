@@ -712,13 +712,8 @@ irNames ctx ppe = IRNames {combName = refName, ppe, localName = \_ _ -> Nothing}
 -- | @runtime.ir@'s printer: `ir.optimized`'s, with the codebase's names,
 -- and values decompiled.
 --
--- A closure of a recursive definition is shown by the definition's name,
--- not as a lambda with its body, and if it is the function of the value
--- (@f@ in @f x@ or in @specialize f x@) the definition is shown first, as
--- a block:
---
--- > fac n = if n == 0 then 1 else n * fac (n - 1)
--- > specialize fac 3
+-- A closure of a recursive definition is shown by the definition's name
+-- (@specialize fac 3@), not as a lambda with its body.
 irPrinterFor :: EvalCtx -> PrettyPrintEnv -> EnumMap Word64 Reference -> IRPrinter
 irPrinterFor ctx ppe crs = IRPrinter combs value
   where
@@ -737,20 +732,9 @@ irPrinterFor ctx ppe crs = IRPrinter combs value
     byName c i
       | i == 0, Just r <- recursive c = Just (Tm.ref () r)
       | otherwise = top c i
-    definition r = Map.lookup r (decompTm ctx) >>= Map.lookup 0
     value v = case decompile (specializedFrom (ccache ctx)) (intermedToBase ctx) byName v of
-      (errs, t)
-        | null errs ->
-            Just . Text.unpack . P.toPlain 80 $ case functionOf t of
-              Tm.Ref' r
-                | Just d <- definition r ->
-                    P.lines [syntaxToColor (prettyBindingWithoutTypeSignature ppe (termName ppe (RF.Ref r)) d), pretty ppe t]
-              _ -> pretty ppe t
+      (errs, t) | null errs -> Just . Text.unpack . P.toPlain 80 $ pretty ppe t
       _ -> Nothing
-    functionOf = \case
-      Tm.Apps' (Tm.Builtin' "specialize") [f, _] -> functionOf f
-      Tm.Apps' f _ -> f
-      t -> t
 
 -- | The names the codebase gives the constructors of these types, for a
 -- compiled program to print its values with (unisonrt).
