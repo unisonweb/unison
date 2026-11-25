@@ -841,3 +841,11 @@ seeds of the first take about 100 seconds, 100 of the second about 150.
   predictable latency, or return at once and let the JIT catch up.
 - **Eager or lazy specialization when a `Specialized` value is read.** Eager now.
 - **Name:** `specialize` or something under `Function.`.
+- **The cost of keys and of the whistle.** What a residual function is specialized on is
+  built and compared structurally at every call, and the whistle's embedding test
+  ([`embeds`](ANF/Specialize.hs)) is exponential in the depth of what it compares. Keys
+  here are shallow, since a continuation in one is a single item, and no program has
+  shown a cost. A specializer over a form where continuations are values did, and could
+  not go on until its keys were interned (a number each, found by the identity of the
+  value) and its embedding test remembered each pair it had answered. The same would
+  apply here for a program with deeply nested known data.
