@@ -43,13 +43,13 @@ import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
 import Control.Monad.State.Strict
+import Crypto.Hash (Blake2b_256, Digest, hashlazy)
 import Data.Atomics qualified as Atomic
+import Data.Bits (shiftR, (.&.))
+import Data.ByteArray (convert)
+import Data.ByteString.Builder qualified as BB
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
-import System.IO.Unsafe (unsafePerformIO)
-import System.Timeout (timeout)
-import System.Environment (lookupEnv)
-import System.IO (hPutStrLn, stderr)
 import Data.IntSet qualified as IS
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -68,17 +68,18 @@ import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
-import Unison.Prelude hiding (Text)
-import Crypto.Hash (Blake2b_256, Digest, hashlazy)
-import Data.Bits (shiftR, (.&.))
-import Data.ByteArray (convert)
-import Data.ByteString.Builder qualified as BB
+import System.Environment (lookupEnv)
+import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Timeout (timeout)
+import Unison.ABT.Normalized qualified as ABTN
 import Unison.Hash qualified as Hash
+import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
-    pattern Derived,
     showShort,
+    pattern Derived,
   )
 import Unison.Referent (Referent, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
@@ -98,11 +99,9 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.ANF.Serialize (serializeValueForHash)
 import Unison.Runtime.ANF.Specialize qualified as SP
-import Unison.ABT.Normalized qualified as ABTN
-import Unison.Runtime.Foreign.Function.Type (ForeignFunc, foreignFuncBuiltinName)
-import Unison.Var qualified as Var
 import Unison.Runtime.Builtin.Decls (exceptionRef)
 import Unison.Runtime.Builtin.Decls qualified as Rf
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc, foreignFuncBuiltinName)
 import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
@@ -111,6 +110,7 @@ import Unison.Runtime.JIT.Native
 import Unison.Runtime.JIT.Pool (currentPool)
 import Unison.Runtime.Wide (wideOn, widePad, wideWidth)
 import Unison.Util.Deque qualified as Sq
+import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
@@ -2562,10 +2562,35 @@ runPrim cc p vs
         not (S.member ff sandboxedForeignFuncs)
           && not (stateBuiltin (Builtin (foreignFuncBuiltinName ff)))
     effectfulPrims =
-      [ ANF.FORK, ANF.EROR, ANF.MISS, ANF.CACH, ANF.LKUP, ANF.LOAD, ANF.CVLD, ANF.SDBX, ANF.VALU,
-        ANF.SPEC, ANF.RTIR, ANF.PRNT, ANF.INFO, ANF.TRCE, ANF.DBTX, ANF.ATOM, ANF.TFRC,
-        ANF.SDBL, ANF.SDBV, ANF.REFN, ANF.REFR, ANF.REFW, ANF.RCAS, ANF.RRFC, ANF.TIKR,
-        ANF.KEEP, ANF.FGNN, ANF.FGNF, ANF.MKCB
+      [ ANF.FORK,
+        ANF.EROR,
+        ANF.MISS,
+        ANF.CACH,
+        ANF.LKUP,
+        ANF.LOAD,
+        ANF.CVLD,
+        ANF.SDBX,
+        ANF.VALU,
+        ANF.SPEC,
+        ANF.RTIR,
+        ANF.PRNT,
+        ANF.INFO,
+        ANF.TRCE,
+        ANF.DBTX,
+        ANF.ATOM,
+        ANF.TFRC,
+        ANF.SDBL,
+        ANF.SDBV,
+        ANF.REFN,
+        ANF.REFR,
+        ANF.REFW,
+        ANF.RCAS,
+        ANF.RRFC,
+        ANF.TIKR,
+        ANF.KEEP,
+        ANF.FGNN,
+        ANF.FGNF,
+        ANF.MKCB
       ]
 
 -- | The reference of the group specializing a closure: a hash of the
@@ -2583,13 +2608,14 @@ specializedRef cc val = do
     UnliftIO.tryAny (reflectValueWith True cc val >>= evaluate . serializeValueForHash . dereference) >>= \case
       Right bs -> pure bs
       Left _ -> do
-            u <- atomicModifyIORef' freshSpecializations \n -> (n + 1, n)
-            pure . BB.toLazyByteString $ BB.string7 "fresh" <> BB.word64BE u
+        u <- atomicModifyIORef' freshSpecializations \n -> (n + 1, n)
+        pure . BB.toLazyByteString $ BB.string7 "fresh" <> BB.word64BE u
   let digest :: Digest Blake2b_256
       digest = hashlazy (BB.toLazyByteString (BB.string7 "unison specialize\0") <> bytes)
   pure $ Derived (Hash.fromByteString (convert digest)) 0
 
 -- * Running known code
+
 --
 -- What the specializer computes from known values it computes on the
 -- interpreter (Specialize.md, "What runs at specialization time").
@@ -2632,32 +2658,33 @@ runKnown :: CCache p -> KnownLimits -> Val -> [Val] -> IO (Maybe Val)
 runKnown cc lim f args
   -- which mutable value it is mustn't shape the code (specializedRef)
   | any containsMutable (f : args) = pure Nothing
-  | otherwise = knownRunnable cc (f : args) >>= \case
-    False -> pure Nothing
-    True -> do
-      fuel <- newIORef (knownFuel lim)
-      result <- newIORef Nothing
-      stk0 <- alloc (stackSlots (jit cc))
-      stk <- foldM (\stk v -> bump stk >>= \stk -> stk <$ poke stk v) stk0 args
-      let env = cc {profiler = Fuel fuel}
-          k0 = CB . Hook $ \xstk -> peek (packXStack xstk) >>= writeIORef result . Just
-          -- the k-th argument sits at offset n - 1 - k from the top
-          as = case reverse [0 .. length args - 1] of
-            [] -> ZArgs
-            [i] -> VArg1 i
-            [i, j] -> VArg2 i j
-            is -> VArgN $ PA.primArrayFromList is
-      outcome <-
-        timeout (knownMicros lim) . UnliftIO.tryAny $ do
-          (tick, cancel) <- startTicker (profiler env)
-          apply tick env mempty Nothing stk k0 False as f `finally` cancel
-      when specializeDebug $ case outcome of
-        Nothing -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t + 1, f, l))
-        Just (Left _) -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f + 1, l))
-        _ -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f, l))
-      case outcome of
-        Just (Right ()) -> readIORef result
-        _ -> pure Nothing
+  | otherwise =
+      knownRunnable cc (f : args) >>= \case
+        False -> pure Nothing
+        True -> do
+          fuel <- newIORef (knownFuel lim)
+          result <- newIORef Nothing
+          stk0 <- alloc (stackSlots (jit cc))
+          stk <- foldM (\stk v -> bump stk >>= \stk -> stk <$ poke stk v) stk0 args
+          let env = cc {profiler = Fuel fuel}
+              k0 = CB . Hook $ \xstk -> peek (packXStack xstk) >>= writeIORef result . Just
+              -- the k-th argument sits at offset n - 1 - k from the top
+              as = case reverse [0 .. length args - 1] of
+                [] -> ZArgs
+                [i] -> VArg1 i
+                [i, j] -> VArg2 i j
+                is -> VArgN $ PA.primArrayFromList is
+          outcome <-
+            timeout (knownMicros lim) . UnliftIO.tryAny $ do
+              (tick, cancel) <- startTicker (profiler env)
+              apply tick env mempty Nothing stk k0 False as f `finally` cancel
+          when specializeDebug $ case outcome of
+            Nothing -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t + 1, f, l))
+            Just (Left _) -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f + 1, l))
+            _ -> UnliftIO.modifyIORef' knownCounts (\(r, t, f, l) -> (r + 1, t, f, l))
+          case outcome of
+            Just (Right ()) -> readIORef result
+            _ -> pure Nothing
 
 -- | Whether known code may run now: the values, the code of every closure
 -- in them, and all the code that reaches, use no tracked builtin (the ones
@@ -2831,13 +2858,17 @@ runtimeIR cc val = fmap (Util.Text.pack . ($ "")) $ case val of
     captured <- traverse reflectOrSay (segToList args)
     let comment = foldr (\l rest -> showString "-- " . showString l . showString "\n" . rest) id . lines
         origin = case M.lookup r specs of
-          Just (CIx o _ oi, _, _, _) | Nothing <- irValue (irPrinter cc) val ->
-            showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
+          Just (CIx o _ oi, _, _, _)
+            | Nothing <- irValue (irPrinter cc) val ->
+                showString "-- specialization of " . shows o . showString " " . shows oi . showString "\n"
           _ -> id
         closure = case irValue (irPrinter cc) val of
           Just s -> comment s
           Nothing ->
-            showString "-- closure of " . shows r . showString " " . shows i
+            showString "-- closure of "
+              . shows r
+              . showString " "
+              . shows i
               . showString ", captured:\n"
               . foldr (\v rest -> showString "--   " . showString v . showString "\n" . rest) id captured
     pure . (origin .) . (closure .) $ case M.lookup r groups of

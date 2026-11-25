@@ -26,15 +26,16 @@ import Control.Monad.State.Strict
 import Data.Char (ord)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.List (find)
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Util.Text qualified as Util.Text
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Prelude
 import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF
+import Unison.Runtime.Builtin.Decls (eitherLeftId, eitherRef, eitherRightId, exceptionRef, pairRef, unitRef)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
+import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
   ( Val,
     pattern BoxedVal,
@@ -47,13 +48,12 @@ import Unison.Runtime.Stack
     pattern PAp,
     pattern TextC,
   )
-import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack qualified as Stack
 import Unison.Runtime.TypeTags (CTag (..))
-import Unison.Runtime.Builtin.Decls (eitherLeftId, eitherRef, eitherRightId, exceptionRef, pairRef, unitRef)
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers qualified as EC
+import Unison.Util.Text qualified as Util.Text
 import Unison.Var qualified as Var
 
 -- | What the partial evaluator needs from the runtime. Each operation
@@ -360,9 +360,11 @@ specializeLambda env lim r i args =
   specializeLambda1 env lim r i args >>= \case
     -- fused handlers copy code, and the ones that grew it may be finished
     -- by the time the budget runs out: once more, with every handler kept
-    Left why | why == tooBig, slFuse lim -> do
-      seNote env "too much code with handlers fused: once more with every handler kept"
-      specializeLambda1 env lim {slFuse = False} r i args
+    Left why
+      | why == tooBig,
+        slFuse lim -> do
+          seNote env "too much code with handlers fused: once more with every handler kept"
+          specializeLambda1 env lim {slFuse = False} r i args
     made -> pure made
 
 tooBig :: String
@@ -381,50 +383,53 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
     | length vs < length args -> pure (Left "more arguments than parameters")
     | otherwise ->
         either (\(GiveUp why) -> Left why) id <$> Control.Exception.try @GiveUp do
-         fmap (either (\(Reify _) -> Left "a continuation needed as a function, with no request to go back to") id) . Control.Exception.try @Reify $
-          either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id <$> Control.Exception.try @Escape (Right <$> do
-          newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty) do
-            argSyms <- traverse freshNamed (take (length args) vs)
-            restSyms <- traverse freshNamed (drop (length args) vs)
-            let restMems = drop (length args) ccs
-                binds =
-                  zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
-                    ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
-                -- the entry is the first call being unfolded
-                e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds)]
-            body0 <- pe env lim e0 body KTail
-            consts <- gets (reverse . sConsts)
-            fns0 <- gets sFns
-            let constSyms = argSyms ++ map fst consts
-                -- a join point uses variables of where it is called: they
-                -- become parameters, before inlining, which renames the
-                -- variables of the copies it makes
-                free = freeNeeds (S.fromList constSyms) fns0
-                mems =
-                  M.fromList $
-                    zip restSyms restMems
-                      ++ binderMems body0
-                      ++ concat [zip ps ms ++ binderMems bd | (_, Lambda ms (ABTN.TAbss ps bd)) <- fns0]
-                memOfVar x = M.findWithDefault BX x mems
-                fns1 =
-                  [ (f, Lambda (map memOfVar xs ++ ms) (ABTN.TAbss (xs ++ ps) (threadConsts free bd)))
-                  | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns0,
-                    let xs = M.findWithDefault [] f free
-                  ]
-            joins <- gets sJoinFns
-            (fns, body') <- inlineFns joins fns1 (threadConsts free body0)
-            let needs = constNeeds constSyms fns
-                thread = renumberLets . threadConsts needs
-                entry =
-                  Lambda
-                    (map (const BX) constSyms ++ restMems)
-                    (ABTN.TAbss (constSyms ++ restSyms) (thread body'))
-                fns' =
-                  [ (f, Lambda (map (const BX) cs ++ ms) (ABTN.TAbss (cs ++ ps) (thread bd)))
-                  | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
-                    let cs = M.findWithDefault [] f needs
-                  ]
-            pure (Rec fns' entry, map snd consts))
+          fmap (either (\(Reify _) -> Left "a continuation needed as a function, with no request to go back to") id) . Control.Exception.try @Reify $
+            either (\(Escape _ why) -> Left ("an escape from a fused handler: " ++ why)) id
+              <$> Control.Exception.try @Escape
+                ( Right <$> do
+                    newIORef M.empty >>= \valuedRef -> flip evalStateT (S 0 1 0 M.empty [] [] env lim [] [] [] M.empty 0 Nothing M.empty M.empty 0 M.empty M.empty M.empty S.empty valuedRef M.empty M.empty) do
+                      argSyms <- traverse freshNamed (take (length args) vs)
+                      restSyms <- traverse freshNamed (drop (length args) vs)
+                      let restMems = drop (length args) ccs
+                          binds =
+                            zip vs (zipWith (\v s -> Known v (Just s)) args argSyms)
+                              ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
+                          -- the entry is the first call being unfolded
+                          e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds)]
+                      body0 <- pe env lim e0 body KTail
+                      consts <- gets (reverse . sConsts)
+                      fns0 <- gets sFns
+                      let constSyms = argSyms ++ map fst consts
+                          -- a join point uses variables of where it is called: they
+                          -- become parameters, before inlining, which renames the
+                          -- variables of the copies it makes
+                          free = freeNeeds (S.fromList constSyms) fns0
+                          mems =
+                            M.fromList $
+                              zip restSyms restMems
+                                ++ binderMems body0
+                                ++ concat [zip ps ms ++ binderMems bd | (_, Lambda ms (ABTN.TAbss ps bd)) <- fns0]
+                          memOfVar x = M.findWithDefault BX x mems
+                          fns1 =
+                            [ (f, Lambda (map memOfVar xs ++ ms) (ABTN.TAbss (xs ++ ps) (threadConsts free bd)))
+                            | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns0,
+                              let xs = M.findWithDefault [] f free
+                            ]
+                      joins <- gets sJoinFns
+                      (fns, body') <- inlineFns joins fns1 (threadConsts free body0)
+                      let needs = constNeeds constSyms fns
+                          thread = renumberLets . threadConsts needs
+                          entry =
+                            Lambda
+                              (map (const BX) constSyms ++ restMems)
+                              (ABTN.TAbss (constSyms ++ restSyms) (thread body'))
+                          fns' =
+                            [ (f, Lambda (map (const BX) cs ++ ms) (ABTN.TAbss (cs ++ ps) (thread bd)))
+                            | (f, Lambda ms (ABTN.TAbss ps bd)) <- fns,
+                              let cs = M.findWithDefault [] f needs
+                            ]
+                      pure (Rec fns' entry, map snd consts)
+                )
 
 -- | A lambda of a group, with the group's local functions by variable.
 lambdaOf :: SpecEnv -> Fn -> Maybe (SuperNormal Reference Symbol, [(Symbol, Word64)])
@@ -576,51 +581,52 @@ dynPrim (KBind m h k) code = do
 dynPrim k code = dynPrim (KBind BX (syn "r") (ret k)) code
 
 pe :: SpecEnv -> SpecLimits -> E -> Term -> K -> M Term
-pe env lim e t k = tick lim >> case t of
-  TVar v -> ret k (look e v)
-  TLit l -> literal l
-  TBLit l -> literal l
-  TLets _ [v] [m] bn bo ->
-    pe env lim e bn . KBind m v $ \a -> pe env lim (bind v a e) bo k
-  TLets {} -> opaque env e t k
-  TName v f as bo -> do
-    let fa = case f of
-          Left r -> Clo (Fn r 0) []
-          Right lv -> look e lv
-    a <- partial env fa (map (look e) as)
-    case a of
-      Just a' -> pe env lim (bind v a' e) bo k
-      Nothing -> opaque env e t k
-  TMatch v br -> match env lim e v br k
-  TCon r tg as -> ret k (Con r tg (map (look e) as))
-  TApp (FComb r) as
-    | r == seBoundary env -> boundary env e (map (look e) as) k
-    | otherwise -> call env lim e (Clo (Fn r 0) []) (map (look e) as) k
-  TApp (FVar f) as -> call env lim e (look e f) (map (look e) as) k
-  TApp (FPrim p) as -> prim env e p (map (look e) as) k
-  TApp (FReq r t) as -> request env lim e r t (map (look e) as) k
-  THnd rs h Nothing body -> handler env lim e t rs h body k
-  TShift r v body ->
-    gets sPending >>= \case
-      -- the case of a fused handler capturing its request's continuation
-      Just (kid, r') | r' == r -> do
-        modify' \st -> st {sPending = Nothing}
-        gets (M.lookup kid . sBridgeK) >>= \case
-          -- a bridge's case: the shift is real, and the continuation it
-          -- binds is the rest of the code the bridge is around
-          Just (rid, _) -> do
-            v' <- freshNamed v
-            modify' \st -> st {sBridgeK = M.insert kid (rid, Just v') (sBridgeK st)}
-            TShift r v' <$> pe env lim (bind v (SKont kid) e) body k
-          Nothing -> pe env lim (bind v (SKont kid) e) body k
-      _ -> do
-        v' <- freshNamed v
-        body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
-        dynResult k BX (TShift r v' body')
-  TFrc v -> case look e v of
-    Dyn {} -> opaque env e t k
-    a -> call env lim e a [] k
-  _ -> opaque env e t k
+pe env lim e t k =
+  tick lim >> case t of
+    TVar v -> ret k (look e v)
+    TLit l -> literal l
+    TBLit l -> literal l
+    TLets _ [v] [m] bn bo ->
+      pe env lim e bn . KBind m v $ \a -> pe env lim (bind v a e) bo k
+    TLets {} -> opaque env e t k
+    TName v f as bo -> do
+      let fa = case f of
+            Left r -> Clo (Fn r 0) []
+            Right lv -> look e lv
+      a <- partial env fa (map (look e) as)
+      case a of
+        Just a' -> pe env lim (bind v a' e) bo k
+        Nothing -> opaque env e t k
+    TMatch v br -> match env lim e v br k
+    TCon r tg as -> ret k (Con r tg (map (look e) as))
+    TApp (FComb r) as
+      | r == seBoundary env -> boundary env e (map (look e) as) k
+      | otherwise -> call env lim e (Clo (Fn r 0) []) (map (look e) as) k
+    TApp (FVar f) as -> call env lim e (look e f) (map (look e) as) k
+    TApp (FPrim p) as -> prim env e p (map (look e) as) k
+    TApp (FReq r t) as -> request env lim e r t (map (look e) as) k
+    THnd rs h Nothing body -> handler env lim e t rs h body k
+    TShift r v body ->
+      gets sPending >>= \case
+        -- the case of a fused handler capturing its request's continuation
+        Just (kid, r') | r' == r -> do
+          modify' \st -> st {sPending = Nothing}
+          gets (M.lookup kid . sBridgeK) >>= \case
+            -- a bridge's case: the shift is real, and the continuation it
+            -- binds is the rest of the code the bridge is around
+            Just (rid, _) -> do
+              v' <- freshNamed v
+              modify' \st -> st {sBridgeK = M.insert kid (rid, Just v') (sBridgeK st)}
+              TShift r v' <$> pe env lim (bind v (SKont kid) e) body k
+            Nothing -> pe env lim (bind v (SKont kid) e) body k
+        _ -> do
+          v' <- freshNamed v
+          body' <- withBarrier (pe env lim (bind v (Dyn v' BX) e) body KTail)
+          dynResult k BX (TShift r v' body')
+    TFrc v -> case look e v of
+      Dyn {} -> opaque env e t k
+      a -> call env lim e a [] k
+    _ -> opaque env e t k
   where
     literal l = case litVal l of
       Just v -> ret k (Known v Nothing)
@@ -694,33 +700,34 @@ call env lim e fa as k = case fa of
     -- A handler that finds its case in a list by the operation's number
     -- has each case specialized this way.
     atKnown fn@(Fn r _) args orElse = case args of
-      [Dyn x m, lst] | r == Builtin "List.at" ->
-        allKnown env [Clo fn [], lst] >>= \case
-          Just [fv, lv] -> do
-            let elemsFrom j acc
-                  | j > (8 :: Word64) = pure Nothing
-                  | otherwise =
-                      liftIO (seRun env fv [NatVal j, lv]) >>= \case
-                        Just v
-                          | Just (_, []) <- knownData v -> pure (Just (reverse acc, v))
-                          | otherwise -> elemsFrom (j + 1) (v : acc)
-                        Nothing -> pure Nothing
-                structured v = case knownData v of
-                  Just (_, fs) -> any (\f -> isJust (knownData f) || isJust (knownClosure env f)) fs
-                  Nothing -> False
-            elemsFrom 0 [] >>= \case
-              Just (elems, none) | any structured elems -> do
-                ys <- traverse (const (freshNamed (syn "at"))) elems
-                yn <- freshNamed (syn "at")
-                ix <- freshNamed (syn "i")
-                let arms = EC.mapFromList (zip [0 ..] (map TVar ys))
-                    br
-                      | m == UN = MatchIntegral arms (Just (TVar yn))
-                      | otherwise = MatchNumeric Ty.natRef arms (Just (TVar yn))
-                    binds = (ix, Dyn x m) : (yn, Known none Nothing) : zip ys [Known v Nothing | v <- elems]
-                match env lim (foldr (uncurry bind) e binds) ix br k
+      [Dyn x m, lst]
+        | r == Builtin "List.at" ->
+            allKnown env [Clo fn [], lst] >>= \case
+              Just [fv, lv] -> do
+                let elemsFrom j acc
+                      | j > (8 :: Word64) = pure Nothing
+                      | otherwise =
+                          liftIO (seRun env fv [NatVal j, lv]) >>= \case
+                            Just v
+                              | Just (_, []) <- knownData v -> pure (Just (reverse acc, v))
+                              | otherwise -> elemsFrom (j + 1) (v : acc)
+                            Nothing -> pure Nothing
+                    structured v = case knownData v of
+                      Just (_, fs) -> any (\f -> isJust (knownData f) || isJust (knownClosure env f)) fs
+                      Nothing -> False
+                elemsFrom 0 [] >>= \case
+                  Just (elems, none) | any structured elems -> do
+                    ys <- traverse (const (freshNamed (syn "at"))) elems
+                    yn <- freshNamed (syn "at")
+                    ix <- freshNamed (syn "i")
+                    let arms = EC.mapFromList (zip [0 ..] (map TVar ys))
+                        br
+                          | m == UN = MatchIntegral arms (Just (TVar yn))
+                          | otherwise = MatchNumeric Ty.natRef arms (Just (TVar yn))
+                        binds = (ix, Dyn x m) : (yn, Known none Nothing) : zip ys [Known v Nothing | v <- elems]
+                    match env lim (foldr (uncurry bind) e binds) ix br k
+                  _ -> orElse
               _ -> orElse
-          _ -> orElse
       _ -> orElse
     callFn fn@(Fn r i) args = case lambdaOf env fn of
       -- a builtin, or code not loaded here: a call, unless it can run
@@ -1441,18 +1448,18 @@ bridgeFn env lim wide fs = case fs of
   _ -> giveUp "a bridge under other than one fused handler"
   where
     finish outer g mems params req body =
-            modify' \s ->
-              s
-                { sLetNum = sLetNum outer,
-                  sFrames = sFrames outer,
-                  sTargets = sTargets outer,
-                  sKonts = sKonts outer,
-                  sPending = sPending outer,
-                  -- not counted against the size of the code: the bridge
-                  -- is the handler's own code once, as the original has it
-                  sEmitted = sEmitted outer,
-                  sFns = (g, Lambda (mems ++ [BX]) (ABTN.TAbss (params ++ [req]) body)) : sFns s
-                }
+      modify' \s ->
+        s
+          { sLetNum = sLetNum outer,
+            sFrames = sFrames outer,
+            sTargets = sTargets outer,
+            sKonts = sKonts outer,
+            sPending = sPending outer,
+            -- not counted against the size of the code: the bridge
+            -- is the handler's own code once, as the original has it
+            sEmitted = sEmitted outer,
+            sFns = (g, Lambda (mems ++ [BX]) (ABTN.TAbss (params ++ [req]) body)) : sFns s
+          }
 
 -- | The end of the body of a state-passing residual function: @Right@ of
 -- its value and the states of the handlers in force, if they stand for the
@@ -1498,10 +1505,13 @@ generalize :: KArg -> Abs -> (Abs, [Abs])
 generalize k a = case (k, a) of
   (_, Dyn {}) -> (a, [a])
   (KCon r t ks, Con r' t' fs)
-    | r == r', t == t', length ks == length fs ->
+    | r == r',
+      t == t',
+      length ks == length fs ->
         let (gs, ls) = Prelude.unzip (zipWith generalize ks fs) in (Con r t gs, concat ls)
   (KClo f ks, Clo f' as)
-    | f == f', length ks == length as ->
+    | f == f',
+      length ks == length as ->
         let (gs, ls) = Prelude.unzip (zipWith generalize ks as) in (Clo f gs, concat ls)
   _
     | safeEq k (keyOf a) -> (a, dynLeaves a)
@@ -1563,10 +1573,14 @@ lubAbs a b = case (a, b) of
     | r == r', t == t', length fs == length gs -> Con r t <$> zipWithM lubAbs fs gs
     | r == r', null fs, null gs -> hole
   (Con r t fs, Known v _)
-    | Just (t', vs) <- knownData v, t == t', length fs == length vs ->
+    | Just (t', vs) <- knownData v,
+      t == t',
+      length fs == length vs ->
         Con r t <$> zipWithM lubAbs fs [Known x Nothing | x <- vs]
   (Known v _, Con r t gs)
-    | Just (t', vs) <- knownData v, t == t', length gs == length vs ->
+    | Just (t', vs) <- knownData v,
+      t == t',
+      length gs == length vs ->
         Con r t <$> zipWithM lubAbs [Known x Nothing | x <- vs] gs
   (Clo f as, Clo g bs)
     | f == g, length as == length bs -> Clo f <$> zipWithM lubAbs as bs
@@ -1664,10 +1678,11 @@ dynLeaves = \case
 -- | A call of @specialize.boundary@: the call of its function on the rest
 -- of its arguments stays a call.
 boundary :: SpecEnv -> E -> [Abs] -> K -> M Term
-boundary _ _ as k = guardFused "specialize.boundary" >> case as of
-  Clo (Fn r 0) [] : xs -> toVars xs \vs -> dynResult k BX (TApp (FComb r) vs)
-  f : xs -> toVarApp f xs \g vs -> dynResult k BX (TApp (FVar g) vs)
-  [] -> liftIO . throwIO $ GiveUp "boundary of nothing"
+boundary _ _ as k =
+  guardFused "specialize.boundary" >> case as of
+    Clo (Fn r 0) [] : xs -> toVars xs \vs -> dynResult k BX (TApp (FComb r) vs)
+    f : xs -> toVarApp f xs \g vs -> dynResult k BX (TApp (FVar g) vs)
+    [] -> liftIO . throwIO $ GiveUp "boundary of nothing"
 
 -- | A primitive: run it when its arguments are known, otherwise keep it.
 prim :: SpecEnv -> E -> Either POp ForeignFunc -> [Abs] -> K -> M Term
@@ -1792,10 +1807,13 @@ match env lim e v br k = case (look e v, br) of
               -- can be kept, as what follows a handler an arm installed,
               -- and reached again once the join point is made; then it
               -- is the code after the match, once more)
-              Just hs | material a, all material hs, M.member jid (sJoins now) -> do
-                ph <- freshNamed (syn "join")
-                modify' \st -> st {sJoins = M.insertWith (++) jid [(ph, a, usedKonts now, hs)] (sJoins st)}
-                pure (TVar ph)
+              Just hs
+                | material a,
+                  all material hs,
+                  M.member jid (sJoins now) -> do
+                    ph <- freshNamed (syn "join")
+                    modify' \st -> st {sJoins = M.insertWith (++) jid [(ph, a, usedKonts now, hs)] (sJoins st)}
+                    pure (TVar ph)
               _ -> ret k a
       put st0 {sNextId = jid + 1, sJoins = M.insert jid [] (sJoins st0)}
       code <- dynamicWith kJoin (\c -> pure c)
@@ -1803,14 +1821,16 @@ match env lim e v br k = case (look e v, br) of
       modify' \st -> st {sJoins = M.delete jid (sJoins st)}
       case recs of
         [] -> pure code
-        _ | not fusedNow, all (\(_, a, _, _) -> plain a) recs -> do
-          -- nothing known in any arm's value: the match bound to a variable
-          vals <- for recs \(ph, a, _, _) -> (ph,) <$> toVar a (pure . TVar)
-          -- an arm that reached here through an inner join point left its
-          -- placeholder in that function
-          let patch = substVars (M.fromList vals)
-          modify' \st -> st {sFns = [(f, Lambda ms (ABTN.TAbss ps (patch bd))) | (f, Lambda ms (ABTN.TAbss ps bd)) <- sFns st]}
-          dynResult k BX (returnBound (patch code))
+        _
+          | not fusedNow,
+            all (\(_, a, _, _) -> plain a) recs -> do
+              -- nothing known in any arm's value: the match bound to a variable
+              vals <- for recs \(ph, a, _, _) -> (ph,) <$> toVar a (pure . TVar)
+              -- an arm that reached here through an inner join point left its
+              -- placeholder in that function
+              let patch = substVars (M.fromList vals)
+              modify' \st -> st {sFns = [(f, Lambda ms (ABTN.TAbss ps (patch bd))) | (f, Lambda ms (ABTN.TAbss ps bd)) <- sFns st]}
+              dynResult k BX (returnBound (patch code))
         _ -> do
           -- the arms that can share a join point, in groups: one group if
           -- they all agree on what is known ('lubAbs')
@@ -2071,19 +2091,19 @@ handledBody :: E -> Term -> (Term -> Term) -> M Term
 handledBody e body handle
   | straight body = pure (handle body)
   | otherwise = do
-    let mems = M.fromList [(x, m) | a <- M.elems (eVars e), Dyn x m <- dynLeaves a]
-        outside = [(x, m) | x <- S.toList (ABTN.freeVars body), Just m <- [M.lookup x mems]]
-    f <- freshNamed (syn "handled")
-    case outside of
-      -- a function takes at least one argument
-      [] -> do
-        u <- freshNamed (syn "nil")
-        u' <- freshNamed (syn "nil")
-        modify' \st -> st {sFns = (f, Lambda [BX] (ABTN.TAbss [u'] body)) : sFns st}
-        pure (TLets Direct [u] [BX] (TCon unitRef (CTag 0) []) (handle (TApp (FVar f) [u])))
-      _ -> do
-        modify' \st -> st {sFns = (f, Lambda (map snd outside) (ABTN.TAbss (map fst outside) body)) : sFns st}
-        pure (handle (TApp (FVar f) (map fst outside)))
+      let mems = M.fromList [(x, m) | a <- M.elems (eVars e), Dyn x m <- dynLeaves a]
+          outside = [(x, m) | x <- S.toList (ABTN.freeVars body), Just m <- [M.lookup x mems]]
+      f <- freshNamed (syn "handled")
+      case outside of
+        -- a function takes at least one argument
+        [] -> do
+          u <- freshNamed (syn "nil")
+          u' <- freshNamed (syn "nil")
+          modify' \st -> st {sFns = (f, Lambda [BX] (ABTN.TAbss [u'] body)) : sFns st}
+          pure (TLets Direct [u] [BX] (TCon unitRef (CTag 0) []) (handle (TApp (FVar f) [u])))
+        _ -> do
+          modify' \st -> st {sFns = (f, Lambda (map snd outside) (ABTN.TAbss (map fst outside) body)) : sFns st}
+          pure (handle (TApp (FVar f) (map fst outside)))
   where
     straight = \case
       TApp {} -> True

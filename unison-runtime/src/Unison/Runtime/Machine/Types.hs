@@ -35,6 +35,7 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 import System.CPUTime
 #endif
 import Control.Monad.State.Strict
+import Data.Text qualified
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
@@ -62,7 +63,6 @@ import Unison.Symbol
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
-import Data.Text qualified
 import Unison.Util.Text as UText
 
 -- | A ref storing every currently active thread.

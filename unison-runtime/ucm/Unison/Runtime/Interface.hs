@@ -41,6 +41,7 @@ import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
 import System.FilePath
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -51,8 +52,10 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorReference qualified as RF
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
+import Unison.HashQualified qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
+import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv
@@ -73,7 +76,6 @@ import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (JIT, jitCompileGroup, printJITStats, startJIT)
 import Unison.Runtime.MCode (CombIx (..), rewrittenLambdas)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
@@ -97,8 +99,6 @@ import Unison.Runtime.Stack
 import Unison.Runtime.Standalone
 import Unison.Runtime.Version (runtimeVersion)
 import Unison.Symbol (Symbol)
-import Unison.HashQualified qualified as HQ'
-import Unison.Name qualified as Name
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
