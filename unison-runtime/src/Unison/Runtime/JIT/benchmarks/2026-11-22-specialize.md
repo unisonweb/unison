@@ -4,7 +4,7 @@ Branch `specialize` at `0efffb1e3` plus the higher-order rows of
 [`specialize-benchmarks.md`](../../../../../../unison-src/transcripts-manual/specialize-benchmarks.md),
 optimized build (`--work-dir .stack-work-opt`), Apple M1, the `jit` testing codebase. One
 run of `printTime` per row; the specialization happens before the timing. See
-[Specialize.md](../../Specialize.md).
+[design.md](../../ANF/Specialize/design.md).
 
 | Row | JIT off | JIT on |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ Findings:
 
 ## With join points
 
-At the commit that adds join points ([Specialize.md](../../Specialize.md), "Abilities"),
+At the commit that adds join points ([design.md](../../ANF/Specialize/design.md), "Abilities"),
 the same suite with them on and off (`UNISON_SPECIALIZE_JOIN=off`), the specialized rows:
 
 | Row | JIT off, on | JIT off, off | JIT on, on | JIT on, off |
@@ -82,7 +82,7 @@ loop's function is left alone, and each call of one was a call per round.
 ## With calls unfolded under unknown matches, and direct calls within a group
 
 At the commits that unfold a call under an unknown match unless the whistle blows
-([Specialize.md](../../Specialize.md), "Recursion and termination") and that emit a call
+([design.md](../../ANF/Specialize/design.md), "Recursion and termination") and that emit a call
 of a function of the same group with all its arguments as a direct call
 ([`emitFunction`](../../MCode.hs)).
 
@@ -124,7 +124,7 @@ Findings:
 ## Handlers whose case goes on after resuming, or resumes twice
 
 At the commit that makes a loop under such a handler a function returning the `handle`'s
-value ([Specialize.md](../../Specialize.md), "Abilities"). The other rows are as in the
+value ([design.md](../../ANF/Specialize/design.md), "Abilities"). The other rows are as in the
 table above.
 
 | Row | JIT off | JIT on |
@@ -154,7 +154,7 @@ Findings:
 
 At the commit that extends the value-returning form to several handlers, makes a
 continuation a function only when a residual function resumes it, and splits `List.at` on
-a known list ([Specialize.md](../../Specialize.md), "Abilities"). No row of this file is
+a known list ([design.md](../../ANF/Specialize/design.md), "Abilities"). No row of this file is
 under two fused handlers, so this run checks that nothing moved:
 
 | Row | JIT off | JIT on |
@@ -182,7 +182,7 @@ same generated code.
 ## With the bridge around calls of unknown functions
 
 At the commit that runs a call of an unknown function under a bridge
-([Specialize.md](../../Specialize.md), "Abilities"). No row of this file calls an unknown
+([design.md](../../ANF/Specialize/design.md), "Abilities"). No row of this file calls an unknown
 function under a fused handler, so this run checks that nothing moved:
 
 | Row | JIT off | JIT on |

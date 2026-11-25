@@ -4,7 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 -- | The partial evaluator behind @specialize@
--- (unison-runtime/src/Unison/Runtime/Specialize.md, "How it works").
+-- (unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md, "How it works").
 --
 -- It walks the ANF of a lambda with some of its arguments known, and
 -- produces a group of new code with them folded in. It handles only what
@@ -1352,7 +1352,7 @@ residualFnAs valued env lim fs fn args0 = do
       a -> pure a
 
 -- | A call of code that isn't walked, under one fused handler
--- (unison-runtime/src/Unison/Runtime/Specialize.md, "The bridge"): the
+-- (unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md, "The bridge"): the
 -- code makes real requests, and there is no real handler for them. So it
 -- is called under one, the bridge, made of the fused handler's cases. The
 -- bridge is passed the handler's state and gives it back with the result,

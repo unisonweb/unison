@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | The specializer's pieces that run inside the runtime
--- (unison-runtime/src/Unison/Runtime/Specialize.md).
+-- (unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md).
 module Unison.Test.Runtime.Specialize where
 
 import Control.Monad (forM_)

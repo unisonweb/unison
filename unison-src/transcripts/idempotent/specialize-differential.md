@@ -4,7 +4,7 @@
 language, specializes an interpreter on each, and compares running the program both ways.
 A program known to the specializer gives residual code in that program's shape, so random
 programs give varied residual code. See "Testing" in
-`unison-runtime/src/Unison/Runtime/Specialize.md`.
+`unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md`.
 
 The language is a dynamically typed lambda calculus over `Nat`, with two bounded loops and
 with effects: `Perform`, `Handle`, and `Resume` in a handler's clause. The generator is

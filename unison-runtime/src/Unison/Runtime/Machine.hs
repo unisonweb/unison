@@ -2380,19 +2380,32 @@ canonicalizeReferenced ::
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
--- | The second half of @specialize@ (Specialize.md): a closure that has
--- captured something, specialized on all of it. Anything else (a closure
--- that has captured nothing, a builtin, a value that isn't a closure) is
--- returned as it is, which is always correct, since a specialized closure
--- means the same as the closure it was made from.
+-- | The second half of @specialize@ (ANF/Specialize/design.md): a closure
+-- that has captured something, specialized on all of it. Anything else (a
+-- closure that has captured nothing, a builtin, a value that isn't a
+-- closure) is returned as it is, which is always correct, since a
+-- specialized closure means the same as the closure it was made from.
 --
--- The specialized closure is a closure over a generated group, holding the
--- same arguments. The group's reference comes from a hash of the closure it
--- was made from ('specializedRef'), so specializing the same closure twice,
--- in this process or another, gives equal closures, and the group is
--- generated once. For now the group is the original lambda unchanged (the
--- identity specializer); 'specializations' remembers where it came from,
--- for reflection and decompilation.
+-- The specialized closure is an ordinary closure over a generated group,
+-- so equality, ordering and hashing are the existing ones. It holds the
+-- arguments of the closure it was made from, in the same order, then any
+-- constants the generated code needs: ANF has no node for an arbitrary
+-- value, so a known value that isn't a literal is a parameter
+-- (ANF.Specialize.threadConsts).
+--
+-- The group's reference comes from a hash of the closure it was made from
+-- ('specializedRef'), not of the generated code. So specializing the same
+-- closure twice, in this process or another, gives equal closures, the
+-- group is generated once, and the identity doesn't change when the
+-- specializer does. If the partial evaluator gives up, the group is the
+-- original lambda unchanged.
+--
+-- 'specializations' remembers, per generated group, the original
+-- combinator and how many arguments its closure had. Reflection uses that
+-- to write a specialized closure as 'ANF.Specialized' of the original
+-- closure, since no codebase holds the generated code, and reading one
+-- back specializes it again here ('reifyValue1'). The decompiler uses it
+-- to show @specialize f x@.
 specializeClosure :: CCache p -> Val -> IO Val
 specializeClosure cc val = case val of
   BoxedVal (PAp cix@(CIx r _ i) _ args)
@@ -2618,7 +2631,7 @@ specializedRef cc val = do
 
 --
 -- What the specializer computes from known values it computes on the
--- interpreter (Specialize.md, "What runs at specialization time").
+-- interpreter (ANF/Specialize/design.md, "What runs at specialization time").
 
 -- | A profiler whose ticker counts calls down and aborts at zero: the
 -- fuel for running known code. Native code never calls the ticker, which

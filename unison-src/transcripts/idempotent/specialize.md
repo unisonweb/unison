@@ -1,7 +1,7 @@
 # `specialize`
 
 `specialize f x` means `f x`. The result may be a different value, made of new code with `x`
-folded in, but it behaves the same. See `unison-runtime/src/Unison/Runtime/Specialize.md`.
+folded in, but it behaves the same. See `unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md`.
 
 ``` ucm
 scratch/main> builtins.merge lib.builtins

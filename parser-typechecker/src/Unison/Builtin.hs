@@ -620,7 +620,7 @@ builtinsSrc =
     B "Debug.toText" $
       forall1 "a" (\a -> a --> optionalt (eithert text text)),
     -- specialize f x means f x; the result may be new code with x folded
-    -- in (unison-runtime/src/Unison/Runtime/Specialize.md)
+    -- in (unison-runtime/src/Unison/Runtime/ANF/Specialize/design.md)
     B "specialize" . forall3 "a" "b" "g" $ \a b g ->
       (a --> Type.effect1 () g b) --> a --> Type.effect1 () g b,
     B "specialize.boundary" . forall3 "a" "b" "g" $ \a b g ->
