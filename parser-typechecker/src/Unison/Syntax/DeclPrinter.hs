@@ -201,7 +201,7 @@ prettyDataDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r n
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
       Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
-      Just ts -> case getFieldAndAccessorNames unsuffixifiedPPE r name dd of
+      Just ts -> case getFieldAndAccessorNames unsuffixifiedPPE r name dd <|> fieldAndAccessorNamesByFQN of
         Nothing ->
           pure
             . P.group
@@ -233,6 +233,15 @@ prettyDataDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r n
           <> fmt S.TypeAscriptionColon " :"
             `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader guid name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
+    -- Docs print a type under a suffixified name (e.g. `Record` for `foo.Record`), and may suffixify the accessors'
+    -- names too, so they don't line up; in that case, look for the accessors by their fully-qualified names instead.
+    fieldAndAccessorNamesByFQN = do
+      shownName <- HQ.toName name
+      typename <- PPE.typeFQN unsuffixifiedPPE r
+      guard (typename `Name.endsWith` shownName)
+      let fqnOnly names = [(fqn, fqn) | (fqn, _) <- names]
+          fqnPPE = PPE.PrettyPrintEnv (fqnOnly . PPE.termNames unsuffixifiedPPE) (fqnOnly . PPE.typeNames unsuffixifiedPPE)
+      getFieldAndAccessorNames fqnPPE r (HQ.NameOnly typename) dd
 
 -- This function determines if a data declaration "looks like a record", and if so, returns both its auto-generated
 -- accessor names (such as "Pt.x.set") and field names (such as "x"). Because we generate three accessors per field,
