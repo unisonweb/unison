@@ -366,13 +366,23 @@ When everything a piece of code needs is known, the specializer does not walk it
 ```haskell
 -- A term whose free variables are all known, run on the interpreter.
 runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
-runIfKnown env e t = do
-  let fvs = S.toList (ABTN.freeVars t)
-      abss = map (look e) fvs
-  allKnown env abss >>= \case
-    Nothing -> pure Nothing
-    Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
+runIfKnown env e t =
+  if S.disjoint (ABTN.freeVars t) (eUnknown e)
+    then
+      allKnown env abss >>= \case
+        Nothing -> pure Nothing
+        Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
+    else pure Nothing
+  where
+    fvs = S.toList (ABTN.freeVars t)
+    abss = map (look e) fvs
 ```
+
+The check is cheap when the answer is no, which is the case where the walk goes on into the term and may ask again about each part of it:
+
+- The environment keeps the set of its variables that aren't fully known (`eUnknown`). The test is whether that set and the term's free variables, which every term caches, have anything in common. `Set.disjoint` stops at the first variable they share and takes at most about the size of the smaller set.
+- Whether one value is fully known is a constant-time question (`fullyKnown`). A constructor or closure records it when it is made, from the same answer for each of its parts.
+- Known values are built for the interpreter only once the test has passed.
 
 The same applies to a call whose function and arguments are all known. This matters for two reasons:
 
@@ -878,7 +888,6 @@ What the specializer does not do today, each of which falls back to correct but 
 - **A residual function's result is unknown to its caller.** If a loop always returns a pair, the caller still matches on it at run time. A worker/wrapper split, where the function returns only the unknown parts and the caller rebuilds the known shape, is prototyped on a branch. It was correct on all 1,200 test programs but showed no measurable gain yet, so it is not merged.
 - **The whistle's cost.** The embedding test keeps its answer for each pair of subterms, so it takes time proportional to size(a) × size(b). If that ever matters, a tag-bag whistle compares multisets of source-location tags instead of trees (Mitchell 2010; Bolingbroke and Peyton Jones 2010). Tag-bags are cheaper but coarser, so they may generalize sooner.
 - **A loop inside a loop is walked once per loop around it.** Going back to the start of a loop discards what was generated since, including any loop finished inside it, which is then generated again. The steps taken still count against the budget.
-- **`runIfKnown` can take quadratic time.** Each `handle` block and each term `partialEval` has no case for checks all of its free variables against the environment. A block nested inside another is checked again with its own free variables, so the cost is the nesting depth times the number of free variables. The check also doesn't stop at the first unknown variable, and for a partly known constructor or closure it rebuilds the known parts as values each time (`allKnown`, `knownVal`). An idea for later: keep, per variable, whether it is fully known, or stop the check at the first unknown.
 - **Mutable values are opaque.** A known `Ref` is passed along, and every read stays in the output.
 
 ## A map of the code

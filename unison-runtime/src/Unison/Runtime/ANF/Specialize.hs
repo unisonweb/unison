@@ -129,10 +129,12 @@ data Abs
   = -- | known entirely; the variable holding it in the output, if there is
     -- one already (an argument of the specialized closure)
     Known Val (Maybe Symbol)
-  | -- | a known constructor with partially known fields
-    Con Reference CTag [Abs]
-  | -- | a known function partially applied to partially known arguments
-    Clo Fn [Abs]
+  | -- | a known constructor with partially known fields, and whether
+    -- every one is fully known ('fullyKnown'); made and matched as 'Con'
+    Con_ Bool Reference CTag [Abs]
+  | -- | a known function partially applied to partially known arguments,
+    -- and whether every one is fully known; made and matched as 'Clo'
+    Clo_ Bool Fn [Abs]
   | -- | unknown: a variable of the output, and how it is held
     Dyn Symbol Mem
   | -- | a request handled while specializing (a fused handler's argument):
@@ -145,6 +147,28 @@ data Abs
   | -- | the request a bridge's handler is given, unknown: its variable, and
     -- the number of the bridge's frames ('bridgeFn')
     SBridge Symbol Int
+
+pattern Con :: Reference -> CTag -> [Abs] -> Abs
+pattern Con r t fields <- Con_ _ r t fields
+  where
+    Con r t fields = Con_ (all fullyKnown fields) r t fields
+
+pattern Clo :: Fn -> [Abs] -> Abs
+pattern Clo f args <- Clo_ _ f args
+  where
+    Clo f args = Clo_ (all fullyKnown args) f args
+
+{-# COMPLETE Known, Con, Clo, Dyn, SReq, SPure, SKont, SBridge #-}
+
+-- | Whether nothing in the value is unknown, in constant time: a
+-- constructor or a closure records it when it is made. A value that isn't
+-- fully known can't be built as a value of the interpreter ('knownVal').
+fullyKnown :: Abs -> Bool
+fullyKnown = \case
+  Known {} -> True
+  Con_ known _ _ _ -> known
+  Clo_ known _ _ -> known
+  _ -> False
 
 -- | The key of a residual function: the function, and what is known of
 -- its arguments, with each unknown one a hole.
@@ -329,6 +353,9 @@ type M = StateT S IO
 
 data E = E
   { eVars :: M.Map Symbol Abs,
+    -- | the variables of 'eVars' that aren't 'fullyKnown': a term with one
+    -- of them free can't be run ('runIfKnown')
+    eUnknown :: S.Set Symbol,
     -- | whether an unknown match has been residualized above, in the
     -- residual function being built
     eUnderDyn :: !Bool,
@@ -417,7 +444,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                               ++ zip (drop (length args) vs) (zipWith Dyn restSyms restMems)
                           -- the entry is the first call being unfolded
                           -- (its number is 0)
-                          e0 = E (M.fromList (localBinds r locals ++ binds)) False 0 [(Fn r i, map (keyOf . snd) binds, [], 0)]
+                          e0 = newEnv (localBinds r locals ++ binds) False 0 [(Fn r i, map (keyOf . snd) binds, [], 0)]
                       body0 <-
                         unfolding 0 (partialEval env lim e0 body KTail) $
                           residualCall env lim (Fn r i) (map snd binds) KTail
@@ -515,7 +542,18 @@ look :: E -> Symbol -> Abs
 look e v = fromMaybe (Dyn v BX) (M.lookup v (eVars e))
 
 bind :: Symbol -> Abs -> E -> E
-bind v a e = e {eVars = M.insert v a (eVars e)}
+bind v a e =
+  e
+    { eVars = M.insert v a (eVars e),
+      eUnknown = (if fullyKnown a then S.delete else S.insert) v (eUnknown e)
+    }
+
+-- | The environment of a function's body: its variables, whether an
+-- unknown match is above, the depth, and the calls being unfolded.
+newEnv :: [(Symbol, Abs)] -> Bool -> Int -> [(Fn, [KArg], [KArg], Int)] -> E
+newEnv binds = E vars (M.keysSet (M.filter (not . fullyKnown) vars))
+  where
+    vars = M.fromList binds
 
 ret :: K -> Abs -> M Term
 ret KTail a = toVar a (pure . TVar)
@@ -793,7 +831,7 @@ call env lim e fa as k = case fa of
                   any grown [(f, ks) | (f, ks, _, _) <- eStack e]
                     || any grown building
                     || M.member (Key 0 behindRefs fn k0) memo
-                e' hk uid = E (M.fromList (localBinds r locals ++ zip vs args)) (eUnderDyn e) (eDepth e + 1) ((fn, k0, hk, uid) : eStack e)
+                e' hk uid = newEnv (localBinds r locals ++ zip vs args) (eUnderDyn e) (eDepth e + 1) ((fn, k0, hk, uid) : eStack e)
                 -- the same call again: the same key, under fused handlers
                 -- in the same states (a loop whose first round has a
                 -- handler's state known and the rest don't is not the
@@ -1078,7 +1116,7 @@ restAsFunction env lim innerTmpls tmpl outside f rest above vm = do
       pureR a = do
         now <- gets (find (\g -> isFused g && frId g == rid) . sFrames)
         modify' \st -> st {sFrames = filter (\g -> not (isFused g && frId g == rid)) (sFrames st)}
-        callHandler env lim (E M.empty False 0 []) (maybe hFilled frHandler now) (SPure a) end
+        callHandler env lim (newEnv [] False 0 []) (maybe hFilled frHandler now) (SPure a) end
   put
     outer
       { sNextId = rid + 1 + (if passing then length outerTmpls else 0),
@@ -1336,7 +1374,7 @@ residualFnAs valued env lim fs fn args0 = do
               allArgs' = evalState (traverse renameLeaves allArgs) params
               args' = take (length args0) allArgs'
               Fn r _ = fn
-              e' = E (M.fromList (localBinds r locals ++ zip vs args')) False 0 []
+              e' = newEnv (localBinds r locals ++ zip vs args') False 0 []
           kp <- freshNamed (syn "k")
           outer <- get
           -- A continuation captured while specializing emits its code
@@ -1493,7 +1531,7 @@ bridgeFn env lim wide fs = case fs of
                   sBridgeOf = M.insert rid (g, wide) (sBridgeOf outer)
                 }
             s1 <- get
-            liftIO (Control.Exception.try (runStateT (callHandler env lim (E M.empty False 0 []) h' (SBridge req rid) (KAbort rid 0)) s1)) >>= \case
+            liftIO (Control.Exception.try (runStateT (callHandler env lim (newEnv [] False 0 []) h' (SBridge req rid) (KAbort rid 0)) s1)) >>= \case
               Right (body, s2) -> do
                 put s2
                 finish outer g mems params req body
@@ -2168,7 +2206,7 @@ callHandler env lim e h arg k = case h of
   Clo fn@(Fn r _) caps
     | Just (lam@(Lambda _ (ABTN.TAbss vs body)), locals) <- lambdaOf env fn,
       length caps + 1 == lamArity lam ->
-        partialEval env lim (E (M.fromList (localBinds r locals ++ zip vs (caps ++ [arg]))) False (eDepth e + 1) (eStack e)) body k
+        partialEval env lim (newEnv (localBinds r locals ++ zip vs (caps ++ [arg])) False (eDepth e + 1) (eStack e)) body k
   Known v _ | Just (fn, caps) <- knownClosure env v -> callHandler env lim e (Clo fn caps) arg k
   _ -> guardFused "a handler that isn't a known function" >> giveUp "a fused handler that isn't a known function"
 
@@ -2433,7 +2471,9 @@ knownIntegral = \case
 -- | Every value known, as values: constructors and closures with every
 -- part known are built.
 allKnown :: SpecEnv -> [Abs] -> M (Maybe [Val])
-allKnown env = fmap sequence . traverse (knownVal env)
+allKnown env as
+  | all fullyKnown as = sequence <$> traverse (knownVal env) as
+  | otherwise = pure Nothing
 
 knownVal :: SpecEnv -> Abs -> M (Maybe Val)
 knownVal env = \case
@@ -2516,13 +2556,16 @@ toVar a k = case a of
 
 -- | A term whose free variables are all known, run on the interpreter.
 runIfKnown :: SpecEnv -> E -> Term -> M (Maybe Val)
-runIfKnown env e t = do
-  let fvs = S.toList (ABTN.freeVars t)
-      abss = map (look e) fvs
-  allKnown env abss >>= \case
-    Nothing -> pure Nothing
-    Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
+runIfKnown env e t =
+  if S.disjoint (ABTN.freeVars t) (eUnknown e)
+    then
+      allKnown env abss >>= \case
+        Nothing -> pure Nothing
+        Just vs -> liftIO (seRunTerm env (zip fvs (map memOf abss)) t vs)
+    else pure Nothing
   where
+    fvs = S.toList (ABTN.freeVars t)
+    abss = map (look e) fvs
     memOf = \case
       Known v _ | unboxedVal v -> UN
       Dyn _ m -> m
