@@ -24,6 +24,7 @@ import Control.Exception (throwIO)
 import Control.Exception qualified
 import Control.Monad.State.Strict
 import Data.Char (ord)
+import Data.Graph qualified as Graph
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.IntMap.Strict qualified as IM
 import Data.List (find, mapAccumL)
@@ -468,7 +469,7 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                               let xs = M.findWithDefault [] f free
                             ]
                       joins <- gets sJoinFns
-                      (fns, body') <- inlineFns joins fns1 (threadConsts free body0)
+                      let (fns, body') = inlineFns joins fns1 (threadConsts free body0)
                       let needs = constNeeds constSyms fns
                           thread = renumberLets . threadConsts needs
                           entry =
@@ -2616,70 +2617,155 @@ renumber = go
 -- when called once or small, and those recursive through other functions
 -- when not too big. That cleans up the partial evaluator's habit of making
 -- a residual function at every call under an unknown match.
-inlineFns :: S.Set Symbol -> [(Symbol, SuperNormal Reference Symbol)] -> Term -> M ([(Symbol, SuperNormal Reference Symbol)], Term)
-inlineFns joins fns body = case find inlinableJoin fns <|> find inlinable fns of
-  Nothing -> pure (fns, body)
-  Just (f, lam) -> do
-    body' <- inlineCalls f lam body
-    rest <-
-      for [(g, l) | (g, l) <- fns, g /= f] \(g, Lambda ms (ABTN.TAbss ps bd)) ->
-        (\bd' -> (g, Lambda ms (ABTN.TAbss ps bd'))) <$> inlineCalls f lam bd
-    inlineFns joins rest body'
+inlineFns :: S.Set Symbol -> [(Symbol, SuperNormal Reference Symbol)] -> Term -> ([(Symbol, SuperNormal Reference Symbol)], Term)
+inlineFns joins fns0 body0 =
+  rounds (map fst fns0) infos0 (inlineInfo names0 body0) totals0 (holders inCloses) (holders inHandles)
   where
-    names = S.fromList (map fst fns)
-    bodies = body : [bd | (_, Lambda _ (ABTN.TAbss _ bd)) <- fns]
-    calls f = sum [length [() | AApp (FVar g) _ <- nodes bd, g == f] | bd <- bodies]
-    closed f = or [g == f | bd <- bodies, AName (Right g) _ _ <- nodes bd]
-    graph = M.fromList [(g, refsIn names bd) | (g, Lambda _ (ABTN.TAbss _ bd)) <- fns]
-    recursive f = reaches S.empty (S.toList (M.findWithDefault S.empty f graph))
+    names0 = S.fromList (map fst fns0)
+    sigs = M.fromList [(f, (ms, ps)) | (f, Lambda ms (ABTN.TAbss ps _)) <- fns0]
+    infos0 = M.fromList [(f, inlineInfo names0 bd) | (f, Lambda _ (ABTN.TAbss _ bd)) <- fns0]
+    all0 = inlineInfo names0 body0 : M.elems infos0
+    totals0 = M.unionsWith (+) (map inCalls all0)
+    holders part = M.unionsWith (+) [M.fromSet (const (1 :: Int)) (part i) | i <- all0]
+    -- A function is recursive when it is on a cycle of calls. Inlining one
+    -- function into its callers leaves every other function on a cycle
+    -- exactly when it was on one before: a cycle through the function
+    -- inlined goes through its caller now, and no call is added that
+    -- wasn't a path. So the cycles are found once.
+    recursive =
+      S.fromList . concat $
+        [ vs
+        | Graph.CyclicSCC vs <-
+            Graph.stronglyConnComp [(f, f, S.toList (inlineRefs i)) | (f, i) <- M.toList infos0]
+        ]
+    rounds order infos entry totals closers handlers =
+      case find inlinableJoin order <|> find inlinable order of
+        Nothing ->
+          ( [ (f, Lambda ms (ABTN.TAbss ps (inBody (infos M.! f))))
+            | f <- order,
+              let (ms, ps) = sigs M.! f
+            ],
+            inBody entry
+          )
+        Just f ->
+          rounds
+            (filter (/= f) order)
+            (M.map paste (M.delete f infos))
+            (paste entry)
+            (M.delete f (M.unionWith (+) totals (M.map (* (calls f - 1)) (inCalls fi))))
+            (moved inCloses closers)
+            (moved inHandles handlers)
+          where
+            fi = infos M.! f
+            (_, ps) = sigs M.! f
+            -- the function's body in place of each of its calls in a
+            -- caller, and what is counted of the caller brought up to date
+            -- from the counts of the two, without reading the new body
+            paste g = case M.lookup f (inCalls g) of
+              Nothing -> g
+              Just k ->
+                Inlining
+                  { inBody = inlineCalls f ps (inBody fi) (inBody g),
+                    inSize = inSize g + k * (inSize fi - 1),
+                    inCalls = M.unionWith (+) (M.delete f (inCalls g)) (M.map (* k) (inCalls fi)),
+                    inCloses = inCloses g <> inCloses fi,
+                    inHandles = inHandles g <> inHandles fi
+                  }
+            -- how many bodies make a closure of (or handle the call of)
+            -- each function: the callers gain what the function had and
+            -- they lacked, and the function's own are gone
+            moved part count =
+              M.unionWith
+                (+)
+                count
+                ( M.unionsWith
+                    (+)
+                    ( M.fromSet (const (-1)) (part fi)
+                        : [ M.fromSet (const 1) (part fi S.\\ part g)
+                          | g <- entry : M.elems (M.delete f infos),
+                            M.member f (inCalls g)
+                          ]
+                    )
+                )
       where
-        reaches _ [] = False
-        reaches seen (g : gs)
-          | g == f = True
-          | S.member g seen = reaches seen gs
-          | otherwise = reaches (S.insert g seen) (S.toList (M.findWithDefault S.empty g graph) ++ gs)
-    -- a function recursive only through others, if small, goes into its
-    -- callers, leaving one that calls itself as the loop (GHC's loop
-    -- breaker): fib's two halves become one function, which saves a call
-    -- per round
-    selfCalls f bd = S.member f (refsIn names bd)
-    -- the body of a kept handler stays a call ('handledBody')
-    handled f = or [g == f | bd <- bodies, AHnd _ _ _ (TApp (FVar g) _) <- nodes bd]
-    -- A join point is shared to keep the code from doubling at every
-    -- match, and a call of it costs what a copy doesn't. One with a single
-    -- call goes into it. One with more is copied into them if the copies
-    -- add little, which bounds what each match adds; of those the
-    -- innermost go first, so that one is judged with the join points it
-    -- calls already in it: an outer one copied first would double the
-    -- calls of the next, and so on down. And join points go
-    -- before any other function: a loop's function copied into the join
-    -- points it calls gives each of them more calls, and leaves a call
-    -- per join point in every round of the loop.
-    inlinableJoin (f, Lambda _ (ABTN.TAbss _ bd)) =
-      S.member f joins
-        && not (closed f || selfCalls f bd || handled f)
-        && ( calls f == 1
-               || S.null (S.delete f (refsIn (S.intersection joins names) bd))
-                 && length (nodes bd) * (calls f - 1) <= joinCopyLimit
-           )
+        calls f = M.findWithDefault 0 f totals
+        closed f = M.findWithDefault 0 f closers > 0
+        -- the body of a kept handler stays a call ('handledBody')
+        handled f = M.findWithDefault 0 f handlers > 0
+        -- a function recursive only through others, if small, goes into its
+        -- callers, leaving one that calls itself as the loop (GHC's loop
+        -- breaker): fib's two halves become one function, which saves a call
+        -- per round
+        selfCalls f = S.member f (inlineRefs (infos M.! f))
+        -- A join point is shared to keep the code from doubling at every
+        -- match, and a call of it costs what a copy doesn't. One with a single
+        -- call goes into it. One with more is copied into them if the copies
+        -- add little, which bounds what each match adds; of those the
+        -- innermost go first, so that one is judged with the join points it
+        -- calls already in it: an outer one copied first would double the
+        -- calls of the next, and so on down. And join points go
+        -- before any other function: a loop's function copied into the join
+        -- points it calls gives each of them more calls, and leaves a call
+        -- per join point in every round of the loop.
+        inlinableJoin f =
+          S.member f joins
+            && not (closed f || selfCalls f || handled f)
+            && ( calls f == 1
+                   || S.null (S.delete f (S.intersection joins (inlineRefs i)))
+                     && inSize i * (calls f - 1) <= joinCopyLimit
+               )
+          where
+            i = infos M.! f
+        inlinable f
+          | closed f || selfCalls f || handled f || S.member f joins = False
+          | S.member f recursive = inSize (infos M.! f) <= 40
+          | otherwise = calls f == 1 || inSize (infos M.! f) <= 4
     -- how many nodes copying a join point into its callers may add
     joinCopyLimit = 100 :: Int
-    inlinable (f, Lambda _ (ABTN.TAbss _ bd))
-      | closed f || selfCalls f bd || handled f || S.member f joins = False
-      | recursive f = length (nodes bd) <= 40
-      | otherwise = calls f == 1 || length (nodes bd) <= 4
 
--- | Each call of a residual function replaced by its body, with its
--- parameters renamed to the arguments. The copies keep the names their
--- binders had, so a name can be bound more than once after this.
-inlineCalls :: Symbol -> SuperNormal Reference Symbol -> Term -> M Term
-inlineCalls f (Lambda _ (ABTN.TAbss ps bd)) = go
+-- | What 'inlineFns' keeps of a body, so that a round reads no body: the
+-- body (a function's under its parameters), how many nodes it has, how
+-- many times it calls each residual function, and the residual functions
+-- it makes closures of and those whose call it handles.
+data Inlining = Inlining
+  { inBody :: Term,
+    inSize :: !Int,
+    inCalls :: M.Map Symbol Int,
+    inCloses :: S.Set Symbol,
+    inHandles :: S.Set Symbol
+  }
+
+inlineInfo :: S.Set Symbol -> Term -> Inlining
+inlineInfo names bd =
+  Inlining
+    { inBody = bd,
+      inSize = length ns,
+      inCalls = M.fromListWith (+) [(g, 1) | AApp (FVar g) _ <- ns, S.member g names],
+      inCloses = S.fromList [g | AName (Right g) _ _ <- ns, S.member g names],
+      inHandles = S.fromList [g | AHnd _ _ _ (TApp (FVar g) _) <- ns, S.member g names]
+    }
   where
-    go = \case
-      TApp (FVar g) xs
-        | g == f, length xs == length ps -> pure (ABTN.renames (M.fromList (zip ps xs)) bd)
-      ABTN.TAbs v b -> ABTN.TAbs v <$> go b
-      ABTN.TTm x -> ABTN.TTm <$> traverse go x
+    ns = nodes bd
+
+-- | The residual functions a body calls or makes closures of.
+inlineRefs :: Inlining -> S.Set Symbol
+inlineRefs i = M.keysSet (inCalls i) <> inCloses i
+
+-- | Each call of a residual function, given its parameters and body,
+-- replaced by the body with the parameters renamed to the arguments. A
+-- part of the term the function isn't free in is left as it is, unread.
+-- The copies keep the names their binders had, so a name can be bound more
+-- than once after this.
+inlineCalls :: Symbol -> [Symbol] -> Term -> Term -> Term
+inlineCalls f ps bd = go
+  where
+    go t
+      | S.notMember f (ABTN.freeVars t) = t
+      | otherwise = case t of
+          TApp (FVar g) xs
+            | g == f, length xs == length ps -> ABTN.renames (M.fromList (zip ps xs)) bd
+          ABTN.TAbs v b -> ABTN.TAbs v (go b)
+          ABTN.TTm x -> ABTN.TTm (fmap go x)
 
 -- | Every node of a term.
 nodes :: Term -> [ANormalF Reference Symbol Term]
