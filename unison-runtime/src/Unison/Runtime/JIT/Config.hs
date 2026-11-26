@@ -337,10 +337,18 @@ jitDump msg = hPutStrLn stderr msg >> hFlush stderr
 -- attributes, without @jump-threading@ and @loop-rotate@ the status
 -- switch after an inlined call and the loop shape, without @loop-unroll@
 -- the peeled first iteration of a loop that calls a closure).
+--
+-- Each @instcombine@ is @instcombine<no-verify-fixpoint>@. Written in a
+-- pipeline's text, the pass turns on a self-check meant for LLVM's own
+-- tests, which aborts the process when one round of combining leaves
+-- something a second round would simplify. @default<O2>@ builds the pass
+-- with the check off, and valid code sets it off: a match on a number with
+-- an arm that computes from that number again did. The code generated is
+-- the same either way.
 defaultPasses :: String
 defaultPasses =
-  "function(mem2reg,sroa,early-cse,simplifycfg,instcombine),ipsccp,"
-    ++ "cgscc(inline,function-attrs,function(sroa,early-cse<memssa>,simplifycfg,instcombine,"
+  "function(mem2reg,sroa,early-cse,simplifycfg,instcombine<no-verify-fixpoint>),ipsccp,"
+    ++ "cgscc(inline,function-attrs,function(sroa,early-cse<memssa>,simplifycfg,instcombine<no-verify-fixpoint>,"
     ++ "jump-threading,correlated-propagation,loop-mssa(loop-rotate,licm,simple-loop-unswitch),"
-    ++ "simplifycfg,instcombine,gvn,sccp,dse,loop-unroll,instcombine,adce,simplifycfg)),"
+    ++ "simplifycfg,instcombine<no-verify-fixpoint>,gvn,sccp,dse,loop-unroll,instcombine<no-verify-fixpoint>,adce,simplifycfg)),"
     ++ "function(simplifycfg),globaldce"
