@@ -414,23 +414,21 @@ count n =
 
 So `runSt 2 do count 4` is 2 + 4 + 3 + 2 + 1 = 12.
 
-There are three levels of specialization of handle blocks, tried in order.
+A `handle` block is specialized in one of three ways. They are tried in this order, and each is the fallback for the one before it:
+
+1. **Everything is known:** the block is run.
+2. **The handler is known:** the handler is removed from the output.
+3. **Otherwise:** the handler stays, and the code inside the block is specialized.
+
+The examples below take a `()` as their first argument, so that `specialize f ()` specializes `f` with nothing else known.
 
 ### 1. Everything known: it runs
 
 A `handle` block whose free variables are all known is run on the interpreter, like any other known code. `runSt 2 do count 4` becomes `12`.
 
-### 2. The handler stays, its body is specialized
+### 2. The handler is known: it is fused away
 
-When the block has unknown variables and the handler can't be removed (level 3, which is tried first), the `handle` stays in the output. It is an ordinary handler, installed at run time.
-
-The code inside the block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
-
-This level alone is often enough. Take an interpreter whose `eval` calls `abort` when a division is by zero, run under a handler for `Abort`. Specializing it on a program removes all the dispatch on the program, as before. What is left is the program's arithmetic, with an `abort` request where a division can fail, inside one `handle`.
-
-### 3. Fusing the handler away
-
-If the handler is a known function, the specializer tries to remove the `handle` from the output entirely.
+If the handler is a known function, the specializer tries to remove the `handle` from the output entirely. This is called *fusing* the handler.
 
 The idea is that a request is a call to the handler, passing it the rest of the block as a continuation. When the handler is a known function, that call can be unfolded like any other call.
 
@@ -441,94 +439,325 @@ So no `handle` is emitted. The partial evaluator records which handler is in for
 3. **The case's continuation `k` stands for the rest of the block** after the request (`SKont`). The partial evaluator already has this in hand: it is its own `K` at the request. This is another reason `partialEval` is in continuation-passing style.
 4. **When the case calls `k v`,** the partial evaluator goes on with the rest of the block, with `v` as the result of the request.
 
-Here is `runSt s do St.put (St.get + n)`, with `s` and `n` unknown. `runSt` is unfolded, and the handler in force is `go s`:
+Here is an example, with `s` and `n` unknown:
 
 ```unison
-runSt s p =
-  go s = cases
-    { a } -> a
-    { St.get -> k } -> handle k s with go s
-    { St.put s' -> k } -> handle k () with go s'
-  handle p () with go s
+straight _ s n = runSt s do
+  St.put (St.get + n)
+  St.put (St.get * 2)
+  St.get
 ```
+
+`runSt` is unfolded, and the handler in force is `go s`. Then, request by request:
 
 - **`St.get`.** `go s` is called on it, which picks the case `handle k s with go s`. So the block goes on with `s` as the result of `St.get`, still under `go s`. Nothing is emitted.
-- **`St.get + n`** is now `s + n`. Both are unknown, so the addition is emitted, and its result is a variable `v`.
-- **`St.put v`.** `go s` is called on it, which picks `handle k () with go s'`, with `s'` being `v`. So the block goes on with `()`, and the handler in force is now `go v`. Nothing is emitted.
+- **`St.get + n`** is now `s + n`. Both are unknown, so the addition is emitted, and its result is a variable `v1`.
+- **`St.put v1`.** `go s` is called on it, which picks `handle k () with go s'`, with `s'` being `v1`. So the block goes on with `()`, and the handler in force is now `go v1`. Nothing is emitted.
+- **The second line** goes the same way, under `go v1`: `St.get` is `v1`, the multiplication is emitted, and the handler in force becomes `go` of its result.
+- **The last `St.get`** is that result, and it is the value of the block. The handler's `{ a } -> a` case returns it.
 
-The output is the one addition. No request, no continuation capture and no handler closure appear in it. The state has become an ordinary variable: first `s`, then `v`.
-
-An abort handler becomes a branch. This is the full residual code for an interpreter with an `Abort` ability, specialized on the program `x * x - 10`, where subtraction below zero aborts:
+This is `runtime.ir (specialize straight ())`:
 
 ```
-prog x =
-  va = x Nat.* x
-  lit = 10
-  v1 = Nat.lt va lit
+straight.specialized#mebq93d67m _ s n =
+  v1 = s Nat.+ n
+  lit = 2
+  v1 Nat.* lit
+```
+
+No request, no continuation capture and no handler closure appear in it. The state has become an ordinary variable.
+
+The handler in force is a closure, here `go s`. The values it holds, here `s`, are called the *handler's state* below. It is whatever the handler carries from one request to the next.
+
+What a case does with its continuation `k` decides what happens to the rest of the block:
+
+- **`handle k v with h'`,** as the last thing the case does: the rest of the block is evaluated under `h'`. Both of `runSt`'s cases are like this.
+- **`k` isn't called:** the rest of the block is dropped. The value of the case is the value of the whole `handle`.
+- **`k v`, with more work after it:** the rest of the block is evaluated, and its value comes back to the case, which carries on.
+
+An abort handler is the second kind, and fusing it turns each `abort` into a branch:
+
+```unison
+ability Abort where
+  abort : a
+
+safeDiv : Nat -> Nat ->{Abort} Nat
+safeDiv a b = if b == 0 then abort else a / b
+
+orElse : a -> '{g, Abort} a ->{g} a
+orElse d p = handle p () with cases
+  { a } -> a
+  { abort -> _ } -> d
+
+divs _ a b = orElse 0 do safeDiv a b + safeDiv b a
+```
+
+This is `runtime.ir (specialize divs ())`. Where `abort` was, the output is just `0`, the value of the whole `handle`:
+
+```
+divs.specialized#k5df05hqsq _ a b =
+  lit = 0
+  v1 = b == lit
   match v1 with
     false ->
-      r = Nat.drop va 10
-      Some r
-    _ -> None
+      r = a Nat./ b
+      lit1 = 0
+      v2 = a == lit1
+      match v2 with
+        false ->
+          r1 = b Nat./ a
+          r Nat.+ r1
+        _ -> 0
+    _ -> 0
 ```
 
-The evaluator keeps the handlers in force as a stack of frames in its state, and for each one where its body's value goes. A case that does not resume drops the rest of the body; `handle k v with h'` carries on under `h'`; a plain `k v` returns to the case, which can do more work after.
+That is all there is to fusing when the block is straight-line code. Three things in a block need more: a loop, a match on an unknown value, and a call to an unknown function. Each has its own section below.
 
-### Loops under a fused handler: passing the state
+### A loop inside a fused handler
 
-A recursive function under a fused handler cannot be unfolded forever, and a residual function cannot make requests to a handler that no longer exists. So the residual function is given the handler's state as an extra parameter and returns it:
+Take `runSt s do count n` with `n` unknown. `count` recurses on an unknown `n`, so it can't be unfolded forever. As in "Recursion and termination", it has to become a residual function, `count'`, that calls itself.
 
-- **Each fused handler in force is one more argument.**
-- **At its end the function returns `Right (result, state)`.**
-- **A case that does not resume returns `Left value`,** the value of the whole `handle`.
-- **The call site matches on the result** and carries on fused, with the state it got back.
+But `count'` makes `St.get` and `St.put` requests, and the output has no handler to send them to. And the caller needs to know the handler's state after the loop, to go on handling requests after it.
 
-So `runSt s do count n`, with `count` a loop that reads and writes the state each round, becomes a two-parameter loop over `n` and the state, running as fast as the same loop written by hand without abilities.
-
-State passing needs every resuming case to re-install the handler as its last act. When a case does more after resuming, or resumes twice (a nondeterminism handler), the loop instead takes the rest of the caller's body as a function parameter and returns the `handle`'s value.
-
-### Join points
-
-Under a fused handler, the code after an unknown match cannot simply follow the match in the output, because a request inside an arm must see all of its continuation. Copying the rest of the walk into every arm is correct but doubles the code at each `if`. Instead the rest becomes a *join point*: a small residual function of the values the arms produce and the handler states they end with, called at the end of each arm. The arms are walked first, what they produce is generalized together to find the parameters, and the rest is walked once.
-
-### The bridge: unknown code under a fused handler
-
-A call of an unknown function is the hard case: its code is not walked, so its requests are real, and there is no real handler to catch them. The call is made under one, built from the fused handler's own cases:
-
-```haskell
-bridgeCall env lim code k = do
-  fs <- gets (takeWhile isFused . sFrames)
-  (hf, tmpls, leaves) <- bridgeFn env lim False fs
-  toVars (concat leaves) \xs -> do
-    h <- freshNamed (syn "bridge")
-    r <- freshNamed (syn "r")
-    rest <- resultMatch fs tmpls r k
-    pure (TName h (Right hf) xs (TLets (Indirect n) [r] [BX] (THnd (concatMap frRefs fs) h Nothing code) rest))
-```
-
-The bridge takes the handler's state and gives it back in the same `Right (result, state)` or `Left value` form a state-passing loop uses, so the call site continues the same way. For `runSt s do St.put (f St.get); St.get` with `f` unknown, the output is:
+So the residual function takes the handler's state as an extra parameter, and returns the state along with its result. This is `runtime.ir (specialize loop ())`, for `loop _ s n = runSt s do count n`:
 
 ```
-s f =
-  bridge' general request =
-    match request with
-      {St.get} ->
-        cont1 = shift {St}
-        bridge1 = partialApply bridge' general
-        handle {St} cont1 general with bridge1
-      {put s'} ->
-        cont2 = shift {St}
-        bridge2 = partialApply bridge' s'
-        handle {St} cont2 () with bridge2
-      {r2} -> Right (r2, general)
-  bridge = partialApply bridge' s
-  r = handle {St} f s with bridge
+loop.specialized#sevb7e165n _ s n =
+  count' n1 s2 =
+    lit = 0
+    v1 = n1 == lit
+    match v1 with
+      false ->
+        v2 = s2 Nat.+ n1
+        lit1 = 1
+        v3 = Nat.drop n1 lit1
+        count' v3 v2
+      _ ->
+        p1 = (s2, s2)
+        Right p1
+  r = count' n s
   match r with
-    Right (r1, s1) -> r1
+    Right p ->
+      match p with
+        Cons r1 rest ->
+          match rest with
+            Cons s1 rest1 -> r1
     Left done -> done
 ```
 
-The `St.get` before the call became `s`. The `St.put` and the final `St.get` vanished: the result is `r1`, which is both what `f` returned and the state after the put.
+- **`count' n1 s2`** has one more parameter than `count`: `s2`, the handler's state on entry.
+- **Inside it, the handler is fused** as in the straight-line case, starting from `go s2`. `St.put (St.get + n)` became `v2 = s2 + n1`, and the handler's state is then `v2`.
+- **The recursive call passes the state along:** `count' v3 v2`.
+- **At the end it returns `Right (result, state)`.** Here that is `(s2, s2)`, because the result is `St.get`, which is the state.
+- **The caller matches on what comes back.** On `Right (r1, s1)` it goes on with the rest of its block, fused, with `r1` as the result of the call and `go s1` as the handler in force. Here nothing is left to do, so it returns `r1`.
+- **`Left done` is for a case that doesn't call `k`.** Such a case ends the whole `handle`, not just the loop, so the loop returns the `handle`'s value as `Left`, and the caller returns it without going on. `runSt` has no such case, so `count'` never returns `Left`. Under `orElse`, a loop returns `Left` where it aborts.
+
+This only works when every case that resumes does it as `handle k v with h'`, as the last thing it does. Then "the handler's state after the loop" is a meaningful thing to return.
+
+A case that does more work after resuming, or resumes twice, is different: the rest of the block runs in the middle of the case. Here is a handler that counts `tick`s, whose case adds one after resuming:
+
+```unison
+ability Tick where
+  tick : ()
+
+runTick : '{Tick} a -> (Nat, a)
+runTick p =
+  go = cases
+    { a } -> (0, a)
+    { tick -> k } -> match handle k () with go with
+      (n, a) -> (n Nat.+ 1, a)
+  handle p () with go
+
+ticks : Nat ->{Tick} Nat
+ticks n = if Nat.eq n 0 then 0 else
+  tick
+  ticks (Nat.drop n 1) Nat.+ n
+```
+
+For such a handler, the loop's residual function takes the rest of its caller's block as a function parameter, and returns the value of the whole `handle`. This is the loop's part of `runtime.ir (specialize (z n -> runTick do ticks (z Nat.+ n)) 0)`:
+
+```
+ticks' n1 k1 =
+  lit1 = 0
+  v2 = Nat.eq n1 lit1
+  match v2 with
+    false ->
+      lit2 = 1
+      v3 = Nat.drop n1 lit2
+      k2 = partialApply resume1 n1 k1
+      r1 = ticks' v3 k2
+      match r1 with
+        Cons n2 p1 ->
+          match p1 with
+            Cons a p2 ->
+              match p2 with
+                () ->
+                  lit3 = 1
+                  v4 = n2 Nat.+ lit3
+                  (v4, a)
+    _ ->
+      lit4 = 0
+      k1 lit4
+resume1 n1 k1 r2 =
+  r3 = r2 Nat.+ n1
+  k1 r3
+```
+
+`k1` is what the caller does with the result of `ticks`. The recursive call passes `k2`, which adds `n1` and then calls `k1`. The `(v4, a)` after the call is the handler's case adding one. There are still no requests and no handler, but each round allocates a closure for `k2`.
+
+### A match on an unknown value inside a fused handler
+
+Take a block with an `if` on an unknown `b`, and more code after it:
+
+```unison
+joined _ s b n = runSt s do
+  if b then St.put (St.get + n) else St.put 7
+  St.get * n
+```
+
+Outside a fused handler, a match on an unknown value is emitted with its arms, and the code after it follows the match once. Here that doesn't work. The code after the `if` does a `St.get`, and what that gives depends on which arm ran: `s + n` after one, `7` after the other.
+
+There are two ways to deal with this, and the specializer uses both:
+
+- **Copy the code after the match into each arm.** Each copy is specialized for the state its arm ends with. This gives the best code, but a block with several `if`s in a row doubles in size at each one.
+- **Make the code after the match a function,** called at the end of each arm. This is a *join point*. Its parameters are the things that differ between the arms: here, the handler's state.
+
+The specializer first makes a join point. When it is done, a join point that is small is copied back into the arms that call it. That is what happens to `joined`. This is `runtime.ir (specialize joined ())`:
+
+```
+joined.specialized#tggnjereq4 _ s b n =
+  match b with
+    false ->
+      lit = 7
+      lit Nat.* n
+    _ ->
+      v1 = s Nat.+ n
+      v1 Nat.* n
+```
+
+Had the code after the `if` been large, the join point would have stayed a function, and the output would have had this shape:
+
+```
+joined _ s b n =
+  join s1 = s1 Nat.* n
+  match b with
+    false -> join 7
+    _ ->
+      v1 = s Nat.+ n
+      join v1
+```
+
+An arm that doesn't reach the end (it aborts, say) doesn't call the join point.
+
+### A call to an unknown function inside a fused handler: the bridge
+
+Take a block that calls an unknown function `f`:
+
+```unison
+viaU _ s f = runSt s do
+  St.put (f St.get)
+  St.get
+```
+
+`f` can make `St` requests when it runs. The specializer can't see them, because it doesn't have `f`'s code. And the output has no handler to catch them, because the handler was fused away.
+
+So a real handler is put around that one call, and nowhere else. It is called a *bridge*. It is made from the fused handler's own cases, and it gives back what a loop gives back: `Right (result, state)`, or `Left value` if a case didn't call `k`. So the code after the call goes on fused, the same way as after a loop.
+
+This is `runtime.ir (specialize viaU ())`:
+
+```
+viaU.specialized#r1m55nhvjk _ s f =
+  bridge' s2 request =
+    match request with
+      {put s'} ->
+        cont1 = shift {St}
+        con = ()
+        bridge1 = partialApply bridge' s'
+        handle {St}
+          cont1 con
+        with bridge1
+      {St.get} ->
+        cont2 = shift {St}
+        bridge2 = partialApply bridge' s2
+        handle {St}
+          cont2 s2
+        with bridge2
+      {r2} ->
+        p1 = (r2, s2)
+        Right p1
+  bridge = partialApply bridge' s
+  r =
+    handle {St}
+      f s
+    with bridge
+  match r with
+    Right p ->
+      match p with
+        Cons r1 rest ->
+          match rest with
+            Cons s1 rest1 -> r1
+    Left done -> done
+```
+
+- **`f s`:** the `St.get` before the call was fused, so the argument is just `s`.
+- **`handle {St} f s with bridge`** is the only handler in the output. It is in force only while `f` runs.
+- **`bridge' s2 request`** is `runSt`'s `go`, with one change: when `f` returns `r2`, it returns `Right (r2, s2)`, the result and the state `f` left behind.
+- **After the call,** `St.put r1` and the last `St.get` are fused: the block's value is `r1`.
+
+A bridge can only be made for a handler whose cases resume as the last thing they do, like `runSt`. For other handlers, an unknown call in the block means the handler can't be fused, and it is kept (next section).
+
+### 3. Otherwise: the handler stays
+
+When the handler isn't a known function, or fusing it doesn't work out (see "Failing safely"), the `handle` stays in the output. It is an ordinary handler, installed at run time.
+
+The code inside the block is still partially evaluated as usual. The only difference is that an ability request in it is emitted as a request, and the handler handles it at run time.
+
+Here is a handler like `runTick`, around a call to an unknown `f`. Its case does work after resuming, so there is no bridge, and the handler is kept:
+
+```unison
+countTicks : '{g, Tick} a ->{g} Nat
+countTicks p =
+  h = cases
+    { _ } -> 0
+    { tick -> k } -> 1 + (handle k () with h)
+  handle p () with h
+
+keptEx _ f n = countTicks do
+  x = f n
+  if x == 0 then tick else ()
+```
+
+This is `runtime.ir (specialize keptEx ())`. `handled` is the block, `fn` is the handler `h`, and `tick` is still a request:
+
+```
+keptEx.specialized#2ko78n6gln _ f n =
+  handled f n =
+    x = f n
+    lit = 0
+    v1 = x == lit
+    match v1 with
+      false -> ()
+      _ -> tick
+  fn v2 =
+    match v2 with
+      {tick} ->
+        cont1 = shift {Tick}
+        clo1 = partialApply fn
+        v3 =
+          handle {Tick}
+            con = ()
+            cont1 con
+          with clo1
+        lit1 = 1
+        lit1 Nat.+ v3
+      {p1} -> 0
+  clo = partialApply fn
+  handle {Tick}
+    handled f n
+  with clo
+```
+
+This level alone is often enough. Take an interpreter whose `eval` calls `abort` when a division is by zero, run under a handler for `Abort`. Specializing it on a program removes all the dispatch on the program, as before. What is left is the program's arithmetic, with an `abort` request where a division can fail, inside one `handle`.
 
 ## Failing safely
 
@@ -539,7 +768,7 @@ data Escape = Escape Int String   -- back to the fused handler with this number
 data GiveUp = GiveUp String       -- abandon this specialization
 ```
 
-- **`Escape`: keep one handler.** Something in a fused handler's scope could make its requests unseen: a closure escaping as a value, a builtin that calls back into Unison code, a case shape the bridge does not cover. The walker throws `Escape` to that handler's `handle`. The walk's state is rolled back to that point and the `handle` is redone as a kept handler (level 2 above). Everything outside it is unaffected, and other handlers stay fused.
+- **`Escape`: keep one handler.** Something in a fused handler's scope could make its requests unseen: a closure escaping as a value, a builtin that calls back into Unison code, a case shape the bridge does not cover. The walker throws `Escape` to that handler's `handle`. The walk's state is rolled back to that point and the `handle` is redone as a kept handler (level 3 above). Everything outside it is unaffected, and other handlers stay fused.
 - **Retry with no fusion.** If the generated code exceeds its size budget with handlers fused, the whole specialization is redone once with every handler kept. Fused handlers are what copy code.
 - **`GiveUp`: return the original.** If a budget runs out anyway, `specialize f x` returns `f x` unchanged.
 
