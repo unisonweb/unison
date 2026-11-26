@@ -467,15 +467,12 @@ straight.specialized#mebq93d67m _ s n =
 
 No request, no continuation capture and no handler closure appear in it. The state has become an ordinary variable.
 
-The handler in force is a closure, here `go s`. The values it holds, here `s`, are called the *handler's state* below. It is whatever the handler carries from one request to the next.
+Both of `runSt`'s cases resume with `handle k v with h'` as the last thing they do. A case can do two other things with its continuation `k`:
 
-What a case does with its continuation `k` decides what happens to the rest of the block:
+- **Not call it.** The rest of the block is dropped, and the value of the case is the value of the whole `handle`.
+- **Call it and then do more work.** The rest of the block is evaluated, and its value comes back to the case, which carries on.
 
-- **`handle k v with h'`,** as the last thing the case does: the rest of the block is evaluated under `h'`. Both of `runSt`'s cases are like this.
-- **`k` isn't called:** the rest of the block is dropped. The value of the case is the value of the whole `handle`.
-- **`k v`, with more work after it:** the rest of the block is evaluated, and its value comes back to the case, which carries on.
-
-An abort handler is the second kind, and fusing it turns each `abort` into a branch:
+An abort handler is the first kind, and fusing it turns each `abort` into a branch:
 
 ```unison
 ability Abort where
@@ -517,7 +514,9 @@ That is all there is to fusing when the block is straight-line code. Three thing
 
 Take `runSt s do count n` with `n` unknown. `count` recurses on an unknown `n`, so it can't be unfolded forever. As in "Recursion and termination", it has to become a residual function, `count'`, that calls itself.
 
-But `count'` makes `St.get` and `St.put` requests, and the output has no handler to send them to. And the caller needs to know the handler's state after the loop, to go on handling requests after it.
+But `count'` makes `St.get` and `St.put` requests, and the output has no handler to send them to.
+
+The handler in force is a closure, here `go s`. Call the values it holds, here `s`, the *handler's state*. The loop changes it on every round, and the caller needs to know what it is after the loop, to go on handling requests.
 
 So the residual function takes the handler's state as an extra parameter, and returns the state along with its result. This is `runtime.ir (specialize loop ())`, for `loop _ s n = runSt s do count n`:
 
