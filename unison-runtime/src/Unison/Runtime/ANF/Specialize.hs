@@ -452,8 +452,9 @@ specializeLambda1 env lim r i args = case lambdaOf env (Fn r i) of
                       fns0 <- gets sFns
                       let constSyms = argSyms ++ map fst consts
                           -- a join point uses variables of where it is called: they
-                          -- become parameters, before inlining, which renames the
-                          -- variables of the copies it makes
+                          -- become parameters, before inlining: 'freeNeeds' takes
+                          -- every name to be bound once, and two copies of a function
+                          -- bind the same names
                           free = freeNeeds (S.fromList constSyms) fns0
                           mems =
                             M.fromList $
@@ -2669,22 +2670,16 @@ inlineFns joins fns body = case find inlinableJoin fns <|> find inlinable fns of
       | otherwise = calls f == 1 || length (nodes bd) <= 4
 
 -- | Each call of a residual function replaced by its body, with its
--- parameters renamed to the arguments and its binders made fresh.
+-- parameters renamed to the arguments. The copies keep the names their
+-- binders had, so a name can be bound more than once after this.
 inlineCalls :: Symbol -> SuperNormal Reference Symbol -> Term -> M Term
 inlineCalls f (Lambda _ (ABTN.TAbss ps bd)) = go
   where
     go = \case
       TApp (FVar g) xs
-        | g == f, length xs == length ps -> freshenAll (ABTN.renames (M.fromList (zip ps xs)) bd)
+        | g == f, length xs == length ps -> pure (ABTN.renames (M.fromList (zip ps xs)) bd)
       ABTN.TAbs v b -> ABTN.TAbs v <$> go b
       ABTN.TTm x -> ABTN.TTm <$> traverse go x
-
-freshenAll :: Term -> M Term
-freshenAll = \case
-  ABTN.TAbs v b -> do
-    v' <- freshNamed v
-    ABTN.TAbs v' <$> freshenAll (ABTN.rename v v' b)
-  ABTN.TTm x -> ABTN.TTm <$> traverse freshenAll x
 
 -- | Every node of a term.
 nodes :: Term -> [ANormalF Reference Symbol Term]

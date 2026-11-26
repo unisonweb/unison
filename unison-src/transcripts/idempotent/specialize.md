@@ -1321,30 +1321,30 @@ scratch/main> add
                 false ->
                   lit5 = 1
                   v6 = Nat.drop n1 lit5
-                  lit6 = 0
-                  v7 = Nat.eq v6 lit6
-                  match v7 with
+                  lit2 = 0
+                  v3 = Nat.eq v6 lit2
+                  match v3 with
                     false ->
-                      con6 = true
-                      r10 = resume2 acc v6 k2 con6
-                      con7 = false
-                      r11 = resume2 acc v6 k2 con7
-                      r10 List.++ r11
+                      con2 = true
+                      r3 = resume2 acc v6 k2 con2
+                      con3 = false
+                      r4 = resume2 acc v6 k2 con3
+                      r3 List.++ r4
                     _ -> k2 acc
                 _ ->
-                  r12 = acc Nat.+ n1
-                  lit7 = 1
-                  v8 = Nat.drop n1 lit7
-                  lit8 = 0
-                  v9 = Nat.eq v8 lit8
-                  match v9 with
+                  r10 = acc Nat.+ n1
+                  lit6 = 1
+                  v7 = Nat.drop n1 lit6
+                  lit7 = 0
+                  v8 = Nat.eq v7 lit7
+                  match v8 with
                     false ->
-                      con8 = true
-                      r13 = resume2 r12 v8 k2 con8
-                      con9 = false
-                      r14 = resume2 r12 v8 k2 con9
-                      r13 List.++ r14
-                    _ -> k2 r12
+                      con6 = true
+                      r11 = resume2 r10 v7 k2 con6
+                      con = false
+                      r = resume2 r10 v7 k2 con
+                      r11 List.++ r
+                    _ -> k2 r10
             lit = 0
             v1 = Nat.eq n lit
             match v1 with
